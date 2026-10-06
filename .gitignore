@@ -1,0 +1,27 @@
+# Prerequisites
+*.d
+*.o
+*.obj
+*.elf
+*.hex
+*.bin
+
+# PlatformIO
+.pio/
+.pioenvs/
+.piolibdeps/
+.clang_complete
+.gcc-flags.json
+
+# VS Code / IDE
+.vscode/c_cpp_properties.json
+.vscode/.ropeproject
+
+# Credentials / Secrets
+include/secrets.h
+
+# Generated build helper files
+compile_commands.json
+
+# Web build artifacts
+include/dashboard_html_gz.h
