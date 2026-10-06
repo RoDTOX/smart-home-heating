@@ -1,95 +1,66 @@
-# Plan: Sistem Inteligent de Încălzire (Smart Heating) - Octombrie 2026
+# Plan de Lucru Activ (Octombrie 2026) â€“ Smart Home Heating
 
-Plan de proiect dinamic și registru de sarcini inginerești pentru controlerul DIY multi-zonă de încălzire.
-Se actualizează iterativ în urma discuțiilor, analizelor tehnice, testelor pe banc și feedback-ului din teren.
-
-**Status 06.10.2026:** Preanaliză inițială finalizată. Arhitectură agreată (controller autonom ESP32 + Web UI în LittleFS + punte MQTT/Grafana pe Samsung A6 + senzori Xiaomi BLE BTHome v2). Punctele 1–8 sunt schițate la `### Todo`; așteptăm detaliile hardware la `### Puncte deschise`.
-
-Căile de fișiere sunt relative la rădăcina proiectului (`smart-heating/`).
-Ce s-a implementat și verificat se consemnează detaliat în [`docs/changelog_oct2026.md`](file:///c:/Users/BSeceleanu/.github_repos/smart-heating/docs/changelog_oct2026.md).
+Acest document este planul de referinÈ›Äƒ pentru implementarea controlerului autonom multi-zonÄƒ ESP32, integrat cu senzorii Xiaomi BLE (BTHome v2), emiÈ›Äƒtorul RF pentru centralÄƒ È™i interfaÈ›a LittleFS cu schemÄƒ interactivÄƒ SVG.
 
 ---
 
-## Arhitectură, Constatări (Findings) & Configurare Inițială (06.10.2026)
+## ðŸ§  SintezÄƒ ArhitecturÄƒ & Decizii Tehnice
 
-### Preanaliză / Prezentare Generală a Sistemului
+1. **Hardware & Control Relee (CONFIRMAT & COMANDAT):**
+   - **PlacÄƒ:** Modul dedicat **ESP32 cu 4 Relee (Songle 10A 250VAC)**, alimentare 5V / 230V, optocuploare È™i conectori de expansiune GPIO.
+   - **Alocare Relee (Cele 3 Zone Termice conform schemei hidraulice):**
+     - **Releul 1:** Zona Living + BucÄƒtÄƒrie + Dining + Vestibul (comandÄƒ robineÈ›ii 1, 2, 3 Ã®n paralel).
+     - **Releul 2:** Zona Camera Copilului / Dormitor mijloc (comandÄƒ robineÈ›ii 6, 7 Ã®n paralel).
+     - **Releul 3:** Zona Dormitor Matrimonial (comandÄƒ robineÈ›ii 4, 5 Ã®n paralel).
+     - **Releul 4:** RezervÄƒ liberÄƒ (auxiliar / eventualÄƒ separare viitoare bucÄƒtÄƒrie/living).
+   - **Bypass hidraulic & ProtecÈ›ie pompÄƒ:** Cele 2 bÄƒi au calorifere portprosop pe perete (fÄƒrÄƒ circuite Ã®n pardosealÄƒ), cu capete termostatice mecanice deschise permanent. AsigurÄƒ circulaÈ›ie continuÄƒ È™i rÄƒcire chiar dacÄƒ toate cele 3 zone de pardosealÄƒ sunt Ã®nchise.
 
-1. **Autonomie completă la nivel de ESP32 (Edge Controller):**
-   - Microcontroller: **ESP32** (Dual-Core Xtensa, Wi-Fi 2.4 GHz + Bluetooth 4.2 BLE).
-   - Rol principal: Rulează independent state machine-ul termic, bucla de histerezis, protecțiile hidraulice și serverul Web din memoria flash.
-   - Reziliență: Dacă pică rețeaua Wi-Fi, routerul sau telefonul Galaxy A6, încălzirea continuă să funcționeze 100% autonom și în deplină siguranță.
+2. **ComandÄƒ Radio CentralÄƒ TermicÄƒ (CONFIRMAT & IDENTIFICAT):**
+   - Protocol OOK/ASK 433.92 MHz reversat complet din capturile de analizor logic (`control_RF_Centrala.ino` cu 410 tranziÈ›ii, preambul 65 ms, tabele `ondurations` È™i `offdurations`).
+   - Hardware emisie/recepÈ›ie: 2 seturi **SYN115 (TX) + SYN480R (RX)** comandate (cip PLL cu quartz + receptor superheterodin -107 dBm).
+   - EmiÈ›Äƒtorul SYN115 se conecteazÄƒ direct pe un pin GPIO al ESP32 (fÄƒrÄƒ releu mecanic).
 
-2. **Ingestie date senzori (Sistem Hibrid BLE + MQTT):**
-   - **Canal Primar (Direct pe ESP32):** Scanner BLE nativ pe ESP32 care ascultă pasiv pachetele de tip broadcast `BTHome v2` necriptate emise de senzorii Xiaomi LYWSD03MMC. Fără pairing, consum minim, baterie neschimbată 2 ani.
-   - **Canal Secundar (Fallback distanță mare):** Telefonul Galaxy A6 (`smart-home-ble-gateway`) trimite prin MQTT local (`localhost:1883` / broker Wi-Fi) datele camerelor unde semnalul direct BLE până la distribuitor este atenuat de pereții de beton.
+3. **TemperaturÄƒ ExterioarÄƒ & Compensare ClimaticÄƒ (HIBRID):**
+   - **Canal Primar Radio:** StaÈ›ie meteo **Tronic 4-LD7396-2** (IAN `515492_2510`), 433.92 MHz recepÈ›ionatÄƒ via receptorul SYN480R.
+   - **Canal Secundar Fallback:** **Open-Meteo REST API** prin Wi-Fi (testat È™i validat: 13.0Â°C Google/Open-Meteo vs 13.3Â°C senzorul fizic de Nord).
 
-3. **Hidraulică și Acționare:**
-   - Distribuitor / Calorifere: 5–6 zone acționate prin relee la 230V cu actuatoare electrotermice NC (Normal Închis).
-   - Întârziere termică (Interlock Delay): Temporizare de siguranță de 2–3 minute între alimentarea actuatorului și comanda de pornire a flăcării centralei, permițând actuatorului cu parafină să se deschidă fizic.
-   - Comandă flacără centrală: Semnalul radio reverse-engineered (sniffat) este comandat prin releu dedicat sau pin GPIO.
-   - Disipare căldură reziduală (Pump Overrun): Cel puțin un circuit rămâne deschis timp de minim 3 minute după oprirea flăcării pentru protecția schimbătorului primar al centralei.
-
-4. **Interfață Utilizator (Dashboard Web integrat):**
-   - Găzduit 100% în flash-ul ESP32 prin LittleFS (zero cloud, fără dependențe externe de internet sau CDN).
-   - Schemă vectorială interactivă (SVG) a apartamentului cu temperaturi reale, umiditate, starea fiecărui actuator și setpoint per cameră.
-   - Design responsive (PWA - se instalează direct pe ecranul telefonului Android/iOS).
-   - Grafice locale pe ultimele 24 de ore (buffer circular în RAM/Flash); istoric extins sincronizat în PostgreSQL/Grafana pe telefonul A6.
-
----
-
-### Todo
-
-- [ ] **1. Specificație placă relee & alocare pini GPIO** (06.10.2026).
-      *Constatare:* Avem 5–6 zone cu actuatoare electrotermice 230V NC + 1 comandă centrală termică.
-      *Preanaliză:* Este necesară o placă cu 8 relee comandată de ESP32 (ex. placă integrată ESP32-WROOM cu 8 relee și optocuploare sau modul de relee cuplat la un ESP32 DevKit).
-      *Plan:* Stabilirea alocării releelor (Releele 1–6: Actuatori Zone; Releul 7: Comandă Radio Centrală; Releul 8: Auxiliar/Rezervă), sursa de alimentare (230V AC -> 5V DC) și maparea pinilor GPIO.
-
-- [ ] **2. Driver comandă modul radio centrală (semnal sniffat)** (06.10.2026).
-      *Constatare:* Semnalul digital I/O al receptorului radio al centralei a fost capturat cu sniffer logic.
-      *Preanaliză:* Stabilirea naturii electrice a comenzii: simulare contact uscat (releu NO/COM), impuls logic 3.3V/5V dintr-un pin GPIO sau tren de impulsuri serial.
-      *Plan:* Crearea modulului software `BoilerRadioTrigger` cu suport pentru impuls/menținere, confirmare stare și timeout de siguranță failsafe.
-
-- [ ] **3. Scanner nativ BLE pe ESP32 (decodare BTHome v2)** (06.10.2026).
-      *Constatare:* Senzori Xiaomi LYWSD03MMC rulați cu firmware custom (PVVX / BTHome v2).
-      *Preanaliză:* Utilizarea bibliotecii `NimBLE-Arduino` pentru scanare pasivă non-blocantă a pachetelor de advertising BLE.
-      *Plan:* Implementarea serviciului `BleSensorScanner` care decodează temperatura (rezoluție 0.01°C), umiditatea și nivelul bateriei direct din broadcast-urile BTHome v2.
-
-- [ ] **4. Feed hibrid & fallback MQTT Samsung Galaxy A6** (06.10.2026).
-      *Constatare:* Telefonul Galaxy A6 are deja broker Mosquitto și baza de date activă în `smart-home-ble-gateway`.
-      *Preanaliză:* În apartamentele din beton armat, unele camere pot fi la limita razei BLE a ESP32-ului montat în cutia distribuitorului.
-      *Plan:* Implementarea logicii hibride: fiecare zonă își actualizează temperatura din BLE dacă a primit pachet în ultimele 90s; altfel preia valoarea din topicul MQTT publicat de A6. Dacă ambele lipsesc > 30 min, zona intră pe avarie.
-
-- [ ] **5. Controler termic multi-zonă & logica de protecție (Failsafe)** (06.10.2026).
-      *Preanaliză:* Prevenirea cavitației pompei, a comutării dese a flăcării (short-cycling) și a supraîncălzirii.
-      *Plan:* Implementarea modulului `ThermalZoneManager`:
-      - Setpoint per cameră, histerezis configurabil (implicit ±0.3°C).
-      - Delay de deschidere actuator (120–180s) înainte de aprinderea flăcării.
-      - Timp minim de funcționare (3 min) și pauză minimă între porniri (5 min) anti-short-cycling.
-      - Disipare căldură reziduală: menținerea a cel puțin unui circuit deschis timp de 180s după oprirea flăcării.
-
-- [ ] **6. Interfață Web integrată & schemă interactivă apartament (SVG)** (06.10.2026).
-      *Constatare:* Aplicație vizuală care arată temperatura fiecărei camere, schema apartamentului, starea fiecărui circuit din pardoseală/calorifer, programe orare și control la distanță.
-      *Preanaliză:* Tehnologie HTML5 / CSS / Vanilla JS compactată în memoria LittleFS a ESP32-ului.
-      *Plan:* Construirea unui dashboard modern:
-      - Schemă vectorială (SVG) a apartamentului cu zone interactive.
-      - Indicatori live de temperatură, umiditate, slider setpoint și iluminare dinamică a circuitelor active.
-      - Selector de moduri: `Confort`, `Eco`, `Noapte`, `Protecție Îngheț / Plecat`, `Manual`.
-      - API REST / WebSocket (`/api/status`, `/api/zones`, `/api/config`) pentru sincronizare instantanee.
-
-- [ ] **7. Integrare temperatură exterioară (compensare climatică)** (06.10.2026).
-      *Constatare:* Disponibil senzor radio exterior de la stația meteo Tronic (Lidl) 433MHz sau adăugarea unui senzor Xiaomi de exterior.
-      *Preanaliză:* Temperatura exterioară ($T_{ext}$) permite ajustarea curbei de încălzire sau a avansului pornirii când este ger.
-      *Plan:* Arhitectură modulară pentru intrarea exterioară: Opțiunea A = Senzor Xiaomi pus la exterior (BLE/MQTT); Opțiunea B = Receptor RF 433MHz; Opțiunea C = Fallback Open-Meteo REST API când există conexiune internet.
-
-- [ ] **8. Export telemetrie & dashboard Grafana pe Samsung A6** (06.10.2026).
-      *Constatare:* Sinergie completă între funcționarea locală a ESP32 și istoricul de lungă durată din telefonul Galaxy A6.
-      *Plan:* ESP32 publică periodic starea pe MQTT (`smart-heating/zones`, `smart-heating/boiler`, `smart-heating/actuators`) pentru salvare automată în PostgreSQL și afișare în Grafana.
+4. **InterfaÈ›Äƒ Utilizator (Dashboard Web integrat):**
+   - GÄƒzduit 100% Ã®n flash-ul ESP32 prin LittleFS (zero cloud, fÄƒrÄƒ dependenÈ›e externe).
+   - SchemÄƒ vectorialÄƒ SVG derivatÄƒ direct din dimensiunile È™i pereÈ›ii din `input/Odaia.html`.
 
 ---
 
-### Puncte deschise (Open points)
+## âœ… Todo & Status Sarcini
 
-- **[ ] OP-1: Tipul plăcii de relee cu ESP32.** Ce placă avem disponibilă pe banc (ex: placă dedicată cu 8 relee cu ESP32-WROOM integrat sau modul extern cu 8 relee cuplat la un ESP32 DevKit)?
-- **[ ] OP-2: Detalii comandă modul radio centrală.** Cum este transmis semnalul sniffat? (Contact de releu care simulează butonul telecomenzii originale, sau impuls digital/tren de date serial trimis pe un fir logic de 3.3V/5V direct în emițător)?
-- **[ ] OP-3: Compartimentarea apartamentului & denumirea zonelor.** Care sunt cele 5–6 zone (ex. Living, Dormitor Matrimonial, Birou/Copil, Bucătărie, Baie, Hol)? Avem nevoie de denumiri și poziționare aproximativă pentru schema SVG.
-- **[ ] OP-4: Sursa temperaturii exterioare.** Începem cu un senzor Xiaomi pus la geam/balcon (cel mai rapid, decodare instantanee BTHome v2) sau explorăm interfațarea receptorului 433MHz pentru Tronic?
+- [x] **1. SpecificaÈ›ie placÄƒ relee & alocare pini GPIO** (Finalizat 06.10.2026).
+      *Rezultat:* ConfirmatÄƒ placa ESP32 cu 4 relee. 3 relee alocate zonelor (Living+BucÄƒtÄƒrie, Copil, Matrimonial), 1 rezervÄƒ.
+
+- [x] **2. Identificare & recuperare protocol radio centralÄƒ** (Finalizat 06.10.2026).
+      *Rezultat:* Recuperat codul funcÈ›ional `control_RF_Centrala.ino`, analiza Excel È™i capturile Sigrok/Saleae. Copiate Ã®n repo. Comandate modulele radio SYN115/SYN480R.
+
+- [ ] **3. Implementare driver software `BoilerRadioTrigger` (RMT / Timer pe ESP32)** (Planificat).
+      *Plan:* Clasa C++ care reia cele 410 tranziÈ›ii È™i le transmite hardware non-blocant pe pinul DATA al SYN115.
+
+- [ ] **4. Scanner nativ BLE pe ESP32 (decodare BTHome v2)** (Planificat).
+      *Plan:* Utilizarea `NimBLE-Arduino` pentru scanare pasivÄƒ a senzorilor Xiaomi LYWSD03MMC din cele 3 zone.
+
+- [ ] **5. Feed hibrid & fallback MQTT Samsung Galaxy A6** (Planificat).
+      *Plan:* Preluare temperaturi prin MQTT de la A6 cÃ¢nd semnalul BLE este atenuat de pereÈ›i.
+
+- [ ] **6. Controler termic multi-zonÄƒ & logica de protecÈ›ie (Failsafe)** (Planificat).
+      *Plan:* `ThermalZoneManager` cu histerezis, interlock delay 120-180s pentru deschiderea actuatorilor NC, pump overrun È™i anti-short-cycling.
+
+- [ ] **7. Generare schemÄƒ interactivÄƒ SVG din `Odaia.html` & Dashboard LittleFS** (Planificat).
+      *Plan:* Extragerea poligoanelor celor 3 zone din `Odaia.html` È™i asamblarea paginii web responsive.
+
+- [ ] **8. Decodor staÈ›ie meteo Tronic 433MHz & client Open-Meteo API** (Planificat).
+      *Plan:* Integrarea recepÈ›iei radio via SYN480R pe GPIO interrupt È™i fallback HTTP Open-Meteo.
+
+---
+
+## ðŸ”’ Puncte deschise (Toate soluÈ›ionate pe 06.10.2026!)
+
+- **[x] OP-1: Tipul plÄƒcii de relee.** SoluÈ›ionat: PlacÄƒ integratÄƒ ESP32 cu 4 relee (comandatÄƒ pe eMAG).
+- **[x] OP-2: Detalii comandÄƒ modul radio centralÄƒ.** SoluÈ›ionat: Tren impulsuri 410 paÈ™i pe pin GPIO cÄƒtre emiÈ›Äƒtor SYN115 433MHz.
+- **[x] OP-3: Compartimentarea apartamentului & circuitele.** SoluÈ›ionat: 3 zone termice (7 circuite pardosealÄƒ), bÄƒile pe calorifere libere (bypass hidraulic).
+- **[x] OP-4: Sursa temperaturii exterioare.** SoluÈ›ionat: Receptor SYN480R pentru Tronic 4-LD7396-2 + fallback Wi-Fi Open-Meteo.

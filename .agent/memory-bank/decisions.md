@@ -18,3 +18,23 @@
 **Context**: 230V NC electrothermal actuators rely on wax expansion and require 2 to 3 minutes to physically open the valve port.
 **Decision**: Enforce a software interlock delay (120–180s) between powering an actuator relay and firing the boiler flame radio trigger.
 **Consequences**: Prevents boiler circulation pump cavitation and overpressure against closed valves.
+
+## 2026-10-06 â€“ Hardware Board Selection & Zone Allocation
+**Context**: The apartment has 7 underfloor heating loops and 2 bathrooms with wall-mounted towel radiators. We needed to choose the relay hardware and assign zones.
+**Decision**: 
+- Selected the ESP32 4-Relay Board (Songle 10A 250VAC) with on-board ESP32-WROOM.
+- Grouped the 7 manifold loops into 3 thermal zones:
+  - Relay 1: Living + Kitchen + Dining + Vestibule (loops 1, 2, 3 in parallel).
+  - Relay 2: Child Bedroom (loops 6, 7 in parallel).
+  - Relay 3: Master Bedroom (loops 4, 5 in parallel).
+  - Relay 4: Spare / Auxiliary.
+- Bathrooms remain un-actuated on manual bimetal valves to provide permanent hydraulic bypass protection for the boiler pump.
+- Boiler trigger will NOT consume a mechanical relay; it is driven via GPIO to an external 433.92 MHz transmitter (SYN115).
+
+## 2026-10-06 â€“ Boiler RF Protocol & Transceiver Hardware
+**Context**: Need to trigger the boiler wirelessly without opening or modifying the boiler receiver unit.
+**Decision**:
+- Replay the sniffed 410-transition pre-modulated signal from `control_RF_Centrala.ino` via ESP32 GPIO.
+- Purchased 2x SYN115 (TX) + SYN480R (RX) sets. SYN115 uses quartz PLL; SYN480R is superheterodyne (-107 dBm).
+- Quarter-wave 17.3 cm copper wire antennas attached to ANT pins.
+- Weather compensation integrates Tronic 4-LD7396-2 on 433.92 MHz with Open-Meteo REST API as Wi-Fi fallback.
