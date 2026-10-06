@@ -1,43 +1,50 @@
-# Smart Home Heating - DIY Multi-Zone ESP32 Controller
+# Controler Inteligent de Încălzire Multi-Zonă (Smart Home Heating)
 
-An autonomous, low-cost hydronic climate control system powered by an **ESP32** microcontroller. Designed for multi-room heating control with 230V NC electrothermal manifold actuators, integration with open-source Xiaomi BLE thermometers (BTHome v2), a reverse-engineered wireless boiler trigger, and an embedded LittleFS web interface with an interactive SVG apartment floorplan.
+Un sistem autonom și economic de control termohidraulic multi-zonă, dezvoltat pe microcontrolerul **ESP32**. Conceput pentru reglajul independent al temperaturii pe 5–6 camere cu actuatoare electrotermice 230V NC, integrare directă cu senzori de temperatură Xiaomi BLE (firmware open-source BTHome v2), comandă radio sniffată pentru pornirea/oprirea flăcării centralei termice și interfață web găzduită local în memoria flash (LittleFS), incluzând schema vectorială interactivă a apartamentului.
 
 ---
 
 ## 📖 Documentație & Planificare
 
-- 📋 **[Plan Dinamic & Task Tracker (docs/plan_oct2026.md)](docs/plan_oct2026.md)** – Planul activ de lucru, preanaliza inginerească, constatări și sarcini `Todo` / `Done`.
-- 📝 **[Changelog & Jurnal Verificări (docs/changelog_oct2026.md)](docs/changelog_oct2026.md)** – Jurnalul detaliat al funcționalităților implementate și testate.
-- 🧠 **[Memory Bank (.agent/memory-bank/)](.agent/memory-bank/)** – Memoria persistentă a asistentului AI (context produs, tipare arhitecturale, tehnologie, decizii).
+- 📋 **[Plan Dinamic & Registru de Sarcini (docs/plan_oct2026.md)](docs/plan_oct2026.md)** – Planul activ de lucru, preanaliza inginerească, constatări și sarcini `Todo` / `Done`.
+- 📝 **[Jurnal de Modificări & Verificări (docs/changelog_oct2026.md)](docs/changelog_oct2026.md)** – Jurnalul detaliat al funcționalităților implementate, testate și validate.
+- 🧠 **[Bancă de Memorie Persistentă (.agent/memory-bank/)](.agent/memory-bank/)** – Memoria persistentă de context pentru asistenții AI (scopul produsului, tipare arhitecturale, context tehnic, decizii).
 
 ---
 
 ## 🏛️ Arhitectură Generală
 
 ```text
-[ Senzori Xiaomi BLE LYWSD03MMC (camere) ]
-       │ (BTHome v2 Advertising Beacons)
+[ Senzori Xiaomi BLE LYWSD03MMC (fiecare cameră) ]
+       │ (Broadcast BLE BTHome v2 - interval 10s-20s)
        ├─────────────────────────────────┐
-       ▼                                 ▼ (fallback semnal slab)
-[ ESP32 Smart Heating Controller ]    [ Samsung Galaxy A6 ("Cinderella") ]
-  ├── NimBLE-Arduino Scanner            ├── BTSnoop Scanner & Mosquitto MQTT
-  ├── ThermalZoneManager Engine         ├── PostgreSQL & Grafana Telemetry
-  │     ├── Hysteresis Loop             └── Telemetry Bridge (WiFi MQTT)
-  │     ├── Actuator Opening Delay              │
-  │     └── Boiler Demand Interlock             │
-  ├── Web Server (LittleFS PWA) ◄───────────────┘
-  ├── Relay Driver (Actuatoare 230V NC)
-  └── Boiler Radio Trigger Driver (Semnal Sniffat)
+       ▼                                 ▼ (fallback dacă semnalul direct e slab)
+[ ESP32 - Controler Termic Central ]   [ Samsung Galaxy A6 ("Cinderella") ]
+  ├── Scanner BLE Nativ (NimBLE)        ├── Scanner BTSnoop & Broker Mosquitto MQTT
+  ├── Motor Termic (ThermalZoneManager)  ├── Bază de date PostgreSQL & Grafana
+  │     ├── Buclă Histerezis (±0.3°C)    └── Punte Telemetrie (MQTT pe rețeaua locală)
+  │     ├── Întârziere Deschidere Valvă          │
+  │     └── Interlock Protecție Centrală         │
+  ├── Server Web Local (LittleFS PWA) ◄──────────┘
+  ├── Driver Relee (Actuatoare 230V NC)
+  └── Driver Comandă Radio Centrală (Semnal Sniffat)
         ▼
-   [ Centrala Termică (Flacără ON/OFF) ]
+   [ Centrală Termică (Comandă Flacără ON/OFF) ]
 ```
 
 ---
 
-## 🚀 Principii Cheie
+## 🚀 Principii Cheie & Siguranță Hidraulică
 
-1. **Autonomie 100% la nivel de ESP32:** Sistemul funcționează independent de conexiunea la internet, routerul Wi-Fi sau telefonul A6.
-2. **Siguranță hidraulică & Interlock:** Centrala nu pornește niciodată cu toate robinetele închise. Se aplică o întârziere termică (2–3 min) pentru deschiderea completă a actuatorilor electrotermici cu parafină.
-3. **Disipare căldură reziduală (Pump Overrun):** Cel puțin un circuit rămâne deschis timp de 3 minute după oprirea flăcării pentru protecția schimbătorului centralei.
-4. **Protecție Anti-Short-Cycling:** Timp minim de ardere (3 min) și pauză minimă între aprinderi (5 min).
-5. **Dashboard Web local (LittleFS):** Schemă interactivă SVG a apartamentului, comenzi rapide per cameră și compatibilitate PWA mobil.
+1. **Autonomie Totală la Nivel de ESP32:**
+   - Toată logica de decizie, protecție și control rulează pe ESP32. Dacă pică routerul Wi-Fi, conexiunea la internet sau telefonul A6, încălzirea continuă fără nicio întrerupere.
+2. **Interlock Deschidere Actuatoare (120–180s):**
+   - Actuatoarele electrotermice cu ceară/parafină au nevoie de 2–3 minute pentru a deschide complet circuitul. Centrala nu este pornită până când cel puțin o valvă nu este fizic deschisă, protejând pompa de circulație împotriva suprapresiunii și cavitației.
+3. **Disipare Căldură Reziduală (Pump Overrun - 180s):**
+   - La atingerea temperaturii setate și oprirea flăcării centralei, ultimul actuator activ rămâne deschis încă 3 minute pentru a disipa căldura din schimbătorul de căldură primar.
+4. **Protecție Anti-Short-Cycling:**
+   - Previne uzura centralei prin impunerea unui timp minim de funcționare a flăcării (3 min) și a unei pauze minime între reaprinderi (5 min).
+5. **Ingestie Hibridă de Date (Reziliență Maximă):**
+   - ESP32 ascultă pasiv semnalele BLE ale senzorilor. Dacă o cameră îndepărtată are pereți groși de beton și semnal slab la distribuitor, temperatura este preluată automat prin MQTT de la telefonul A6.
+6. **Interfață Web Integrată (Zero Cloud):**
+   - Stocată direct pe ESP32 în LittleFS. Oferă schemă interactivă SVG a apartamentului, comenzi rapide per cameră, grafice locale 24h și compatibilitate PWA (instalare pe ecranul telefonului dintr-un click).
