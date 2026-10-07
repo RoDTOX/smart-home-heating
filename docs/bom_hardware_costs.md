@@ -14,7 +14,7 @@
 
 | Categorie Buget | Număr Articole | Cost Total Estimat (RON) | Observații / Stadiu |
 |---|:---:|:---:|---|
-| **Piese Achiziționate / În Uz (Comandate eMAG & Reutilizate)** | 9 repere | **~193.00 RON** | Placă ESP32-Relay X4 V1.1 (DOIT ESP32-32E N4, 240MHz, 4MB Flash, 4x Relee Songle 10A 250V optocuplate, alimentare AC 90-250V / DC 7-30V) - 85lei, module RF 25lei set, senzori BLE 4x25lei, telefon gateway (cost 0) |
+| **Piese Achiziționate / În Uz (Comandate eMAG & Reutilizate)** | 9 repere | **~193.00 RON** | Placă ESP32-Relay X4 V1.1 (DOIT ESP32-32E N4) - 85lei, module RF 25lei set (optional), senzori BLE 4x25lei, telefon gateway (cost 0) |
 | **Piese Rămase de Comandat (Actuatoare Distribuitor)** | 7 bucăți | **~280.00 – 385.00 RON** | 7x Actuatoare electrotermice 230V NC M30x1.5 |
 | **Materiale Electrice Mărunte (WAGO, Cablaj, Carcasă)** | 3 repere | **~50.00 RON** | Conectori WAGO 221, cablu 0.75 mm², șuruburi |
 | **TOTAL INVESTIȚIE PROIECT COMPLET (Estimativ)** | — | **~523.00 – 628.00 RON** | Sistem autonom complet pentru 3 zone (7 circuite) |
