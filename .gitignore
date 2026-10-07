@@ -25,3 +25,7 @@ compile_commands.json
 
 # Web build artifacts
 include/dashboard_html_gz.h
+
+# Temporary scratch & analysis files
+scratch/
+

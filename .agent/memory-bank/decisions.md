@@ -2,6 +2,15 @@
 
 <!-- Append-only Architecture Decision Record (ADR) log. -->
 
+## 2026-10-07 — Permanent Native ESP32 Migration & Elimination of Legacy ESP8266 Code
+**Context**: The new 4-relay board arrived physically equipped with an ESP32-WROOM-32E module (DOIT ESP32-32E N4, ESP32-D0WD-V3, 4MB Flash). To ensure long-term maintainability and prevent technical debt when changing machines, the user requested removing all `#ifdef ESP8266` preprocessor hacks and standardizing 100% on native ESP32 code.
+**Decision**:
+- Fully remove all `#ifdef ESP8266` / `#elif defined(ESP32)` conditional compilation branches across `Config.h`, `main.cpp`, `BoilerRadioTrigger.cpp`, and `MqttTelemetryClient`.
+- Standardize purely on native ESP32 libraries (`<WiFi.h>`, `<WebServer.h>`, `<HTTPUpdateServer.h>`, ESP32 Efuse MAC, fast standard GPIO).
+- Set `platformio.ini` default to `[env:esp32dev]`.
+- Created comprehensive hardware, pinout, wiring, and flashing reference in `docs/hardware_esp32_relay.md`.
+**Consequences**: The codebase is clean, readable, modern, and completely immune to stale environment quirks or laptop changes.
+
 ## 2026-10-06 — ESP32 Autonomous Edge Controller vs Smartphone Script
 **Context**: The user has a Samsung Galaxy A6 already running Termux/PostgreSQL/MQTT, and wanted to decide where the core heating logic and web interface should live.
 **Decision**: Place the core heating state machine, relay switching, failsafes, and embedded Web UI directly on the ESP32 (in flash/LittleFS), rather than running a Python daemon on the Galaxy A6.
@@ -43,4 +52,28 @@
 **Context**: Remote git operations affect upstream repositories.
 **Decision**: NEVER execute `git push` automatically or as a side-effect. Always display `git status` / pending commits and wait for explicit confirmation from the user in chat before pushing.
 **Consequences**: Eliminates unintended upstream pushes; ensures user reviews all changes first.
+
+## 2026-10-07 — Unified Gateway Integration via Galaxy-A6 (Nexus) & Cross-Repo Tracking
+**Context**: Heating controller must be safely controllable from outside the house without exposing ports to the public internet, fitting into the existing single pane of glass (`http://galaxy-a6/`).
+**Decision**: 
+- Integrate Smart Heating as the 4th service in Samsung Galaxy A6's Smart Services Portal (Nginx reverse proxy under `/heating/`).
+- Remote access is achieved securely via Tailscale (`http://100.83.135.74/heating/`).
+- Portal configuration files live canonically in `smart-aquarium-esp8266/tools/nexus/` (`nexus_nginx.conf`, `nexus_portal.html`). All cross-repository edits are logged and tracked in `docs/plan_oct2026.md` so that commits/pushes across repos remain synchronized and under user control.
+**Consequences**: Seamless unified access across local LAN and remote Tailscale; zero port forwarding on home router; strict change-tracking across multiple git repos.
+
+## 2026-10-07 — Dedicated Wall Kiosk Display (Galaxy Tab A9) & Separation of Concerns
+**Context**: The wall-mounted user interface needs to be clean, responsive, locked against tampering/children, battery-safe 24/7, and occasionally usable for personal entertainment.
+**Decision**: 
+- Selected **Samsung Galaxy Tab A9 4G LTE (SM-X115)** with 8.7" PLS LCD and MediaTek Helio G99 (6nm).
+- The tablet remains a dedicated **Kiosk Client (Display)** running a PWA via Fully Kiosk Browser, NOT a backend server.
+- The tablet remains unrooted (preserving Widevine L1 for Full HD Netflix/YouTube, Knox 0x0, and warranty) while using native Samsung *Protect Battery* (85% limit) for safe 24/7 wall power.
+**Consequences**: The tablet can be detached from its magnetic wall mount for couch media consumption without risking household heating or telemetry downtime.
+
+## 2026-10-07 — Future Server Strategy: Lenovo ThinkPad L590 Evaluation
+**Context**: Samsung Galaxy A6 ("Cinderella") is an aging smartphone running multiple heavy server stacks (PostgreSQL 17, TeslaMate, Mosquitto, Nginx, Python BLE scanner). User considers long-term alternatives.
+**Decision**: 
+- Cataloged user's unused **Lenovo ThinkPad L590** (Intel 8th Gen Quad-Core, NVMe SSD, Gigabit LAN, integrated battery acting as UPS) as the prime zero-cost candidate for future server migration.
+- Benchmarked idle power consumption on Linux headless with lid closed: 4.5W–6.5W (virtually identical to a Raspberry Pi 4 with SSD, negligible electricity cost).
+- Logged as a "Nice to Have / Future" milestone in `plan_oct2026.md` without rushing migration while A6 remains functional.
+
 
