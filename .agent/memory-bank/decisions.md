@@ -58,7 +58,7 @@
 **Decision**: 
 - Integrate Smart Heating as the 4th service in Samsung Galaxy A6's Smart Services Portal (Nginx reverse proxy under `/heating/`).
 - Remote access is achieved securely via Tailscale (`http://100.83.135.74/heating/`).
-- Portal configuration files live canonically in `smart-aquarium-esp8266/tools/nexus/` (`nexus_nginx.conf`, `nexus_portal.html`). All cross-repository edits are logged and tracked in `docs/plan_oct2026.md` so that commits/pushes across repos remain synchronized and under user control.
+- Portal configuration files live canonically in `smart-aquarium-esp8266/tools/nexus/` (`nexus_nginx.conf`, `nexus_portal.html`). All cross-repository edits are logged and tracked in `docs/plan.md` so that commits/pushes across repos remain synchronized and under user control.
 **Consequences**: Seamless unified access across local LAN and remote Tailscale; zero port forwarding on home router; strict change-tracking across multiple git repos.
 
 ## 2026-10-07 — Dedicated Wall Kiosk Display (Galaxy Tab A9) & Separation of Concerns
@@ -74,6 +74,6 @@
 **Decision**: 
 - Cataloged user's unused **Lenovo ThinkPad L590** (Intel 8th Gen Quad-Core, NVMe SSD, Gigabit LAN, integrated battery acting as UPS) as the prime zero-cost candidate for future server migration.
 - Benchmarked idle power consumption on Linux headless with lid closed: 4.5W–6.5W (virtually identical to a Raspberry Pi 4 with SSD, negligible electricity cost).
-- Logged as a "Nice to Have / Future" milestone in `plan_oct2026.md` without rushing migration while A6 remains functional.
+- Logged as a "Nice to Have / Future" milestone in `docs/plan.md` without rushing migration while A6 remains functional.
 
 

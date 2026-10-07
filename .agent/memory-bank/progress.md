@@ -26,7 +26,7 @@ Hardware specifications completed. Boiler RF hardware wiring and pinout confirme
 - **Data Recovery:** Located and moved logic analyzer captures (`.sr`, `.sal`, raw text) and working Arduino C++ sketch (`control_RF_Centrala.ino`) to `input/boiler_rf_trigger/`.
 - **Hydraulic Analysis:** Extracted circuit layouts from `Schema circuite incalzire pardoseala.pptx` and `Odaia.html`. Mapped 7 loops to 3 zones.
 - **Hardware Procurement:** Purchased ESP 4-Relay board and 2x SYN115/SYN480R 433MHz RF sets on eMAG.
-- **Documentation & Memory Bank:** Initialized and updated `docs/plan_oct2026.md`, `docs/changelog_oct2026.md`, and all `.agent/memory-bank/` files.
+- **Documentation & Memory Bank:** Initialized and updated `docs/plan.md`, `docs/changelog.md`, and all `.agent/memory-bank/` files.
 
 ## Next Milestones
 - [x] Hardware wiring & Pinout confirmation for RF transmitter daughterboard.

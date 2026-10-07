@@ -4,8 +4,8 @@
 **Data elaborării:** 07 Octombrie 2026  
 **Status:** În dezvoltare activă (Hardware & Software de bază validate live)  
 **Documente corelate:**
-- Plan & Roadmap: [`docs/plan_oct2026.md`](file:///c:/Users/BSeceleanu/.github_repos/smart-heating/docs/plan_oct2026.md)
-- Jurnal Modificări: [`docs/changelog_oct2026.md`](file:///c:/Users/BSeceleanu/.github_repos/smart-heating/docs/changelog_oct2026.md)
+- Plan & Roadmap: [`docs/plan.md`](file:///c:/Users/BSeceleanu/.github_repos/smart-heating/docs/plan.md)
+- Jurnal Modificări: [`docs/changelog.md`](file:///c:/Users/BSeceleanu/.github_repos/smart-heating/docs/changelog.md)
 - Documentație Hardware: [`docs/hardware_esp32_relay.md`](file:///c:/Users/BSeceleanu/.github_repos/smart-heating/docs/hardware_esp32_relay.md)
 - Evidență Piese & Costuri (BOM): [`docs/bom_hardware_costs.md`](file:///c:/Users/BSeceleanu/.github_repos/smart-heating/docs/bom_hardware_costs.md)
 

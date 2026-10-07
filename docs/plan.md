@@ -1,4 +1,4 @@
-# Plan de Lucru Activ (Octombrie 2026) – Smart Home Heating
+# Plan de Lucru Activ – Smart Home Heating
 
 Acest document este planul de referință pentru implementarea controlerului autonom multi-zonă ESP32, integrat cu senzorii Xiaomi BLE (BTHome v2), emițătorul RF pentru centrală și interfața LittleFS cu schemă interactivă SVG.
 
