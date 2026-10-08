@@ -3,6 +3,55 @@
 Jurnalul modificărilor, deciziilor tehnice și verificărilor efectuate pentru proiectul de încălzire inteligentă.
 Corelat cu planul activ: [`docs/plan.md`](file:///c:/Users/BSeceleanu/.github_repos/smart-heating/docs/plan.md).
 
+## [09.10.2026] - Arhitectură Decuplată Headless (API-First), Eliminare Latență UI & Asistent Configurare NVS
+
+### Arhitectură & Optimizare Motor Termic
+- **Tranziție către Arhitectură Headless (API-First):**
+  - Decuplat complet logica de bază a microcontrolerului de designul interfeței grafice pentru a asigura stabilitate maximă, depanare simplă și libertate deplină în alegerea viitoare a frontend-ului client/admin.
+  - Consolidat catalogul complet de endpoint-uri REST/JSON (`/api/boiler/status`, `/api/zones`, `/api/zones/setpoint`, `/api/zones/toggle`, `/api/mode`, `/api/boiler/on`, `/api/boiler/off`, `/api/ble/sensors`, `/api/setup/passport`, `/api/setup/time`, `/api/diag/status`, `/api/diag/selftest`, `/api/diag/service`).
+  - Toate endpoint-urile răspund sincron în sub **70–120 ms**.
+- **Rezolvare Cauze Lag & Comenzi Pierdute:**
+  - *Optimizare DOM / Script:* Eliminat `location.reload()` pe toate butoanele (`+`, `-`, mod, flacără). Înlocuit cu actualizări optimiste instantanee în DOM (0 ms timp de răspuns vizual) și transmisiuni asincrone în fundal.
+  - *Rupere Buclă Recursivă:* Corectat feedback-loop-ul între ingestia `BleSensorScanner` și `MqttTelemetryClient` care aglomera stiva și cauza instabilitate.
+  - *Non-Blocking Timeouts:* Setat timeout scurt (1s) pe clientul socket MQTT și 1.5s pe interogarea HTTP Open-Meteo pentru a preveni orice blocaj al buclei `loop()`.
+- **Selectare Inteligentă a Locației (Zero Coordonate Manuale):**
+  - Implementat căutare live cu auto-suggest prin Open-Meteo Geocoding pentru orice localitate (oraș, comună, sat) din România.
+  - Integrat selector rapid cu cele 41 de reședințe de județ (funcționare 100% offline) și buton de auto-detecție prin GPS/IP cu 1 click.
+- **Normalizare Indecși Zone:**
+  - Endpoint-urile `/api/zones/setpoint` și `/api/zones/toggle` acceptă acum în mod nativ atât identificatori bazați pe 1 (`id=1..3`), cât și indecși bazați pe 0 (`id=0..2`).
+- **Validare Utilitar CLI (`tools/esp_cli.py`):**
+  - Testat complet fluxul de interogare și control prin CLI: `status`, `set`, `selftest`, `diag`, `ble`, `passport`, `time`.
+
+## [08.10.2026] - Scanner BLE Nativ Pasiv pe ESP32 (BTHome v2 & PVVX) cu Redundanță Hibridă MQTT
+
+### Arhitectură & Dezvoltare Software
+- **Integrare NimBLE-Arduino în `lib/`:**
+  - Vendored local în `lib/NimBLE-Arduino` pentru a garanta compilare 100% offline și reproductibilă.
+  - Înlocuit stiva greoaie Bluedroid cu NimBLE, reducând flash-ul consumat de la ~1.65 MB la doar **1.08 MB (1.128.681 bytes)** și utilizarea de RAM la 65 KB (19.8%).
+  - Permite continuarea actualizărilor de firmware wireless via Web OTA (`/update`) chiar pe partițiile implicite de 1.25 MB.
+- **Clasă Dedicată `BleSensorScanner`:**
+  - Implementată în [`include/BleSensorScanner.h`](file:///c:/Users/BSeceleanu/.github_repos/smart-heating/include/BleSensorScanner.h) și [`src/BleSensorScanner.cpp`](file:///c:/Users/BSeceleanu/.github_repos/smart-heating/src/BleSensorScanner.cpp).
+  - Scanner pasiv (`setActiveScan(false)`): ascultă pachetele de broadcast fără să transmită nimic în eter, menținând zero consum suplimentar de baterie pe termometre și zero poluare RF.
+  - Parametri de scanare: `interval = 100ms`, `window = 50ms` (duty cycle de 50% pentru coexistență nativă optimă cu transceiverul Wi-Fi pe frecvența comună de 2.4 GHz).
+- **Parsare Automată Multi-Protocol:**
+  - **BTHome v2 (UUID `0xFCD2`):** Decodifică TLV objects: ID 0x01 (baterie %), ID 0x02 (temperatură int16 scaled 0.01), ID 0x03 (umiditate uint16 scaled 0.01).
+  - **PVVX / ATC Custom Format (UUID `0x181A`):** Decodifică telemetria completă (temperatură, umiditate, tensiune baterie și procent).
+  - **Mapping Inteligent:** Mapează adresele MAC cunoscute la camere (`A4:C1:38:A4:C1:DD` -> Living Room, `A4:C1:38:84:A1:E8` -> Kids Room, `A4:C1:38:94:0F:44` -> Bathroom); senzorii noi necunoscuți sunt înregistrați automat ca `BLE-XXXX`.
+- **Canal Dual Redundant & Fuziune Telemetrie:**
+  - Senzorii detectați direct prin BLE pe ESP32 au prioritate (`BLE-Direct (ESP32)`), oferind autonomie totală chiar dacă telefonul gateway, brokerul MQTT sau conexiunea Wi-Fi cad.
+  - Pachetele primite prin MQTT de pe Galaxy A6 (`MQTT-Gateway (A6)`) servesc ca backup seamless dacă un senzor este plasat într-o zonă ecranată (ex. gresie/faianță Baie).
+- **API REST, Consolă & Utilitar CLI:**
+  - Adăugat endpoint REST `/api/ble/sensors` cu starea scanerului, lista senzorilor, pachete decodificate, RSSI și vârstă.
+  - Adăugată comanda `BLE` (sau `SENSORS`) în consola Telnet TCP:23 și în Web Console `/console`.
+  - Actualizat utilitarul CLI [`tools/esp_cli.py`](file:///c:/Users/BSeceleanu/.github_repos/smart-heating/tools/esp_cli.py) cu comanda `python tools/esp_cli.py ble`.
+
+### Verificare Live pe Hardware
+- **Web OTA Flash:** Firmware-ul compilat a fost încărcat wireless prin Web OTA (`http://192.168.1.20/update`) în doar 15 secunde.
+- **Validare Live Pachet direct în eter:**
+  - Living Room (`A4:C1:38:A4:C1:DD`): recepționat direct cu RSSI **-64 dBm**, 23.0°C, 54.6% umiditate, baterie 93%.
+  - Kids Room (`A4:C1:38:84:A1:E8`): recepționat direct cu RSSI **-67 dBm / -69 dBm**, 22.9°C, 51.2% umiditate, baterie 100%.
+  - Ambele pachete au fost recepționate și decodificate live fără nicio eroare de CRC.
+
 ## [07.10.2026] - Consolă Virtuală Serială Bidirecțională prin Wi-Fi (Telnet TCP:23 & Web Console /console)
 
 ### Arhitectură & Dezvoltare Software

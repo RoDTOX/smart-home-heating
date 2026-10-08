@@ -54,6 +54,116 @@ def cmd_status(args):
     except Exception as e:
         print(f"[-] Connection Error: {e}")
 
+def cmd_ble(args):
+    url = f"http://{args.ip}:{args.port}/api/ble/sensors"
+    try:
+        r = requests.get(url, timeout=3)
+        if r.status_code == 200:
+            data = r.json()
+            print("==================================================")
+            print(f"  ESP32 BLE Sensors Registry (Scanning: {'ACTIVE' if data.get('scanning') else 'INACTIVE'})")
+            print("==================================================")
+            sensors = data.get("sensors", [])
+            if not sensors:
+                print("  No BLE thermometers decoded yet (listening for broadcasts)...")
+            for i, s in enumerate(sensors, 1):
+                name = s.get('name', 'Unknown')
+                mac = s.get('mac', '')
+                temp = s.get('temp', 0.0)
+                hum = s.get('hum', 0.0)
+                bat = s.get('bat', 0)
+                rssi = s.get('rssi', 0)
+                pkts = s.get('packets', 0)
+                src = s.get('source', '')
+                age = s.get('ageSec', 0)
+                print(f"  [{i}] {name:<16} ({mac}) | {temp:.2f}°C | {hum:.1f}% | Bat: {bat}% | RSSI: {rssi} dBm | Pkts: {pkts} | {src} ({age}s ago)")
+            print("==================================================")
+        else:
+            print(f"[-] HTTP Error: {r.status_code} {r.text}")
+    except Exception as e:
+        print(f"[-] Error: {e}")
+
+def cmd_diag(args):
+    url = f"http://{args.ip}:{args.port}/api/diag/status"
+    try:
+        r = requests.get(url, timeout=3)
+        if r.status_code == 200:
+            d = r.json()
+            score = d.get('healthScore', 100)
+            sm = d.get('serviceMode', False)
+            dtcs = d.get('dtcs', [])
+            print("==================================================")
+            print(f"  ESP32 Health & Diagnostics (Score: {score}%)")
+            print("==================================================")
+            print(f"Service Mode:       {'ACTIVE (Engineer Connected)' if sm else 'NORMAL'}")
+            print(f"Active DTC Codes:   {len(dtcs)}")
+            if not dtcs:
+                print("  [OK] All subsystems nominal. Zero active trouble codes.")
+            for item in dtcs:
+                print(f"  * [{item.get('code')}] {item.get('severity')}: {item.get('message')} (x{item.get('count')}, {item.get('ageSec')}s ago)")
+            print("==================================================")
+        else:
+            print(f"[-] HTTP Error: {r.status_code} {r.text}")
+    except Exception as e:
+        print(f"[-] Error: {e}")
+
+def cmd_selftest(args):
+    url = f"http://{args.ip}:{args.port}/api/diag/selftest"
+    try:
+        r = requests.get(url, timeout=5)
+        print(r.text)
+    except Exception as e:
+        print(f"[-] Error: {e}")
+
+def cmd_passport(args):
+    url = f"http://{args.ip}:{args.port}/api/setup/passport"
+    try:
+        r = requests.get(url, timeout=3)
+        if r.status_code == 200:
+            d = r.json()
+            print("==================================================")
+            print("  Device Installation Passport (NVS)")
+            print("==================================================")
+            print(f"Serial Number:  {d.get('serialNumber')}")
+            print(f"MAC Address:    {d.get('macAddress')}")
+            print(f"Commissioned:   {'YES' if d.get('isCommissioned') else 'NO (Factory Default)'}")
+            print(f"Customer Name:  {d.get('customerName') or 'Unassigned'}")
+            print(f"Address:        {d.get('customerAddress') or 'Unassigned'}")
+            print(f"GPS Coords:     {d.get('locationCoords') or 'Unassigned'}")
+            print(f"Installed Date: {d.get('commissionDate') or 'N/A'} ({d.get('ageDays', 0)} days active)")
+            print(f"Notes:          {d.get('installerNotes') or 'None'}")
+            print("==================================================")
+        else:
+            print(f"[-] HTTP Error: {r.status_code}")
+    except Exception as e:
+        print(f"[-] Error: {e}")
+
+def cmd_time(args):
+    url = f"http://{args.ip}:{args.port}/api/setup/time"
+    try:
+        r = requests.get(url, timeout=3)
+        if r.status_code == 200:
+            d = r.json()
+            print("==================================================")
+            print("  System Time & Outdoor Weather (Wi-Fi NTP & REST)")
+            print("==================================================")
+            print(f"Local Time:     {d.get('time')} ({d.get('dayOfWeek')})")
+            print(f"Date:           {d.get('date')} (Year: {d.get('year')})")
+            print(f"NTP Synced:     {'YES' if d.get('timeSynced') else 'NO'}")
+            print(f"Season:         {d.get('season')}")
+            print(f"Heating Mode:   {'ACTIVE (Winter)' if d.get('isHeatingSeason') else 'OFF-SEASON (Summer)'}")
+            ot = d.get('outdoorTemp')
+            oh = d.get('outdoorHumidity')
+            if d.get('weatherValid') and ot is not None:
+                print(f"Outdoor Temp:   {ot:.1f} C (Humidity: {oh:.1f}%) [Open-Meteo API]")
+            else:
+                print("Outdoor Temp:   Pending")
+            print("==================================================")
+        else:
+            print(f"[-] HTTP Error: {r.status_code}")
+    except Exception as e:
+        print(f"[-] Error: {e}")
+
 def cmd_boiler(args, action):
     url = f"http://{args.ip}:{args.port}/api/boiler/{action}"
     try:
@@ -120,6 +230,12 @@ def main():
     sub = parser.add_subparsers(dest="command")
 
     sub.add_parser("status", help="Get comprehensive system status report")
+    sub.add_parser("ble", help="List BLE room thermometers registry")
+    sub.add_parser("sensors", help="Alias for ble command")
+    sub.add_parser("diag", help="Show system diagnostics and active DTC codes")
+    sub.add_parser("selftest", help="Run comprehensive onboard self-test suite")
+    sub.add_parser("passport", help="View device commissioning passport and metadata")
+    sub.add_parser("time", help="View NTP calendar, season and outdoor weather")
     sub.add_parser("on", help="Trigger boiler START via RF 433MHz")
     sub.add_parser("off", help="Trigger boiler STOP via RF 433MHz")
 
@@ -139,6 +255,16 @@ def main():
 
     if args.command == "status":
         cmd_status(args)
+    elif args.command in ("ble", "sensors"):
+        cmd_ble(args)
+    elif args.command == "diag":
+        cmd_diag(args)
+    elif args.command == "selftest":
+        cmd_selftest(args)
+    elif args.command == "passport":
+        cmd_passport(args)
+    elif args.command == "time":
+        cmd_time(args)
     elif args.command == "on":
         cmd_boiler(args, "on")
     elif args.command == "off":

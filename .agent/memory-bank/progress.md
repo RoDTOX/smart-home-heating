@@ -1,32 +1,35 @@
 # Progress: Smart Home Heating System
 
 ## Status
-Hardware specifications completed. Boiler RF hardware wiring and pinout confirmed with multimeter. `BoilerRadioTrigger` C++ driver implemented and flashed onto ESP8266 test bench on COM6. Device is online on local Wi-Fi with web dashboard, REST API, Web OTA, and Serial CLI ready for live boiler testing.
+All core functional subsystems (heating hysteresis engine, boiler RF trigger, native BLE passive scanner, MQTT fallback, 2-way console, web OTA, diagnostic engine with DTCs, Tesla-style service mode, digital passport, NTP & weather sync, headless API-first architecture, latency fixes, and `esp_cli.py` utility) are fully implemented, compiled, uploaded, and verified live on ESP32 (`192.168.1.20`).
 
-## Completed Work (2026-10-07)
-- **RF Hardware Cabling & Pinout:**
-  - Multimeter verification on test pads: Negru (GND $\rightarrow$ G), Galben (3.3V $\rightarrow$ 3V), Verde (DATA $\rightarrow$ D1/GPIO5).
-  - Pin 2 confirmed internal bridge to VCC (+3.3V).
-  - Main PCB kept intact to preserve matched perimeter 433.92 MHz trace antenna.
-- **Microcontroller & PlatformIO Setup:**
-  - Configured PlatformIO environment for ESP8266 (ESP-12F / 8266MOD, 4M1M flash).
-  - Centralized hardware definitions in `include/Config.h`.
-- **C++ Boiler RF Driver (`BoilerRadioTrigger`):**
-  - Generated PROGMEM tables (409 steps) matching sniffed signals for ON and OFF.
-  - Implemented microsecond-accurate bit-banging with watchdog feeding to prevent resets.
-- **Bench Test Application (`src/main.cpp`):**
-  - Interactive Serial CLI at 115200 baud.
-  - Web Server with modern dark-theme dashboard on port 80.
-  - REST endpoints (`/api/boiler/on`, `/api/boiler/off`, `/api/boiler/status`).
-  - Web OTA firmware update support on `/update`.
-  - Flashed to ESP8266 on `COM6`. Connected to Wi-Fi at `192.168.1.18`.
+## Completed Work (2026-10-09)
+- **Headless API-First Architecture & UI Latency Elimination:**
+  - Decoupled backend REST endpoints from front-end volatility.
+  - Eliminated UI lag: converted all buttons to 0ms optimistic DOM updates and asynchronous background POSTs (removed `location.reload()`).
+  - Resolved BLE-MQTT mutual recursion and instituted non-blocking socket timeouts.
+  - Smart location selection without GPS coordinate requirements (Geocoding search + 41 Romanian county capitals + IP/GPS auto-detection).
+  - Zone index normalization (supports 1-based and 0-based indices).
+  - Comprehensive CLI utility [`tools/esp_cli.py`](file:///c:/Users/BSeceleanu/.github_repos/smart-heating/tools/esp_cli.py).
 
-## Completed Work (2026-10-06)
-- **Repository Setup:** Git tracking active, SSH authentication verified (`git@github.com:RoDTOX/smart-home-heating.git`).
-- **Data Recovery:** Located and moved logic analyzer captures (`.sr`, `.sal`, raw text) and working Arduino C++ sketch (`control_RF_Centrala.ino`) to `input/boiler_rf_trigger/`.
-- **Hydraulic Analysis:** Extracted circuit layouts from `Schema circuite incalzire pardoseala.pptx` and `Odaia.html`. Mapped 7 loops to 3 zones.
-- **Hardware Procurement:** Purchased ESP 4-Relay board and 2x SYN115/SYN480R 433MHz RF sets on eMAG.
-- **Documentation & Memory Bank:** Initialized and updated `docs/plan.md`, `docs/changelog.md`, and all `.agent/memory-bank/` files.
+## Completed Work (2026-10-08)
+- **Native BLE Scanning on ESP32 (`BleSensorScanner`):**
+  - Integrated `NimBLE-Arduino` into `lib/` with flash footprint reduced to 1.08 MB.
+  - Decodes BTHome v2 (UUID 0xFCD2) and PVVX/ATC (UUID 0x181A).
+  - Priority channel on ESP32 with seamless MQTT fallback from Galaxy A6.
+- **Diagnostic Engine & Tesla-Style Service Mode (`DiagnosticEngine`):**
+  - Standardized Diagnostic Trouble Codes (DTC-101 through DTC-402).
+  - Onboard Self-Test (`/api/diag/selftest`) with 100% health score verification.
+  - Remote service mode toggle for telephone guided troubleshooting.
+- **Digital Device Passport & NTP / Weather Service:**
+  - `DevicePassport`: MAC-based serial, commissioning timestamp, client metadata, NVS storage.
+  - `TimeAndWeatherService`: NTP sync (Europe/Bucharest DST), season detection, Open-Meteo REST API exterior temperature ingestion.
+- **Commercial Feasibility & Strategy Documentation:**
+  - PRD requirements updated (`requirements_and_features.md`).
+  - Remote Fleet Management & Cloud architecture (`remote_fleet_and_service_mode.md`).
+  - Market analysis, ROI, unit economics & competition (`market_analysis_and_roi.md`).
+  - Sales plan, side-hustle strategy & 90-minute install procedure (`plan_sales.md`).
+  - Hardware BOM costs & bill of materials updated (`bom_hardware_costs.md`).
 
 ## Next Milestones
 - [x] Hardware wiring & Pinout confirmation for RF transmitter daughterboard.
@@ -39,6 +42,9 @@ Hardware specifications completed. Boiler RF hardware wiring and pinout confirme
 - [x] Codebase English localization (UI, CLI, REST APIs, logs, comments).
 - [x] Wireless Web OTA update verified live via Wi-Fi (`/update`).
 - [x] 2-Way Virtual Serial Network Console via Wi-Fi (Telnet TCP :23 & Web `/console`).
-- [ ] Native ESP32 BLE Scanner for Xiaomi sensors via NimBLE (Task 10).
-- [ ] LittleFS SVG web interface generation from `input/Odaia.html` (Task 8).
-- [ ] Hardening & Failsafes (Watchdog, sensor timeout fallback, Wi-Fi reconnection).
+- [x] Native ESP32 BLE Scanner for Xiaomi sensors via NimBLE.
+- [x] Setup Wizard, NVS persistence, Device Passport, NTP & Weather service.
+- [x] Diagnostic Engine (DTCs, Self-Test, Service Mode).
+- [x] Headless API-First refactoring, UI latency elimination, and `esp_cli.py`.
+- [ ] Cloud Fleet Outbound Tunnel prototype (Outbound TLS WebSocket/MQTTS).
+- [ ] Field installation on physical manifold actuators when received.

@@ -33,6 +33,7 @@ public:
     const RoomSensor* findSensorByName(const char* name) const;
     const RoomSensor* findSensorByMac(const char* mac) const;
     float getTemperatureByName(const char* name, float fallback = -999.0f) const;
+    void updateSensorReading(const char* mac, const char* name, float temp, float hum, uint8_t bat, int8_t rssi);
 
 private:
     WiFiClient _wifiClient;

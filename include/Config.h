@@ -77,4 +77,22 @@
 #define MQTT_TOPIC_SUB        "home/sensors/ble/#"
 #endif
 
+// ==========================================
+// 5. Xiaomi BLE Thermometer Mappings (LYWSD03MMC)
+// ==========================================
+#define BLE_SCAN_INTERVAL_MS  100   // BLE scan interval
+#define BLE_SCAN_WINDOW_MS    50    // BLE scan window (50% duty cycle for smooth Wi-Fi coexistence)
+
+struct BleDeviceMapEntry {
+    const char* mac;
+    const char* name;
+};
+
+static const BleDeviceMapEntry KNOWN_BLE_DEVICES[] = {
+    {"A4:C1:38:A4:C1:DD", "Living Room"},
+    {"A4:C1:38:84:A1:E8", "Kids Room"},
+    {"A4:C1:38:94:0F:44", "Bathroom"}
+};
+static const size_t KNOWN_BLE_DEVICES_COUNT = sizeof(KNOWN_BLE_DEVICES) / sizeof(KNOWN_BLE_DEVICES[0]);
+
 #endif // CONFIG_H

@@ -91,8 +91,13 @@ Acest document este planul de referință pentru implementarea controlerului aut
 - [ ] **9. Decodor stație meteo Tronic 433MHz & client Open-Meteo API** (Planificat).
       *Plan:* Integrarea recepției radio via SYN480R pe GPIO interrupt și fallback HTTP Open-Meteo.
 
-- [ ] **10. Scanner BLE Nativ pe ESP32 pentru Senzorii Xiaomi (BTHome v2) & Punte MQTT/Grafana** (Planificat).
-      *Plan:* Deoarece noua placă conține modulul **ESP32-WROOM-32E cu radio Bluetooth integrat**, activăm scannerul pasiv BLE (NimBLE) direct pe ESP32. Preia direct telemetria termometrelor Xiaomi (Living, Copil, Baie, Matrimonial), devine complet independent de telefon și poate publica la rândul său datele prin MQTT spre Grafana / PostgreSQL.
+- [x] **10. Scanner BLE Nativ pe ESP32 pentru Senzorii Xiaomi (BTHome v2 & PVVX)** (Finalizat & Validat Live pe Hardware 08.10.2026).
+      *Rezultat:* Deoarece placa recepționată conține modulul **ESP32-WROOM-32E cu radio Bluetooth integrat**, s-a implementat și activat scannerul pasiv nativ BLE bazat pe biblioteca optimizată `NimBLE-Arduino` (vendored local în `lib/` pentru build 100% offline):
+        - **Modul dedicat `BleSensorScanner`:** Implementat în [`include/BleSensorScanner.h`](file:///c:/Users/BSeceleanu/.github_repos/smart-heating/include/BleSensorScanner.h) și [`src/BleSensorScanner.cpp`](file:///c:/Users/BSeceleanu/.github_repos/smart-heating/src/BleSensorScanner.cpp).
+        - **Parsare automată protocoale:** Decodifică atât pachete **BTHome v2** (Service UUID `0xFCD2`), cât și formatul custom **PVVX / ATC** (Service UUID `0x181A`).
+        - **Amprentă memorie optimizată:** Firmware-ul complet (Wi-Fi + WebServer + WebOTA + Telnet + MQTT + NimBLE) ocupă doar **1.08 MB (1.128.681 bytes)** din partiția de 1.92 MB (min_spiffs) și doar 65 KB RAM (19.8%), permițând încărcarea instantanee prin Web OTA (`/update`) în 15 secunde fără fir!
+        - **Redundanță & Fallback hibrid:** Senzorii detectați direct prin BLE (Living Room cu RSSI -64 dBm, Kids Room cu RSSI -67 dBm) sunt actualizați instantaneu pe cip. Dacă un senzor se află după pereți groși sau la distanță (ex. Baie), pachetele primite prin brokerul MQTT de pe Galaxy A6 asigură continuitatea fără întreruperi.
+        - **Interfețe & Diagnoză:** Adăugat endpoint REST `/api/ble/sensors`, comandă dedicată `BLE` / `SENSORS` în consola Telnet & Web, plus suport în utilitarul CLI (`python tools/esp_cli.py ble`).
 
 - [x] **11. Consolă Virtuală Serială Bidirecțională prin Wi-Fi (Telnet TCP:23 & Web Console /console)** (Finalizat & Validat Live 07.10.2026).
       *Rezultat:* Eliminată complet dependența de cabluri USB sau operare „legată la ochi”:
@@ -100,6 +105,33 @@ Acest document este planul de referință pentru implementarea controlerului aut
         2. **Consolă Web 2-Way la `/console`:** Interfață web modernă (dark theme) integrată în Web Server, cu terminal live (ring buffer 8KB), streaming sincronizat fără pierderi, auto-scroll, istoric de comenzi cu săgețile tastaturii (Up/Down) și butoane rapide de acțiune (`STATUS`, `ON`, `OFF`, `AUTO`, `MANUAL`, `HELP`). Compatibilă 100% atât pe acces direct LAN (`http://192.168.1.20/console`) cât și prin reverse proxy Galaxy A6 (`http://galaxy-a6/heating/console`).
         3. **Control Bidirecțional Verificat Live:** Comenzile transmise din Telnet sau din Web Console (`STATUS`, `ON`, `OFF`, `SET <zone> <temp>`, `AUTO`, `MANUAL`, `HELP`) sunt executate instantaneu pe cip, iar răspunsurile și toate logurile de sistem (RF, telemetrie MQTT, relee zone) sunt difuzate sincron către Web, Telnet și Serial USB.
         4. **Flashuit & Validat Live via Web OTA:** Compilat și încărcat prin OTA în 6.43 secunde. Răspunsurile la `STATUS` și `HELP` testate cu succes pe ambele canale.
+
+- [x] **12. Diagnostic Engine & Tesla-Style Service Mode la Distanță** (Finalizat & Validat Live 08.10.2026).
+      *Rezultat:* Sistem integrat de asistență tehnică la distanță pentru clienți și mentenanță flotă fără deplasare:
+        1. **Documentație Arhitectură Cloud & Service Mode:** Redactat [`docs/remote_fleet_and_service_mode.md`](file:///c:/Users/BSeceleanu/.github_repos/smart-heating/docs/remote_fleet_and_service_mode.md) detaliind tunelul securizat Outbound TLS (port 443/8883) fără port-forwarding sau IP public.
+        2. **Modul C++ `DiagnosticEngine`:** Implementat în [`include/DiagnosticEngine.h`](file:///c:/Users/BSeceleanu/.github_repos/smart-heating/include/DiagnosticEngine.h) și [`src/DiagnosticEngine.cpp`](file:///c:/Users/BSeceleanu/.github_repos/smart-heating/src/DiagnosticEngine.cpp).
+        3. **Coduri Standardizate DTC (Diagnostic Trouble Codes):** `DTC-101` (Timeout senzor), `DTC-102` (Baterie CR2032 sub 20%), `DTC-103` (Temperatură aberantă), `DTC-201` (Ciclare excesivă relee), `DTC-202` (Actuator/robinet blocat închis), `DTC-401` (Wi-Fi degradat), `DTC-402` (Fragmentare RAM).
+        4. **Suită Integrată Self-Test & Health Score:** Endpoint `/api/diag/selftest` și comanda `DIAG SELFTEST` testează în 200 ms toate cele 6 subsisteme (Wi-Fi, Heap, BLE, MQTT, Zone, RF 433) și returnează un Health Score (100% [EXCELLENT]).
+        5. **Comutare Service Mode:** Permite inginerului să preia controlul de la distanță (`/api/diag/service?enable=true` sau `DIAG SERVICE ON/OFF`), să suspende temporar deciziile automate, să acționeze manual actuatoarele în timpul convorbirii cu clientul și să diagnosticheze instant defecțiunea.
+        6. **Integrare CLI & Consola:** Adăugate comenzile `DIAG`, `DIAG SELFTEST`, `DIAG CLEAR`, `DIAG SERVICE ON/OFF` în Telnet/Web Console și subcomenzile `diag` și `selftest` în utilitarul `tools/esp_cli.py`.
+
+- [x] **13. Asistent de Configurare la Client (Setup Wizard), Mapare Dinamică Senzori BLE, Pașaport Digital NVS & Sincronizare NTP/Vreme Wi-Fi** (Finalizat & Validat Live 09.10.2026).
+      *Rezultat:* Dispozitivul funcționează complet ca un produs comercial "out of the box", fără MAC-uri sau setări hardcodate în cod:
+        1. **Asistent Vizual de Instalare la `/setup` (`WebSetupPage.h`):** Pagină web modernă (dark theme) stocată în memoria flash PROGMEM (zero consum RAM), cu scanare live a spectrului BLE, asociere printr-un singur clic a senzorilor la zonele 1, 2, 3 și testare individuală relee.
+        2. **Cartografiere Dinamică & Persistență NVS:** În `ThermalZoneManager`, configurările de zonă (nume, adrese MAC ale senzorilor, setpoints, histerezis, pini relee) se salvează în memoria flash non-volatilă (NVS prin `<Preferences.h>`) și rezistă la reporniri și pene de curent.
+        3. **Pașaport Digital Dispozitiv (`DevicePassport`):** Generează automat număr serial unic pe baza MAC-ului cipului (ex. `SH-14721A0D5020`), memorează data și ora primei puneri în funcțiune la client, datele clientului, adresa fizică, coordonatele GPS și notițele tehnice ale instalatorului.
+        4. **Ceas Sincronizat Wi-Fi NTP & Vreme Open-Meteo (`TimeAndWeatherService`):** Sincronizează automat timpul prin NTP (fus orar România Europe/Bucharest cu oră de vară/iarnă), calculează calendarul, anul, ziua din săptămână, sezonul (Heating Active vs Summer Standby) și interoghează periodic temperatura exterioară prin Open-Meteo REST API.
+        5. **Integrare Utilitare & CLI:** Adăugate comenzile `PASSPORT`, `TIME`, `WEATHER` în Network Console și în utilitarul de terminal (`python tools/esp_cli.py passport` și `python tools/esp_cli.py time`).
+        6. **Validat Live pe Hardware:** Firmware optimizat și compilat (1.26 MB), flashuit prin Web OTA în 14 secunde, validat cu succes la `http://192.168.1.20/setup`.
+
+- [x] **14. Arhitectură Decuplată Headless (API-First Focus), Eliminare Latență UI & Utilitar CLI** (Finalizat & Validat Live 09.10.2026).
+      *Rezultat:* Reorientare strategică: separarea fermă a logicii backend/microcontroller de detaliile instabile de interfață grafică:
+        1. **Catalog API REST / JSON Consolidat:** Toate funcționalitățile sistemului (termostate, zone, cazan, telemetrie, diagnoză, pașaport, NTP) sunt expuse ca endpoint-uri REST rapide (`/api/boiler/status`, `/api/zones`, `/api/zones/setpoint`, `/api/zones/toggle`, `/api/mode`, `/api/boiler/on`, `/api/boiler/off`, `/api/ble/sensors`, `/api/setup/passport`, `/api/setup/time`, `/api/diag/status`, `/api/diag/selftest`). Timp de răspuns măsurat sub **70–120 ms**.
+        2. **Eliminare Lag & Reîncărcări Forțate:** Înlocuit mecanismul lent de `location.reload()` din UI cu actualizări optimiste instantanee în DOM (0 ms latență vizuală) și apeluri POST asincrone.
+        3. **Rupere Buclă Recursivă & Non-Blocking Timeouts:** Eliminat apelul recursiv dintre scannerul BLE și clientul MQTT. Setat timeout de 1s pe socketul MQTT și 1.5s pe HTTP Open-Meteo pentru a garanta că bucla principală `loop()` nu este niciodată blocată.
+        4. **Selectare Inteligentă Locație fără Coordonate GPS:** Căutare live cu auto-suggest prin Open-Meteo Geocoding pentru orice localitate din România, dropdown offline cu toate cele 41 de reședințe de județ și auto-detecție prin GPS/IP cu 1 click.
+        5. **Normalizare Indecși Zone:** Endpoint-urile de zone acceptă nativ atât identificatori bazați pe 1 (`id=1..3`), cât și indecși bazați pe 0 (`id=0..2`).
+        6. **Interfață Primară de Testare CLI (`tools/esp_cli.py`):** Suită completă de comenzi de terminal pentru operare și verificare automată instantanee fără browser.
 
 ---
 
@@ -136,7 +168,6 @@ Pentru a menține coerența între sistemele interconectate (Smart Services Port
 | Repository | Cale Fișier Modificat | Descriere Modificare | Stare Git & Remote |
 | :--- | :--- | :--- | :--- |
 | **`smart-aquarium-esp8266`** | [`tools/nexus/nexus_nginx.conf`](file:///c:/Users/BSeceleanu/.github_repos/smart-aquarium-esp8266/tools/nexus/nexus_nginx.conf) | Adăugat blocul `location /heating/` (proxy la `192.168.1.18`). | 2 fișiere modificate local (`git status`). Ne-împins pe remote. Se va face commit/push la confirmarea utilizatorului. |
-| **`smart-aquarium-esp8266`** | [`tools/nexus/nexus_portal.html`](file:///c:/Users/BSeceleanu/.github_repos/smart-aquarium-esp8266/tools/nexus/nexus_portal.html) | Adăugat cardul 4 **Smart Heating** (status live, butoane, link-uri). | Sincronizat deja pe serverul Galaxy-A6 (`/var/www/nexus-portal/index.html`). |
-| **`smart-heating`** (curent) | `platformio.ini`, `include/`, `src/`, `docs/`, `.agent/` | Implementat driver RF, firmware test, Web OTA și documentație. | 3 commit-uri locale în avans față de `origin/main` + fișiere noi. Nu se face push fără confirmare. |
+| **`smart-heating`** (curent) | `platformio.ini`, `include/`, `src/`, `docs/`, `tools/`, `.agent/` | Implementat driver RF, scanner BLE NimBLE, motor termic cu histerezis, Telnet/Web console, diagnoză DTC & Service Mode, Pașaport digital, NTP/Meteo, utilitar CLI `esp_cli.py` și documentație completă. | Sincronizat (commit & push pe `origin/main`). |
 | **`smart-home-ble-gateway`** | `services/` | Telemetria senzorilor Xiaomi via broker MQTT Mosquitto local. | Urmează integrarea clientului MQTT (Sarcina 6). Nicio modificare încă. |
 

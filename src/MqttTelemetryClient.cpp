@@ -27,6 +27,7 @@ MqttTelemetryClient::MqttTelemetryClient()
 void MqttTelemetryClient::begin(const char* brokerHost, uint16_t brokerPort) {
     _brokerHost = brokerHost;
     _brokerPort = brokerPort;
+    _wifiClient.setTimeout(1); // Non-blocking 1s timeout to avoid stalling loop()
     _mqtt.setServer(_brokerHost, _brokerPort);
     _mqtt.setCallback(staticCallback);
     _mqtt.setBufferSize(512);
@@ -94,20 +95,28 @@ void MqttTelemetryClient::onMessage(char* topic, byte* payload, unsigned int len
     uint8_t bat = doc["battery"] | 0;
     int8_t rssi = doc["rssi"] | -70;
 
-    // Căutare senzor existent după MAC sau Nume
+    updateSensorReading(mac, name, temp, hum, bat, rssi);
+}
+
+void MqttTelemetryClient::updateSensorReading(const char* mac, const char* name, float temp, float hum, uint8_t bat, int8_t rssi) {
+    if ((!mac || strlen(mac) == 0) && (!name || strlen(name) == 0)) {
+        return;
+    }
+
+    // Search existing sensor by MAC or Name
     RoomSensor* target = nullptr;
     for (size_t i = 0; i < _sensorCount; i++) {
-        if (strlen(mac) > 0 && strcasecmp(_sensors[i].mac, mac) == 0) {
+        if (mac && strlen(mac) > 0 && strcasecmp(_sensors[i].mac, mac) == 0) {
             target = &_sensors[i];
             break;
         }
-        if (strlen(name) > 0 && strcasecmp(_sensors[i].name, name) == 0) {
+        if (name && strlen(name) > 0 && strcasecmp(_sensors[i].name, name) == 0) {
             target = &_sensors[i];
             break;
         }
     }
 
-    // Dacă nu a fost găsit și avem loc în tabel, adăugăm senzor nou
+    // Allocate new slot if not found
     if (!target && _sensorCount < MAX_TRACKED_SENSORS) {
         target = &_sensors[_sensorCount++];
         target->mac[0] = '\0';
@@ -115,8 +124,8 @@ void MqttTelemetryClient::onMessage(char* topic, byte* payload, unsigned int len
     }
 
     if (target) {
-        if (strlen(mac) > 0) strncpy(target->mac, mac, sizeof(target->mac) - 1);
-        if (strlen(name) > 0) strncpy(target->name, name, sizeof(target->name) - 1);
+        if (mac && strlen(mac) > 0) strncpy(target->mac, mac, sizeof(target->mac) - 1);
+        if (name && strlen(name) > 0) strncpy(target->name, name, sizeof(target->name) - 1);
         target->temperature = temp;
         target->humidity = hum;
         target->battery = bat;
@@ -124,7 +133,7 @@ void MqttTelemetryClient::onMessage(char* topic, byte* payload, unsigned int len
         target->lastSeenMs = millis();
         target->valid = true;
 
-        netConsole.printf("[Telemetry] %s (%s): %.1f C | %.1f %% | Bat: %d %% | RSSI: %d dBm\n",
+        netConsole.printf("[Telemetry] %s (%s): %.1f C | %.1f %% | Bat: %d%% | RSSI: %d dBm\n",
             target->name, target->mac, target->temperature, target->humidity, target->battery, target->rssi);
     }
 }

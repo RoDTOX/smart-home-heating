@@ -51,6 +51,8 @@ Legendă Stare:
 | **10** | **Conectori Rapizi WAGO** | WAGO seria 221 (cu pârghie):<br>• 4x WAGO 221-413 (3 poli)<br>• 2x WAGO 221-415 (5 poli) | 1 set | ⚪ Planificat | Dedeman / Hornbach | 25.00 | **25.00** | Legarea sigură în paralel a actuatoarelor pe fiecare releu (3 buc Living, 2 buc Copil, 2 buc Matrimonial). |
 | **11** | **Cablaj Electric Distribuție** | Cablu flexibil din cupru MYYM 2x0.75 mm² sau 3x0.75 mm² (cca. 5 metri) | 5 m | ⚪ Planificat | Dedeman | 3.50 | **17.50** | Conexiune de la tabloul electric / priză la placa de relee și distribuitor. |
 | **12** | **Carcasă / Cutie Protecție Tablou** | Cutie distribuitor existentă sau tablou aplicat IP40 (4-6 module) | 1 | 🔵 Reutilizat | Cutia metalică a distribuitorului | 0.00 | **0.00** | Placa de relee se montează ferit în cutia distribuitorului de pardoseală. |
+| **13** | **Modul Receptor Universal Centrală (Kit Comercial)** | Modul ESP-01S Relay / ESP32-C3 SuperMini + sursă 230V/5V izolată (Contact uscat NO/COM legat pe regleta TA a centralei, protocol ESP-NOW sau RF 433 cu auto-learning) | 1 | ⚪ Planificat | AliExpress / Optimus Digital / eMAG | ~30.00 – 35.00 | **~35.00** | Obligatoriu în kiturile pentru clienți unde centrala nu are modul radio compatibil sau are termostat cu fir. |
+| **14** | **Trusă Tehnică: Dispozitiv Sniffer Radio 433MHz ("Heating Sniffer")** | ESP32 DevKit + Receptor SYN480R / CC1101 + Ecran OLED 0.96" I2C + acumulator 18650 (investiție unică sculă de lucru) | 1 | ⚪ Planificat | Optimus Digital / Piese existente | ~45.00 | **~45.00** | Instrument portabil de teren: capturează codul/timing-ul termostatului clientului în 3 secunde și îl clonează direct pe controller. |
 
 ---
 
@@ -88,3 +90,24 @@ Pentru echiparea completă a distribuitorului cu 7 robineți, este necesară ach
 ---
 
 *Notă: Dacă prețurile exacte din facturile eMAG diferă cu câțiva lei de valorile standard estimate mai sus, tabelul poate fi actualizat direct pentru a reflecta evidența contabilă exactă până la ultimul ban.*
+
+---
+
+## 5. Strategie Hardware pentru Kituri Comerciale de Teren (Reperele #13 & #14)
+
+În instalațiile din teren ale clienților, comanda centralei nu poate presupune existența unui receptor identic cu cel propriu. Se adoptă strategia duală:
+
+### A. Modul Receptor Universal de Centrală (Reperul #13 - Standard în Kitul de Vânzare)
+* **Rol:** Se conectează pe regleta TA (Termostato Ambiente / contact uscat liber de potențial) a oricărei centrale termice pe gaz din România.
+* **Arhitectură:** Micro-modul wireless bazat pe **ESP-NOW (ESP-01S Relay sau ESP32-C3 SuperMini)** sau releu radio 433.92 MHz cu învățare (Learn Button).
+* **Beneficii:**
+  - Criptare cip-la-cip (zero interferențe cu vecinii din bloc).
+  - Funcționare independentă de routerul Wi-Fi.
+  - Latență sub 5 ms și acoperire de peste 100m prin pereți de beton.
+* **Cost adițional în kit:** **~30.00 – 35.00 RON**.
+
+### B. Dispozitivul Portabil Sniffer Radio 433MHz ("Heating Sniffer" - Reperul #14)
+* **Rol:** Instrument de buzunar pentru instalator / montator (investiție unică de ~45 RON).
+* **Funcționalitate:** Capturează pe viu timpii de comutare și codul unic al vechiului termostat wireless al clientului (OOK/ASK) în 3 secunde, afișează confirmarea pe ecranul OLED și încarcă profilul radio direct în memoria LittleFS a controlerului din distribuitor.
+* **Economie:** Dacă clientul are deja receptor radio funcțional pe centrală, instalatorul evită desfacerea capacului centralei și economisește modulul fizic de centrală (profit extra direct).
+

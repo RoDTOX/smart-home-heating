@@ -109,13 +109,58 @@ Distribuitorul de încălzire conține **7 robineți termostatabili** pe tur/ret
 - Preluare temperatură exterioară prin receptor radio SYN480R de la senzorul stației meteo Tronic 4-LD7396-2 de pe peretele de Nord.
 - Fallback automat pe API-ul meteo gratuit Open-Meteo prin Wi-Fi dacă senzorul fizic este offline.
 
+### 3.8. Acces Cloud la Distanță, Diagnoză Flotă & Tesla-Style Service Mode (FR-10)
+- **FR-10.1 (Traversare Automată NAT/Firewall fără Port-Forwarding):** Dispozitivul ESP32 inițiază o conexiune criptată de ieșire (Outbound TLS WebSocket/MQTTS pe portul 443/8883) către un Server Central Cloud. Funcționează instantaneu pe orice rețea rezidențială (Digi, Orange, Vodafone CGNAT) fără configurare de router sau IP public.
+- **FR-10.2 (Standard Diagnostic Trouble Codes - DTC):** Microcontrollerul monitorizează continuu starea subsistemelor și înregistrează coduri standardizate de eroare:
+  - `DTC-101`: `ERR_SENSOR_TIMEOUT` (lipsă telemetrie cameră >20 min).
+  - `DTC-102`: `WARN_BATTERY_LOW` (baterie CR2032 senzor sub 20%).
+  - `DTC-103`: `ERR_TEMP_OUT_OF_BOUNDS` (citire aberantă senzor <5°C sau >45°C).
+  - `DTC-201`: `WARN_HIGH_CYCLE_RATE` (comutări excesive relee/oră).
+  - `DTC-202`: `ERR_ACTUATOR_STUCK_SHUT` (cerere căldură >90 min fără creștere de temperatură - posibil robinet blocat).
+  - `DTC-401`: `WARN_WIFI_SIGNAL_DEGRADED` (RSSI < -82 dBm).
+  - `DTC-402`: `WARN_HEAP_FRAGMENTATION` (memorie RAM liberă < 60 KB).
+- **FR-10.3 (Tesla-Style Service Mode & Phone Troubleshooting):** Mod de mentenanță activabil securizat la distanță (`/api/diag/service?enable=true` sau `DIAG SERVICE ON`):
+  - Permite depanatorului, în timpul convorbirii telefonice cu clientul, să suspende temporar deciziile automate, să acționeze manual fiecare actuator pe rând, să testeze emisia radio către cazan și să inspecteze telemetria în timp real.
+- **FR-10.4 (Suita Onboard Self-Test):** Rutină integrată de autodiagnostic (`/api/diag/selftest` sau `DIAG SELFTEST`) care verifică în mai puțin de 500 ms memoria Heap, Wi-Fi, stiva BLE NimBLE, bridge-ul MQTT, engine-ul termic și emițătorul RF 433 MHz, returnând un Health Score procentual (0-100%).
+- **FR-10.5 (Actualizare Firmware de la Distanță - Remote Fleet OTA):** Posibilitate de actualizare fără fir a firmware-ului de la birou/acasă pentru întreaga flotă de clienți, prin tunelul securizat cloud.
+
+### 3.9. Procedură de Configurare la Client & Cartografiere Dinamică Senzori BLE (FR-11)
+- **FR-11.1 (Produs Comercial Fără MAC-uri Hardcodate):** Sistemul nu depinde de MAC-uri sau denumiri pre-programate în codul sursă. Orice senzor BLE compatibil (BTHome v2 sau PVVX/ATC) despachetat din cutie este detectat automat în aer.
+- **FR-11.2 (Asistent Vizual de Instalare & Descoperire Senzori - Setup Wizard):** Interfață web dedicată la `/setup` și endpoint `/api/setup/discovered-sensors`:
+  - Afișează toți senzorii detectați în eter, ordonați în timp real după intensitatea semnalului RSSI (senzorul ținut în mână de instalator lângă distribuitor apare primul).
+  - Indică adresa MAC, temperatura curentă, nivelul bateriei și dacă este deja asociat unei zone.
+- **FR-11.3 (Cartografiere Flexibilă Zone <-> Relee <-> Senzori):**
+  - Instalatorul sau clientul asignează printr-un singur clic fiecare senzor găsit la Zona Termică dorită (ex: Zona 1 = Living, Releu GPIO32, Senzor `A4:C1:38:...`).
+  - Posibilitate de a numi camerele personalizat și de a seta pragurile de temperatură țintă per zonă.
+- **FR-11.4 (Persistență Non-Volatilă NVS / Preferences):** Toate mapările zonă-senzor, numele încăperilor și setările se salvează în memoria flash non-volatilă (ESP32 Preferences / NVS). Sistemul rezistă la reporniri, căderi de tensiune și deconectări de la rețea.
+
+### 3.10. Sincronizare Automată Dată, Timp & Vreme prin Wi-Fi (FR-12)
+- **FR-12.1 (Sincronizare Oră & Dată via NTP):** La conectarea la Wi-Fi, microcontrolerul sincronizează automat ceasul intern prin Network Time Protocol (NTP, `pool.ntp.org` / `time.google.com`) cu fusul orar al României (`EET-2EEST,M3.5.0/3,M10.5.0/4`), gestionând automat trecerea la ora de vară/iarnă.
+- **FR-12.2 (Detectare Sezon & Regim de Funcționare):** Sistemul deduce automat anul, luna, ziua, ora și determină dacă se află în **Sezonul de Încălzire** (ex. 15 Octombrie – 15 Aprilie) sau în **Extra-sezon** (regim de vară, cu exercițiu automat de mișcare periodică a vanelor pentru prevenirea blocării axului mecanic).
+- **FR-12.3 (Vreme Exterioară prin Wi-Fi Open-Meteo REST API):** Preluare automată a temperaturii exterioare la fiecare 15 minute prin apel HTTP REST către Open-Meteo, pentru reglaj predictiv și compensare climatică chiar și în absența sondei radio externe.
+- **FR-12.4 (Selectare Inteligentă a Locației - Zero Input Coordonate GPS):** 
+  - Fără introducere manuală de latitudine/longitudine (zero fricțiune pentru utilizator sau instalator).
+  - Căutare inteligentă cu auto-suggest live pentru orice oraș, comună sau sat din România (interogare directă Geocoding Open-Meteo).
+  - Listă rapidă predefinită cu toate cele 41 de reședințe de județ + București (funcționare 100% offline).
+  - Buton dedicat „📍 Detectează (GPS/IP)” care preia automat coordonatele și localitatea cu 1 singur clic de pe telefon sau laptop.
+
+### 3.11. Pașaport Digital de Instalare & Jurnal Mentenanță Dispozitiv (FR-13)
+- **FR-13.1 (Identificator Hardware & Număr Serial Unic):** Generat automat pe baza MAC-ului nativ al cipului ESP32 (ex: `SH-20500D1A7214`).
+- **FR-13.2 (Data & Ora Primei Puneri în Funcțiune - First Commissioning):** La prima instalare la client, sistemul înregistrează automat în memoria NVS timestamp-ul exact obținut prin NTP (an, lună, zi, oră).
+- **FR-13.3 (Metadate Client & Instalație):** Salvare persistentă a fișei tehnice de montaj:
+  - Numele clientului / Număr de contact.
+  - Localitate / Oraș / Comună & Adresă (selectată inteligent sau auto-detectată).
+  - Jurnal notițe instalator: model centrală pe gaz, tip distribuitor și filet robineți (M30x1.5), număr circuite pardoseală, data ultimei revizii.
+  - Contor timp total de viață (Life Uptime, zile de funcționare continuă de la instalare).
+- **FR-13.4 (Acces & Editare Pașaport):** Endpoint dedicat `/api/setup/passport` (GET/POST) și card integrat în interfața `/setup` pentru acces facil de pe mobil la montaj.
+
 ---
 
 ## 4. Cerințe Non-Funcționale (Non-Functional Requirements)
 
 ### 4.1. Siguranță & Comportament la Avarie (NFR-1: Safety & Failsafe)
-- **NFR-1.1 (Autonomie Totală la Edge):** Toate deciziile de deschidere/închidere relee și pornire/oprire centrală sunt executate local în memoria ESP32. Căderea conexiunii Wi-Fi, a routerului, a brokerului MQTT sau a telefonului gateway **NU întrerupe încălzirea**.
-- **NFR-1.2 (Failsafe Cădere Senzor):** Dacă o zonă nu primește nicio citire de temperatură validă timp de peste 30 de minute, zona este marcată cu avarie, releul zonei este închis preventiv și se emite alertă în loguri pentru a evita supraîncălzirea necontrolată.
+- **NFR-1.1 (Autonomie Totală la Edge):** Toate deciziile de deschidere/închidere relee și pornire/oprire centrală sunt executate local în memoria ESP32. Căderea conexiunii Wi-Fi, a routerului, a brokerului MQTT sau a conexiunii cloud **NU întrerupe încălzirea**.
+- **NFR-1.2 (Failsafe Cădere Senzor):** Dacă o zonă nu primește nicio citire de temperatură validă timp de peste 30 de minute, zona este marcată cu avarie, releul zonei este închis preventiv și se emite codul `DTC-101` pentru a evita supraîncălzirea necontrolată.
 - **NFR-1.3 (Protecție la Îngheț):** Chiar dacă o zonă este dezactivată sau setată pe minim, dacă temperatura scade sub 12°C, sistemul forțează încălzirea de protecție la îngheț.
 - **NFR-1.4 (Pornire Sigură la Revenirea Curentului):** După o pană de curent, releele pornesc în mod implicit în stare `LOW` (OPRITE), iar centrala este considerată oprită până la prima evaluare termică stabilă.
 
@@ -126,7 +171,7 @@ Distribuitorul de încălzire conține **7 robineți termostatabili** pe tur/ret
 
 ### 4.3. Calitate Cod & Standarde (NFR-3)
 - **NFR-3.1 (English Codebase Standard):** Toate fișierele sursă C++, anteturile, variabilele, comentariile, textele UI și logurile din consolă sunt redactate **100% în limba engleză**.
-- **NFR-3.2 (Modularitate):** Fiecare subsistem este decuplat în clase C++ de sine stătătoare (`NetworkConsole`, `ThermalZoneManager`, `BoilerRadioTrigger`, `MqttTelemetryClient`).
+- **NFR-3.2 (Modularitate):** Fiecare subsistem este decuplat în clase C++ de sine stătătoare (`NetworkConsole`, `ThermalZoneManager`, `BoilerRadioTrigger`, `MqttTelemetryClient`, `BleSensorScanner`, `DiagnosticEngine`, `DevicePassport`, `TimeAndWeatherService`).
 
 ---
 
@@ -139,8 +184,12 @@ Distribuitorul de încălzire conține **7 robineți termostatabili** pe tur/ret
 | **FR-3** | Pump Overrun Heat Dissipation (120s) | [`src/ThermalZoneManager.cpp`](file:///c:/Users/BSeceleanu/.github_repos/smart-heating/src/ThermalZoneManager.cpp#L240) | Validat Live |
 | **FR-4** | Anti-Short-Cycling Boiler Guard | [`src/ThermalZoneManager.cpp`](file:///c:/Users/BSeceleanu/.github_repos/smart-heating/src/ThermalZoneManager.cpp#L274) | Validat Live |
 | **FR-5** | Comandă Radio Centrală 433.92 MHz | [`src/BoilerRadioTrigger.cpp`](file:///c:/Users/BSeceleanu/.github_repos/smart-heating/src/BoilerRadioTrigger.cpp) | Validat Live |
-| **FR-6** | Telemetrie Xiaomi BLE via MQTT | [`src/MqttTelemetryClient.cpp`](file:///c:/Users/BSeceleanu/.github_repos/smart-heating/src/MqttTelemetryClient.cpp) | Validat Live |
+| **FR-6** | Telemetrie Xiaomi BLE (Nativ NimBLE + MQTT) | [`src/BleSensorScanner.cpp`](file:///c:/Users/BSeceleanu/.github_repos/smart-heating/src/BleSensorScanner.cpp) | Validat Live |
 | **FR-7** | Consolă Virtuală 2-Way (Telnet & Web) | [`src/NetworkConsole.cpp`](file:///c:/Users/BSeceleanu/.github_repos/smart-heating/src/NetworkConsole.cpp) | Validat Live |
 | **FR-8** | Dashboard Web & REST API | [`src/main.cpp`](file:///c:/Users/BSeceleanu/.github_repos/smart-heating/src/main.cpp#L42) | Validat Live |
 | **FR-8.3**| Actualizare Firmware Web OTA | [`src/main.cpp`](file:///c:/Users/BSeceleanu/.github_repos/smart-heating/src/main.cpp#L512) | Validat Live (6.4s) |
+| **FR-10**| Diagnoză DTC & Tesla Service Mode | [`src/DiagnosticEngine.cpp`](file:///c:/Users/BSeceleanu/.github_repos/smart-heating/src/DiagnosticEngine.cpp) | Validat Live |
+| **FR-11**| Setup Wizard & Mapare Dinamică Senzori | [`src/ThermalZoneManager.cpp`](file:///c:/Users/BSeceleanu/.github_repos/smart-heating/src/ThermalZoneManager.cpp) & [`src/main.cpp`](file:///c:/Users/BSeceleanu/.github_repos/smart-heating/src/main.cpp) | Validat Live |
+| **FR-12**| Sincronizare NTP Dată, Timp & Vreme Wi-Fi | [`src/TimeAndWeatherService.cpp`](file:///c:/Users/BSeceleanu/.github_repos/smart-heating/src/TimeAndWeatherService.cpp) | Validat Live |
+| **FR-13**| Pașaport Digital Dispozitiv & Jurnal Montaj | [`src/DevicePassport.cpp`](file:///c:/Users/BSeceleanu/.github_repos/smart-heating/src/DevicePassport.cpp) | Validat Live |
 | **NFR-1** | Operare Autonomă fără Cloud | Arhitectură nativă firmware ESP32 | Validat Live |

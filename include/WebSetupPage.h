@@ -1,0 +1,502 @@
+#ifndef WEB_SETUP_PAGE_H
+#define WEB_SETUP_PAGE_H
+
+#include <Arduino.h>
+
+const char SETUP_HTML[] PROGMEM = R"rawliteral(
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Smart Heating - Commissioning & Setup Wizard</title>
+  <style>
+    *{box-sizing:border-box;}
+    body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#0f172a;color:#f8fafc;margin:0;padding:16px;display:flex;flex-direction:column;align-items:center;min-height:100vh;}
+    .container{width:100%;max-width:760px;}
+    .header-bar{display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;padding-bottom:12px;border-bottom:1px solid #334155;}
+    .title-box h1{font-size:1.4rem;margin:0 0 4px 0;color:#38bdf8;}
+    .title-box .sub{font-size:0.8rem;color:#94a3b8;}
+    .nav-links a{color:#38bdf8;text-decoration:none;font-size:0.85rem;font-weight:600;margin-left:12px;}
+    .pills{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px;}
+    .pill{background:#1e293b;border:1px solid #334155;border-radius:20px;padding:6px 12px;font-size:0.75rem;display:flex;align-items:center;gap:6px;}
+    .pill b{color:#38bdf8;}
+    .card{background:#1e293b;border-radius:14px;padding:18px;margin-bottom:16px;border:1px solid #334155;box-shadow:0 8px 20px -4px rgba(0,0,0,0.4);}
+    .card-title{font-size:1rem;font-weight:700;color:#f1f5f9;margin-bottom:12px;display:flex;justify-content:space-between;align-items:center;}
+    .card-title span.tag{font-size:0.75rem;padding:3px 8px;border-radius:6px;background:#0369a1;color:#ffffff;}
+    table{width:100%;border-collapse:collapse;margin-top:8px;font-size:0.85rem;}
+    th{text-align:left;padding:8px 6px;color:#94a3b8;border-bottom:1px solid #334155;font-weight:600;}
+    td{padding:8px 6px;border-bottom:1px solid #1e293b;}
+    tr:hover{background:#1e293b;}
+    .badge-rssi{font-weight:700;padding:2px 6px;border-radius:4px;font-size:0.75rem;}
+    .rssi-good{background:#065f46;color:#34d399;}
+    .rssi-mid{background:#854d0e;color:#fde047;}
+    .rssi-weak{background:#7f1d1d;color:#fca5a5;}
+    .btn-sm{background:#0284c7;color:#fff;border:none;border-radius:6px;padding:4px 8px;font-size:0.75rem;font-weight:700;cursor:pointer;margin-right:4px;}
+    .btn-sm:hover{background:#0369a1;}
+    .grid-form{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+    @media(max-width:600px){.grid-form{grid-template-columns:1fr;}}
+    .form-group{display:flex;flex-direction:column;gap:4px;}
+    label{font-size:0.75rem;font-weight:600;color:#94a3b8;text-transform:uppercase;}
+    input,select,textarea{background:#0f172a;border:1px solid #334155;border-radius:8px;padding:8px 10px;color:#f8fafc;font-size:0.85rem;font-family:inherit;}
+    input:focus,textarea:focus{outline:none;border-color:#38bdf8;}
+    .btn-primary{background:linear-gradient(135deg,#0284c7,#0369a1);color:#fff;border:none;border-radius:8px;padding:10px 16px;font-weight:700;cursor:pointer;margin-top:10px;width:100%;transition:opacity 0.2s;}
+    .btn-primary:active{opacity:0.8;}
+    .zone-box{background:#0f172a;border:1px solid #334155;border-radius:10px;padding:12px;margin-bottom:12px;}
+    .zone-row{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;}
+    .msg-toast{position:fixed;bottom:20px;right:20px;background:#059669;color:#fff;padding:10px 16px;border-radius:8px;font-size:0.85rem;font-weight:600;display:none;z-index:99;}
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header-bar">
+      <div class="title-box">
+        <h1>⚙️ Commissioning & Setup Wizard</h1>
+        <div class="sub">Dynamic BLE Discovery &bull; Persistent NVS Mapping &bull; Device Passport</div>
+      </div>
+      <div class="nav-links">
+        <a href="/">Dashboard</a>
+        <a href="console">Terminal</a>
+        <a href="update">Firmware OTA</a>
+      </div>
+    </div>
+
+    <div class="pills">
+      <div class="pill">Serial: <b id="p-serial">Loading...</b></div>
+      <div class="pill">Time (NTP): <b id="p-time">--:--:--</b></div>
+      <div class="pill">Season: <b id="p-season">--</b></div>
+      <div class="pill">Heating Season: <b id="p-heat-mode">--</b></div>
+      <div class="pill">Outdoor Temp: <b id="p-weather">--</b></div>
+    </div>
+
+    <!-- Live BLE Discovery -->
+    <div class="card">
+      <div class="card-title">
+        <span>📡 Live BLE Sensor Discovery (Air Scanner)</span>
+        <span class="tag" id="sensor-count">0 Detected</span>
+      </div>
+      <div style="font-size:0.8rem;color:#94a3b8;margin-bottom:8px;">
+        Hold the thermometer near the board to locate it (highest RSSI). Click <b>[Map Z1..Z3]</b> to assign immediately.
+      </div>
+      <div style="overflow-x:auto;">
+        <table>
+          <thead>
+            <tr>
+              <th>Signal</th>
+              <th>MAC Address</th>
+              <th>Device Name</th>
+              <th>Temp / Hum</th>
+              <th>Bat</th>
+              <th>Current Zone</th>
+              <th>Action</th>
+            </tr>
+          </thead>
+          <tbody id="ble-table-body">
+            <tr><td colspan="7" style="text-align:center;color:#64748b;">Scanning BLE frequency spectrum...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Zone Mapping & Calibration -->
+    <div class="card">
+      <div class="card-title">
+        <span>🎛️ Zone & Relay Commissioning (NVS Storage)</span>
+        <span class="tag">3 Hydraulic Zones</span>
+      </div>
+      <div id="zones-container">Loading zone configurations...</div>
+    </div>
+
+    <!-- Device Passport & Installation Log -->
+    <div class="card">
+      <div class="card-title">
+        <span>📋 Device Installation Passport (Client Metadata)</span>
+        <span class="tag" id="tag-commissioned">Checking...</span>
+      </div>
+      <form id="passport-form" onsubmit="savePassport(event)">
+        <div class="grid-form">
+          <div class="form-group">
+            <label>Customer Name</label>
+            <input type="text" id="cust-name" placeholder="e.g. Popescu Ion">
+          </div>
+          <div class="form-group" style="position:relative;">
+            <label>Oraș / Comună / Sat (Prognoză Meteo & Sezon)</label>
+            <div style="display:flex;gap:6px;align-items:center;">
+              <input type="text" id="cust-city-search" placeholder="Caută orice localitate din România (ex: Sânpetru, Florești, Chiajna...)" autocomplete="off" oninput="onCitySearchInput(this.value)" style="flex:1;">
+              <button type="button" class="btn-sm" style="padding:8px 12px;background:#059669;white-space:nowrap;" onclick="autoDetectLocation()">📍 Detectează (GPS/IP)</button>
+            </div>
+            <!-- Auto-suggest suggestions box -->
+            <div id="city-suggestions" style="display:none;position:absolute;left:0;right:0;top:70px;background:#1e293b;border:1px solid #3b82f6;border-radius:6px;max-height:160px;overflow-y:auto;z-index:99;box-shadow:0 6px 16px rgba(0,0,0,0.6);"></div>
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-top:4px;">
+              <span id="loc-status" style="font-size:11px;color:#38bdf8;font-weight:600;">📍 Implicit: Brașov (BV)</span>
+              <span style="font-size:11px;color:#94a3b8;">sau alege județ: 
+                <select id="cust-quick-city" onchange="onQuickCitySelect(this)" style="padding:2px 6px;font-size:11px;background:#0f172a;color:#cbd5e1;border:1px solid #334155;border-radius:4px;">
+                  <option value="">-- Reședință județ --</option>
+                  <option value="45.6579,25.6012" data-name="Brașov (BV)">Brașov (BV)</option>
+                  <option value="44.4268,26.1025" data-name="București / Ilfov (B)">București / Ilfov (B)</option>
+                  <option value="46.7712,23.6236" data-name="Cluj-Napoca (CJ)">Cluj-Napoca (CJ)</option>
+                  <option value="45.7537,21.2257" data-name="Timișoara (TM)">Timișoara (TM)</option>
+                  <option value="47.1585,27.6014" data-name="Iași (IS)">Iași (IS)</option>
+                  <option value="44.1792,28.6498" data-name="Constanța (CT)">Constanța (CT)</option>
+                  <option value="44.3302,23.7949" data-name="Craiova (DJ)">Craiova (DJ)</option>
+                  <option value="45.7983,24.1256" data-name="Sibiu (SB)">Sibiu (SB)</option>
+                  <option value="47.0465,21.9189" data-name="Oradea (BH)">Oradea (BH)</option>
+                  <option value="44.9367,26.0129" data-name="Ploiești (PH)">Ploiești (PH)</option>
+                  <option value="45.4353,28.0080" data-name="Galați (GL)">Galați (GL)</option>
+                  <option value="44.8565,24.8692" data-name="Pitești (AG)">Pitești (AG)</option>
+                  <option value="46.1866,21.3123" data-name="Arad (AR)">Arad (AR)</option>
+                  <option value="46.5670,26.9146" data-name="Bacău (BC)">Bacău (BC)</option>
+                  <option value="46.5456,24.5625" data-name="Târgu Mureș (MS)">Târgu Mureș (MS)</option>
+                  <option value="47.6567,23.5850" data-name="Baia Mare (MM)">Baia Mare (MM)</option>
+                  <option value="45.1517,26.8228" data-name="Buzău (BZ)">Buzău (BZ)</option>
+                  <option value="47.7407,26.6659" data-name="Botoșani (BT)">Botoșani (BT)</option>
+                  <option value="47.7900,22.8900" data-name="Satu Mare (SM)">Satu Mare (SM)</option>
+                  <option value="45.1047,24.3693" data-name="Râmnicu Vâlcea (VL)">Râmnicu Vâlcea (VL)</option>
+                  <option value="47.6514,26.2556" data-name="Suceava (SV)">Suceava (SV)</option>
+                  <option value="46.9383,26.3683" data-name="Piatra Neamț (NT)">Piatra Neamț (NT)</option>
+                  <option value="44.6319,22.6561" data-name="Drobeta-Turnu Severin (MH)">Drobeta-Turnu Severin (MH)</option>
+                  <option value="45.6960,27.1839" data-name="Focșani (VN)">Focșani (VN)</option>
+                  <option value="45.0382,23.2748" data-name="Târgu Jiu (GJ)">Târgu Jiu (GJ)</option>
+                  <option value="45.1789,28.8037" data-name="Tulcea (TL)">Tulcea (TL)</option>
+                  <option value="44.9254,25.4567" data-name="Târgoviște (DB)">Târgoviște (DB)</option>
+                  <option value="45.3008,21.8892" data-name="Reșița (CS)">Reșița (CS)</option>
+                  <option value="47.1332,24.4984" data-name="Bistrița (BN)">Bistrița (BN)</option>
+                  <option value="44.4300,24.3633" data-name="Slatina (OT)">Slatina (OT)</option>
+                  <option value="44.2045,27.3307" data-name="Călărași (CL)">Călărași (CL)</option>
+                  <option value="46.0733,23.5805" data-name="Alba Iulia (AB)">Alba Iulia (AB)</option>
+                  <option value="43.9037,25.9699" data-name="Giurgiu (GR)">Giurgiu (GR)</option>
+                  <option value="45.8778,22.9056" data-name="Deva (HD)">Deva (HD)</option>
+                  <option value="47.1911,23.0575" data-name="Zalău (SJ)">Zalău (SJ)</option>
+                  <option value="45.8639,25.7876" data-name="Sfântu Gheorghe (CV)">Sfântu Gheorghe (CV)</option>
+                  <option value="45.2692,27.9575" data-name="Brăila (BR)">Brăila (BR)</option>
+                  <option value="46.6383,27.7278" data-name="Vaslui (VS)">Vaslui (VS)</option>
+                  <option value="44.5639,27.3661" data-name="Slobozia (IL)">Slobozia (IL)</option>
+                  <option value="43.9753,25.3325" data-name="Alexandria (TR)">Alexandria (TR)</option>
+                  <option value="46.3600,25.8000" data-name="Miercurea Ciuc (HR)">Miercurea Ciuc (HR)</option>
+                </select>
+              </span>
+            </div>
+            <input type="hidden" id="cust-coords" value="45.6579,25.6012">
+            <input type="hidden" id="cust-city" value="Brașov">
+          </div>
+          <div class="form-group">
+            <label>Adresă Stradă / Apartament</label>
+            <input type="text" id="cust-addr" placeholder="e.g. Str. Lalelelor 4, Ap 12">
+          </div>
+          <div class="form-group">
+            <label>Installation Date & Age</label>
+            <input type="text" id="cust-date" readonly style="background:#1e293b;color:#94a3b8;">
+          </div>
+        </div>
+        <div class="form-group" style="margin-top:10px;">
+          <label>Installer Notes & Hardware Details</label>
+          <textarea id="cust-notes" rows="2" placeholder="e.g. Vaillant 24kW boiler, Herz M30x1.5 manifold with 6 loops, installed by B. Seceleanu."></textarea>
+        </div>
+        <button type="submit" class="btn-primary">💾 Save Device Passport to NVS</button>
+      </form>
+    </div>
+  </div>
+
+  <div id="toast" class="msg-toast">Settings saved successfully!</div>
+
+  <script>
+    let basePath = window.location.pathname;
+    if (basePath.endsWith('/setup') || basePath.endsWith('/setup/')) {
+      basePath = basePath.replace(/\/setup\/?$/, '');
+    }
+    const base = (basePath === '' || basePath === '/') ? '/' : (basePath.endsWith('/') ? basePath : basePath + '/');
+
+    function showToast(msg) {
+      const t = document.getElementById('toast');
+      t.innerText = msg || 'Saved successfully!';
+      t.style.display = 'block';
+      setTimeout(() => { t.style.display = 'none'; }, 3000);
+    }
+
+    async function loadTimeAndPills() {
+      try {
+        const r = await fetch(base + 'api/setup/time');
+        if (r.ok) {
+          const d = await r.json();
+          document.getElementById('p-time').innerText = d.date + ' ' + d.time;
+          document.getElementById('p-season').innerText = d.season;
+          document.getElementById('p-heat-mode').innerText = d.isHeatingSeason ? 'ACTIVE (Heating)' : 'OFF-SEASON (Summer)';
+          if (d.weatherValid) {
+            document.getElementById('p-weather').innerText = d.outdoorTemp.toFixed(1) + '°C (' + d.outdoorHumidity.toFixed(0) + '%)';
+          }
+        }
+      } catch(e) {}
+    }
+
+    let searchTimeout = null;
+    function onCitySearchInput(val) {
+      clearTimeout(searchTimeout);
+      const suggBox = document.getElementById('city-suggestions');
+      if (!val || val.trim().length < 2) {
+        suggBox.style.display = 'none';
+        return;
+      }
+      searchTimeout = setTimeout(async () => {
+        try {
+          const res = await fetch('https://geocoding-api.open-meteo.com/v1/search?name=' + encodeURIComponent(val.trim()) + '&count=6&language=ro&country=RO&format=json');
+          if (res.ok) {
+            const data = await res.json();
+            if (data.results && data.results.length > 0) {
+              suggBox.innerHTML = '';
+              data.results.forEach(item => {
+                const region = item.admin1 || '';
+                const display = item.name + (region ? (' (' + region + ')') : '');
+                const coords = item.latitude.toFixed(4) + ',' + item.longitude.toFixed(4);
+                const row = document.createElement('div');
+                row.style.cssText = 'padding:8px 12px;cursor:pointer;border-bottom:1px solid #334155;font-size:13px;display:flex;justify-content:space-between;color:#f8fafc;';
+                row.innerHTML = '<span>🏙️ <b>' + item.name + '</b> <small style="color:#94a3b8;">' + region + '</small></span><span style="font-size:11px;color:#64748b;">' + (item.elevation ? (item.elevation + 'm') : '') + '</span>';
+                row.onmouseover = () => { row.style.background = '#334155'; };
+                row.onmouseout = () => { row.style.background = 'transparent'; };
+                row.onclick = () => { selectLocation(display, coords); };
+                suggBox.appendChild(row);
+              });
+              suggBox.style.display = 'block';
+              return;
+            }
+          }
+        } catch(e) {}
+        suggBox.style.display = 'none';
+      }, 250);
+    }
+
+    function selectLocation(displayName, coords) {
+      document.getElementById('cust-city-search').value = displayName;
+      document.getElementById('cust-city').value = displayName;
+      document.getElementById('cust-coords').value = coords;
+      document.getElementById('loc-status').innerText = '📍 Selectat: ' + displayName;
+      document.getElementById('city-suggestions').style.display = 'none';
+      showToast('Locație: ' + displayName);
+    }
+
+    function onQuickCitySelect(sel) {
+      if (!sel.value) return;
+      const opt = sel.options[sel.selectedIndex];
+      const name = opt.dataset.name || opt.text;
+      selectLocation(name, sel.value);
+    }
+
+    async function autoDetectLocation() {
+      showToast('Detectare locație...');
+      if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(async (pos) => {
+          const lat = pos.coords.latitude.toFixed(4);
+          const lon = pos.coords.longitude.toFixed(4);
+          const coords = lat + ',' + lon;
+          document.getElementById('cust-coords').value = coords;
+          try {
+            const r = await fetch('https://ipapi.co/json/');
+            if (r.ok) {
+              const d = await r.json();
+              if (d.city) {
+                const label = d.city + (d.region ? (' (' + d.region + ')') : '');
+                selectLocation(label, coords);
+                document.getElementById('loc-status').innerText = '📍 GPS: ' + label;
+                showToast('Localizat GPS: ' + label);
+                return;
+              }
+            }
+          } catch(e) {}
+          selectLocation('Locație Curentă GPS', coords);
+        }, async (err) => {
+          fallbackIpLocation();
+        }, {timeout: 4000});
+      } else {
+        fallbackIpLocation();
+      }
+    }
+
+    async function fallbackIpLocation() {
+      try {
+        const r = await fetch('https://ipapi.co/json/');
+        if (r.ok) {
+          const d = await r.json();
+          if (d.city) {
+            const label = d.city + (d.region ? (' (' + d.region + ')') : '');
+            const coords = (d.latitude ? d.latitude.toFixed(4) : '45.6579') + ',' + (d.longitude ? d.longitude.toFixed(4) : '25.6012');
+            selectLocation(label, coords);
+            document.getElementById('loc-status').innerText = '📍 IP: ' + label;
+            showToast('Localizat IP: ' + label);
+            return;
+          }
+        }
+      } catch(e) {}
+      showToast('Nu s-a putut detecta automat. Alege din lista de județe.');
+    }
+
+    async function loadPassport() {
+      try {
+        const r = await fetch(base + 'api/setup/passport');
+        if (r.ok) {
+          const d = await r.json();
+          document.getElementById('p-serial').innerText = d.serialNumber;
+          document.getElementById('cust-name').value = d.customerName || '';
+          document.getElementById('cust-addr').value = d.customerAddress || '';
+          document.getElementById('cust-coords').value = d.locationCoords || '45.6579,25.6012';
+          document.getElementById('cust-notes').value = d.installerNotes || '';
+          document.getElementById('cust-date').value = (d.commissionDate || 'Uncommissioned') + ' (' + d.ageDays + ' days active)';
+          const tag = document.getElementById('tag-commissioned');
+          tag.innerText = d.isCommissioned ? 'COMMISSIONED' : 'FACTORY FRESH';
+          tag.style.background = d.isCommissioned ? '#059669' : '#d97706';
+
+          if (d.locationCity && d.locationCity.length > 0) {
+            document.getElementById('cust-city-search').value = d.locationCity;
+            document.getElementById('cust-city').value = d.locationCity;
+            document.getElementById('loc-status').innerText = '📍 Salvat: ' + d.locationCity;
+          } else {
+            document.getElementById('loc-status').innerText = '📍 Implicit: Brașov (BV)';
+          }
+        }
+      } catch(e) {}
+    }
+
+    async function savePassport(e) {
+      e.preventDefault();
+      const cityName = document.getElementById('cust-city').value || document.getElementById('cust-city-search').value || 'Brașov';
+      const coordsVal = document.getElementById('cust-coords').value || '45.6579,25.6012';
+      const params = new URLSearchParams({
+        customer: document.getElementById('cust-name').value,
+        address: document.getElementById('cust-addr').value,
+        coords: coordsVal,
+        city: cityName,
+        notes: document.getElementById('cust-notes').value
+      });
+      const r = await fetch(base + 'api/setup/passport?' + params.toString(), {method:'POST'});
+      if (r.ok) {
+        showToast('Passport saved to NVS!');
+        loadPassport();
+        loadTimeAndPills();
+      }
+    }
+
+    async function loadDiscoveredSensors() {
+      try {
+        const r = await fetch(base + 'api/setup/discovered-sensors');
+        if (r.ok) {
+          const data = await r.json();
+          const list = data.sensors || [];
+          document.getElementById('sensor-count').innerText = list.length + ' Detected';
+          const tbody = document.getElementById('ble-table-body');
+          if (list.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:#64748b;">No BLE thermometers heard yet. Ensure sensors are within range.</td></tr>';
+            return;
+          }
+          let html = '';
+          list.sort((a,b) => b.rssi - a.rssi); // Closest first
+          list.forEach(s => {
+            let rClass = 'rssi-weak';
+            if (s.rssi >= -65) rClass = 'rssi-good';
+            else if (s.rssi >= -80) rClass = 'rssi-mid';
+            let assignedText = s.assignedZone >= 0 ? '<span style="color:#34d399;font-weight:700;">Zone ' + (s.assignedZone + 1) + '</span>' : '<span style="color:#64748b;">Unassigned</span>';
+            html += `<tr>
+              <td><span class="badge-rssi ${rClass}">${s.rssi} dBm</span></td>
+              <td><code>${s.mac}</code></td>
+              <td><b>${s.name}</b></td>
+              <td>${s.temp.toFixed(1)}°C / ${s.hum.toFixed(0)}%</td>
+              <td>${s.bat}%</td>
+              <td>${assignedText}</td>
+              <td>
+                <button class="btn-sm" onclick="assignSensorToZone(0, '${s.mac}', '${s.name}')">Z1</button>
+                <button class="btn-sm" onclick="assignSensorToZone(1, '${s.mac}', '${s.name}')">Z2</button>
+                <button class="btn-sm" onclick="assignSensorToZone(2, '${s.mac}', '${s.name}')">Z3</button>
+              </td>
+            </tr>`;
+          });
+          tbody.innerHTML = html;
+        }
+      } catch(e) {}
+    }
+
+    async function loadZones() {
+      try {
+        const r = await fetch(base + 'api/zones');
+        if (r.ok) {
+          const data = await r.json();
+          const list = data.zones || [];
+          const cont = document.getElementById('zones-container');
+          let html = '';
+          list.forEach((z, idx) => {
+            html += `<div class="zone-box">
+              <div class="zone-row">
+                <span style="font-weight:700;color:#38bdf8;">Zone ${z.id}: ${z.name}</span>
+                <span>Relay GPIO${z.relayPin} &bull; ${z.enabled ? '<b style="color:#34d399;">Active</b>' : '<b style="color:#f87171;">Disabled</b>'}</span>
+              </div>
+              <div class="grid-form">
+                <div class="form-group">
+                  <label>Room Name</label>
+                  <input type="text" id="zname-${idx}" value="${z.name}">
+                </div>
+                <div class="form-group">
+                  <label>Sensor MAC Address</label>
+                  <input type="text" id="zmac-${idx}" value="${z.sensorMac || ''}" placeholder="e.g. A4:C1:38:A4:C1:DD">
+                </div>
+                <div class="form-group">
+                  <label>Target Temperature (°C)</label>
+                  <input type="number" step="0.5" id="ztarget-${idx}" value="${z.targetTemp}">
+                </div>
+                <div class="form-group">
+                  <label>Relay GPIO Pin</label>
+                  <select id="zpin-${idx}">
+                    <option value="32" ${z.relayPin == 32 ? 'selected' : ''}>GPIO32 (Relay 1)</option>
+                    <option value="33" ${z.relayPin == 33 ? 'selected' : ''}>GPIO33 (Relay 2)</option>
+                    <option value="25" ${z.relayPin == 25 ? 'selected' : ''}>GPIO25 (Relay 3)</option>
+                    <option value="26" ${z.relayPin == 26 ? 'selected' : ''}>GPIO26 (Relay 4 Spare)</option>
+                  </select>
+                </div>
+              </div>
+              <div style="display:flex;gap:8px;margin-top:10px;">
+                <button class="btn-primary" style="margin-top:0;" onclick="saveZone(${idx})">💾 Save Zone ${z.id} to NVS</button>
+              </div>
+            </div>`;
+          });
+          cont.innerHTML = html;
+        }
+      } catch(e) {}
+    }
+
+    function assignSensorToZone(zIdx, mac, name) {
+      const macInput = document.getElementById('zmac-' + zIdx);
+      if (macInput) {
+        macInput.value = mac;
+        saveZone(zIdx);
+      }
+    }
+
+    async function saveZone(idx) {
+      const name = document.getElementById('zname-' + idx).value;
+      const mac = document.getElementById('zmac-' + idx).value;
+      const target = document.getElementById('ztarget-' + idx).value;
+      const pin = document.getElementById('zpin-' + idx).value;
+      const params = new URLSearchParams({
+        zone: idx,
+        name: name,
+        mac: mac,
+        pin: pin,
+        target: target,
+        enabled: '1'
+      });
+      const r = await fetch(base + 'api/setup/map-zone?' + params.toString(), {method:'POST'});
+      if (r.ok) {
+        showToast('Zone ' + (idx + 1) + ' mapped & saved to NVS!');
+        loadZones();
+        loadDiscoveredSensors();
+      }
+    }
+
+    // Init
+    loadPassport();
+    loadTimeAndPills();
+    loadZones();
+    loadDiscoveredSensors();
+    setInterval(loadDiscoveredSensors, 3500);
+    setInterval(loadTimeAndPills, 10000);
+  </script>
+</body>
+</html>
+)rawliteral";
+
+#endif // WEB_SETUP_PAGE_H

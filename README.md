@@ -8,6 +8,9 @@ Un sistem autonom și economic de control termohidraulic multi-zonă, dezvoltat 
 
 - 📑 **[Cerințe de Sistem & Funcționalități (docs/requirements_and_features.md)](docs/requirements_and_features.md)** – Documentul de cerințe (PRD), specificații tehnice, compartimentare zone, reguli de siguranță hidraulică și matrice de trasabilitate.
 - 💰 **[Evidență Piese, Bucăți & Costuri - BOM (docs/bom_hardware_costs.md)](docs/bom_hardware_costs.md)** – Bill of Materials detaliat cu piese în uz, comandate, reutilizate și planificate, prețuri unitare, totaluri și ghid de achiziție actuatoare.
+- 📊 **[Studiu de Piață, Concurență & Evaluare ROI (docs/market_analysis_and_roi.md)](docs/market_analysis_and_roi.md)** – Evaluare viabilitate comercială, profil de piață, comparație Salus/Tado/Honeywell, unit economics și strategii de monetizare.
+- 💼 **[Plan de Vânzări, Side-Hustle & Registru TODO (docs/plan_sales.md)](docs/plan_sales.md)** – Strategie de lansare locală, ofertă la cheie cu montaj, scripturi de conversie, procedură de montaj în 90 min și registru TODO.
+- ☁️ **[Arhitectură Cloud Fleet, Diagnoză & Tesla-Style Service Mode (docs/remote_fleet_and_service_mode.md)](docs/remote_fleet_and_service_mode.md)** – Conectivitate inversată Outbound TLS, coduri DTC, Service Mode pentru suport telefonic la distanță și Fleet OTA.
 - 🔌 **[Documentație Hardware & Pinout Placă (docs/hardware_esp32_relay.md)](docs/hardware_esp32_relay.md)** – Specificații placă ESP32-Relay X4 V1.1, alocare pini GPIO, procedură passthrough și tabel dispozitive rețea.
 - 📋 **[Plan Dinamic & Registru de Sarcini (docs/plan.md)](docs/plan.md)** – Planul activ de lucru, preanaliza inginerească, constatări și sarcini `Todo` / `Done`.
 - 📝 **[Jurnal de Modificări & Verificări (docs/changelog.md)](docs/changelog.md)** – Jurnalul detaliat al funcționalităților implementate, testate și validate.
@@ -49,5 +52,7 @@ Un sistem autonom și economic de control termohidraulic multi-zonă, dezvoltat 
    - Previne uzura centralei prin impunerea unui timp minim de funcționare a flăcării (3 min) și a unei pauze minime între reaprinderi (5 min).
 5. **Ingestie Hibridă de Date (Reziliență Maximă):**
    - ESP32 ascultă pasiv semnalele BLE ale senzorilor. Dacă o cameră îndepărtată are pereți groși de beton și semnal slab la distribuitor, temperatura este preluată automat prin MQTT de la telefonul A6.
-6. **Interfață Web Integrată (Zero Cloud):**
-   - Stocată direct pe ESP32 în LittleFS. Oferă schemă interactivă SVG a apartamentului, comenzi rapide per cameră, grafice locale 24h și compatibilitate PWA (instalare pe ecranul telefonului dintr-un click).
+6. **Arhitectură Decuplată Headless (API-First & Utilitare CLI):**
+   - Microcontrolerul expune un catalog complet de API-uri REST/JSON (`/api/zones`, `/api/boiler/status`, `/api/ble/sensors`, `/api/diag/status`, `/api/setup/passport`) cu timp de răspuns sub 100 ms.
+   - Orice interfață viitoare (PWA, aplicație mobilă sau cloud) funcționează independent de logica de pe cip.
+   - Pachet complet de automatizare și depanare CLI în linia de comandă: [`tools/esp_cli.py`](tools/esp_cli.py) (`status`, `set`, `selftest`, `diag`, `ble`, `passport`, `time`).

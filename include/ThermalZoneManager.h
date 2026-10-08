@@ -2,6 +2,7 @@
 #define THERMAL_ZONE_MANAGER_H
 
 #include <Arduino.h>
+#include <Preferences.h>
 #include "Config.h"
 #include "MqttTelemetryClient.h"
 #include "BoilerRadioTrigger.h"
@@ -10,15 +11,16 @@
 
 enum ZoneState {
     ZONE_DISABLED = 0,
-    ZONE_IDLE,          // Temperatura atinsă, robinet oprit
-    ZONE_WARMING_UP,    // Deschidere robinet NC (așteptare interlock actuator)
-    ZONE_HEATING        // Robinet deschis & flacăra centralei activă
+    ZONE_IDLE,          // Temperatura atinsa, robinet oprit
+    ZONE_WARMING_UP,    // Deschidere robinet NC (asteptare interlock actuator)
+    ZONE_HEATING        // Robinet deschis & flacara centralei activa
 };
 
 struct ThermalZoneConfig {
     uint8_t id;
     char name[32];
-    char sensorName[32];
+    char sensorMac[18];   // Direct MAC mapping (e.g. "A4:C1:38:A4:C1:DD")
+    char sensorName[32];  // Friendly name or alias
     uint8_t relayPin;
     float targetTemp;
     float hysteresis;
@@ -41,6 +43,10 @@ public:
     void begin();
     void update(MqttTelemetryClient& telemetry, BoilerRadioTrigger& boiler);
 
+    // Persistence
+    void loadFromPreferences();
+    void saveToPreferences();
+
     // Getters
     size_t getZoneCount() const { return MAX_THERMAL_ZONES; }
     const ThermalZoneConfig& getConfig(size_t index) const;
@@ -55,13 +61,17 @@ public:
     void setTargetTemperature(size_t index, float target);
     void setHysteresis(size_t index, float hyst);
     void setZoneEnabled(size_t index, bool enabled);
+    void setZoneName(size_t index, const char* name);
     void setSensorName(size_t index, const char* sensorName);
+    void setSensorMac(size_t index, const char* sensorMac);
+    void setRelayPin(size_t index, uint8_t pin);
+    void mapZone(size_t index, const char* name, const char* sensorMac, const char* sensorName, uint8_t relayPin, float targetTemp, float hysteresis, bool enabled);
     void setAutoMode(bool autoMode);
     void setInterlockDelayMs(uint32_t ms) { _interlockDelayMs = ms; }
     void setPumpOverrunMs(uint32_t ms) { _pumpOverrunMs = ms; }
     void setMinBoilerOffMs(uint32_t ms) { _minBoilerOffMs = ms; }
 
-    // Control Manual (când autoMode == false)
+    // Control Manual (cand autoMode == false)
     void setRelayManual(size_t index, bool on);
     void setBoilerManual(BoilerRadioTrigger& boiler, bool on);
 

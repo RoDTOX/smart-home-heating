@@ -7,6 +7,11 @@
 #include "MqttTelemetryClient.h"
 #include "ThermalZoneManager.h"
 #include "NetworkConsole.h"
+#include "BleSensorScanner.h"
+#include "DiagnosticEngine.h"
+#include "DevicePassport.h"
+#include "TimeAndWeatherService.h"
+#include "WebSetupPage.h"
 
 WebServer server(80);
 HTTPUpdateServer httpUpdater;
@@ -34,6 +39,11 @@ void printHelp() {
     netConsole.println(F("  AUTO             -> Switch to AUTOMATIC mode"));
     netConsole.println(F("  MANUAL           -> Switch to MANUAL mode"));
     netConsole.println(F("  SET <z> <temp>   -> Set target temperature (e.g. SET 1 22.5)"));
+    netConsole.println(F("  BLE or SENSORS   -> List decoded BLE room thermometers"));
+    netConsole.println(F("  DIAG [SELFTEST]  -> Tesla-style remote diagnostic report & DTCs"));
+    netConsole.println(F("  PASSPORT         -> View device commissioning & installation metadata"));
+    netConsole.println(F("  TIME             -> View NTP clock, date, season & heating mode"));
+    netConsole.println(F("  WEATHER          -> View outdoor weather from Open-Meteo REST API"));
     netConsole.println(F("  s or STATUS      -> Print system status, zones & sensors"));
     netConsole.println(F("  ? or HELP        -> Display this help menu"));
     netConsole.println(F("=================================================="));
@@ -105,17 +115,17 @@ void handleRoot() {
     );
 
     if (isOn) {
-        html += F("<span class='status-val badge-on'>ON (Active)</span>");
+        html += F("<span id='boiler-badge' class='status-val badge-on'>ON (Active)</span>");
     } else {
-        html += F("<span class='status-val badge-off'>OFF (Idle)</span>");
+        html += F("<span id='boiler-badge' class='status-val badge-off'>OFF (Idle)</span>");
     }
 
     html += F(
         "</div>"
         "<div class='mode-bar'>"
     );
-    html += "<button class='mode-btn " + String(isAuto ? "active" : "") + "' onclick=\"setMode('auto')\">&#9881; AUTOMATIC</button>";
-    html += "<button class='mode-btn " + String(!isAuto ? "active" : "") + "' onclick=\"setMode('manual')\">&#9995; MANUAL</button>";
+    html += "<button id='btn-mode-auto' class='mode-btn " + String(isAuto ? "active" : "") + "' onclick=\"setMode('auto')\">&#9881; AUTOMATIC</button>";
+    html += "<button id='btn-mode-manual' class='mode-btn " + String(!isAuto ? "active" : "") + "' onclick=\"setMode('manual')\">&#9995; MANUAL</button>";
     html += F(
         "</div>"
         "<div class='btn-group'>"
@@ -155,7 +165,7 @@ void handleRoot() {
 
         html += "<div class='zone-ctrl'>";
         html += "<button class='temp-btn' onclick=\"adjTarget(" + String(i) + ", -0.5)\">-</button>";
-        html += "<span class='setpoint-val'>" + String(cfg.targetTemp, 1) + "&deg;C</span>";
+        html += "<span class='setpoint-val' id='sp-" + String(i) + "' data-val='" + String(cfg.targetTemp, 1) + "'>" + String(cfg.targetTemp, 1) + "&deg;C</span>";
         html += "<button class='temp-btn' onclick=\"adjTarget(" + String(i) + ", 0.5)\">+</button>";
         html += "</div>";
         html += "</div>";
@@ -217,32 +227,49 @@ void handleRoot() {
     );
     html += WiFi.localIP().toString();
     html += F(
+        "</b></div>"
+        "<div>Time (NTP): <b>"
+    );
+    html += timeAndWeather.getFormattedTime();
+    html += F(
+        "</b></div>"
+        "<div>Outdoor Temp: <b>"
+    );
+    html += timeAndWeather.isWeatherValid() ? (String(timeAndWeather.getOutdoorTemperature(), 1) + "&deg;C") : String("Pending");
+    html += F(
         "</b></div></div>"
-        "<div class='footer' style='display:flex;justify-content:center;gap:16px;'><a href='console'><b>&gt;_ Live Wi-Fi Console</b></a> &bull; <a href='update'>Firmware OTA</a></div>"
+        "<div class='footer' style='display:flex;justify-content:center;gap:16px;flex-wrap:wrap;'><a href='console'><b>&gt;_ Live Console</b></a> &bull; <a href='setup'><b>⚙️ Setup Wizard</b></a> &bull; <a href='update'>Firmware OTA</a></div>"
         "</div>"
         "<script>"
         "const base = window.location.pathname.endsWith('/') ? window.location.pathname : window.location.pathname + '/';"
-        "async function trigger(action){"
-        "  await fetch(base + 'api/boiler/' + action, {method:'POST'});"
-        "  setTimeout(()=>location.reload(), 400);"
-        "}"
-        "async function setMode(m){"
-        "  await fetch(base + 'api/mode?mode=' + m, {method:'POST'});"
-        "  setTimeout(()=>location.reload(), 200);"
-        "}"
-        "async function adjTarget(idx, delta){"
-        "  const res = await fetch(base + 'api/zones');"
-        "  const data = await res.json();"
-        "  if(data.zones && data.zones[idx]){"
-        "    const cur = data.zones[idx].targetTemp;"
-        "    const nxt = (cur + delta).toFixed(1);"
-        "    await fetch(base + 'api/zones/setpoint?id=' + idx + '&target=' + nxt, {method:'POST'});"
-        "    setTimeout(()=>location.reload(), 200);"
+        "function trigger(action){"
+        "  const b = document.getElementById('boiler-badge');"
+        "  if (b) {"
+        "    b.innerText = action === 'on' ? 'ON (Active)' : 'OFF (Idle)';"
+        "    b.className = 'status-val ' + (action === 'on' ? 'badge-on' : 'badge-off');"
         "  }"
+        "  fetch(base + 'api/boiler/' + action, {method:'POST'});"
         "}"
-        "async function toggleZone(idx){"
-        "  await fetch(base + 'api/zones/toggle?id=' + idx, {method:'POST'});"
-        "  setTimeout(()=>location.reload(), 200);"
+        "function setMode(m){"
+        "  const ba = document.getElementById('btn-mode-auto');"
+        "  const bm = document.getElementById('btn-mode-manual');"
+        "  if (ba && bm) {"
+        "    ba.className = 'mode-btn ' + (m === 'auto' ? 'active' : '');"
+        "    bm.className = 'mode-btn ' + (m === 'manual' ? 'active' : '');"
+        "  }"
+        "  fetch(base + 'api/mode?mode=' + m, {method:'POST'});"
+        "}"
+        "function adjTarget(idx, delta){"
+        "  const el = document.getElementById('sp-' + idx);"
+        "  if (!el) return;"
+        "  let cur = parseFloat(el.dataset.val || el.innerText);"
+        "  let nxt = (cur + delta).toFixed(1);"
+        "  el.dataset.val = nxt;"
+        "  el.innerHTML = nxt + '&deg;C';"
+        "  fetch(base + 'api/zones/setpoint?id=' + idx + '&target=' + nxt, {method:'POST'});"
+        "}"
+        "function toggleZone(idx){"
+        "  fetch(base + 'api/zones/toggle?id=' + idx, {method:'POST'}).then(() => location.reload());"
         "}"
         "</script>"
         "</body></html>"
@@ -282,6 +309,7 @@ void handleApiZones() {
         json += "\"id\":" + String(cfg.id) + ",";
         json += "\"name\":\"" + String(cfg.name) + "\",";
         json += "\"sensor\":\"" + String(cfg.sensorName) + "\",";
+        json += "\"sensorMac\":\"" + String(cfg.sensorMac) + "\",";
         json += "\"relayPin\":" + String(cfg.relayPin) + ",";
         json += "\"targetTemp\":" + String(cfg.targetTemp, 1) + ",";
         json += "\"hysteresis\":" + String(cfg.hysteresis, 2) + ",";
@@ -304,9 +332,14 @@ void handleApiZoneSetpoint() {
         server.send(400, "application/json", F("{\"error\":\"Missing parameters (id and target)\"}"));
         return;
     }
-    size_t id = server.arg("id").toInt();
+    int idVal = server.arg("id").toInt();
+    size_t idx = (idVal >= 1 && idVal <= (int)thermalZones.getZoneCount()) ? (size_t)(idVal - 1) : (size_t)idVal;
+    if (idx >= thermalZones.getZoneCount()) {
+        server.send(400, "application/json", F("{\"error\":\"Invalid zone index\"}"));
+        return;
+    }
     float target = server.arg("target").toFloat();
-    thermalZones.setTargetTemperature(id, target);
+    thermalZones.setTargetTemperature(idx, target);
     server.sendHeader("Access-Control-Allow-Origin", "*");
     server.send(200, "application/json", F("{\"status\":\"ok\"}"));
 }
@@ -316,10 +349,11 @@ void handleApiZoneToggle() {
         server.send(400, "application/json", F("{\"error\":\"Missing parameter (id)\"}"));
         return;
     }
-    size_t id = server.arg("id").toInt();
-    if (id < thermalZones.getZoneCount()) {
-        bool current = thermalZones.getConfig(id).enabled;
-        thermalZones.setZoneEnabled(id, !current);
+    int idVal = server.arg("id").toInt();
+    size_t idx = (idVal >= 1 && idVal <= (int)thermalZones.getZoneCount()) ? (size_t)(idVal - 1) : (size_t)idVal;
+    if (idx < thermalZones.getZoneCount()) {
+        bool current = thermalZones.getConfig(idx).enabled;
+        thermalZones.setZoneEnabled(idx, !current);
         server.sendHeader("Access-Control-Allow-Origin", "*");
         server.send(200, "application/json", F("{\"status\":\"ok\"}"));
     } else {
@@ -359,6 +393,165 @@ void handleApiZoneSensor() {
     }
 }
 
+void handleApiBleSensors() {
+    String json = "{";
+    json += "\"scanning\":" + String(bleScanner.isScanning() ? "true" : "false") + ",";
+    json += "\"count\":" + String(bleScanner.getSensorCount()) + ",";
+    json += "\"sensors\":[";
+    for (size_t i = 0; i < bleScanner.getSensorCount(); i++) {
+        const BleSensorData* s = bleScanner.getSensor(i);
+        if (!s) continue;
+        if (i > 0) json += ",";
+        json += "{";
+        json += "\"name\":\"" + String(s->name) + "\",";
+        json += "\"mac\":\"" + String(s->mac) + "\",";
+        json += "\"temp\":" + String(s->temperature, 2) + ",";
+        json += "\"hum\":" + String(s->humidity, 1) + ",";
+        json += "\"bat\":" + String(s->battery) + ",";
+        json += "\"rssi\":" + String(s->rssi) + ",";
+        json += "\"packets\":" + String(s->packetCount) + ",";
+        json += "\"source\":\"" + String(bleScanner.getSourceStr(s->source)) + "\",";
+        json += "\"ageSec\":" + String((millis() - s->lastSeenMs) / 1000);
+        json += "}";
+    }
+    json += "]}";
+    server.sendHeader("Access-Control-Allow-Origin", "*");
+    server.send(200, "application/json", json);
+}
+
+void handleSetup() {
+    server.sendHeader("Access-Control-Allow-Origin", "*");
+    server.send_P(200, "text/html", SETUP_HTML);
+}
+
+void handleApiSetupPassport() {
+    if (server.method() == HTTP_POST) {
+        String cust = server.arg("customer");
+        String addr = server.arg("address");
+        String notes = server.arg("notes");
+        String city = server.arg("city");
+        String coords = server.arg("coords");
+        devicePassport.commission(cust.c_str(), addr.c_str(), notes.c_str(), city.c_str(), coords.c_str());
+        if (coords.length() > 3) {
+            timeAndWeather.forceWeatherUpdate();
+        }
+    }
+    server.sendHeader("Access-Control-Allow-Origin", "*");
+    server.send(200, "application/json", devicePassport.toJson());
+}
+
+void handleApiSetupDiscoveredSensors() {
+    String json = "{\"sensors\":[";
+    size_t count = bleScanner.getSensorCount();
+    size_t written = 0;
+    for (size_t i = 0; i < count; i++) {
+        const BleSensorData* s = bleScanner.getSensor(i);
+        if (!s || !s->valid) continue;
+        if (written > 0) json += ",";
+        json += "{";
+        json += "\"mac\":\"" + String(s->mac) + "\",";
+        json += "\"name\":\"" + String(s->name) + "\",";
+        json += "\"temp\":" + String(s->temperature, 1) + ",";
+        json += "\"hum\":" + String(s->humidity, 1) + ",";
+        json += "\"bat\":" + String(s->battery) + ",";
+        json += "\"rssi\":" + String(s->rssi) + ",";
+        json += "\"ageSec\":" + String((millis() - s->lastSeenMs) / 1000) + ",";
+        int assignedZone = -1;
+        for (size_t z = 0; z < thermalZones.getZoneCount(); z++) {
+            if (strcasecmp(thermalZones.getConfig(z).sensorMac, s->mac) == 0) {
+                assignedZone = (int)z;
+                break;
+            }
+        }
+        json += "\"assignedZone\":" + String(assignedZone);
+        json += "}";
+        written++;
+    }
+    json += "]}";
+    server.sendHeader("Access-Control-Allow-Origin", "*");
+    server.send(200, "application/json", json);
+}
+
+void handleApiSetupMapZone() {
+    if (!server.hasArg("zone")) {
+        server.send(400, "application/json", F("{\"status\":\"error\",\"message\":\"Missing zone param\"}"));
+        return;
+    }
+    size_t z = (size_t)server.arg("zone").toInt();
+    if (z >= thermalZones.getZoneCount()) {
+        server.send(400, "application/json", F("{\"status\":\"error\",\"message\":\"Invalid zone index\"}"));
+        return;
+    }
+    const ThermalZoneConfig& cur = thermalZones.getConfig(z);
+    String name = server.hasArg("name") ? server.arg("name") : String(cur.name);
+    String mac = server.hasArg("mac") ? server.arg("mac") : String(cur.sensorMac);
+    String sname = server.hasArg("sname") ? server.arg("sname") : String(cur.sensorName);
+    uint8_t pin = server.hasArg("pin") ? (uint8_t)server.arg("pin").toInt() : cur.relayPin;
+    float target = server.hasArg("target") ? server.arg("target").toFloat() : cur.targetTemp;
+    float hyst = server.hasArg("hyst") ? server.arg("hyst").toFloat() : cur.hysteresis;
+    bool en = server.hasArg("enabled") ? (server.arg("enabled") == "true" || server.arg("enabled") == "1") : cur.enabled;
+
+    thermalZones.mapZone(z, name.c_str(), mac.c_str(), sname.c_str(), pin, target, hyst, en);
+    server.sendHeader("Access-Control-Allow-Origin", "*");
+    server.send(200, "application/json", F("{\"status\":\"ok\",\"message\":\"Zone configuration updated and saved to NVS\"}"));
+}
+
+void handleApiSetupTime() {
+    if (server.hasArg("refreshWeather")) {
+        timeAndWeather.forceWeatherUpdate();
+    }
+    server.sendHeader("Access-Control-Allow-Origin", "*");
+    server.send(200, "application/json", timeAndWeather.toJson());
+}
+
+void handleApiDiagStatus() {
+    String json = "{";
+    json += "\"serviceMode\":" + String(diagEngine.isServiceMode() ? "true" : "false") + ",";
+    json += "\"healthScore\":" + String(diagEngine.calculateHealthScore()) + ",";
+    json += "\"dtcCount\":" + String(diagEngine.getDtcCount()) + ",";
+    json += "\"dtcs\":[";
+    size_t written = 0;
+    for (size_t i = 0; i < diagEngine.getDtcCount(); i++) {
+        const DtcRecord* d = diagEngine.getDtc(i);
+        if (!d || !d->active) continue;
+        if (written > 0) json += ",";
+        json += "{";
+        json += "\"code\":\"" + String(d->code) + "\",";
+        json += "\"severity\":\"" + String(diagEngine.getSeverityStr(d->severity)) + "\",";
+        json += "\"message\":\"" + String(d->message) + "\",";
+        json += "\"count\":" + String(d->occurrenceCount) + ",";
+        json += "\"ageSec\":" + String((millis() - d->lastRaisedMs) / 1000);
+        json += "}";
+        written++;
+    }
+    json += "]}";
+    server.sendHeader("Access-Control-Allow-Origin", "*");
+    server.send(200, "application/json", json);
+}
+
+void handleApiDiagSelfTest() {
+    String report = diagEngine.runSelfTest();
+    server.sendHeader("Access-Control-Allow-Origin", "*");
+    server.send(200, "text/plain", report);
+}
+
+void handleApiDiagClear() {
+    diagEngine.clearAllDtcs();
+    server.sendHeader("Access-Control-Allow-Origin", "*");
+    server.send(200, "application/json", F("{\"status\":\"ok\",\"message\":\"All DTC codes cleared\"}"));
+}
+
+void handleApiDiagService() {
+    if (server.hasArg("enable")) {
+        String val = server.arg("enable");
+        val.toLowerCase();
+        bool enable = (val == "true" || val == "1");
+        diagEngine.setServiceMode(enable);
+    }
+    server.sendHeader("Access-Control-Allow-Origin", "*");
+    server.send(200, "application/json", diagEngine.isServiceMode() ? F("{\"status\":\"ok\",\"serviceMode\":true}") : F("{\"status\":\"ok\",\"serviceMode\":false}"));
+}
+
 void handleApiStatus() {
     String json = "{";
     json += "\"boiler\":\"" + String(boilerRadio.isLastCommandOn() ? "ON" : "OFF") + "\",";
@@ -366,7 +559,17 @@ void handleApiStatus() {
     json += "\"freeHeap\":" + String(ESP.getFreeHeap()) + ",";
     json += "\"rssi\":" + String(WiFi.RSSI()) + ",";
     json += "\"uptimeSec\":" + String(millis() / 1000) + ",";
+    json += "\"healthScore\":" + String(diagEngine.calculateHealthScore()) + ",";
+    json += "\"serviceMode\":" + String(diagEngine.isServiceMode() ? "true" : "false") + ",";
+    json += "\"serialNumber\":\"" + String(devicePassport.getSerialNumber()) + "\",";
+    json += "\"isCommissioned\":" + String(devicePassport.isCommissioned() ? "true" : "false") + ",";
+    json += "\"time\":\"" + timeAndWeather.getFormattedTime() + "\",";
+    json += "\"date\":\"" + timeAndWeather.getFormattedDate() + "\",";
+    json += "\"season\":\"" + timeAndWeather.getSeason() + "\",";
+    json += "\"isHeatingSeason\":" + String(timeAndWeather.isHeatingSeason() ? "true" : "false") + ",";
+    json += "\"outdoorTemp\":" + String(timeAndWeather.getOutdoorTemperature(), 1) + ",";
     json += "\"mqttConnected\":" + String(mqttTelemetry.isConnected() ? "true" : "false") + ",";
+    json += "\"bleScanning\":" + String(bleScanner.isScanning() ? "true" : "false") + ",";
     json += "\"autoMode\":" + String(thermalZones.isAutoMode() ? "true" : "false") + ",";
     json += "\"boilerDemand\":" + String(thermalZones.isBoilerDemanded() ? "true" : "false") + ",";
     json += "\"sensors\":[";
@@ -469,15 +672,84 @@ void handleSerialCommand(String cmd) {
                 st.relayEngaged ? "ON" : "OFF"
             );
         }
-        size_t sc = mqttTelemetry.getSensorCount();
-        netConsole.printf("[STATUS] MQTT BLE Sensors (%u):\n", sc);
+        size_t sc = bleScanner.getSensorCount();
+        netConsole.printf("[STATUS] Room Thermometers (%u) [BLE Scan: %s | MQTT: %s]:\n",
+            sc, bleScanner.isScanning() ? "ACTIVE" : "INACTIVE",
+            mqttTelemetry.isConnected() ? "CONNECTED" : "DISCONNECTED");
         for (size_t i = 0; i < sc; i++) {
-            const RoomSensor* s = mqttTelemetry.getSensor(i);
+            const BleSensorData* s = bleScanner.getSensor(i);
             if (s) {
-                netConsole.printf("  - %s (%s): %.1f C, %.1f %%, Bat: %d %%\n",
-                    s->name, s->mac, s->temperature, s->humidity, s->battery);
+                uint32_t age = (millis() - s->lastSeenMs) / 1000;
+                netConsole.printf("  - %-16s (%s): %.1f C | %.1f %% | Bat: %d%% | RSSI: %d dBm | %s (%us ago)\n",
+                    s->name, s->mac, s->temperature, s->humidity, s->battery, s->rssi,
+                    bleScanner.getSourceStr(s->source), age);
             }
         }
+    } else if (upperCmd == "BLE" || upperCmd == "SENSORS") {
+        size_t bc = bleScanner.getSensorCount();
+        netConsole.printf("[BLE] Room Thermometers Registry (%u) [Passive Scan: %s]:\n",
+            bc, bleScanner.isScanning() ? "RUNNING" : "STOPPED");
+        for (size_t i = 0; i < bc; i++) {
+            const BleSensorData* s = bleScanner.getSensor(i);
+            if (s) {
+                uint32_t age = (millis() - s->lastSeenMs) / 1000;
+                netConsole.printf("  [%u] %-16s (%s) | %.1f C | %.1f %% | Bat: %d%% | RSSI: %d dBm | Pkts: %u | %s (%us ago)\n",
+                    (unsigned int)(i + 1), s->name, s->mac, s->temperature, s->humidity,
+                    s->battery, s->rssi, s->packetCount, bleScanner.getSourceStr(s->source), age);
+            }
+        }
+        if (bc == 0) {
+            netConsole.println(F("  No BLE thermometers decoded yet. Waiting for advertisements (interval ~10-20s)..."));
+        }
+    } else if (upperCmd.startsWith("DIAG")) {
+        if (upperCmd == "DIAG SELFTEST") {
+            netConsole.print(diagEngine.runSelfTest());
+        } else if (upperCmd == "DIAG CLEAR") {
+            diagEngine.clearAllDtcs();
+        } else if (upperCmd == "DIAG SERVICE ON") {
+            diagEngine.setServiceMode(true);
+        } else if (upperCmd == "DIAG SERVICE OFF") {
+            diagEngine.setServiceMode(false);
+        } else {
+            netConsole.printf("[DIAG] System Health Score: %u%% | Service Mode: %s | Active DTCs: %u\n",
+                diagEngine.calculateHealthScore(),
+                diagEngine.isServiceMode() ? "ACTIVE (Engineer Engaged)" : "NORMAL",
+                diagEngine.getDtcCount());
+            size_t activeCount = 0;
+            for (size_t i = 0; i < diagEngine.getDtcCount(); i++) {
+                const DtcRecord* d = diagEngine.getDtc(i);
+                if (d && d->active) {
+                    activeCount++;
+                    netConsole.printf("  * [%s] %s: %s (x%u, raised %us ago)\n",
+                        d->code, diagEngine.getSeverityStr(d->severity), d->message,
+                        d->occurrenceCount, (millis() - d->lastRaisedMs) / 1000);
+                }
+            }
+            if (activeCount == 0) {
+                netConsole.println(F("  No active diagnostic trouble codes. All subsystems nominal!"));
+            }
+        }
+    } else if (upperCmd == "PASSPORT") {
+        netConsole.printf("[PASSPORT] Serial: %s | MAC: %s\n", devicePassport.getSerialNumber(), WiFi.macAddress().c_str());
+        netConsole.printf("  Status:     %s\n", devicePassport.isCommissioned() ? "COMMISSIONED (Customer Active)" : "UNCOMMISSIONED (Factory Default)");
+        netConsole.printf("  Customer:   %s\n", devicePassport.getCustomerName());
+        netConsole.printf("  Address:    %s (%s)\n", devicePassport.getCustomerAddress(), devicePassport.getLocationCity());
+        netConsole.printf("  Coords:     %s\n", devicePassport.getLocationCoords());
+        netConsole.printf("  Installed:  %s (%u days ago)\n", devicePassport.getCommissionDate(), devicePassport.getInstallationAgeDays());
+        netConsole.printf("  Notes:      %s\n", devicePassport.getInstallerNotes());
+    } else if (upperCmd == "TIME") {
+        netConsole.printf("[TIME] %s, %s %s (Timezone: Europe/Bucharest)\n",
+            timeAndWeather.getDayOfWeek().c_str(), timeAndWeather.getFormattedDate().c_str(), timeAndWeather.getFormattedTime().c_str());
+        netConsole.printf("  NTP Synced:     %s\n", timeAndWeather.isTimeSynced() ? "YES" : "NO");
+        netConsole.printf("  Calendar Year:  %d | Month: %d | Day: %d\n", timeAndWeather.getYear(), timeAndWeather.getMonth(), timeAndWeather.getDay());
+        netConsole.printf("  Season:         %s | Heating Season: %s\n",
+            timeAndWeather.getSeason().c_str(), timeAndWeather.isHeatingSeason() ? "ACTIVE (Heating Mode)" : "OFF-SEASON (Summer Standby)");
+    } else if (upperCmd == "WEATHER") {
+        netConsole.printf("[WEATHER] Outdoor Temperature: %.1f C | Humidity: %.1f %%\n",
+            timeAndWeather.getOutdoorTemperature(), timeAndWeather.getOutdoorHumidity());
+        netConsole.printf("  Source:   Open-Meteo REST API (HTTP Wi-Fi)\n");
+        netConsole.printf("  Status:   %s (Fetched %u s ago)\n",
+            timeAndWeather.isWeatherValid() ? "VALID" : "PENDING", timeAndWeather.getWeatherAgeSec());
     } else if (upperCmd == "?" || upperCmd == "HELP") {
         printHelp();
     } else {
@@ -504,11 +776,28 @@ void setup() {
     netConsole.begin(&server);
     netConsole.setCommandHandler(handleSerialCommand);
 
+    // Initialize Time & NTP Service
+    timeAndWeather.begin();
+
+    // Initialize Device Passport (NVS commissioning metadata)
+    devicePassport.begin();
+
     // Initialize MQTT Telemetry (Galaxy-A6 Mosquitto)
     mqttTelemetry.begin();
 
+    // Initialize Native Passive BLE Scanner (Xiaomi BTHome v2 & PVVX)
+    bleScanner.begin();
+
+    // Initialize Diagnostic Engine & Service Mode
+    diagEngine.begin();
+
     // Web Server routes
     server.on("/", HTTP_GET, handleRoot);
+    server.on("/setup", HTTP_GET, handleSetup);
+    server.on("/api/setup/passport", handleApiSetupPassport);
+    server.on("/api/setup/discovered-sensors", HTTP_GET, handleApiSetupDiscoveredSensors);
+    server.on("/api/setup/map-zone", HTTP_POST, handleApiSetupMapZone);
+    server.on("/api/setup/time", HTTP_GET, handleApiSetupTime);
     server.on("/api/boiler/on", HTTP_POST, handleApiOn);
     server.on("/api/boiler/off", HTTP_POST, handleApiOff);
     server.on("/api/boiler/status", HTTP_GET, handleApiStatus);
@@ -517,19 +806,27 @@ void setup() {
     server.on("/api/zones/toggle", HTTP_POST, handleApiZoneToggle);
     server.on("/api/zones/sensor", HTTP_POST, handleApiZoneSensor);
     server.on("/api/mode", HTTP_POST, handleApiMode);
+    server.on("/api/ble/sensors", HTTP_GET, handleApiBleSensors);
+    server.on("/api/diag/status", HTTP_GET, handleApiDiagStatus);
+    server.on("/api/diag/selftest", HTTP_GET, handleApiDiagSelfTest);
+    server.on("/api/diag/clear", HTTP_POST, handleApiDiagClear);
+    server.on("/api/diag/service", HTTP_POST, handleApiDiagService);
 
     // Enable Web OTA on /update (admin / admin123)
     httpUpdater.setup(&server, "/update", OTA_USER, OTA_PASS);
     server.begin();
 
     printHelp();
-    netConsole.println(F("[HTTP] Web Server, Web Console, and Web OTA running on port 80."));
+    netConsole.println(F("[HTTP] Web Server, Web Console, Setup Wizard and Web OTA running on port 80."));
     netConsole.println(F("[Ready] System ready for commands."));
 }
 
 void loop() {
     server.handleClient();
     netConsole.update();
+    bleScanner.update();
+    timeAndWeather.update();
+    diagEngine.update();
     mqttTelemetry.update();
     thermalZones.update(mqttTelemetry, boilerRadio);
 
