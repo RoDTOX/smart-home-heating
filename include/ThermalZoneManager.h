@@ -4,16 +4,17 @@
 #include <Arduino.h>
 #include <Preferences.h>
 #include "Config.h"
-#include "MqttTelemetryClient.h"
 #include "BoilerRadioTrigger.h"
 
 #define MAX_THERMAL_ZONES 3
 
 enum ZoneState {
     ZONE_DISABLED = 0,
-    ZONE_IDLE,          // Temperatura atinsa, robinet oprit
-    ZONE_WARMING_UP,    // Deschidere robinet NC (asteptare interlock actuator)
-    ZONE_HEATING        // Robinet deschis & flacara centralei activa
+    ZONE_IDLE,          // Target reached, valve closed
+    ZONE_WARMING_UP,    // Valve opening in progress (waiting for actuator interlock)
+    ZONE_HEATING,       // Valve fully open, boiler and pump active
+    ZONE_FAULT_TIMEOUT, // Sensor missing >30min, zone shut down for safety
+    ZONE_FROST_GUARD    // Emergency frost protection active (<12C)
 };
 
 struct ThermalZoneConfig {
@@ -31,6 +32,8 @@ struct ThermalZoneStatus {
     ZoneState state;
     float currentTemp;
     bool sensorValid;
+    bool sensorFault;
+    bool frostActive;
     bool demand;
     bool relayEngaged;
     uint32_t stateChangedMs;
@@ -41,7 +44,7 @@ public:
     ThermalZoneManager();
 
     void begin();
-    void update(MqttTelemetryClient& telemetry, BoilerRadioTrigger& boiler);
+    void update(BoilerRadioTrigger& boiler);
 
     // Persistence
     void loadFromPreferences();
@@ -57,6 +60,25 @@ public:
     uint32_t getPumpOverrunMs() const { return _pumpOverrunMs; }
     uint32_t getMinBoilerOffMs() const { return _minBoilerOffMs; }
 
+    // Pump Control (Relay 4 on PIN_RELAY_SPARE / GPIO26)
+    bool isPumpControlEnabled() const { return _pumpControlEnabled; }
+    bool isPumpActive() const { return _pumpActive; }
+    void setPumpControlEnabled(bool enabled);
+
+    // Actuator Type (NC vs NO)
+    bool isActuatorNormallyClosed() const { return _actuatorNormallyClosed; }
+    void setActuatorNormallyClosed(bool nc);
+
+    // Frost Protection (<12C)
+    float getFreezeProtectionTemp() const { return _freezeProtectionTemp; }
+    void setFreezeProtectionTemp(float temp);
+    bool isFrostProtectionActive() const { return _frostProtectionActive; }
+
+    // Summer Anti-Seize Exercise (Pumps & Valves)
+    void triggerAntiSeizeExercise();
+    bool isAntiSeizeRunning() const { return _antiSeizeRunning; }
+    uint32_t getLastAntiSeizeRunMs() const { return _lastAntiSeizeRunMs; }
+
     // Setters
     void setTargetTemperature(size_t index, float target);
     void setHysteresis(size_t index, float hyst);
@@ -71,8 +93,9 @@ public:
     void setPumpOverrunMs(uint32_t ms) { _pumpOverrunMs = ms; }
     void setMinBoilerOffMs(uint32_t ms) { _minBoilerOffMs = ms; }
 
-    // Control Manual (cand autoMode == false)
+    // Manual Control
     void setRelayManual(size_t index, bool on);
+    void setPumpManual(bool on);
     void setBoilerManual(BoilerRadioTrigger& boiler, bool on);
 
     // Helpers
@@ -84,6 +107,17 @@ private:
 
     bool _autoMode;
     bool _boilerDemand;
+    bool _pumpControlEnabled;
+    bool _pumpActive;
+    uint32_t _pumpStopScheduledMs;
+    int8_t _overrunKeeperZone;
+    bool _actuatorNormallyClosed;
+    float _freezeProtectionTemp;
+    bool _frostProtectionActive;
+    bool _antiSeizeRunning;
+    uint32_t _antiSeizeStartMs;
+    uint32_t _lastAntiSeizeRunMs;
+
     uint32_t _interlockDelayMs;
     uint32_t _pumpOverrunMs;
     uint32_t _minBoilerOffMs;
@@ -92,6 +126,8 @@ private:
     uint32_t _lastEvaluationMs;
 
     void applyRelay(uint8_t pin, bool active);
+    void updatePumpState(bool anyZoneReadyForBoiler, uint32_t now);
+    void checkAntiSeizeSchedule(uint32_t now);
 };
 
 extern ThermalZoneManager thermalZones;

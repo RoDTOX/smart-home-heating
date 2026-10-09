@@ -11,6 +11,9 @@ import socket
 import time
 import requests
 
+if hasattr(sys.stdout, 'reconfigure'):
+    sys.stdout.reconfigure(encoding='utf-8', errors='replace')
+
 DEFAULT_IP = os.environ.get("ESP_HEATING_IP", "192.168.1.20")
 DEFAULT_PORT_HTTP = 80
 DEFAULT_PORT_TELNET = 23
@@ -32,7 +35,9 @@ def cmd_status(args):
             print(f"Boiler State:       {'FIRE ACTIVE [ON]' if sdata.get('boiler') == 'ON' else 'IDLE [OFF]'}")
             print(f"Thermal Demand:     {'DEMAND ACTIVE' if sdata.get('boilerDemand') else 'NO DEMAND'}")
             print(f"Operation Mode:     {'AUTOMATIC' if sdata.get('autoMode') else 'MANUAL'}")
-            print(f"MQTT Broker:        {'CONNECTED (Galaxy A6)' if sdata.get('mqttConnected') else 'DISCONNECTED'}")
+            print(f"Actuator Type:      {zdata.get('actuatorType', 'NC')} ({'Normally Closed' if zdata.get('actuatorType') == 'NC' else 'Normally Open'})")
+            print(f"Circulation Pump:   {'RUNNING [ON]' if zdata.get('pumpActive') else 'IDLE [OFF]'} (Relay 4: {'ENABLED' if zdata.get('pumpEnabled') else 'DISABLED'})")
+            print(f"Frost Guard:        {'ACTIVE (<12°C)' if zdata.get('frostGuardActive') else 'STANDBY'}")
             print(f"Free Heap RAM:      {sdata.get('freeHeap', 0) // 1024} KB")
             print(f"Wi-Fi RSSI:         {sdata.get('rssi')} dBm")
             print(f"System Uptime:      {sdata.get('uptimeSec')}s")
@@ -43,9 +48,11 @@ def cmd_status(args):
                 tgt_t = z.get('targetTemp', 0.0)
                 temp_str = f"{cur_t:.1f}°C" if z.get('sensorValid') else "--.-°C"
                 relay_str = "ON" if z.get('relayEngaged') else "OFF"
-                print(f"  [Zone {z.get('id')}] {z.get('name'):<22}: {temp_str} / {tgt_t:.1f}°C | State: {z.get('state'):<16} | Relay: {relay_str}")
+                fault_tag = " [SENSOR FAULT]" if z.get('sensorFault') else ""
+                frost_tag = " [FROST GUARD]" if z.get('frostActive') else ""
+                print(f"  [Zone {z.get('id')}] {z.get('name'):<22}: {temp_str} / {tgt_t:.1f}°C | State: {z.get('state'):<20} | Relay: {relay_str}{fault_tag}{frost_tag}")
             print("--------------------------------------------------")
-            print("MQTT Room Sensors (Xiaomi BLE):")
+            print("Room Sensors (Xiaomi BLE Direct):")
             for s in sdata.get("sensors", []):
                 print(f"  - {s.get('name'):<15} ({s.get('mac')}): {s.get('temp', 0):.1f}°C, {s.get('hum', 0):.0f}%, Bat: {s.get('bat')}%, RSSI: {s.get('rssi')} dBm (seen {s.get('ageSec')}s ago)")
             print("==================================================")
@@ -166,9 +173,29 @@ def cmd_time(args):
 
 def cmd_boiler(args, action):
     url = f"http://{args.ip}:{args.port}/api/boiler/{action}"
+    if getattr(args, 'force', False):
+        url += "?force=true"
     try:
         r = requests.post(url, timeout=3)
-        print(f"[+] Boiler {action.upper()} response: {r.status_code} {r.text}")
+        if r.status_code == 200:
+            d = r.json()
+            if d.get("idempotent"):
+                print(f"[i] Centrala este deja in starea ceruta ({action.upper()}). Transmisia RF a fost omisa (idempotent no-op).")
+            else:
+                print(f"[+] Comanda executata cu succes: Boiler {action.upper()} transmis via RF 433MHz.")
+        elif r.status_code == 429:
+            try:
+                d = r.json()
+                wait = d.get('waitSec', 0)
+                err = d.get('error', 'Rate limited')
+                cur = d.get('boiler', 'UNKNOWN')
+                print(f"[!] Comanda respinsa de siguranta (HTTP 429): {err}")
+                print(f"    Stare curenta cazan: {cur} | Timp minim ramas pana la deblocare: {wait} secunde.")
+                print(f"    (Sugestie: Foloseste optiunea '--force' daca doresti suprascrierea de urgenta).")
+            except Exception:
+                print(f"[!] Respins de siguranta (HTTP 429): {r.text}")
+        else:
+            print(f"[-] HTTP Error {r.status_code}: {r.text}")
     except Exception as e:
         print(f"[-] Error: {e}")
 
@@ -185,6 +212,68 @@ def cmd_setpoint(args):
     try:
         r = requests.post(url, timeout=3)
         print(f"[+] Setpoint Zone {args.zone} -> {args.temp}°C response: {r.status_code} {r.text}")
+    except Exception as e:
+        print(f"[-] Error: {e}")
+
+def cmd_pump(args):
+    """View or configure circulation pump (Relay 4)."""
+    if args.action:
+        act = args.action.lower()
+        if act in ("enable", "on", "1"):
+            url = f"http://{args.ip}:{args.port}/api/setup/pump?enabled=true"
+        elif act in ("disable", "off", "0"):
+            url = f"http://{args.ip}:{args.port}/api/setup/pump?enabled=false"
+        else:
+            print(f"[-] Unknown pump action: {args.action}")
+            return
+        try:
+            r = requests.post(url, timeout=3)
+            print(f"[+] Pump control response: {r.status_code} {r.text}")
+        except Exception as e:
+            print(f"[-] Error: {e}")
+    else:
+        try:
+            r = requests.get(f"http://{args.ip}:{args.port}/api/setup/pump", timeout=3)
+            d = r.json()
+            print("==================================================")
+            print("  Circulation Pump Configuration (Relay 4)")
+            print("==================================================")
+            print(f"Pump Control:   {'ENABLED' if d.get('pumpEnabled') else 'DISABLED'}")
+            print(f"Pump State:     {'RUNNING [ON]' if d.get('pumpActive') else 'IDLE [OFF]'}")
+            print("==================================================")
+        except Exception as e:
+            print(f"[-] Error: {e}")
+
+def cmd_actuator(args):
+    """View or configure actuator electrical polarity (NC vs NO)."""
+    if args.type:
+        t = args.type.lower()
+        url = f"http://{args.ip}:{args.port}/api/setup/actuator-type?type={t}"
+        try:
+            r = requests.post(url, timeout=3)
+            print(f"[+] Actuator type response: {r.status_code} {r.text}")
+        except Exception as e:
+            print(f"[-] Error: {e}")
+    else:
+        try:
+            r = requests.get(f"http://{args.ip}:{args.port}/api/setup/actuator-type", timeout=3)
+            d = r.json()
+            at = d.get('actuatorType', 'NC')
+            desc = 'Normally Closed (Energize 230V to Open)' if at == 'NC' else 'Normally Open (De-energize 230V to Open)'
+            print("==================================================")
+            print("  Actuator Type & Electrical Polarity")
+            print("==================================================")
+            print(f"Current Type:   {at} - {desc}")
+            print("==================================================")
+        except Exception as e:
+            print(f"[-] Error: {e}")
+
+def cmd_exercise(args):
+    """Trigger 20s anti-seize cycle for circulation pump and underfloor manifold valves."""
+    url = f"http://{args.ip}:{args.port}/api/diag/exercise"
+    try:
+        r = requests.post(url, timeout=5)
+        print(f"[+] Anti-seize exercise response: {r.status_code} {r.text}")
     except Exception as e:
         print(f"[-] Error: {e}")
 
@@ -236,8 +325,18 @@ def main():
     sub.add_parser("selftest", help="Run comprehensive onboard self-test suite")
     sub.add_parser("passport", help="View device commissioning passport and metadata")
     sub.add_parser("time", help="View NTP calendar, season and outdoor weather")
-    sub.add_parser("on", help="Trigger boiler START via RF 433MHz")
-    sub.add_parser("off", help="Trigger boiler STOP via RF 433MHz")
+    p_on = sub.add_parser("on", help="Trigger boiler START via RF 433MHz")
+    p_on.add_argument("--force", action="store_true", help="Force transmission bypassing anti-short-cycling guard")
+    p_off = sub.add_parser("off", help="Trigger boiler STOP via RF 433MHz")
+    p_off.add_argument("--force", action="store_true", help="Force transmission bypassing anti-short-cycling guard")
+
+    p_pump = sub.add_parser("pump", help="View or configure circulation pump (Relay 4)")
+    p_pump.add_argument("action", nargs="?", choices=["enable", "disable", "on", "off"], help="enable or disable pump control")
+
+    p_act = sub.add_parser("actuator", help="View or configure actuator polarity (NC vs NO)")
+    p_act.add_argument("type", nargs="?", choices=["nc", "no"], help="nc or no")
+
+    sub.add_parser("exercise", help="Trigger 20s anti-seize exercise cycle (pump & valves)")
 
     p_mode = sub.add_parser("mode", help="Set operating mode")
     p_mode.add_argument("mode", choices=["auto", "manual"], help="auto or manual")
@@ -248,6 +347,9 @@ def main():
 
     p_exec = sub.add_parser("exec", help="Execute arbitrary command string via Network Console")
     p_exec.add_argument("cmd", help="Command string (e.g. STATUS, HELP, ON, OFF)")
+
+    p_test = sub.add_parser("test", help="Run automated ASPICE SWE.5 verification test suite against ESP32")
+    p_test.add_argument("--report", default="docs/system_test_report.md", help="Path to write markdown test report")
 
     sub.add_parser("monitor", help="Stream live logs in real time via TCP:23")
 
@@ -265,6 +367,12 @@ def main():
         cmd_passport(args)
     elif args.command == "time":
         cmd_time(args)
+    elif args.command == "pump":
+        cmd_pump(args)
+    elif args.command == "actuator":
+        cmd_actuator(args)
+    elif args.command == "exercise":
+        cmd_exercise(args)
     elif args.command == "on":
         cmd_boiler(args, "on")
     elif args.command == "off":
@@ -275,6 +383,13 @@ def main():
         cmd_setpoint(args)
     elif args.command == "exec":
         cmd_exec(args)
+    elif args.command == "test":
+        from test_system import SystemTestSuite
+        suite = SystemTestSuite(ip=args.ip, port=args.port)
+        ok = suite.run_all()
+        if args.report:
+            suite.generate_markdown_report(args.report)
+        sys.exit(0 if ok else 1)
     elif args.command == "monitor":
         cmd_monitor(args)
     else:

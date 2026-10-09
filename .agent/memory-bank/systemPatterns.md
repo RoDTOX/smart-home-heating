@@ -28,7 +28,7 @@
 - **`MqttTelemetryClient` (ESP32):** Secondary redundant telemetry channel subscribing to room topics from Galaxy A6; publishes boiler and relay state for Grafana logging.
 - **`ThermalZoneManager` (ESP32):** State machine evaluating temperature vs setpoint per zone; commands actuator relays and manages boiler heat demand. Persists config to NVS.
 - **`BoilerRadioTrigger` (ESP32):** Hardware abstraction driving the reverse-engineered wireless 433.92 MHz boiler trigger.
-- **`DiagnosticEngine` (ESP32):** Real-time monitoring of subsystems, standard DTC management, onboard self-test routine, and remote Tesla-style Service Mode.
+- **`DiagnosticEngine` (ESP32):** Real-time monitoring of subsystems, standard DTC management, onboard self-test routine, and remote Service Mode.
 - **`DevicePassport` (ESP32):** Manages device serial number, first commissioning timestamp, client profile, and technician maintenance log in NVS.
 - **`TimeAndWeatherService` (ESP32):** Wi-Fi NTP synchronization with Europe/Bucharest timezone and periodic exterior temperature retrieval via Open-Meteo REST API.
 - **`NetworkConsole` (ESP32):** Dual Telnet (TCP 23) and Web console (`/console`) with synchronized bidirectional command handling.

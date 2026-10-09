@@ -1,9 +1,9 @@
-# Arhitectură Cloud Fleet Management, Acces Remote Client & Tesla-Style Service Mode
+# Arhitectură Cloud Fleet Management, Acces Remote Client & Service Mode
 
-**Proiect:** Sistem Inteligent Autonom de Încălzire Multi-Zonă (Smart Home Heating)  
-**Versiune:** 1.0 (Arhitectură Tehnică & Specificație Serviciu la Distanță)  
-**Data elaborării:** 08 Octombrie 2026  
-**Status:** Specificație Activă de Arhitectură & Implementare Modul Diagnoză  
+**Proiect:** Sistem Inteligent Autonom de Încălzire Multi-Zonă (Smart Home Heating)
+**Versiune:** 1.0 (Arhitectură Tehnică & Specificație Serviciu la Distanță)
+**Data elaborării:** 08 Octombrie 2026
+**Status:** Specificație Activă de Arhitectură & Implementare Modul Diagnoză
 
 ---
 

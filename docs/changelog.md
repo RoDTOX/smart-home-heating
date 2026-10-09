@@ -3,6 +3,82 @@
 Jurnalul modificărilor, deciziilor tehnice și verificărilor efectuate pentru proiectul de încălzire inteligentă.
 Corelat cu planul activ: [`docs/plan.md`](file:///c:/Users/BSeceleanu/.github_repos/smart-heating/docs/plan.md).
 
+## [09.10.2026] - Eliminare Bloatware MQTT, Curățare Consolă & Suită Automată Testare Sistem ASPICE SWE.5 (Sarcina 17)
+
+### Eliminare Bloatware & Decuplare Hardware Autonomă
+- **Eliminare Totală Modul MQTT & Dependențe Galaxy-A6:**
+  - Șters fișierele de cod `MqttTelemetryClient.cpp` și `MqttTelemetryClient.h`.
+  - Eliminat flag-ul de compilare `-D MQTT_MAX_PACKET_SIZE=512` din [`platformio.ini`](file:///c:/Users/BSeceleanu/.github_repos/smart-heating/platformio.ini) și dezactivat legătura bibliotecii `PubSubClient`.
+  - Curățat toate referințele MQTT din [`src/main.cpp`](file:///c:/Users/BSeceleanu/.github_repos/smart-heating/src/main.cpp), [`src/ThermalZoneManager.cpp`](file:///c:/Users/BSeceleanu/.github_repos/smart-heating/src/ThermalZoneManager.cpp), [`include/ThermalZoneManager.h`](file:///c:/Users/BSeceleanu/.github_repos/smart-heating/include/ThermalZoneManager.h), [`src/BleSensorScanner.cpp`](file:///c:/Users/BSeceleanu/.github_repos/smart-heating/src/BleSensorScanner.cpp) și [`src/DiagnosticEngine.cpp`](file:///c:/Users/BSeceleanu/.github_repos/smart-heating/src/DiagnosticEngine.cpp).
+  - Sistemul funcționează 100% autonom prin radio Bluetooth NimBLE pasiv fără a depinde de un server/telefon Galaxy-A6 sau bridge extern.
+
+### Curățare Consolă & Confort Acustic
+- **Fără Spam de Pachete BLE:**
+  - Eliminat orice print automat nesolicitat al pachetelor de la senzori din consola Serial / Telnet TCP:23.
+  - Datele senzorilor sunt afișate exclusiv la cererea explicită a utilizatorului (`STATUS`, `BLE`, `SENSORS` sau apel REST).
+
+### Suită de Testare Automată pe PC (ASPICE SWE.5)
+- **Implementat Runner de Testare Sistem (`tools/test_system.py` & `esp_cli.py test`):**
+  - Fără mock-uri artificiale în microcontroler: testele rulează de pe PC direct împotriva plăcii fizice la `192.168.1.20`.
+  - 12 cazuri de testare acoperind:
+    * `SWE.5-TC01`: Telemetrie stare sistem & latență sub 200ms (`FR-1`, `NFR-1.1`, `NFR-1.5`) - PASS.
+    * `SWE.5-TC02`: Pașaport digital de punere în funcțiune NVS (`FR-13.1`, `FR-13.2`) - PASS.
+    * `SWE.5-TC03`: Scanner pasiv NimBLE & decodare Xiaomi (`FR-4.1`, `FR-4.2`) - PASS.
+    * `SWE.5-TC04`: Suită integrată self-test 6 subsisteme (`FR-10.1`, `FR-10.2`) - PASS.
+    * `SWE.5-TC05`: Polaritate actuatoare NC/NO & persistență NVS (`FR-15.1`, `FR-15.2`) - PASS.
+    * `SWE.5-TC06`: Pompă recirculare grup amestec GPA (`FR-14.1`, `FR-14.2`) - PASS.
+    * `SWE.5-TC07`: Filtru idempotență anti-spam no-op (`FR-17.1`) - PASS.
+    * `SWE.5-TC08`: Gardă anti-short-cycling 60s & HTTP 429 (`FR-17.3`, `FR-17.4`) - PASS.
+    * `SWE.5-TC09`: Detecție abuz spam & cod `DTC-201` (`FR-17.5`) - PASS.
+    * `SWE.5-TC10`: Calibrare temperatură țintă zonă (`FR-1.2`, `FR-1.3`) - PASS.
+    * `SWE.5-TC11`: Sincronizare NTP & telemetrie vreme (`FR-11.1`, `FR-11.2`) - PASS.
+    * `SWE.5-TC12`: Feedback bidirecțional consolă rețea (`FR-9.1`, `FR-9.2`) - PASS.
+  - Rată de succes: **100.0% (12/12 teste trecute)** în 4.02 secunde. Raport generat în [`docs/system_test_report.md`](file:///c:/Users/BSeceleanu/.github_repos/smart-heating/docs/system_test_report.md).
+
+## [09.10.2026] - Failsafe Anti-Spam, Rate-Limiting Cazane & Diagnostic DTC-201 (Sarcina 16)
+
+### Protecție Anti-Spam & Anti-Short-Cycling Conform V-Model ASPICE (FR-17, NFR-1.6)
+- **Filtru Idempotent (FR-17.1):**
+  - Comenzile redundante pentru aceeași stare (de ex. comenzi repetate `OFF` sau `ON`) răspund instantaneu în 0 ms cu status 200 și câmpul `idempotent: true`, omițând rafala radio RF 433.92 MHz pentru a reduce poluarea electromagnetică și consumul.
+- **RF Transmitter Burst Cooldown (FR-17.2):**
+  - Temporizare hardware obligatorie de minim 3 secunde între orice două transmisii RF consecutive pentru a proteja etajul de emisie și a garanta recepția curată.
+- **Garda Anti-Short-Cycling a Arzătorului (FR-17.3, NFR-1.6):**
+  - Implementat în [`src/BoilerRadioTrigger.cpp`](file:///c:/Users/BSeceleanu/.github_repos/smart-heating/src/BoilerRadioTrigger.cpp) și verificat la nivel de API în [`src/main.cpp`](file:///c:/Users/BSeceleanu/.github_repos/smart-heating/src/main.cpp).
+  - Durată minimă de ardere continuă: 60 secunde înainte de a permite oprirea (`OFF`).
+  - Pauză minimă de repaus între cicluri: 60 secunde după oprire înainte de a permite repornirea (`ON`).
+- **Răspuns Standard HTTP 429 Too Many Requests (FR-17.4):**
+  - Răspuns REST standardizat cu cod HTTP 429, payload JSON explicit (`error`, `waitSec`, `boiler`) indicând exact secundele rămase până la deblocare.
+- **Detecție Abuz Rapid & Cod Diagnoză DTC-201 (FR-17.5):**
+  - 3 tentative respinse într-o fereastră de 10 secunde ridică automat codul `DTC-201: Rapid boiler toggling / spam detected` cu severitate WARNING, scăzând scorul de sănătate al plăcii la 90%.
+- **Opțiune de Forțare pentru Urgență / Service (`--force`):**
+  - Parametrul `?force=true` sau comutarea în Mod Service permite inginerului de service să suprascrie interlock-ul în situații critice.
+- **Actualizare Procedură Web OTA cu Watchdog Calibrat la 30s:**
+  - Rezolvat conflictul dintre durata de scriere a flash-ului SPI (~12s) și Task Watchdog Timer prin procedura stepped flash (binar de tranziție -> binar complet). TWDT rulează acum la 30 secunde în regim normal.
+- **Verificare Completă SWE.4 / SWE.5:**
+  - Toate scenariile (idempotență, refuz 429 cu countdown, spam DTC-201, bypass `--force`, curățare DTC) au fost rulate și validate live pe hardware (`192.168.1.20`) prin [`tools/esp_cli.py`](file:///c:/Users/BSeceleanu/.github_repos/smart-heating/tools/esp_cli.py).
+
+## [09.10.2026] - Hardening Firmware, Failsafes Hidraulice & Pompă Recirculare Pardoseală (Sarcina 15)
+
+
+### Failsafes de Siguranță & Compatibilitate Hidraulică Universală
+- **Control Automat Pompă Secundară (Grup Amestec GPA / Releu 4 GPIO26):**
+  - Implementat driver inteligent pentru pompa distribuitorului de pardoseală în [`src/ThermalZoneManager.cpp`](file:///c:/Users/BSeceleanu/.github_repos/smart-heating/src/ThermalZoneManager.cpp).
+  - *Interlock Pompă:* Previne cavitația și funcționarea în gol; pompa pornește exclusiv după deschiderea fizică a cel puțin unui actuator.
+  - *Post-circulație (Pump Overrun):* Pompa continuă să ruleze timp de 180s după oprirea flăcării pe ultima zonă activă (*keeper zone*) pentru a disipa căldura reziduală și a preveni șocul termic în schimbător.
+  - *Exercițiu Anti-Blocare de Vară (Anti-Seize):* Rulare automată săptămânală de 20s în sezonul cald pentru prevenirea gripării rotorului. Validat complet pe hardware via CLI (`tools/esp_cli.py exercise`) și endpoint `/api/diag/exercise`.
+- **Compatibilitate Universală Actuatoare NC vs NO:**
+  - Suport nativ selectabil via NVS (`act_nc`) și API (`/api/setup/actuator-type`) pentru actuatoare Normal Închis (NC) și Normal Deschis (NO).
+- **Protecție Forțată la Îngheț (<12°C):**
+  - Failsafe de urgență ce forțează cererea termică chiar dacă sistemul este comutat pe MANUAL sau oprit.
+- **Izolare Avarie Senzor (`DTC-101`):**
+  - La pierderea semnalului peste 30 min, zona afectată este decuplată imediat pentru a preveni supraîncălzirea șapei, iar starea se recuperează instant la reluarea pachetelor.
+- **Hardware Task Watchdog Timer (ESP32 TWDT 30s):**
+  - Bucla principală `loop()` este monitorizată de watchdog-ul hardware nativ ESP-IDF (`esp_task_wdt_init(30, true)`).
+- **Extindere Utilitar CLI (`tools/esp_cli.py`):**
+  - Adăugate comenzile `pump <on|off|enable|disable>`, `actuator <nc|no>`, `exercise` și afișare completă de stare hidraulică în `status`.
+- **Ghid Tehnic & Hidraulic Dedicat:**
+  - Creat documentul [`docs/underfloor_heating_hydraulics_and_failsafes.md`](file:///c:/Users/BSeceleanu/.github_repos/smart-heating/docs/underfloor_heating_hydraulics_and_failsafes.md) cu scheme și bune practici pentru instalatori (termostat de contact la 55°C, supape de bypass diferențial).
+
 ## [09.10.2026] - Arhitectură Decuplată Headless (API-First), Eliminare Latență UI & Asistent Configurare NVS
 
 ### Arhitectură & Optimizare Motor Termic

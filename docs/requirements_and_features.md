@@ -1,8 +1,8 @@
 # Specificație de Cerințe de Sistem & Funcționalități (Requirements & Features)
 
-**Proiect:** Sistem Inteligent Autonom de Încălzire Multi-Zonă (Smart Home Heating)  
-**Data elaborării:** 07 Octombrie 2026  
-**Status:** În dezvoltare activă (Hardware & Software de bază validate live)  
+**Proiect:** Sistem Inteligent Autonom de Încălzire Multi-Zonă (Smart Home Heating)
+**Data elaborării:** 07 Octombrie 2026
+**Status:** În dezvoltare activă (Hardware & Software de bază validate live)
 **Documente corelate:**
 - Plan & Roadmap: [`docs/plan.md`](file:///c:/Users/BSeceleanu/.github_repos/smart-heating/docs/plan.md)
 - Jurnal Modificări: [`docs/changelog.md`](file:///c:/Users/BSeceleanu/.github_repos/smart-heating/docs/changelog.md)
@@ -109,7 +109,7 @@ Distribuitorul de încălzire conține **7 robineți termostatabili** pe tur/ret
 - Preluare temperatură exterioară prin receptor radio SYN480R de la senzorul stației meteo Tronic 4-LD7396-2 de pe peretele de Nord.
 - Fallback automat pe API-ul meteo gratuit Open-Meteo prin Wi-Fi dacă senzorul fizic este offline.
 
-### 3.8. Acces Cloud la Distanță, Diagnoză Flotă & Tesla-Style Service Mode (FR-10)
+### 3.8. Acces Cloud la Distanță, Diagnoză Flotă & Service Mode (FR-10)
 - **FR-10.1 (Traversare Automată NAT/Firewall fără Port-Forwarding):** Dispozitivul ESP32 inițiază o conexiune criptată de ieșire (Outbound TLS WebSocket/MQTTS pe portul 443/8883) către un Server Central Cloud. Funcționează instantaneu pe orice rețea rezidențială (Digi, Orange, Vodafone CGNAT) fără configurare de router sau IP public.
 - **FR-10.2 (Standard Diagnostic Trouble Codes - DTC):** Microcontrollerul monitorizează continuu starea subsistemelor și înregistrează coduri standardizate de eroare:
   - `DTC-101`: `ERR_SENSOR_TIMEOUT` (lipsă telemetrie cameră >20 min).
@@ -119,7 +119,7 @@ Distribuitorul de încălzire conține **7 robineți termostatabili** pe tur/ret
   - `DTC-202`: `ERR_ACTUATOR_STUCK_SHUT` (cerere căldură >90 min fără creștere de temperatură - posibil robinet blocat).
   - `DTC-401`: `WARN_WIFI_SIGNAL_DEGRADED` (RSSI < -82 dBm).
   - `DTC-402`: `WARN_HEAP_FRAGMENTATION` (memorie RAM liberă < 60 KB).
-- **FR-10.3 (Tesla-Style Service Mode & Phone Troubleshooting):** Mod de mentenanță activabil securizat la distanță (`/api/diag/service?enable=true` sau `DIAG SERVICE ON`):
+- **FR-10.3 (Service Mode & Phone Troubleshooting):** Mod de mentenanță activabil securizat la distanță (`/api/diag/service?enable=true` sau `DIAG SERVICE ON`):
   - Permite depanatorului, în timpul convorbirii telefonice cu clientul, să suspende temporar deciziile automate, să acționeze manual fiecare actuator pe rând, să testeze emisia radio către cazan și să inspecteze telemetria în timp real.
 - **FR-10.4 (Suita Onboard Self-Test):** Rutină integrată de autodiagnostic (`/api/diag/selftest` sau `DIAG SELFTEST`) care verifică în mai puțin de 500 ms memoria Heap, Wi-Fi, stiva BLE NimBLE, bridge-ul MQTT, engine-ul termic și emițătorul RF 433 MHz, returnând un Health Score procentual (0-100%).
 - **FR-10.5 (Actualizare Firmware de la Distanță - Remote Fleet OTA):** Posibilitate de actualizare fără fir a firmware-ului de la birou/acasă pentru întreaga flotă de clienți, prin tunelul securizat cloud.
@@ -138,7 +138,7 @@ Distribuitorul de încălzire conține **7 robineți termostatabili** pe tur/ret
 - **FR-12.1 (Sincronizare Oră & Dată via NTP):** La conectarea la Wi-Fi, microcontrolerul sincronizează automat ceasul intern prin Network Time Protocol (NTP, `pool.ntp.org` / `time.google.com`) cu fusul orar al României (`EET-2EEST,M3.5.0/3,M10.5.0/4`), gestionând automat trecerea la ora de vară/iarnă.
 - **FR-12.2 (Detectare Sezon & Regim de Funcționare):** Sistemul deduce automat anul, luna, ziua, ora și determină dacă se află în **Sezonul de Încălzire** (ex. 15 Octombrie – 15 Aprilie) sau în **Extra-sezon** (regim de vară, cu exercițiu automat de mișcare periodică a vanelor pentru prevenirea blocării axului mecanic).
 - **FR-12.3 (Vreme Exterioară prin Wi-Fi Open-Meteo REST API):** Preluare automată a temperaturii exterioare la fiecare 15 minute prin apel HTTP REST către Open-Meteo, pentru reglaj predictiv și compensare climatică chiar și în absența sondei radio externe.
-- **FR-12.4 (Selectare Inteligentă a Locației - Zero Input Coordonate GPS):** 
+- **FR-12.4 (Selectare Inteligentă a Locației - Zero Input Coordonate GPS):**
   - Fără introducere manuală de latitudine/longitudine (zero fricțiune pentru utilizator sau instalator).
   - Căutare inteligentă cu auto-suggest live pentru orice oraș, comună sau sat din România (interogare directă Geocoding Open-Meteo).
   - Listă rapidă predefinită cu toate cele 41 de reședințe de județ + București (funcționare 100% offline).
@@ -154,6 +154,44 @@ Distribuitorul de încălzire conține **7 robineți termostatabili** pe tur/ret
   - Contor timp total de viață (Life Uptime, zile de funcționare continuă de la instalare).
 - **FR-13.4 (Acces & Editare Pașaport):** Endpoint dedicat `/api/setup/passport` (GET/POST) și card integrat în interfața `/setup` pentru acces facil de pe mobil la montaj.
 
+### 3.12. Control Pompă Secundară & Failsafes Hidraulice pentru Grupuri de Amestec GPA (FR-14)
+- **FR-14.1 (Control Automat Pompă de Recirculare pe Releu 4 / GPIO26):** Comandă automată dedicată pompei secundare din grupul de pompare și amestec (GPA) specific caselor, duplexurilor sau distribuitoarelor cu pompă adițională.
+- **FR-14.2 (Interblocare Hidraulică Anti-Cavitație):** Pompa secundară pornește DOAR DUPĂ ce cel puțin un actuator termic a atins cursa completă de deschidere. Elimină riscul funcționării pompei pe circuite închise (fără debit).
+- **FR-14.3 (Post-circulație & Disipare Căldură Reziduală - 180s):** După stingerea flăcării centralei, pompa continuă să funcționeze 3 minute, menținând deschisă ultima zonă activă (*keeper zone*) pentru a răci schimbătorul de căldură și a preveni șocul termic.
+- **FR-14.4 (Exercițiu Automat de Vară Anti-Gripare - Anti-Seize 20s):** Dacă pompa și încălzirea nu au fost active timp de 7 zile consecutive, sistemul deschide automat toate actuatoarele și pornește pompa timp de 20 de secunde. Previne depunerea de calcar și blocarea mecanică a rotorului pompei în extrasezon.
+
+### 3.13. Compatibilitate Universală Actuatoare NC vs NO (FR-15)
+- **FR-15.1 (Polaritate Electrică Configurabilă în NVS):** Setare selectabilă din software (`act_nc: bool`) prin REST API (`/api/setup/actuator-type`) și CLI:
+  - **NC (Normally Closed - Implicit):** Releul se anclanșează (230V aplicat) la cerere de căldură pentru deschidere.
+  - **NO (Normally Open):** Releul rămâne neanclanșat pentru deschidere și se alimentează doar când zona este oprită.
+- **FR-15.2 (Compatibilitate cu Orice Distribuitor de pe Piață):** Permite montarea kitului pe instalații existente fără a schimba actuatoarele funcționale ale clientului (fie ele NC sau NO).
+
+### 3.14. Protecție Forțată la Îngheț & Izolare Failsafe Senzori (FR-16)
+- **FR-16.1 (Emergency Frost Guard < 12°C):** Declanșare automată de urgență a căldurii dacă temperatura oricărei încăperi coboară sub 12°C, suprascriind inclusiv modurile MANUAL sau OFF.
+- **FR-16.2 (Izolare Avarie Senzor DTC-101):** Oprirea imediată a actuatorului zonei la lipsa telemetriei peste 30 de minute (protejează parchetul de supraîncălzire în caz de baterie epuizată a termometrului) și restaurarea instantanee a stării normale de îndată ce sosesc pachete valide.
+
+### 3.15. Protecție Anti-Spam & Interblocare de Siguranță Arzător Cazan (FR-17)
+- **FR-17.1 (Filtru de Idempotență & No-Op Bypass):**
+  - Dacă o comandă de pornire (`ON`) este primită când starea curentă a centralei este deja `ON`, sau o comandă de oprire (`OFF`) când starea este deja `OFF`:
+  - Comanda este tratată instantaneu ca no-op fără a bloca procesorul și fără a transmite pachete radio fizice în eter (zero poluare RF).
+  - Răspunsul HTTP REST returnează succes idempotent (`200 OK` cu `{"status":"ok","boiler":"ON","idempotent":true}`).
+- **FR-17.2 (RF Transmission Cooldown - 3 secunde):**
+  - Emițătorul radio 433.92 MHz impune un interval minim de liniște de 3.000 ms (`MIN_RF_COOLDOWN_MS`) între oricare două trenuri de impulsuri RF consecutive.
+  - Orice solicitare de transmisie în cadrul acestei ferestre este respinsă la nivelul driverului fizic.
+- **FR-17.3 (Interblocare Anti-Short-Cycling pentru Comenzi Manuale & REST API):**
+  - **Timp Minim de Ardere Continuă (Min Run Time - 60s):** Odată ce flacăra cazanului a fost aprinsă (`ON`), nicio comandă manuală de oprire (`OFF`) nu este acceptată timp de minimum 60 de secunde (asigură stabilizarea arderii și evacuarea completă a gazelor arse).
+  - **Timp Minim de Pauză Arzător (Min Pause Time - 60s):** Odată ce flacăra a fost stinsă (`OFF`), nicio comandă manuală de pornire (`ON`) nu este acceptată timp de minimum 60 de secunde (previne aprinderea repetată pe amestec nears și uzura bobinelor vanei de gaz).
+  - *Override de Urgență:* În caz de depanare tehnică sau avarie, modul Service (`Service Mode`) sau un parametru explicit (`force=true`) permite suprascrierea interblocării de către un operator autorizat.
+- **FR-17.4 (Răspuns Determinist HTTP 429 & Feedback CLI):**
+  - Dacă o comandă este respinsă de interblocarea anti-spam / anti-short-cycling, serverul web returnează răspuns determinist HTTP `429 Too Many Requests` cu timpul de așteptare restant:
+    `{"status":"rate_limited","error":"Anti-short-cycling guard active","waitSec":45,"currentBoilerState":"ON"}`.
+  - Utilitarul CLI [`tools/esp_cli.py`](file:///c:/Users/BSeceleanu/.github_repos/smart-heating/tools/esp_cli.py) interceptează starea și afișează avertismentul vizual în terminal fără excepții.
+- **FR-17.5 (Detecție Spam Abuziv & Declanșare Avarie DTC-201):**
+  - Dacă se înregistrează mai mult de 3 încercări respinse de comutare rapidă într-o fereastră de 10 secunde (detecție spam repetat de la utilizator sau buclă infinită dintr-un script extern):
+  - Sistemul înregistrează codul de diagnosticare `DTC-201` (`WARN_RELAY_SHORT_CYCLING` / `WARN_BOILER_SPAM_DETECTED`) și emite avertisment în consola de rețea.
+- **FR-17.6 (Protecție Watchdog TWDT & Zero Blocaj CPU):**
+  - Pre-validarea comenzilor se execută în sub 1 ms. Comenzile respinse nu invocă funcția `transmitBurst()`, garantând că CPU-ul nu blochează întreruperile (`noInterrupts()`) și că Watchdog-ul Hardware TWDT (30s) este alimentat normal.
+
 ---
 
 ## 4. Cerințe Non-Funcționale (Non-Functional Requirements)
@@ -163,6 +201,8 @@ Distribuitorul de încălzire conține **7 robineți termostatabili** pe tur/ret
 - **NFR-1.2 (Failsafe Cădere Senzor):** Dacă o zonă nu primește nicio citire de temperatură validă timp de peste 30 de minute, zona este marcată cu avarie, releul zonei este închis preventiv și se emite codul `DTC-101` pentru a evita supraîncălzirea necontrolată.
 - **NFR-1.3 (Protecție la Îngheț):** Chiar dacă o zonă este dezactivată sau setată pe minim, dacă temperatura scade sub 12°C, sistemul forțează încălzirea de protecție la îngheț.
 - **NFR-1.4 (Pornire Sigură la Revenirea Curentului):** După o pană de curent, releele pornesc în mod implicit în stare `LOW` (OPRITE), iar centrala este considerată oprită până la prima evaluare termică stabilă.
+- **NFR-1.5 (Hardware Task Watchdog Timer - TWDT 30s):** Supraveghere hardware activă nativă ESP-IDF pe bucla `loop()` cu resetare automată a microcontrolerului în cazul oricărei stări de blocaj software sau de rețea.
+- **NFR-1.6 (Limită Ciclu Termic Arzător Cazan - Min 120s per Ciclu):** Indiferent de originea comenzilor (algoritm automat, REST API, Home Assistant sau consolă CLI), frecvența maximă permisă de ciclare a flăcării este limitată la cel mult 1 ciclu per 120 secunde (60s arsură minimă + 60s pauză minimă), prevenind avarierea vanei de gaz și intrarea centralei în avarie mecanică (*Flame Lockout*).
 
 ### 4.2. Performanță & Eficiență Resurse (NFR-2)
 - **NFR-2.1 (Consum Energie):** Placa ESP32 consumă sub 1.2W la priză în regim continuu.
@@ -182,7 +222,7 @@ Distribuitorul de încălzire conține **7 robineți termostatabili** pe tur/ret
 | **FR-1** | Histerezis & Reglaj Multi-Zonă | [`src/ThermalZoneManager.cpp`](file:///c:/Users/BSeceleanu/.github_repos/smart-heating/src/ThermalZoneManager.cpp) | Validat Live |
 | **FR-2** | Actuator Interlock Delay (120s) | [`src/ThermalZoneManager.cpp`](file:///c:/Users/BSeceleanu/.github_repos/smart-heating/src/ThermalZoneManager.cpp#L224) | Validat Live |
 | **FR-3** | Pump Overrun Heat Dissipation (120s) | [`src/ThermalZoneManager.cpp`](file:///c:/Users/BSeceleanu/.github_repos/smart-heating/src/ThermalZoneManager.cpp#L240) | Validat Live |
-| **FR-4** | Anti-Short-Cycling Boiler Guard | [`src/ThermalZoneManager.cpp`](file:///c:/Users/BSeceleanu/.github_repos/smart-heating/src/ThermalZoneManager.cpp#L274) | Validat Live |
+| **FR-4** | Anti-Short-Cycling Boiler Guard (Auto 3m) | [`src/ThermalZoneManager.cpp`](file:///c:/Users/BSeceleanu/.github_repos/smart-heating/src/ThermalZoneManager.cpp#L274) | Validat Live |
 | **FR-5** | Comandă Radio Centrală 433.92 MHz | [`src/BoilerRadioTrigger.cpp`](file:///c:/Users/BSeceleanu/.github_repos/smart-heating/src/BoilerRadioTrigger.cpp) | Validat Live |
 | **FR-6** | Telemetrie Xiaomi BLE (Nativ NimBLE + MQTT) | [`src/BleSensorScanner.cpp`](file:///c:/Users/BSeceleanu/.github_repos/smart-heating/src/BleSensorScanner.cpp) | Validat Live |
 | **FR-7** | Consolă Virtuală 2-Way (Telnet & Web) | [`src/NetworkConsole.cpp`](file:///c:/Users/BSeceleanu/.github_repos/smart-heating/src/NetworkConsole.cpp) | Validat Live |
@@ -192,4 +232,10 @@ Distribuitorul de încălzire conține **7 robineți termostatabili** pe tur/ret
 | **FR-11**| Setup Wizard & Mapare Dinamică Senzori | [`src/ThermalZoneManager.cpp`](file:///c:/Users/BSeceleanu/.github_repos/smart-heating/src/ThermalZoneManager.cpp) & [`src/main.cpp`](file:///c:/Users/BSeceleanu/.github_repos/smart-heating/src/main.cpp) | Validat Live |
 | **FR-12**| Sincronizare NTP Dată, Timp & Vreme Wi-Fi | [`src/TimeAndWeatherService.cpp`](file:///c:/Users/BSeceleanu/.github_repos/smart-heating/src/TimeAndWeatherService.cpp) | Validat Live |
 | **FR-13**| Pașaport Digital Dispozitiv & Jurnal Montaj | [`src/DevicePassport.cpp`](file:///c:/Users/BSeceleanu/.github_repos/smart-heating/src/DevicePassport.cpp) | Validat Live |
+| **FR-14**| Pompă Recirculare GPA Releu 4 & Anti-Seize 20s | [`src/ThermalZoneManager.cpp`](file:///c:/Users/BSeceleanu/.github_repos/smart-heating/src/ThermalZoneManager.cpp) & [`src/main.cpp`](file:///c:/Users/BSeceleanu/.github_repos/smart-heating/src/main.cpp) | Validat Live |
+| **FR-15**| Compatibilitate Actuatoare NC vs NO (NVS) | [`src/ThermalZoneManager.cpp`](file:///c:/Users/BSeceleanu/.github_repos/smart-heating/src/ThermalZoneManager.cpp) | Validat Live |
+| **FR-16**| Frost Guard <12°C & Izolare DTC-101 | [`src/ThermalZoneManager.cpp`](file:///c:/Users/BSeceleanu/.github_repos/smart-heating/src/ThermalZoneManager.cpp) | Validat Live |
+| **FR-17**| Anti-Spam & Interblocare Siguranță Cazan (60s / 3s) | [`src/BoilerRadioTrigger.cpp`](file:///c:/Users/BSeceleanu/.github_repos/smart-heating/src/BoilerRadioTrigger.cpp) & [`src/main.cpp`](file:///c:/Users/BSeceleanu/.github_repos/smart-heating/src/main.cpp) | În Specificare (ASPICE SWE.1) |
 | **NFR-1** | Operare Autonomă fără Cloud | Arhitectură nativă firmware ESP32 | Validat Live |
+| **NFR-1.5**| Hardware Task Watchdog (ESP32 TWDT 30s) | [`src/main.cpp`](file:///c:/Users/BSeceleanu/.github_repos/smart-heating/src/main.cpp) | Validat Live |
+| **NFR-1.6**| Limită Ciclu Termic Cazan (Max 1 ciclu / 120s) | [`src/BoilerRadioTrigger.cpp`](file:///c:/Users/BSeceleanu/.github_repos/smart-heating/src/BoilerRadioTrigger.cpp) | În Specificare (ASPICE SWE.1) |

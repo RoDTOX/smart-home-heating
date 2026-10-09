@@ -9,8 +9,7 @@
 
 enum SensorSource {
     SRC_NONE = 0,
-    SRC_BLE_DIRECT,
-    SRC_MQTT_GATEWAY
+    SRC_BLE_DIRECT
 };
 
 struct BleSensorData {

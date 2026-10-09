@@ -1,5 +1,6 @@
 #include "BoilerRadioTrigger.h"
 #include "NetworkConsole.h"
+#include "DiagnosticEngine.h"
 #include <pgmspace.h>
 
 #define RF_NUM_STEPS 409
@@ -97,7 +98,9 @@ static const uint16_t rf_off_durations[RF_NUM_STEPS] PROGMEM = {
 BoilerRadioTrigger boilerRadio;
 
 BoilerRadioTrigger::BoilerRadioTrigger()
-    : _dataPin(5), _lastCommandOn(false), _lastTxTime(0) {
+    : _dataPin(5), _lastCommandOn(false), _hasTransmittedOnce(false),
+      _lastTxTime(0), _lastStateChangeTime(0),
+      _spamAttemptCount(0), _lastSpamAttemptMs(0) {
 }
 
 void BoilerRadioTrigger::begin(uint8_t dataPin) {
@@ -106,20 +109,121 @@ void BoilerRadioTrigger::begin(uint8_t dataPin) {
     digitalWrite(_dataPin, LOW);
 }
 
-void BoilerRadioTrigger::sendBoilerOn() {
-    netConsole.printf("[RF 433MHz] Transmitting boiler START [ON] command on GPIO%d...\n", _dataPin);
-    transmitBurst(rf_on_durations);
-    _lastCommandOn = true;
-    _lastTxTime = millis();
-    netConsole.println(F("[RF 433MHz] Boiler ON burst sent successfully."));
+bool BoilerRadioTrigger::canTransmit(bool targetOn, uint32_t* remainingSec, bool* isIdempotent) const {
+    uint32_t now = millis();
+
+    // 1. Check idempotency (FR-17.1)
+    if (_hasTransmittedOnce && _lastCommandOn == targetOn) {
+        if (isIdempotent) *isIdempotent = true;
+        if (remainingSec) *remainingSec = 0;
+        return true;
+    }
+    if (isIdempotent) *isIdempotent = false;
+
+    // 2. Check RF hardware burst cooldown (FR-17.2: Min 3s)
+    if (_lastTxTime > 0 && (now - _lastTxTime < RF_MIN_COOLDOWN_MS)) {
+        if (remainingSec) {
+            *remainingSec = (RF_MIN_COOLDOWN_MS - (now - _lastTxTime) + 999) / 1000;
+        }
+        return false;
+    }
+
+    // 3. Check Burner Anti-Short-Cycling Guard (FR-17.3 & NFR-1.6: Min 60s run / 60s pause)
+    if (_hasTransmittedOnce) {
+        if (_lastCommandOn && !targetOn) {
+            // Switching ON -> OFF: must run at least BOILER_MIN_RUN_TIME_MS
+            if (now - _lastStateChangeTime < BOILER_MIN_RUN_TIME_MS) {
+                if (remainingSec) {
+                    *remainingSec = (BOILER_MIN_RUN_TIME_MS - (now - _lastStateChangeTime) + 999) / 1000;
+                }
+                return false;
+            }
+        } else if (!_lastCommandOn && targetOn) {
+            // Switching OFF -> ON: must rest at least BOILER_MIN_PAUSE_TIME_MS
+            if (now - _lastStateChangeTime < BOILER_MIN_PAUSE_TIME_MS) {
+                if (remainingSec) {
+                    *remainingSec = (BOILER_MIN_PAUSE_TIME_MS - (now - _lastStateChangeTime) + 999) / 1000;
+                }
+                return false;
+            }
+        }
+    }
+
+    if (remainingSec) *remainingSec = 0;
+    return true;
 }
 
-void BoilerRadioTrigger::sendBoilerOff() {
-    netConsole.printf("[RF 433MHz] Transmitting boiler STOP [OFF] command on GPIO%d...\n", _dataPin);
+void BoilerRadioTrigger::recordSpamAttempt() {
+    uint32_t now = millis();
+    if (now - _lastSpamAttemptMs < 10000UL) {
+        _spamAttemptCount++;
+    } else {
+        _spamAttemptCount = 1;
+    }
+    _lastSpamAttemptMs = now;
+
+    if (_spamAttemptCount >= 3) {
+        diagEngine.raiseDtc("DTC-201", "Rapid boiler toggling / spam detected", SEV_WARNING);
+        netConsole.printf("[RF 433MHz] WARN: Excessive boiler spam detected (%u attempts). Raised DTC-201.\n", _spamAttemptCount);
+    }
+}
+
+bool BoilerRadioTrigger::sendBoilerOn(bool force) {
+    bool isIdempotent = false;
+    uint32_t waitSec = 0;
+
+    if (!force) {
+        if (!canTransmit(true, &waitSec, &isIdempotent)) {
+            recordSpamAttempt();
+            netConsole.printf("[RF 433MHz] REJECTED: Boiler ON rejected by anti-short-cycling guard. Wait %u s.\n", waitSec);
+            return false;
+        }
+
+        if (isIdempotent) {
+            netConsole.println(F("[RF 433MHz] Boiler already ON. Command skipped (idempotent no-op)."));
+            return true;
+        }
+    }
+
+    netConsole.printf("[RF 433MHz] Transmitting boiler START [ON] command on GPIO%d%s...\n",
+                      _dataPin, force ? " [FORCED]" : "");
+    transmitBurst(rf_on_durations);
+    _lastCommandOn = true;
+    _hasTransmittedOnce = true;
+    _lastTxTime = millis();
+    _lastStateChangeTime = _lastTxTime;
+    _spamAttemptCount = 0;
+    netConsole.println(F("[RF 433MHz] Boiler ON burst sent successfully."));
+    return true;
+}
+
+bool BoilerRadioTrigger::sendBoilerOff(bool force) {
+    bool isIdempotent = false;
+    uint32_t waitSec = 0;
+
+    if (!force) {
+        if (!canTransmit(false, &waitSec, &isIdempotent)) {
+            recordSpamAttempt();
+            netConsole.printf("[RF 433MHz] REJECTED: Boiler OFF rejected by anti-short-cycling guard. Wait %u s.\n", waitSec);
+            return false;
+        }
+
+        if (isIdempotent) {
+            netConsole.println(F("[RF 433MHz] Boiler already OFF. Command skipped (idempotent no-op)."));
+            return true;
+        }
+    }
+
+    netConsole.printf("[RF 433MHz] Transmitting boiler STOP [OFF] command on GPIO%d%s...\n",
+                      _dataPin, force ? " [FORCED]" : "");
     transmitBurst(rf_off_durations);
     _lastCommandOn = false;
+    _hasTransmittedOnce = true;
     _lastTxTime = millis();
+    _lastStateChangeTime = _lastTxTime;
+    _spamAttemptCount = 0;
     netConsole.println(F("[RF 433MHz] Boiler OFF burst sent successfully."));
+    return true;
 }
 
 void BoilerRadioTrigger::transmitBurst(const uint16_t* durationsTable) {
@@ -142,3 +246,4 @@ void BoilerRadioTrigger::transmitBurst(const uint16_t* durationsTable) {
     // 3. Postamble silence (final step is 65ms LOW)
     delay(65);
 }
+

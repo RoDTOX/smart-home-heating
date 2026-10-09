@@ -1,6 +1,5 @@
 #include "BleSensorScanner.h"
 #include "NetworkConsole.h"
-#include "MqttTelemetryClient.h"
 
 BleSensorScanner bleScanner;
 
@@ -70,6 +69,7 @@ void BleSensorScanner::update() {
         }
     }
 }
+
 
 const char* BleSensorScanner::resolveNameForMac(const char* mac, const char* advName, char* outBuf, size_t bufLen) {
     if (!mac || bufLen == 0) return "";
@@ -261,6 +261,7 @@ void BleSensorScanner::onResult(const NimBLEAdvertisedDevice* advertisedDevice) 
     updateOrAddSensor(mac, nameBuf, temp, hum, bat, (int8_t)rssi, SRC_BLE_DIRECT);
 }
 
+
 void BleSensorScanner::updateOrAddSensor(const char* mac, const char* name, float temp, float hum, uint8_t bat, int8_t rssi, SensorSource src) {
     BleSensorData* target = nullptr;
 
@@ -289,33 +290,15 @@ void BleSensorScanner::updateOrAddSensor(const char* mac, const char* name, floa
         target->packetCount++;
         target->source = src;
         target->valid = true;
-
-        netConsole.printf("[BLE] %s (%s): %.1f C | %.1f %% | Bat: %d%% | RSSI: %d dBm | Src: %s\n",
-                          target->name, target->mac, target->temperature, target->humidity,
-                          target->battery, target->rssi, getSourceStr(src));
-
-        // Mirror directly to MqttTelemetryClient so existing thermal loops and API keep running seamlessly
-        mqttTelemetry.updateSensorReading(mac, name, temp, hum, bat, rssi);
     }
 }
 
 void BleSensorScanner::ingestExternalReading(const char* mac, const char* name, float temp, float hum, uint8_t bat, int8_t rssi) {
     if (!mac || strlen(mac) == 0) return;
 
-    // Check if we recently heard this sensor directly via BLE (within 60s)
-    for (size_t i = 0; i < _sensorCount; i++) {
-        if (strcasecmp(_sensors[i].mac, mac) == 0) {
-            if (_sensors[i].source == SRC_BLE_DIRECT && (millis() - _sensors[i].lastSeenMs < 60000UL)) {
-                // Direct BLE is preferred; do not downgrade timestamp
-                return;
-            }
-            break;
-        }
-    }
-
     char nameBuf[32];
     resolveNameForMac(mac, name, nameBuf, sizeof(nameBuf));
-    updateOrAddSensor(mac, nameBuf, temp, hum, bat, rssi, SRC_MQTT_GATEWAY);
+    updateOrAddSensor(mac, nameBuf, temp, hum, bat, rssi, SRC_BLE_DIRECT);
 }
 
 const BleSensorData* BleSensorScanner::getSensor(size_t index) const {
@@ -354,7 +337,6 @@ float BleSensorScanner::getTemperatureByName(const char* name, float fallback) c
 const char* BleSensorScanner::getSourceStr(SensorSource src) const {
     switch (src) {
         case SRC_BLE_DIRECT:   return "BLE-Direct (ESP32)";
-        case SRC_MQTT_GATEWAY: return "MQTT-Gateway (A6)";
         default:               return "None";
     }
 }

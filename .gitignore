@@ -29,3 +29,6 @@ include/dashboard_html_gz.h
 # Temporary scratch & analysis files
 scratch/
 
+# Python cache
+__pycache__/
+*.pyc

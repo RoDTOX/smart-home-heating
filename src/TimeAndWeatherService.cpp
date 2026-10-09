@@ -1,7 +1,6 @@
 #include "TimeAndWeatherService.h"
 #include "NetworkConsole.h"
 #include "DevicePassport.h"
-#include <WiFi.h>
 #include <HTTPClient.h>
 #include <ArduinoJson.h>
 #include <time.h>

@@ -62,20 +62,6 @@
 #define DEFAULT_PUMP_OVERRUN_MS   10000UL  // 10s test bench (120s in production)
 #define DEFAULT_MIN_BOILER_OFF_MS 15000UL  // 15s test bench (180s anti-short cycling in production)
 
-// ==========================================
-// 4. MQTT Broker Settings (Samsung Galaxy A6 Gateway)
-// ==========================================
-#ifndef MQTT_BROKER_HOST
-#define MQTT_BROKER_HOST      "192.168.1.28"
-#endif
-
-#ifndef MQTT_BROKER_PORT
-#define MQTT_BROKER_PORT      1883
-#endif
-
-#ifndef MQTT_TOPIC_SUB
-#define MQTT_TOPIC_SUB        "home/sensors/ble/#"
-#endif
 
 // ==========================================
 // 5. Xiaomi BLE Thermometer Mappings (LYWSD03MMC)

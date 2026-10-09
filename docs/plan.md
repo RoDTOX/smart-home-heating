@@ -106,7 +106,7 @@ Acest document este planul de referință pentru implementarea controlerului aut
         3. **Control Bidirecțional Verificat Live:** Comenzile transmise din Telnet sau din Web Console (`STATUS`, `ON`, `OFF`, `SET <zone> <temp>`, `AUTO`, `MANUAL`, `HELP`) sunt executate instantaneu pe cip, iar răspunsurile și toate logurile de sistem (RF, telemetrie MQTT, relee zone) sunt difuzate sincron către Web, Telnet și Serial USB.
         4. **Flashuit & Validat Live via Web OTA:** Compilat și încărcat prin OTA în 6.43 secunde. Răspunsurile la `STATUS` și `HELP` testate cu succes pe ambele canale.
 
-- [x] **12. Diagnostic Engine & Tesla-Style Service Mode la Distanță** (Finalizat & Validat Live 08.10.2026).
+- [x] **12. Diagnostic Engine & Service Mode la Distanță** (Finalizat & Validat Live 08.10.2026).
       *Rezultat:* Sistem integrat de asistență tehnică la distanță pentru clienți și mentenanță flotă fără deplasare:
         1. **Documentație Arhitectură Cloud & Service Mode:** Redactat [`docs/remote_fleet_and_service_mode.md`](file:///c:/Users/BSeceleanu/.github_repos/smart-heating/docs/remote_fleet_and_service_mode.md) detaliind tunelul securizat Outbound TLS (port 443/8883) fără port-forwarding sau IP public.
         2. **Modul C++ `DiagnosticEngine`:** Implementat în [`include/DiagnosticEngine.h`](file:///c:/Users/BSeceleanu/.github_repos/smart-heating/include/DiagnosticEngine.h) și [`src/DiagnosticEngine.cpp`](file:///c:/Users/BSeceleanu/.github_repos/smart-heating/src/DiagnosticEngine.cpp).
@@ -131,7 +131,52 @@ Acest document este planul de referință pentru implementarea controlerului aut
         3. **Rupere Buclă Recursivă & Non-Blocking Timeouts:** Eliminat apelul recursiv dintre scannerul BLE și clientul MQTT. Setat timeout de 1s pe socketul MQTT și 1.5s pe HTTP Open-Meteo pentru a garanta că bucla principală `loop()` nu este niciodată blocată.
         4. **Selectare Inteligentă Locație fără Coordonate GPS:** Căutare live cu auto-suggest prin Open-Meteo Geocoding pentru orice localitate din România, dropdown offline cu toate cele 41 de reședințe de județ și auto-detecție prin GPS/IP cu 1 click.
         5. **Normalizare Indecși Zone:** Endpoint-urile de zone acceptă nativ atât identificatori bazați pe 1 (`id=1..3`), cât și indecși bazați pe 0 (`id=0..2`).
-        6. **Interfață Primară de Testare CLI (`tools/esp_cli.py`):** Suită completă de comenzi de terminal pentru operare și verificare automată instantanee fără browser.
+- [x] **15. Failsafes de Siguranță, Hardening Firmware & Suport Hidraulic Universal pentru Instalații de Pardoseală** (Finalizat 09.10.2026).
+      *Obiectiv:* Asigurarea compatibilității cu orice distribuitor de pardoseală existent (inclusiv case/duplexuri cu pompe secundare și grupuri de amestec GPA) și maximizarea siguranței fizice:
+        1. **Control Pompă Secundară de Recirculare / Distribuitor via Releu 4 (`GPIO26`):**
+           - Comandă automată pentru pompa de circulație a grupului de amestec (GPA) cu configurare NVS (`pump_en`).
+           - *Interlock Pompă:* Pompa pornește DOAR DUPĂ ce cel puțin un actuator este deschis, prevenind cavitația și funcționarea împotriva circuitelor complet închise.
+           - *Post-circulație Pompă (Overrun):* Pompa continuă să circule apa încă 3 minute după stingerea flăcării pentru disiparea căldurii reziduale (menținând deschisă ultima zonă activă - *keeper zone*).
+           - *Exercițiu Anti-Blocare de Vară (Anti-Seize):* Rulare automată timp de 20 de secunde o dată pe săptămână în sezonul cald pentru prevenirea depunerilor de calcar/magnetită pe rotorul pompei. Validat live pe releu cu revenire automată la `IDLE [OFF]`.
+        2. **Compatibilitate Actuatoare NC vs NO (Normally Closed / Normally Open):**
+           - Setare configurabilă în NVS (`act_nc: bool`) pentru suport nativ atât pentru actuatoarele standard NC (230V aplicat = deschidere), cât și pentru actuatoarele NO (fără tensiune = deschis). Validat live prin API (`/api/setup/actuator-type`) și CLI.
+        3. **Protecție Forțată la Îngheț (Frost Protection Guard < 12°C):**
+           - Declanșare automată de urgență a căldurii dacă temperatura oricărei camere scade sub 12°C, chiar dacă sistemul este pe mod `OFF` sau `MANUAL`.
+        4. **Izolare Avarie Senzor (`DTC-101`) & Decuplare Preventivă:**
+           - Dacă o zonă nu primește telemetrie validă timp de peste 30 de minute, zona este oprită forțat pentru a proteja șapa și parchetul împotriva supraîncălzirii necontrolate, emițând codul `DTC-101`.
+        5. **Hardware Task Watchdog Timer (ESP32 TWDT 30s):**
+           - Activare watchdog hardware nativ ESP-IDF pe bucla principală `loop()`, garantând restart automat curat în caz de blocaj de rețea sau crash, calibrat la 30s pentru toleranță flash write.
+        6. **Ghid & Arhitectură Hidraulică pentru Instalatori:**
+           - Documentat complet în [`docs/underfloor_heating_hydraulics_and_failsafes.md`](file:///c:/Users/BSeceleanu/.github_repos/smart-heating/docs/underfloor_heating_hydraulics_and_failsafes.md): grupuri de amestec GPA, termostat de contact la 55°C, supapă bypass diferențial și scheme de conexiune electrică 230V.
+
+- [x] **16. Failsafe Anti-Spam & Interblocare de Siguranță Arzător Cazan (ASPICE V-Model SWE.1 - SWE.5)** (Finalizat & Validat Live pe Hardware 09.10.2026).
+      *Rezultat:* Eliminarea completă a riscului de avarie hardware cazan (*Flame Lockout*), epuizare bobine vană de gaz și blocare CPU ESP32 cauzate de comenzi repetate abuzive (spam manual, scripturi externe, clicuri rapide Web/CLI):
+        1. **SWE.1 Cerințe Software (FR-17 & NFR-1.6):** Specificat complet în [`docs/requirements_and_features.md`](file:///c:/Users/BSeceleanu/.github_repos/smart-heating/docs/requirements_and_features.md).
+           - *Filtru de Idempotență (FR-17.1):* Comenzi repetate identice (ON când este deja ON) tratate ca no-op instantaneu (0 ms, zero RF, `idempotent: true`).
+           - *RF Cooldown (FR-17.2):* Minim 3 secunde liniște între trenuri de impulsuri RF.
+           - *Interblocare Cazan (FR-17.3 & NFR-1.6):* Minim 60 secunde ardere continuă (Min Run Time) și minim 60 secunde pauză (Min Pause Time) chiar și în mod MANUAL/API.
+           - *Răspuns Determinist (FR-17.4):* Răspuns HTTP `429 Too Many Requests` cu `waitSec` restant și detalii explicite în CLI.
+           - *Detecție Avarie DTC-201 (FR-17.5):* Declanșare automată a codului `DTC-201` cu severitate WARNING la spam repetat (>3 încercări / 10s) și scăderea scorului de sănătate la 90%.
+           - *Zero Blocaj CPU (FR-17.6):* Refuz în pre-validare fără `noInterrupts()`, TWDT protejat la 30s.
+        2. **SWE.2 Design Arhitectural & Interfețe:** Modul `BoilerRadioTrigger` (metoda `canTransmit(targetState, &waitSec, &isIdempotent)` + `sendBoilerOn/Off(force)`), rutare Web Server cu cod 429, actualizare `ThermalZoneManager::setBoilerManual`, interceptare CLI.
+        3. **SWE.3 Implementare Cod:** Modificare [`include/BoilerRadioTrigger.h`](file:///c:/Users/BSeceleanu/.github_repos/smart-heating/include/BoilerRadioTrigger.h), [`src/BoilerRadioTrigger.cpp`](file:///c:/Users/BSeceleanu/.github_repos/smart-heating/src/BoilerRadioTrigger.cpp), [`src/main.cpp`](file:///c:/Users/BSeceleanu/.github_repos/smart-heating/src/main.cpp) și [`tools/esp_cli.py`](file:///c:/Users/BSeceleanu/.github_repos/smart-heating/tools/esp_cli.py).
+        4. **SWE.4 / SWE.5 Verificare & Testare la Spam:**
+           - Validat pe hardware (`192.168.1.20`) prin `python tools/esp_cli.py`:
+             * Comanda `off` repetată returnează instantaneu: `[i] Centrala este deja in starea ceruta (OFF). Transmisia RF a fost omisa (idempotent no-op).` (FR-17.1 PASS).
+             * Comanda `on` dată la sub 60s după oprire returnează HTTP 429 cu timp rămas: `[!] Comanda respinsa de siguranta (HTTP 429): Anti-short-cycling guard active. Timp minim ramas: 48 secunde.` (FR-17.3, FR-17.4 PASS).
+             * 3 comenzi rapide spam ridică `DTC-201` în sistemul de diagnoză (`Health Score: 90%`, `DTC-201 WARNING: Rapid boiler toggling / spam detected`) (FR-17.5 PASS).
+             * Opțiunea `--force` (`python tools/esp_cli.py on --force`) suprascrie interlock-ul în caz de urgență / intervenție service (PASS).
+             * Curățare DTC via `/api/diag/clear` restabilește Scorul de Sănătate la 100% (PASS).
+
+- [x] **17. Eliminare Bloatware MQTT, Curățare Consolă & Suită Automată de Testare pe PC (ASPICE SWE.5)** (Finalizat & Validat Live pe Hardware 09.10.2026).
+      *Rezultat:* Sistemul a fost decuplat 100% de bridge-ul extern Galaxy-A6, transformându-se într-un produs comercial autonom complet:
+        1. **Eliminare Bloatware MQTT:** Șterse `src/MqttTelemetryClient.cpp` și `include/MqttTelemetryClient.h`, eliminat flag-ul de compilare `-D MQTT_MAX_PACKET_SIZE=512`, unlinked `PubSubClient`. Economisit RAM și Flash, zero socket-uri externe deschise inutil.
+        2. **Decuplare 100% Autonomă pe BLE Nativ:** Toți senzorii de cameră Xiaomi LYWSD03MMC sunt interceptați direct prin spectrul radio Bluetooth integrat în ESP32-WROOM-32E via `NimBLE-Arduino`.
+        3. **Consolă Curată (Zero Spam Nesolicitat):** Eliminat afișarea automată a pachetelor BLE la fiecare recepție. Consola Telnet/Serial rămâne complet tăcută; telemetria camerelor este afișată exclusiv la cerere (`STATUS`, `BLE`, `SENSORS` sau interogare REST).
+        4. **Suită Automată de Testare Sistem PC (`tools/test_system.py` & `esp_cli.py test`):**
+           - Fără mock-uri sau endpoint-uri artificiale de test în ESP32: testele rulează de pe PC direct împotriva plăcii la `192.168.1.20`.
+           - Execută automat cele 12 cazuri de testare de integrare (`SWE.5-TC01` - `SWE.5-TC12`) acoperind telemetria, pașaportul, BLE, self-testul, polaritatea actuatoarelor, pompa GPA, idempotența, garda la 60s, spam DTC-201, calibrarea setpoint-urilor, NTP și Network Console.
+           - Rată de succes: **100.0% (12/12 PASS)** în 4.02 secunde. Raport generat în [`docs/system_test_report.md`](file:///c:/Users/BSeceleanu/.github_repos/smart-heating/docs/system_test_report.md).
 
 ---
 
