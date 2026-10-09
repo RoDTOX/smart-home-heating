@@ -14,6 +14,7 @@ Un sistem autonom și economic de control termohidraulic multi-zonă, dezvoltat 
 - 🔌 **[Documentație Hardware & Pinout Placă (docs/hardware_esp32_relay.md)](docs/hardware_esp32_relay.md)** – Specificații placă ESP32-Relay X4 V1.1, alocare pini GPIO, procedură passthrough și tabel dispozitive rețea.
 - 📋 **[Plan Dinamic & Registru de Sarcini (docs/plan.md)](docs/plan.md)** – Planul activ de lucru, preanaliza inginerească, constatări și sarcini `Todo` / `Done`.
 - 📝 **[Jurnal de Modificări & Verificări (docs/changelog.md)](docs/changelog.md)** – Jurnalul detaliat al funcționalităților implementate, testate și validate.
+- 🤖 **[Instrucțiuni & Disciplină Inginerie AI (AGENTS.md)](AGENTS.md)** – Principiile Ponytail (Ladder of Laziness, YAGNI, anti-bloat), protocoale de memorie și siguranță.
 - 🧠 **[Bancă de Memorie Persistentă (.agent/memory-bank/)](.agent/memory-bank/)** – Memoria persistentă de context pentru asistenții AI (scopul produsului, tipare arhitecturale, context tehnic, decizii).
 
 ---
