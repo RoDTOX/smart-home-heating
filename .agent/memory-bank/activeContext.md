@@ -94,4 +94,5 @@
 ## Next Immediate Steps
 1. Wait for physical actuators delivery and wire up to distributor manifold valves.
 2. Cloud fleet connectivity prototype: Outbound TLS reverse tunnel (MQTT over TLS / WebSocket).
-3. Await explicit user instruction for git commit/push (`commit si push`).
+3. Production firmware v1.2.0 is live and fully synchronized on `origin/main` (commit `66fbbae`).
+
