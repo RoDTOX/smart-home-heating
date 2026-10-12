@@ -36,6 +36,7 @@ void BleSensorScanner::begin() {
     _pBLEScan->setActiveScan(false);         // Passive scan: zero RF emissions, zero battery impact on sensors
     _pBLEScan->setInterval(BLE_SCAN_INTERVAL_MS);
     _pBLEScan->setWindow(BLE_SCAN_WINDOW_MS);
+    _pBLEScan->setMaxResults(0);             // 0 == none (callbacks only): Prevents accumulation of advertised devices in RAM!
 
     restartScan();
 }
@@ -45,6 +46,7 @@ void BleSensorScanner::restartScan() {
     
     _pBLEScan->stop();
     delay(20);
+    _pBLEScan->clearResults();
 
     // start(durationSeconds, isContinue, restart) -> 0 = scan indefinitely
     bool started = _pBLEScan->start(0, false, true);

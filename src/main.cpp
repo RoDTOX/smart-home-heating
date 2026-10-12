@@ -1472,12 +1472,16 @@ void setup() {
   server.on("/api/setup/pump", handleApiSetupPump);
   server.on("/api/setup/sensor-timeout", handleApiSetupSensorTimeout);
 
-  // Initialize Hardware Task Watchdog Timer (90 seconds timeout to safely
-  // accommodate OTA flash writes)
+  // Initialize Hardware Task Watchdog Timer (90 seconds timeout)
   esp_task_wdt_init(90, true);
   esp_task_wdt_add(NULL);
   Serial.println(
       F("[System] Hardware Task Watchdog Timer (TWDT) armed: 90s."));
+
+  // Feed TWDT during OTA flash writes so watchdog never triggers
+  Update.onProgress([](size_t progress, size_t total) {
+    esp_task_wdt_reset();
+  });
 
   // Enable Web OTA on /update (admin / admin123)
   httpUpdater.setup(&server, "/update", OTA_USER, OTA_PASS);

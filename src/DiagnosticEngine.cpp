@@ -170,16 +170,20 @@ void DiagnosticEngine::evaluateSystem() {
       char buf[48];
       snprintf(buf, sizeof(buf), "Wi-Fi signal degraded (%d dBm)", rssi);
       raiseDtc("DTC-401", buf, SEV_WARNING);
+    } else if (rssi >= -78) {
+      clearDtc("DTC-401");
     }
   }
 
-  // Free heap memory check
+  // Free heap memory check (hysteresis: raise at <60 KB, clear at >75 KB)
   uint32_t heap = ESP.getFreeHeap();
   if (heap < 60000) {
     char buf[48];
     snprintf(buf, sizeof(buf), "Free heap memory low (%u KB)",
              (unsigned int)(heap / 1024));
     raiseDtc("DTC-402", buf, SEV_WARNING);
+  } else if (heap > 75000) {
+    clearDtc("DTC-402");
   }
 }
 

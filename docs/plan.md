@@ -228,6 +228,24 @@ Acest document este planul de referință pentru implementarea controlerului aut
         - Paced socket streaming în `tools/ota_upload.py` (1436-byte chunks, 12ms sleep, ~110 KB/s), prevenind epuizarea bufferelor TCP `pbuf` din lwIP și asigurând flash stabil în ~13.5 secunde.
         - Watchdog TWDT mărit la 90s pentru toleranță maximă la scrierea flash.
 
+- [x] **24. Remediere Scurgere Memorie Heap (`DTC-402`), NimBLE `setMaxResults(0)` & Auto-Clear Histerezis** (Finalizat & Validat Live pe Hardware 12.10.2026).
+      *Rezultat:*
+        - Identificată și izolată pe viu cauza scăderii lente a memoriei heap (de la 127 KB la 51 KB după 4 ore): `NimBLEScan` stoca implicit nelimitat (`m_maxResults = 0xFF`) toate pachetele BLE de la dispozitivele din jur cu adrese MAC rotative (telefoane, smartwatch-uri), ne-eliberând memoria deoarece scanarea este continuă.
+        - Setat `_pBLEScan->setMaxResults(0)` la inițializare conform contractului NimBLE (procesare directă pe callback și ștergere instantanee cu `erase()`), eliminând complet acumularea de dispozitive în RAM și stabilizând consumul de memorie ca fiind 100% plat în timp.
+        - Adăugat mecanism de auto-clear cu histerezis în `DiagnosticEngine` pentru `DTC-402` (clear la >75 KB) și `DTC-401` (clear la >-78 dBm Wi-Fi).
+        - Testat și validat pe viu: firmware flashuit prin OTA, Free Heap stabil la **125 KB**, codul `DTC-402` stins, Health Score **100% [EXCELLENT]**, suita ASPICE SWE.5: **14/14 PASS (100.0%)**.
+
+
+
+- [x] **25. Eliminare Word Wrap pe Mobil, Scalare Font (`A-`/`A+`), Scroll Orizontal Fluid & Watchdog Feed la OTA** (Finalizat & Validat Live pe Hardware 12.10.2026).
+      *Rezultat:*
+        - Identificată cauza ruperii tabelelor pe telefoane mobile: clasa CSS `.term-container` impunea `white-space: pre-wrap; word-break: break-all;`, forțând rândurile tabelelor de 70-100 de caractere să se fragmenteze pe 2-3 rânduri pe ecrane înguste (<450px).
+        - Înlocuit cu formatare rigidă monospace no-wrap (`white-space: pre; word-break: normal;`), acompaniată de scroll orizontal și vertical nativ fluid pe ecrane tactile (`overflow-x: auto; overflow-y: auto; -webkit-overflow-scrolling: touch;`). Tabelele `STATUS`, bannerele POST și `[INIT]` își păstrează alinierea geometrică impecabilă.
+        - Adăugat checkbox comutator `Wrap` în footer-ul consolei (`wrapToggle`), permițând activarea opțională a ruperii de rând (`.wrap-enabled`) cu persistență în `localStorage` (`termWrap`).
+        - Adăugate butoane de scalare a mărimii textului `A-` și `A+` în footer pentru ajustare fină (0.52rem - 1.20rem), cu memorare în `localStorage` (`termFontSize`).
+        - Reguli responsive `@media (max-width: 640px)` cu font implicit mai mic (`0.70rem` vs `0.82rem`) și margini compactate pentru lizibilitate maximă pe smartphone.
+        - Atașat callback-ul `Update.onProgress([](size_t, size_t) { esp_task_wdt_reset(); });` înainte de `httpUpdater.setup()`, resetând periodic Task Watchdog Timer-ul pe fiecare pachet HTTP de firmware scris în flash și eliminând complet riscul de watchdog reboot la actualizări Web OTA.
+        - Validat live pe hardware: firmware v1.2.0 (Build Oct 12 2026 20:47:28) încărcat pe ESP32 (`192.168.1.20`), verificată interfața `/console` și confirmată trecerea tuturor celor 14 teste ASPICE SWE.5 cu **100% PASS**.
 
 ---
 

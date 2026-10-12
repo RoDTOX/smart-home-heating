@@ -3,6 +3,25 @@
 ## Status
 All core functional subsystems (heating hysteresis engine, boiler RF trigger, native BLE passive scanner, 2-way console, web OTA, diagnostic engine with DTCs, service mode, digital passport, NTP & weather sync, headless API-first architecture, hydronic safety controls, anti-spam burner interlocks, and automated PC system test suite) are fully implemented, compiled, uploaded, and verified live on ESP32 (`192.168.1.20`) with 100% ASPICE SWE.5 pass rate.
 
+## Completed Work (2026-10-12 - Task 25)
+- **Eliminare Word Wrap pe Mobil & Scroll Orizontal Fluid (`NetworkConsole`):**
+  - Înlocuită formatarea fragilă cu `white-space: pre-wrap; word-break: break-all;` prin formatare rigidă monospace (`white-space: pre; word-break: normal;`) cu suport nativ de accelerare tactilă pentru scroll orizontal și vertical (`overflow-x: auto; overflow-y: auto; -webkit-overflow-scrolling: touch;`).
+  - Tabelele `STATUS`, bannerele POST și mesajele `[INIT]` rămân perfect aliniate pe telefon fără a fărâmița textul.
+- **Comutator Interactiv Word Wrap & Scalare Font (`A-` / `A+`):**
+  - Adăugat checkbox în footer: `<input type="checkbox" id="wrapToggle"> Wrap` cu memorare în `localStorage` (`termWrap`).
+  - Adăugate butoane de ajustare fină a fontului (`A-` și `A+`), cu font implicit redus automat la `0.70rem` pe ecrane <640px și salvare în `localStorage` (`termFontSize`).
+- **Watchdog Feed la Încărcare OTA (`main.cpp`):**
+  - Adăugat callback `Update.onProgress([](size_t, size_t) { esp_task_wdt_reset(); });` direct înainte de `httpUpdater.setup()`, prevenind declanșarea TWDT la scrierea firmware-ului în flash.
+- **Validare Live pe Hardware:**
+  - Firmware compilat, flashuit prin OTA pe ESP32 (`192.168.1.20`), testat Web Console și rulată suita completă de 14 teste ASPICE SWE.5 cu **14/14 PASS (100.0%)**.
+
+## Completed Work (2026-10-12 - Task 24)
+- **Remediere Scurgere Memorie Heap (`DTC-402`) & NimBLE `setMaxResults(0)`:**
+  - Izolată și rezolvată scurgerea lentă de memorie din scannerul BLE pasiv cauzată de stocarea implicită (`m_maxResults = 0xFF`) a tuturor pachetelor de la dispozitive cu adrese MAC rotative (MAC randomization).
+  - Setat `setMaxResults(0)` și `clearResults()` la inițializare conform contractului NimBLE (eliberare instantanee cu `erase()`), garantând zero acumulare pe heap și un consum de memorie 100% stabil și plat în timp.
+  - Implementat auto-clear cu histerezis în `DiagnosticEngine` pentru `DTC-402` (clear la >75 KB) și `DTC-401` (clear la >-78 dBm).
+  - Flashuit live via Web OTA: Free Heap stabil la **125 KB**, `DTC-402` stins, Scorul de Sănătate **100% [EXCELLENT]**, suita ASPICE SWE.5: **14/14 PASS (100.0%)**.
+
 ## Completed Work (2026-10-12 - Task 23)
 - **Aliniere Tabelară Milimetrică pe 2 Coloane (`STATUS`):**
   - Înlocuit formatul de linii orizontale lungi cu pipe-uri printr-un tabel structurat pe 2 coloane paralele perfect aliniate. Coloana stângă conține parametrii hidraulici și termici (`Target Temperature`, `Current Temperature`, `Room Humidity`, `Loop Status`, `Actuator Valve`, `Hydraulic Relay`), iar coloana dreaptă cuprinde telemetria radio (`Sensor Name`, `Sensor Status`, `Sensor Battery`, `RF Signal Link`, `Telemetry Data`).

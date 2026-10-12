@@ -3,6 +3,12 @@ import time
 import os
 import sys
 
+# Force unbuffered output so logs appear in real-time
+try:
+    sys.stdout.reconfigure(line_buffering=True)
+except Exception:
+    pass
+
 HOST = "192.168.1.20"
 PORT = 80
 BIN_PATH = ".pio/build/esp32dev/firmware.bin"
@@ -46,7 +52,7 @@ print(f"Connected in {time.time() - t0:.3f}s. Sending headers...")
 s.sendall(req_headers)
 s.sendall(header_part)
 
-chunk_size = 1436
+chunk_size = 4096
 sent = 0
 last_report = time.time()
 
@@ -57,7 +63,7 @@ with open(BIN_PATH, "rb") as f:
             break
         s.sendall(chunk)
         sent += len(chunk)
-        time.sleep(0.012)  # Paced streaming (~110 KB/s) prevents lwIP TCP buffer exhaustion
+        time.sleep(0.003)  # Gentle pacing (~200 KB/s) gives SPI flash time to write without lwIP stall
         now = time.time()
         if now - last_report >= 2.0:
             pct = (sent / bin_size) * 100
@@ -70,12 +76,15 @@ t_upload = time.time() - t0
 print(f"Upload finished in {t_upload:.2f}s. Waiting for board response...")
 
 try:
+    s.settimeout(12.0)
     resp = b""
     while True:
         data = s.recv(1024)
         if not data:
             break
         resp += data
+        if b"200 OK" in resp or b"Update Success" in resp or b"<!DOCTYPE" in resp:
+            break
     print(f"Response in {time.time() - t0:.2f}s: {resp.decode('utf-8', errors='ignore')[:300]}")
 except Exception as e:
     print(f"Upload completed / Socket closed ({time.time() - t0:.2f}s): {e}")

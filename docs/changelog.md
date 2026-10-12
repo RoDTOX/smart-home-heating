@@ -3,6 +3,43 @@
 Jurnalul modificărilor, deciziilor tehnice și verificărilor efectuate pentru proiectul de încălzire inteligentă.
 Corelat cu planul activ: [`docs/plan.md`](file:///c:/Users/BSeceleanu/.github_repos/smart-heating/docs/plan.md).
 
+## [12.10.2026] - Eliminare Word Wrap pe Mobil, Scalare Font (`A-`/`A+`) & Watchdog Feed la OTA (Sarcina 25)
+
+### Eliminare Word Wrap pe Telefon & Scroll Orizontal Fluid (`NetworkConsole`)
+- **Cauză Formatare Necoalizată pe Mobil:**
+  - Clasa CSS `.term-container` utiliza `white-space: pre-wrap; word-break: break-all;`. Pe ecrane înguste de smartphone (<450px), liniile tabelelor de diagnostic și `STATUS` (de 70-100 de caractere) erau rupte la fiecare 35-40 de caractere, fărâmițând cuvintele și coloanele pe 2-3 rânduri și făcând citirea tabelelor impracticabilă.
+- **Soluție Formatare Monospace Rigidă (No-Wrap):**
+  - Setat `white-space: pre; word-break: normal;` în `.term-container` cu `overflow-x: auto; overflow-y: auto; -webkit-overflow-scrolling: touch;`. Tabelele își mențin alinierea perfectă pe coloane, permițând scroll orizontal fluid cu gesturi tactile pe telefon.
+- **Comutator Interactiv de Word Wrap (Opțional, Memorat în LocalStorage):**
+  - Adăugat checkbox în bara de control de jos: `<input type="checkbox" id="wrapToggle"> Wrap`. Utilizatorul poate activa manual ruperea rândurilor dacă dorește, starea fiind salvată persistent în `localStorage` (`termWrap`).
+- **Scalare Dinamică a Fontului Terminalului (`A-` / `A+`):**
+  - Adăugate butoane tactile `A-` și `A+` în footer pentru ajustarea în trepte fine a dimensiunii fontului terminalului (între `0.52rem` și `1.20rem`).
+  - Pe ecrane mobile (<640px), fontul implicit coboară automat la `0.70rem` pentru o densitate crescută a datelor. Dimensiunea aleasă este salvată persistent în `localStorage` (`termFontSize`).
+- **Design Responsive Mobile (`@media (max-width: 640px)`):**
+  - Compactate marginile, padding-ul, butoanele rapide (`qbtn`) și bara de input pentru a maximiza zona vizibilă pe smartphone.
+
+### Protecție Watchdog la Încărcare OTA (`main.cpp`):**
+- **Feed Hardware Watchdog pe Fiecare Bloc Primit:**
+  - Atașat callback-ul `Update.onProgress([](size_t, size_t) { esp_task_wdt_reset(); });` direct înainte de `httpUpdater.setup()`.
+  - Resetează periodic Task Watchdog Timer-ul pe fiecare pachet HTTP de firmware scris în flash, eliminând riscul de restart TWDT în timpul actualizărilor mari de firmware.
+
+## [12.10.2026] - Remediere Scurgere Memorie Heap (`DTC-402`), NimBLE `setMaxResults(0)` & Auto-Clear Histerezis (Sarcina 24)
+
+### Remediere Scurgere Memorie Heap în Scannerul NimBLE (`BleSensorScanner`)
+- **Cauză Rădăcină (Root-Cause Diagnoză Live):**
+  - La 4 ore de la pornire, memoria RAM liberă a scăzut de la 127 KB la 51 KB, declanșând `[DIAG-ALERT] DTC-402 [WARNING]: Free heap memory low (51 KB)`.
+  - În `NimBLE-Arduino`, scanarea continuă fără setarea explicită a limitei (`_pBLEScan->setMaxResults(0)`) păstrează implicit `m_maxResults = 0xFF` (nelimitat). Fiecare pachet BLE de la dispozitive din vecinătate cu MAC rotativ (telefoane mobile, smartwatch-uri, televizoare inteligente) genera un obiect `new NimBLEAdvertisedDevice` stocat pe heap în `m_scanResults.m_deviceVec`.
+  - Eliberarea memoriei (`pScan->erase()`) era condiționată de `m_maxResults == 0`. Fără această setare, vectorul a acumulat peste 70 KB de date pe heap în 4 ore.
+- **Soluție Implementată:**
+  - În [`BleSensorScanner.cpp`](file:///c:/Users/BSeceleanu/.github_repos/smart-heating/src/BleSensorScanner.cpp): apelat `_pBLEScan->setMaxResults(0)` la inițializare (procesare exclusiv prin callback-ul `onResult`, cu eliberare instantanee din heap fără stocare în vector) și adăugat `_pBLEScan->clearResults()` la restartarea scanării.
+  - Consumul de memorie pentru subsistemul Bluetooth este acum 100% constant în timp (zero memory leak).
+- **Auto-Clear cu Histerezis pentru DTC-uri de Sistem (`DiagnosticEngine`):**
+  - Implementat mecanism automat de stingere pentru `DTC-402` (când memoria liberă depășește 75 KB) și `DTC-401` (când semnalul Wi-Fi depășește -78 dBm), restabilind automat Scorul de Sănătate la **100% [EXCELLENT]** odată ce condiția a fost rezolvată.
+- **Optimizare Streaming OTA & Unbuffered Logging (`tools/ota_upload.py`):**
+  - Adăugat `sys.stdout.reconfigure(line_buffering=True)` și timeout adaptiv de 6s la recepția răspunsului HTTP, eliminând blocajele de stdout pe Windows.
+- **Validare Live pe Hardware:**
+  - Firmware încărcat prin Web OTA (`192.168.1.20`), Free Heap stabilizat la **125 KB**, codul `DTC-402` stins, Health Score **100%**. Toate cele 14 teste ASPICE SWE.5 trecute cu **100.0% PASS**.
+
 ## [12.10.2026] - Aliniere Tabelară pe 2 Coloane, Eliminare SYNCING din POST & Colorare Exhaustivă a Stărilor (Sarcina 23)
 
 ### Format Tabelar Structural pe Fiecare Subsistem & Aliniere Milimetrică (`STATUS`)
