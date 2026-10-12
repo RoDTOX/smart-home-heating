@@ -67,7 +67,7 @@
 // 5. Xiaomi BLE Thermometer Mappings (LYWSD03MMC)
 // ==========================================
 #define BLE_SCAN_INTERVAL_MS  100   // BLE scan interval
-#define BLE_SCAN_WINDOW_MS    50    // BLE scan window (50% duty cycle for smooth Wi-Fi coexistence)
+#define BLE_SCAN_WINDOW_MS    90    // BLE scan window (90% duty cycle for high-sensitivity capture through multiple walls)
 
 struct BleDeviceMapEntry {
     const char* mac;

@@ -3,6 +3,228 @@
 Jurnalul modificărilor, deciziilor tehnice și verificărilor efectuate pentru proiectul de încălzire inteligentă.
 Corelat cu planul activ: [`docs/plan.md`](file:///c:/Users/BSeceleanu/.github_repos/smart-heating/docs/plan.md).
 
+## [12.10.2026] - Aliniere Tabelară pe 2 Coloane, Eliminare SYNCING din POST & Colorare Exhaustivă a Stărilor (Sarcina 23)
+
+### Format Tabelar Structural pe Fiecare Subsistem & Aliniere Milimetrică (`STATUS`)
+- **Carduri Tabelare Dedicate pentru Fiecare Subsistem:**
+  - Înlocuită înșiruirea densă de text și pipe-uri de după `[CMD] > STATUS` cu tabele clare și aerisite pe 2 coloane:
+    * `[SYSTEM & CONTROLLER HARDWARE]`: Firmware, Git, Serial, Boot Cause, Processor, Uptime, Silicon Die Temp, Free Memory, Flash Memory, Firmware Size.
+    * `[BOILER, PUMP & HYDRAULIC ACTUATION]`: Burner Flame, Operation Mode, Heat Demand, Controller IP, Actuator Type, Circulation Pump, Frost Guard, Pump Relay State.
+    * `[WEATHER & OUTDOOR ENVIRONMENT]`: Outdoor Temp, Climate Season, Outdoor Humidity, Weather Service, Telemetry Age, Weather Status.
+    * `[SAFETY & FAILSAFE INTERLOCKS]`: Sensor Failsafe, Hardware Watchdog (90s TWDT), Pump Anti-Seize, Next Exercise.
+- **Distanțare Generoasă a Coloanelor & Corectare Deplasare Stânga UTF-8:**
+  - Identificată cauza deplasării la stânga cu 1-2 caractere: `snprintf` conta octeții UTF-8 ai simbolului de grad `°` (`\xC2\xB0` = 2 octeți) în loc de lățimea vizuală pe ecran (1 caracter), ceea ce scurta spațierea cu 1 caracter pe liniile de temperatură.
+  - Implementat algoritmul `utf8VisibleLen()` care calculează lungimea pe baza caracterelor vizibile, garantând că separatorul `|` și coloana a 2-a pornesc la fix aceeași coloană pe fiecare rând.
+  - Mărită distanța dintre coloane la o lățime fixă generoasă (`col1TotalWidth = 48`), asigurând 8–20 spații clare de separare.
+
+### Optimizare Scanare BLE (Ciclu de Utilizare 90%) & Reducere Timp Warmup
+- **Sensibilitate Sporită Prin Pereți Multipli (`include/Config.h`):**
+  - Mărit `BLE_SCAN_WINDOW_MS` de la 50ms la 90ms la un interval de 100ms (ciclu de utilizare crescut de la 50% la 90%).
+  - Receptorul NimBLE ascultă acum 90% din timp canalele BLE de publicitate, capturând balizele senzorului îndepărtat din Baie Mare (după 4 pereți) în 39s–64s în loc de 293s.
+- **Deblocare Bucle Operaționale în Warmup:**
+  - Zonele care și-au achiziționat senzorul (ex. Living, Camera Copilului) nu mai sunt blocate la pornire timp de 5 minute în așteptarea senzorilor îndepărtați; buclele achiziționate își reiau imediat controlul termostatic normal, în timp ce zonele în așteptare rămân în siguranță cu valvele închise (`ZONE_WARMUP`).
+
+
+### Eliminare Linii `SYNCING` din POST & Raportare Asincronă Progresivă sub `[INIT]`
+- **Power-On Self-Test (POST) 100% Hardware & Local:**
+  - Eliminat `Real-Time Clock` din tabelul POST (fiind un serviciu dependent de rețea NTP asincronă), păstrând în POST strict subsistemele hardware și stările locale verificate definitiv la pornire (Network, RAM, Actuators, Pump, Bluetooth, Boiler RF, Watchdog, Web API).
+- **Bloc Asincron de Inițializare `[INIT] Background Tasks Dispatched:`:**
+  - Imediat sub tabelul POST, sarcinile asincrone de fundal sunt declarate clar cu asterisc `*`:
+    * `  * Real-Time Clock:  Background NTP sync initiated (pool.ntp.org)`
+    * `  * Outdoor Weather:  Background sync initiated (Open-Meteo REST API)`
+    * `  * Sensor Discovery: Continuous BLE scanner active (Warmup grace period: 300s)`
+- **Raportare Asincronă Unificată cu Asterisc (`[INIT]   * ...`):**
+  - Mesajele ulterioare de progres și finalizare ale sarcinilor de fundal adoptă identic prefixul `[INIT]   * `, eliminând aparițiile nesistematice:
+    * `[INIT]   * Outdoor Weather:  Synchronized: 15.4 °C, 80.0 % RH (Open-Meteo API)`
+    * `[INIT]   * Real-Time Clock:  Synchronized: YYYY-MM-DD HH:MM:SS (Europe/Bucharest via NTP)`
+    * `[INIT]   * Sensor Discovery: Acquired (1/3): Baie mare -> 23.0 °C at 7s`
+    * `[INIT]   * Sensor Discovery: All 3 room sensors acquired in 125s! System fully operational.`
+
+### Numerotare Categorii `STATUS` (A - E), Aerisire cu Newline-uri & Link Configurare Senzori
+- **Prefixe Categorii & Separare Vizuală:**
+  - Categoriile din `STATUS` sunt numerotate alfabetic cu `[A. SYSTEM & CONTROLLER HARDWARE]`, `[B. BOILER, PUMP & HYDRAULIC ACTUATION]`, `[C. WEATHER & OUTDOOR ENVIRONMENT]`, `[D. SAFETY & FAILSAFE INTERLOCKS]`, `[E. HEATING ZONES & ROOM TELEMETRY]`.
+  - Introdusă o linie liberă (newline) între fiecare categorie tabelară și între fiecare zonă (Zone 1, Zone 2, Zone 3) pentru lizibilitate maximă.
+- **Link Integrat Instrument Configurare Senzori BLE (TelinkMiFlasher):**
+  - Adăugat hyperlink direct către instrumentul web oficial de configurare Xiaomi BLE (`https://pvvx.github.io/ATC_MiThermometer/TelinkMiFlasher.html`) în antetul consolei Web (`/console`), în Setup Wizard (`/setup`), în Dashboard-ul principal (`/`) și în manualul de comenzi (`HELP`), permițând utilizatorului mărirea puterii de transmisie radio (RF Tx Power până la +5..+9 dBm) pentru senzorii aflați după pereți groși.
+
+### Optimizare Paced Streaming OTA & Extindere Watchdog
+- **Streaming Socket Paced (`tools/ota_upload.py`):**
+  - Implementat transfer cadențat cu pauze de 12ms per pachet de 1436 bytes (~110 KB/s), prevenind epuizarea bufferelor TCP `pbuf` din stiva lwIP a ESP32 și eliminând blocajele de retransmisie TCP. Timpul de upload este stabilizat la ~13.5 secunde.
+- **Hardware Watchdog Mărit la 90s:** Oferă marjă generoasă de siguranță la scrierea flash pe durata procedurilor OTA.
+
+## [12.10.2026] - Telemetrie Hardware Extinsă (CPU, RAM, NVM, Temp Cip), Carduri Zonale & Stilizare Vreme (Sarcina 22)
+
+### Telemetrie Hardware Detaliată (Procesor, Memorie, NVM, Temperatură Cip)
+- **Info CPU & Temperatură Siliciu (`[CPU]`):**
+  - Model cip, nuclee, frecvență și revizie: `ESP32-D0WD-V3 (2 Cores @ 240 MHz, Rev 3)`.
+  - Temperatură internă a pastilei de siliciu în timp real: `Die Temp: %.1f °C` via `temperatureRead()`.
+  - Timp de funcționare formatat uman: `Uptime: %uh %02um %02us`.
+- **Info Memorie RAM & Stabilitate Heap (`[MEMORY]`):**
+  - Memorie RAM liberă / totală: `%u KB free / %u KB total`.
+  - Nivel minim atins de la boot (watermark de stabilitate): `Lowest: %u KB`.
+  - Cel mai mare bloc contiguu alocabil (indicator anti-fragmentare): `Max Block: %u KB`.
+- **Info Stocare NVM & Flash Partitioning (`[FLASH]`):**
+  - Mărime și frecvență flash: `%u MB @ %u MHz`.
+  - Spațiu firmware ocupat și marjă liberă pentru update OTA: `Firmware: %.2f MB (OTA Margin: %.2f MB free)`.
+  - Stare NVS (memorie non-volatilă): `NVS: Active`.
+
+### Redesign Complet Zone & Eliminare Tabel Separat `[SENSORS]`
+- **Eliminare Redundanță:** Tabelul `[SENSORS]` a fost scos definitiv din ieșirea comenzii `STATUS`.
+- **Carduri Structurate pe Fiecare Cameră (`[HEATING ZONES & ROOM TELEMETRY]`):**
+  - Fiecare zonă afișează un bloc complet pe 4 linii cu toate datele termice, hidraulice și radio:
+    - `* Temperature:` Target (`%.1f °C`), Current (`%.1f °C`), Umiditate (`%.1f % RH`).
+    - `* Loop Control:` Stare buclă (`Idle (Temp OK)`, `Warmup`, `Heating Demand`, `Sensor Timeout`), Actuator (`OPEN` / `CLOSED`), Releu (`Relay GPIOxx ON/OFF`).
+    - `* Sensor Radio:` Nume senzor asociat, Adresă MAC (`[AA:BB:CC:DD:EE:FF]`), Nivel baterie (`%`).
+    - `* RF Telemetry:` Nivel semnal și calificativ (`-61 dBm [EXCELLENT]`), Min/Max semnal (`Min: .. / Max: .. dBm`), Număr pachete recepționate, Vechime telemetrie (`Last seen: %us ago`).
+- **Simbol Corect Grad Celsius (`°C`):** Toate temperaturile afișează simbolul `°C` nativ UTF-8, cu header `text/plain; charset=utf-8` pentru prevenirea afișării de caractere fantomă (`Â°C`).
+
+### Evidențiere Vizuală Web Console (`/console`)
+- **Stilizare etichetă `[WEATHER]` & Anotimp:** Eticheta `[WEATHER]` este recunoscută case-insensitive și colorată în cyan aprins (`.t-wth`), iar anotimpul (`Autumn`) este stilizat bold.
+- **Stilizare Automată Temperaturi & Hardware:** Toate valorile în `°C` sunt colorate automat în cyan bold (`.t-temp`), iar etichetele `[CPU]`, `[MEMORY]`, `[FLASH]`, `[Zone x]` au culori dedicate de mare contrast.
+
+## [12.10.2026] - Eliminare Acronime, Unificare Mapare Zone-Senzori, Integrare POST & Clarificare Reziliență Offline RTC (Sarcina 21)
+
+### Eliminare Acronime Tehnice & Umanizare Text Consolă
+- **Excludere Jargon Neclar din Console Banner & Self-Test:**
+  - Înlocuit acronimul `GPA` cu descrierea funcțională exactă: `Secondary Pump on Relay 4: ENABLED`.
+  - Înlocuit acronimul `TWDT` cu formularea intuitivă: `Hardware Watchdog Armed: 60s timeout`.
+  - Înlocuită formularea tehnică `NC Polarity` cu explicarea clară a provenienței setării: `Normally Closed [NC], User-Configured in NVS`, evidențiind faptul că polaritatea provine din configurația salvată de utilizator în memoria flash NVS.
+  - Înlocuit `NimBLE Active` cu `Bluetooth Receiver active, listening`.
+
+### Boot Time, Sincronizare Ceas & Funcționare Offline Fără Wi-Fi
+- **Afișare Timp Boot în Banner:**
+  - Adăugată linia `Boot Time: YYYY-MM-DD HH:MM:SS` în antetul de pornire al sistemului.
+  - Adăugat mesaj dedicat la achiziția de timp real: `[Time] Real-time clock synchronized: YYYY-MM-DD HH:MM:SS (Europe/Bucharest via NTP)`.
+  - Adăugat mesaj de confirmare meteo cu etichetă standardizată: `[Weather] Outdoor weather synchronized: ...`.
+- **Comportament Offline Documentat (Rezistență la căderi de Wi-Fi):**
+  - ESP32 integrează un timer RTC hardware intern. Odată sincronizat ceasul la pornire (sau via SoftAP/NTP), ceasul hardware menține data și ora chiar dacă conexiunea Wi-Fi cade complet timp de zile întregi (derivă minimă de 1–2 secunde/zi).
+  - Algoritmul termic, siguranțele cazanului, interblocarea hidraulică și citirea senzorilor BLE sunt 100% autonome și rulează local în timp real, fără nicio dependență de internet sau cloud.
+
+### Integrare Servicii în Power-On Self-Test (POST)
+- **Extindere Tabel Diagnostic la Pornire:**
+  - `Real-Time Clock: PASS (YYYY-MM-DD HH:MM:SS)` integrat direct în tabelul POST.
+  - `Outdoor Weather: SYNCING (Connecting to Open-Meteo API...)` inclus ca serviciu monitorizat în POST.
+  - `Sensor Boot Warmup: SYNCING (Grace period active: max 5 min)` inclus în lista de verificare inițială.
+
+### Unificare Tabel `STATUS` (Mapare Directă Zonă - Senzor)
+- **Eliminare Ambiguitate Nume Senzori vs Nume Zone:**
+  - Integrată maparea completă a senzorului direct în fiecare rând al buclei termice (`[ZONES] Heating Loops & Sensor Mapping`):
+    - `ID`, `Zone Name`, `Target`, `Current`, `Assigned Sensor (Name / MAC)`, `Bat`, `Signal (RSSI & Calificativ)`, `Status`, `Actuator Valve`.
+  - Astfel, chiar dacă senzorul BLE are un nume diferit față de zona căreia îi este alocat, legătura este imediat evidentă la o singură privire.
+  - Tabelul `[SENSORS]` rămâne sub el ca registru compact de telemetrie pentru diagnostic de pachete primite și semnal minim/maxim.
+
+### Evidențiere Vizuală / Culori în Consola Web (`/console`)
+- **Stilizare Automată Cuvinte-Cheie Stare:**
+  - Adăugate clase CSS de contrast înalt în `NetworkConsole.cpp`: `.t-ok`, `.t-off`, `.t-idle`, `.t-demand`, `.t-auto`, `.t-man`, `.t-warm`, alături de badge-urile de semnal `.b-exc`, `.b-good`, `.b-marg`, `.b-poor`.
+  - Parsare automată regex în `colorize(line)` pentru cuvinte-cheie de stare ce urmează după `:` (`OFF`, `ON`, `IDLE`, `DEMAND`, `AUTOMATIC`, `MANUAL`, `WARMUP`, `PASS`, `FAIL`), făcându-le să sară direct în ochi în interfața web.
+
+## [12.10.2026] - Perioadă de Warmup Senzori la Boot (Max 5 min), Diagnoză DTC-101 & Format Tabelar Consolă (Sarcina 20)
+
+### Perioadă de Grație Warmup Senzori la Pornire (Max 5 min / 300s)
+- **Eliminare Alarme Premature la Boot la Rece:**
+  - La pornirea plăcii ESP32, senzorii BLE Xiaomi emit balize la intervale de 30–60 secunde (sau mai rar în funcție de firmware). Înainte, sistemul semnala instantaneu `Sensor Timeout (Failsafe OFF)` la secundele 0..30.
+  - Implementată starea dedicată `ZONE_WARMUP` și mecanismul de grație la boot (`_bootWarmupActive = true`, temporizator de 300s / 5 minute):
+    - Pe durata perioadei de warmup, buclele termice afișează `WARMUP` și `Warmup (%us/300s)`.
+    - Pornirea încălzirii/arzătorului este blocată preventiv până când toți senzorii asociați transmit prima citire validă, protejând echilibrul hidraulic al casei (excepție: protecția de urgență la îngheț `<12°C` care acționează imediat).
+  - **Ieșire Anticipată la Detectarea Tuturor Senzorilor:**
+    - Imediat ce toți senzorii asociați (ex: 3/3) au fost detectați (la secunda 20..60), warmup-ul se încheie instantaneu: `Boot warmup COMPLETE in %us! All %u paired sensors acquired. System fully operational.`
+  - **Decuplare Izolată și Ridicare DTC-101 la Expirare:**
+    - Dacă trec 5 minute și anumiți senzori nu au emis balize (ex. baterie descărcată sau distanță prea mare), sistemul ridică automat codul de eroare `DTC-101` (`"Zone X sensor missing at boot warmup cutoff"`), îl salvează în memoria NVS a motorului de diagnoză și pornește încălzirea exclusiv pentru zonele complet funcționale.
+
+### Format Tabelar cu Coloane Fixe pentru Comanda `STATUS` și `BLE`/`SENSORS`
+- **Tabel Aliniat Bucle Încălzire Pardoseală (`[ZONES]`):**
+  - Antet cu lățimi fixe: `ID`, `Zone Name`, `Current Temp`, `Target Temp`, `Status`, `Actuator Valve (Relay GPIO)`.
+  - Toate datele sunt aliniate vertical milimetric, ușor de citit pe orice consolă sau terminal web.
+- **Tabel Aliniat Registru Termometre Cameră (`[SENSORS]`):**
+  - Indică starea clară a achiziției: `[SCANNING: %us/300s in progress]` în warmup, respectiv `[SCANNING COMPLETE - ALL ACQUIRED]` când toți senzorii sunt prezenți.
+  - Tabel aliniat cu coloane: `Sensor Name`, `MAC Address`, `Temp`, `Humidity`, `Battery`, `Signal (Min/Cur/Max dBm)`, `Packets`, `Last Seen`.
+- **Clarificare Linie de Protecții (`[PROTECTIONS]`):**
+  - Redenumită eticheta generică `[SAFETY]` în `[PROTECTIONS]`: `Sensor Offline Failsafe: 10 min (all zones) | Pump Anti-Seize: Weekly (Ran: ... | Next in ...)`.
+
+## [12.10.2026] - Rafinare Completă Output Consolă, Eliminare Zgomot Boot & Categorisire Comenzi (Sarcina 19)
+
+### Redirecționare Jurnale Interne & Eliminare Zgomot Boot
+- **Pristine Boot Banner & POST la Pornire:**
+  - Redirecționate toate cele 8 mesaje interne de inițializare a modulelor (`ThermalZoneManager`, `TimeAndWeatherService`, `DevicePassport`, `BleSensorScanner`, `DiagnosticEngine`, TWDT Watchdog) exclusiv pe portul serial hardware UART (`Serial.println` / `Serial.printf`).
+  - Buffer-ul consolei virtuale (`netConsole` - Telnet TCP:23 și Web `/console`) debutează instantaneu cu titlul oficial al controlerului și tabelul Power-On Self-Test (POST).
+  - Integrat statusul serviciilor Web & API (`HTTP Port 80, Telnet Port 23`) direct în tabelul POST, eliminând mesajul separat post-boot.
+  - Actualizat indicatorul scannerului BLE la pornire: `PASS (NimBLE Active, listening)`.
+
+### Reziliență Meteo & Eliminare Alerte False
+- **Handshake TLS Stabilizat & Backoff Silențios:**
+  - Mărit timeout-ul socket-ului HTTP Open-Meteo la 5000ms.
+  - Introdusă o pauză inițială de 5 secunde la pornirea sistemului pentru a permite stabilizarea stivei TCP/IP și a ceasului NTP înainte de prima interogare meteo.
+  - Avertizările temporare de rețea (ex. HTTP -11 la pornire la rece) sunt direcționate către portul serial hardware UART, eliminând poluarea consolei utilizatorului; logul în consolă apare doar la sincronizare confirmată sau la comanda `WEATHER`.
+
+### Îmbunătățire Funcțională Comenzi Consolă & Deduplicare
+- **Eliminare Mesaje Duplicate la Execuție:**
+  - Curățat dublajul de mesaje la comenzile `ON`/`OFF`, `AUTO`/`MANUAL` și `SET <z> <temp>`, lăsând un singur mesaj clar de confirmare emis direct de modulul de control.
+- **Indicatori Calitate Semnal (Link Quality Badges) în `STATUS` și `BLE`:**
+  - Comenzile `STATUS` și `BLE` includ calificativul calității conexiunii pentru fiecare termometru de cameră: `[EXCELLENT]` (>= -70 dBm), `[GOOD]` (-71..-80 dBm), `[MARGINAL]` (-81..-88 dBm), `[POOR]` (< -88 dBm).
+  - Adăugată linie dedicată pentru starea vremii exterioare în sumarul comenzii `STATUS`.
+- **Redesign Complet Structură & Claritate `STATUS`:**
+  - **Umanizare Parametri Siguranță (`[SAFETY]`):** Eliminat timestamp-ul brut în format UNIX epoch (`1791792220`). Afișat în format uman: `Sensor Failsafe: 10 min (600s) | Anti-Seize: Weekly (Ran: 2026-10-12 11:03 | Next in 6d)`.
+  - **Header Dedicat & Formatare Bucle Termice (`[ZONES]`):** Separată afișarea zonelor sub antetul `[ZONES] Underfloor Loops (3):`, eliminând confuzia de subordonare la `[SAFETY]`.
+  - **Afișare Clară a Actuatoarelor & Temperaturilor:** Indică starea valvei (`Valve: CLOSED (GPIO32 OFF)` / `Valve: OPEN (GPIO32 ON)`), iar în caz de senzor deconectat afișează deterministic `--.- C` și `Sensor Timeout (Failsafe OFF)`.
+  - **Secțiune Separată Termometre (`[SENSORS]`):** Marcată distinct cu `[SENSORS] Room Thermometers (...)` în loc de eticheta generică `[STATUS]`.
+  - **Etichetă Dedicată Boiler (`[BOILER]`):** Starea arzătorului și a memoriei libere grupată sub `[BOILER] Burner Flame: OFF | Demand: IDLE | Mode: AUTOMATIC | IP: ... | Free Heap: 120 KB`.
+- **Manual de Comenzi Structurat (`HELP` / `?`):**
+  - Reorganizată lista comenzilor în 4 secțiuni logice: `[THERMAL & BOILER CONTROL]`, `[SYSTEM & SAFETY CONFIG]`, `[SENSORS & ENVIRONMENT]`, `[DIAGNOSTICS & SYSTEM]`.
+- **Suport Comandă `CLEAR` / `CLS`:**
+  - Implementată metoda `netConsole.clear()` ce resetează buffer-ul circular și trimite secvența ANSI `\033[2J\033[H` pentru curățarea terminalului Telnet / Serial.
+- **Culori Extinse în Web Terminal:**
+  - Reguli de colorare CSS pentru badge-urile `[EXCELLENT]`, `[GOOD]`, `[MARGINAL]`, `[POOR]`, `[STATUS]`, `[SYSTEM]`, `[BOILER]`, `[HARDWARE]`, `[SAFETY]`, `[ZONES]`, `[SENSORS]`, `[Ready]`.
+
+## [12.10.2026] - Îmbunătățire Consolă, Reziliență Meteo, Anti-Seize pe Epoch & Timeout Senzori Configurabil (Sarcina 18)
+
+### Consolă de Rețea & Web Terminal Profesional
+- **Timestamp-uri NTP Reale pe Fiecare Linie:**
+  - Adăugate marcaje de timp `[HH:MM:SS]` (sau `[+HH:MM:SS]` la pornire înainte de sincronizarea NTP) la începutul fiecărei linii noi în Serial, Telnet TCP:23 și Web Console ([`include/NetworkConsole.h`](file:///c:/Users/BSeceleanu/.github_repos/smart-heating/include/NetworkConsole.h), [`src/NetworkConsole.cpp`](file:///c:/Users/BSeceleanu/.github_repos/smart-heating/src/NetworkConsole.cpp)).
+- **Tag-uri Colorate în Web Terminal (`/console`):**
+  - Badge-uri stilizate CSS și funcție JavaScript `colorize()` pentru categorii: `[Thermal]`, `[Weather]`, `[BLE]`, `[Time]`, `[Passport]`, `[DIAG]`, `[CMD]`, `ERROR`, `WARN`, `SUCCESS`.
+- **Eliminare Poluare Nginx 502 / 504 în Terminal:**
+  - Scriptul JavaScript din `/console` verifică explicit codul HTTP de răspuns (`r.ok && r.status === 200`) înainte de inserarea logurilor în DOM, eliminând afișarea paginilor HTML de eroare de la proxy-ul Nginx.
+
+### Serviciu Meteo & Reziliență Open-Meteo
+- **Prevenire Buclă Rapidă Erori HTTP -11:**
+  - Mărit timeout-ul socket-ului HTTP de la 1500ms la 3000ms ([`src/TimeAndWeatherService.cpp`](file:///c:/Users/BSeceleanu/.github_repos/smart-heating/src/TimeAndWeatherService.cpp)).
+  - Migrat la `JsonDocument` (ArduinoJson 7).
+  - Introdus backoff de 60 de secunde la eșec: în cazul în care serverul Open-Meteo nu răspunde la timp, reîncercarea are loc după 60s în loc de reîncercare continuă la fiecare iterație de loop.
+
+### Calibrare Exercițiu Anti-Blocare (Anti-Seize) pe Timp Real Calendaristic
+- **Eliminare Porniri False de 20s la Reboot:**
+  - Înlocuit temporizatorul bazat pe `millis()` cu UNIX epoch calendaristic real (`time_t nowEpoch = time(nullptr)`) salvat în NVS (`last_seize_ep`) ([`include/ThermalZoneManager.h`](file:///c:/Users/BSeceleanu/.github_repos/smart-heating/include/ThermalZoneManager.h), [`src/ThermalZoneManager.cpp`](file:///c:/Users/BSeceleanu/.github_repos/smart-heating/src/ThermalZoneManager.cpp)).
+  - La prima pornire a plăcii cu NTP activ, dacă nu există o rulare anterioară înregistrată, se memorează timestamp-ul curent și se programează următorul ciclu la 7 zile (604.800 secunde).
+
+### Failsafe Timeout Senzori Configurabil (`DTC-101`)
+- **Parametru Configurat Dinamic & Persistență NVS:**
+  - Implementat parametru configurabil `_sensorTimeoutSec` (implicit 600s / 10 min, domeniu valid 60s - 7200s) salvat în NVS (`sns_tout`).
+  - Endpoint REST dedicat `/api/setup/sensor-timeout` (GET/POST) și comandă consolă `TIMEOUT <sec>` în [`src/main.cpp`](file:///c:/Users/BSeceleanu/.github_repos/smart-heating/src/main.cpp).
+  - La depășirea timeout-ului pe o zonă, se declanșează `DTC-101`, iar bucla termică trece automat în siguranță (actuator OFF).
+
+### Indicatori Calitate Semnal BLE (Link Quality Indicators)
+- **Asistență Instalare pe Teren:**
+  - Evaluare automată a nivelului RSSI: `EXCELLENT` (>= -72 dBm), `GOOD` (-73..-82 dBm), `MARGINAL` (-83..-88 dBm), `POOR` (< -88 dBm).
+  - Afișat în tabelul de senzori din Setup Wizard Web ([`include/WebSetupPage.h`](file:///c:/Users/BSeceleanu/.github_repos/smart-heating/include/WebSetupPage.h)) și în utilitarul CLI ([`tools/esp_cli.py`](file:///c:/Users/BSeceleanu/.github_repos/smart-heating/tools/esp_cli.py) `status` și `ble`).
+
+### Versionare Firmware Baseline & Diagnostic POST la Boot (v1.2.0)
+- **Versionare Formală & Trasabilitate Hardware ([`include/Version.h`](file:///c:/Users/BSeceleanu/.github_repos/smart-heating/include/Version.h)):**
+  - Implementat antet SemVer `v1.2.0`, timestamp exact de compilare (`__DATE__ " " __TIME__`) și hash scurt de commit Git (`8065534`).
+  - Expus în `/api/boiler/status` și afișat în header-ul utilitarului CLI (`python tools/esp_cli.py status`).
+- **Mesaj de Boot Profesional & Power-On Self-Test (POST):**
+  - Eliminat meniul lung de 17 linii cu comenzi la startup; înlocuit cu antet curat de sistem și raportare cauză resetare (`esp_reset_reason()`: Cold Boot vs OTA Reboot vs TWDT).
+  - Rulare automată a testului integrat POST la fiecare pornire: raportează starea Wi-Fi, memoria Heap liberă, actuatoarele & pompa GPA, scannerul pasiv NimBLE, emițătorul radio RF 433 și scorul general de sănătate (100% EXCELLENT).
+- **Corecție Completă Duplicare Consolă Web:**
+  - Adăugat antetul HTTP `Access-Control-Expose-Headers: X-Log-Seq` permițând JavaScript-ului din browser să citească corect poziția cursorului de loguri.
+  - Implementat mecanism de blocare concurentă (`isFetching`) și debouncing comenzi (350ms) în Web Console (`/console`), eliminând dublarea comenzilor `STATUS`.
+  - Detecție automată a restartării plăcii (`newSeq < lastSeq`), afișând un separator clar `--- [SYSTEM REBOOT DETECTED / NEW FIRMWARE RUNNING] ---` în browser.
+
+### Verificare SWE.5 Extinsă (14/14 PASS - 100.0%)
+- Extinsă suita automată de testare pe PC ([`tools/test_system.py`](file:///c:/Users/BSeceleanu/.github_repos/smart-heating/tools/test_system.py)) de la 12 la 14 cazuri de testare:
+  * `SWE.5-TC13`: Contract Failsafe Timeout Senzori (`FR-18`) - PASS.
+  * `SWE.5-TC14`: Identitate Baseline & Versionare Firmware v1.2.0 (`FR-21`) - PASS.
+- Rulată complet împotriva plăcii fizice la `192.168.1.20`. Rezultat: **100.0% PASS (14/14 teste trecute)**. Raport actualizat în [`docs/system_test_report.md`](file:///c:/Users/BSeceleanu/.github_repos/smart-heating/docs/system_test_report.md).
+
 ## [09.10.2026] - Eliminare Bloatware MQTT, Curățare Consolă & Suită Automată Testare Sistem ASPICE SWE.5 (Sarcina 17)
 
 ### Eliminare Bloatware & Decuplare Hardware Autonomă

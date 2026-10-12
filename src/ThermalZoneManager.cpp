@@ -2,6 +2,7 @@
 #include "NetworkConsole.h"
 #include "BleSensorScanner.h"
 #include "DiagnosticEngine.h"
+#include <time.h>
 
 ThermalZoneManager thermalZones;
 
@@ -17,7 +18,10 @@ ThermalZoneManager::ThermalZoneManager()
       _frostProtectionActive(false),
       _antiSeizeRunning(false),
       _antiSeizeStartMs(0),
-      _lastAntiSeizeRunMs(0),
+      _lastAntiSeizeEpoch(0),
+      _sensorTimeoutSec(600UL), // 10 minutes default
+      _bootWarmupActive(true),
+      _bootWarmupStartMs(0),
       _interlockDelayMs(DEFAULT_ACTUATOR_DELAY_MS),
       _pumpOverrunMs(DEFAULT_PUMP_OVERRUN_MS),
       _minBoilerOffMs(DEFAULT_MIN_BOILER_OFF_MS),
@@ -83,7 +87,8 @@ void ThermalZoneManager::loadFromPreferences() {
     _pumpControlEnabled = prefs.getBool("pump_en", true);
     _actuatorNormallyClosed = prefs.getBool("act_nc", true);
     _freezeProtectionTemp = prefs.getFloat("frz_temp", 12.0f);
-    _lastAntiSeizeRunMs = prefs.getUInt("as_last", 0);
+    _lastAntiSeizeEpoch = prefs.getUInt("as_epoch", 0);
+    _sensorTimeoutSec = prefs.getUInt("s_tout", 600UL);
 
     for (size_t i = 0; i < MAX_THERMAL_ZONES; i++) {
         String p = "z" + String(i) + "_";
@@ -96,7 +101,7 @@ void ThermalZoneManager::loadFromPreferences() {
         _configs[i].enabled = prefs.getBool((p + "en").c_str(), _configs[i].enabled);
     }
     prefs.end();
-    netConsole.println(F("[Thermal] Zone configs, pump settings, and actuator type loaded from NVS."));
+    Serial.println(F("[Thermal] Zone configs, pump settings, and actuator type loaded from NVS."));
 }
 
 void ThermalZoneManager::saveToPreferences() {
@@ -111,7 +116,8 @@ void ThermalZoneManager::saveToPreferences() {
     prefs.putBool("pump_en", _pumpControlEnabled);
     prefs.putBool("act_nc", _actuatorNormallyClosed);
     prefs.putFloat("frz_temp", _freezeProtectionTemp);
-    prefs.putUInt("as_last", _lastAntiSeizeRunMs);
+    prefs.putUInt("as_epoch", _lastAntiSeizeEpoch);
+    prefs.putUInt("s_tout", _sensorTimeoutSec);
 
     for (size_t i = 0; i < MAX_THERMAL_ZONES; i++) {
         String p = "z" + String(i) + "_";
@@ -124,7 +130,7 @@ void ThermalZoneManager::saveToPreferences() {
         prefs.putBool((p + "en").c_str(), _configs[i].enabled);
     }
     prefs.end();
-    netConsole.println(F("[Thermal] Zone configs successfully persisted to NVS."));
+    Serial.println(F("[Thermal] Zone configs successfully persisted to NVS."));
 }
 
 void ThermalZoneManager::applyRelay(uint8_t pin, bool active) {
@@ -143,10 +149,13 @@ void ThermalZoneManager::applyRelay(uint8_t pin, bool active) {
 void ThermalZoneManager::begin() {
     loadFromPreferences();
 
+    _bootWarmupActive = true;
+    _bootWarmupStartMs = millis();
+
     for (size_t i = 0; i < MAX_THERMAL_ZONES; i++) {
         pinMode(_configs[i].relayPin, OUTPUT);
         applyRelay(_configs[i].relayPin, false);
-        _statuses[i].state = _configs[i].enabled ? ZONE_IDLE : ZONE_DISABLED;
+        _statuses[i].state = _configs[i].enabled ? ZONE_WARMUP : ZONE_DISABLED;
         _statuses[i].relayEngaged = false;
         _statuses[i].stateChangedMs = millis();
     }
@@ -155,7 +164,7 @@ void ThermalZoneManager::begin() {
     applyRelay(PIN_RELAY_SPARE, false);
     _pumpActive = false;
 
-    netConsole.printf("[Thermal] Initialized: 3 zones, Actuators: %s, Pump Relay 4: %s\n",
+    Serial.printf("[Thermal] Initialized: 3 zones, Actuators: %s, Pump Relay 4: %s\n",
         _actuatorNormallyClosed ? "NC (Normally Closed)" : "NO (Normally Open)",
         _pumpControlEnabled ? "ENABLED" : "DISABLED");
 }
@@ -198,6 +207,14 @@ void ThermalZoneManager::setFreezeProtectionTemp(float temp) {
         saveToPreferences();
         netConsole.printf("[Thermal] Frost protection threshold set to: %.1f C\n", temp);
     }
+}
+
+void ThermalZoneManager::setSensorTimeoutSec(uint32_t sec) {
+    if (sec < 60) sec = 60;          // Min 1 minute
+    if (sec > 86400) sec = 86400;    // Max 24 hours
+    _sensorTimeoutSec = sec;
+    saveToPreferences();
+    netConsole.printf("[Thermal] Sensor failsafe timeout set to: %u s\n", _sensorTimeoutSec);
 }
 
 void ThermalZoneManager::triggerAntiSeizeExercise() {
@@ -356,16 +373,61 @@ const char* ThermalZoneManager::getStateStr(ZoneState state) const {
         case ZONE_HEATING:       return "Heating Active";
         case ZONE_FAULT_TIMEOUT: return "Sensor Timeout (Failsafe OFF)";
         case ZONE_FROST_GUARD:   return "Frost Protection Active (<12C)";
+        case ZONE_WARMUP:        return "Acquiring Sensor (Warmup)";
         default:                 return "Unknown";
     }
 }
 
-void ThermalZoneManager::checkAntiSeizeSchedule(uint32_t now) {
-    // Run anti-seize exercise every 7 days (604800000 ms) if heating hasn't been active
-    if (_lastBoilerOnTime == 0 || (now - _lastBoilerOnTime > 604800000UL)) {
-        if (_lastAntiSeizeRunMs == 0 || (now - _lastAntiSeizeRunMs > 604800000UL)) {
-            triggerAntiSeizeExercise();
+uint32_t ThermalZoneManager::getBootWarmupElapsedSec() const {
+    if (!_bootWarmupActive) return 0;
+    return (millis() - _bootWarmupStartMs) / 1000;
+}
+
+uint32_t ThermalZoneManager::getBootWarmupRemainingSec() const {
+    if (!_bootWarmupActive) return 0;
+    uint32_t elapsed = millis() - _bootWarmupStartMs;
+    if (elapsed >= 300000UL) return 0;
+    return (300000UL - elapsed) / 1000;
+}
+
+size_t ThermalZoneManager::getPairedZoneCount() const {
+    size_t count = 0;
+    for (size_t i = 0; i < MAX_THERMAL_ZONES; i++) {
+        if (_configs[i].enabled && (strlen(_configs[i].sensorMac) > 0 || strlen(_configs[i].sensorName) > 0)) {
+            count++;
         }
+    }
+    return count;
+}
+
+size_t ThermalZoneManager::getAcquiredZoneCount() const {
+    size_t count = 0;
+    for (size_t i = 0; i < MAX_THERMAL_ZONES; i++) {
+        if (_configs[i].enabled && _statuses[i].sensorValid) {
+            count++;
+        }
+    }
+    return count;
+}
+
+void ThermalZoneManager::checkAntiSeizeSchedule(uint32_t now) {
+    time_t nowEpoch = time(nullptr);
+    if (nowEpoch < 1700000000) {
+        return; // Wait until NTP is synced before scheduling anti-seize
+    }
+    // First boot with NTP synchronized: record now to prevent immediate triggering
+    if (_lastAntiSeizeEpoch == 0) {
+        _lastAntiSeizeEpoch = (uint32_t)nowEpoch;
+        saveToPreferences();
+        return;
+    }
+    // If boiler/pumps ran within the last 7 days, defer anti-seize
+    if (_lastBoilerOnTime > 0 && (now - _lastBoilerOnTime < 604800000UL)) {
+        return;
+    }
+    // Run anti-seize exercise every 7 days (604800 seconds)
+    if ((uint32_t)nowEpoch - _lastAntiSeizeEpoch >= 604800UL) {
+        triggerAntiSeizeExercise();
     }
 }
 
@@ -380,7 +442,10 @@ void ThermalZoneManager::update(BoilerRadioTrigger& boiler) {
     if (_antiSeizeRunning) {
         if (now - _antiSeizeStartMs >= 20000UL) {
             _antiSeizeRunning = false;
-            _lastAntiSeizeRunMs = now;
+            time_t nowEpoch = time(nullptr);
+            if (nowEpoch >= 1700000000) {
+                _lastAntiSeizeEpoch = (uint32_t)nowEpoch;
+            }
             saveToPreferences();
 
             // Turn off pump
@@ -421,10 +486,12 @@ void ThermalZoneManager::update(BoilerRadioTrigger& boiler) {
         float currentTemp = -999.0f;
         bool found = false;
 
+        uint32_t timeoutMs = _sensorTimeoutSec * 1000UL;
+
         // Direct Native BLE Sensor Resolution
         if (strlen(_configs[i].sensorMac) > 0) {
             const BleSensorData* ble = bleScanner.findSensorByMac(_configs[i].sensorMac);
-            if (ble && ble->valid && (millis() - ble->lastSeenMs < 1800000UL)) {
+            if (ble && ble->valid && (millis() - ble->lastSeenMs < timeoutMs)) {
                 currentTemp = ble->temperature;
                 found = true;
             }
@@ -432,7 +499,7 @@ void ThermalZoneManager::update(BoilerRadioTrigger& boiler) {
 
         if (!found && strlen(_configs[i].sensorName) > 0) {
             const BleSensorData* ble = bleScanner.findSensorByName(_configs[i].sensorName);
-            if (ble && ble->valid && (millis() - ble->lastSeenMs < 1800000UL)) {
+            if (ble && ble->valid && (millis() - ble->lastSeenMs < timeoutMs)) {
                 currentTemp = ble->temperature;
                 found = true;
             }
@@ -443,9 +510,19 @@ void ThermalZoneManager::update(BoilerRadioTrigger& boiler) {
             _statuses[i].sensorFault = false;
             _statuses[i].currentTemp = currentTemp;
 
-            // Recover from sensor timeout fault as soon as valid reading is received
-            if (_statuses[i].state == ZONE_FAULT_TIMEOUT) {
+            // Transition from warmup or timeout to normal state
+            if (_statuses[i].state == ZONE_WARMUP) {
                 _statuses[i].state = _statuses[i].demand ? ZONE_HEATING : ZONE_IDLE;
+                size_t acquired = getAcquiredZoneCount();
+                size_t paired = getPairedZoneCount();
+                uint32_t elapsed = (now - _bootWarmupStartMs) / 1000;
+                netConsole.printf("[INIT]   * Sensor Discovery: Acquired (%u/%u): %s -> %.1f \xC2\xB0""C at %us\n",
+                                  (unsigned int)acquired, (unsigned int)paired,
+                                  _configs[i].name, currentTemp, elapsed);
+            } else if (_statuses[i].state == ZONE_FAULT_TIMEOUT) {
+                _statuses[i].state = _statuses[i].demand ? ZONE_HEATING : ZONE_IDLE;
+                netConsole.printf("[Thermal] Zone %u (%s) sensor recovered: %.1f \xC2\xB0""C\n",
+                                  _configs[i].id, _configs[i].name, currentTemp);
             }
 
             // Failsafe: Emergency Frost Protection Guard (< 12C)
@@ -484,21 +561,57 @@ void ThermalZoneManager::update(BoilerRadioTrigger& boiler) {
                 }
             }
         } else {
-            // Sensor missing > 30 minutes: CRITICAL FAILSAFE
-            _statuses[i].sensorValid = false;
-            _statuses[i].sensorFault = true;
-            _statuses[i].state = ZONE_FAULT_TIMEOUT;
+            if (_bootWarmupActive) {
+                _statuses[i].sensorValid = false;
+                _statuses[i].sensorFault = false;
+                _statuses[i].state = ZONE_WARMUP;
+            } else {
+                // Sensor missing > timeout: CRITICAL FAILSAFE
+                _statuses[i].sensorValid = false;
+                _statuses[i].sensorFault = true;
+                _statuses[i].state = ZONE_FAULT_TIMEOUT;
 
-            if (_statuses[i].demand) {
-                netConsole.printf("[Thermal] CRITICAL FAILSAFE: Zone %u (%s) sensor timeout >30 min! Shutting down actuator.\n",
-                    _configs[i].id, _configs[i].name);
-                _statuses[i].demand = false;
-                applyRelay(_configs[i].relayPin, false);
-                _statuses[i].relayEngaged = false;
-                diagEngine.raiseDtc("DTC-101", "Sensor timeout >30 min - zone shutdown", SEV_ERROR);
+                if (_statuses[i].demand) {
+                    netConsole.printf("[Thermal] CRITICAL FAILSAFE: Zone %u (%s) sensor timeout >%u s! Shutting down actuator.\n",
+                        _configs[i].id, _configs[i].name, _sensorTimeoutSec);
+                    _statuses[i].demand = false;
+                    applyRelay(_configs[i].relayPin, false);
+                    _statuses[i].relayEngaged = false;
+                    char dtcMsg[64];
+                    snprintf(dtcMsg, sizeof(dtcMsg), "Zone %u sensor timeout >%us - zone shutdown", _configs[i].id, _sensorTimeoutSec);
+                    diagEngine.raiseDtc("DTC-101", dtcMsg, SEV_ERROR);
+                }
             }
         }
     }
+
+    // Evaluate Boot Warmup completion or expiration (5 min = 300,000 ms)
+    if (_bootWarmupActive) {
+        size_t paired = getPairedZoneCount();
+        size_t acquired = getAcquiredZoneCount();
+        if (paired > 0 && acquired >= paired) {
+            _bootWarmupActive = false;
+            netConsole.printf("[INIT]   * Sensor Discovery: All %u room sensors acquired in %us! System fully operational.\n",
+                              (unsigned int)paired, (unsigned int)((now - _bootWarmupStartMs) / 1000));
+        } else if (now - _bootWarmupStartMs >= 300000UL) {
+            _bootWarmupActive = false;
+            netConsole.printf("[INIT]   * Sensor Discovery: Warmup cutoff (300s): %u/%u sensors acquired. Activating system for operational zones.\n",
+                              (unsigned int)acquired, (unsigned int)paired);
+            for (size_t i = 0; i < MAX_THERMAL_ZONES; i++) {
+                if (_configs[i].enabled && !_statuses[i].sensorValid) {
+                    _statuses[i].state = ZONE_FAULT_TIMEOUT;
+                    _statuses[i].sensorFault = true;
+                    char dtcMsg[64];
+                    snprintf(dtcMsg, sizeof(dtcMsg), "Zone %u sensor missing at boot warmup cutoff", _configs[i].id);
+                    diagEngine.raiseDtc("DTC-101", dtcMsg, SEV_ERROR);
+                }
+            }
+        }
+        // Acquired operational zones can begin normal heating immediately;
+        // zones still waiting for BLE sensors stay safe in ZONE_WARMUP (valves closed).
+    }
+
+
 
     if (!_autoMode && !_frostProtectionActive) {
         return; // In manual mode without frost emergency, skip automatic actuator & boiler sequencing

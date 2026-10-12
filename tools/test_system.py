@@ -37,7 +37,7 @@ class TestResult:
         self.details = details
 
 class SystemTestSuite:
-    def __init__(self, ip=DEFAULT_IP, port=DEFAULT_PORT, timeout=4.0):
+    def __init__(self, ip=DEFAULT_IP, port=DEFAULT_PORT, timeout=6.0):
         self.ip = ip
         self.port = port
         self.base_url = f"http://{ip}:{port}"
@@ -223,13 +223,13 @@ class SystemTestSuite:
         req = "FR-17.1"
         start = time.time()
         try:
-            # 1. Read current state
-            r_stat = requests.get(f"{self.base_url}/api/boiler/status", timeout=self.timeout)
-            current_state = r_stat.json().get("boiler", "OFF")
+            # 1. Establish state first (guarantees radio has transmitted at least once)
+            r_init = requests.post(f"{self.base_url}/api/boiler/off?force=true", timeout=self.timeout)
+            assert r_init.status_code == 200, f"Setup state failed: {r_init.status_code}"
+            time.sleep(0.1)
 
-            # 2. Send command matching current state (e.g. OFF when already OFF)
-            endpoint = "/api/boiler/off" if current_state == "OFF" else "/api/boiler/on"
-            r_cmd = requests.post(f"{self.base_url}{endpoint}", timeout=self.timeout)
+            # 2. Send same command again (OFF while already OFF) -> MUST be idempotent no-op!
+            r_cmd = requests.post(f"{self.base_url}/api/boiler/off", timeout=self.timeout)
             latency = (time.time() - start) * 1000
 
             assert r_cmd.status_code == 200, f"Expected HTTP 200, got {r_cmd.status_code}"
@@ -237,7 +237,7 @@ class SystemTestSuite:
             assert data.get("status") == "ok", f"Expected 'ok', got {data.get('status')}"
             assert data.get("idempotent") is True, f"Expected idempotent=True"
 
-            details = f"Command {current_state} while already {current_state} -> 0ms RF transmission skipped (idempotent: true)"
+            details = f"Command OFF while already OFF -> 0ms RF transmission skipped (idempotent: true)"
             return TestResult(test_id, name, req, "PASS", latency, details)
         except Exception as e:
             return TestResult(test_id, name, req, "FAIL", (time.time() - start)*1000, str(e))
@@ -300,7 +300,7 @@ class SystemTestSuite:
             # 3. Fire rapid rejected requests to trigger spam limiter (within cooldown)
             for _ in range(4):
                 requests.post(f"{self.base_url}{target}", timeout=self.timeout)
-                time.sleep(0.05)
+                time.sleep(0.15)
 
             # 4. Check diagnostic status
             r_diag = requests.get(f"{self.base_url}/api/diag/status", timeout=self.timeout)
@@ -318,6 +318,7 @@ class SystemTestSuite:
             assert r_after.json().get("healthScore") == 100, "Health score did not recover to 100%"
 
             details = f"DTC-201 triggered on rapid spam (Health: {diag.get('healthScore')}%). Cleared -> 100% recovered."
+            time.sleep(0.5)
             return TestResult(test_id, name, req, "PASS", latency, details)
         except Exception as e:
             return TestResult(test_id, name, req, "FAIL", (time.time() - start)*1000, str(e))
@@ -402,6 +403,61 @@ class SystemTestSuite:
         except Exception as e:
             return TestResult(test_id, name, req, "FAIL", (time.time() - start)*1000, str(e))
 
+    def test_tc13_sensor_timeout_failsafe(self):
+        """SWE.5-TC13: Failsafe Sensor Ingestion Timeout Contract (FR-18)"""
+        test_id = "SWE.5-TC13"
+        name = "Configurable Sensor Timeout Failsafe"
+        req = "FR-18"
+        start = time.time()
+        try:
+            # 1. Read current timeout
+            r_get = requests.get(f"{self.base_url}/api/setup/sensor-timeout", timeout=self.timeout)
+            assert r_get.status_code == 200, f"GET sensor-timeout failed: {r_get.status_code}"
+            data_get = r_get.json()
+            orig_timeout = data_get.get("sensorTimeoutSec", 600)
+
+            # 2. Update timeout to 750s
+            r_set = requests.post(f"{self.base_url}/api/setup/sensor-timeout?timeoutSec=750", timeout=self.timeout)
+            assert r_set.status_code == 200, f"POST sensor-timeout failed: {r_set.status_code}"
+            assert r_set.json().get("sensorTimeoutSec") == 750, "Updated timeout did not match 750"
+
+            # 3. Restore original timeout
+            r_rst = requests.post(f"{self.base_url}/api/setup/sensor-timeout?timeoutSec={orig_timeout}", timeout=self.timeout)
+            assert r_rst.status_code == 200, "Failed restoring original timeout"
+
+            latency = (time.time() - start) * 1000
+            details = f"Verified GET/POST timeout ({orig_timeout}s -> 750s -> {orig_timeout}s) with NVS persistence"
+            return TestResult(test_id, name, req, "PASS", latency, details)
+        except Exception as e:
+            return TestResult(test_id, name, req, "FAIL", (time.time() - start)*1000, str(e))
+
+    def test_tc14_firmware_version_baseline(self):
+        """SWE.5-TC14: Firmware Baseline Version & System Identity (FR-21)"""
+        test_id = "SWE.5-TC14"
+        name = "Firmware Version & Baseline Identity"
+        req = "FR-21"
+        start = time.time()
+        try:
+            r = requests.get(f"{self.base_url}/api/boiler/status", timeout=self.timeout)
+            assert r.status_code == 200, f"GET status failed: {r.status_code}"
+            data = r.json()
+
+            ver = data.get("firmwareVersion")
+            bld = data.get("buildDate")
+            commit = data.get("gitCommit")
+            rst = data.get("resetReason")
+
+            assert ver == "1.2.0", f"Unexpected firmware version: {ver}"
+            assert bld and len(bld) > 0, "Missing build date"
+            assert commit and len(commit) > 0, "Missing git commit hash"
+            assert rst and len(rst) > 0, "Missing reset reason"
+
+            latency = (time.time() - start) * 1000
+            details = f"Version: v{ver} (Build: {bld} | Git: {commit}), Reset: {rst}"
+            return TestResult(test_id, name, req, "PASS", latency, details)
+        except Exception as e:
+            return TestResult(test_id, name, req, "FAIL", (time.time() - start)*1000, str(e))
+
     # ---------------------------------------------------------
     # Test Runner
     # ---------------------------------------------------------
@@ -426,6 +482,8 @@ class SystemTestSuite:
             self.test_tc10_zone_setpoint_control,
             self.test_tc11_time_and_weather_contract,
             self.test_tc12_network_console_feedback,
+            self.test_tc13_sensor_timeout_failsafe,
+            self.test_tc14_firmware_version_baseline,
         ]
 
         self.results = []

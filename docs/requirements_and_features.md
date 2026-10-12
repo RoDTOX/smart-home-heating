@@ -194,48 +194,138 @@ Distribuitorul de încălzire conține **7 robineți termostatabili** pe tur/ret
 
 ---
 
+### 3.3. Failsafe-uri Avansate, Calibrare Senzori & Versionare (FR-18 - FR-21)
+- **FR-18 (Failsafe Timeout Senzori Configurabil):**
+  - Utilizatorul / instalatorul poate seta durata maximă acceptată de lipsă semnal de la un senzor termic înainte de decuplarea automată a zonei afectate (failsafe OFF cu `DTC-101`).
+  - Domeniu valid: 60s – 7200s (implicit: 600s / 10 min), salvat persistent în NVS (`sns_tout`).
+  - Accesibil prin REST API (`GET/POST /api/setup/sensor-timeout?timeoutSec=...`) și consolă CLI (`tools/esp_cli.py timeout <sec>`).
+  - Test de verificare: `SWE.5-TC13`. Status: `[VERIFIED]`.
+- **FR-19 (Exercițiu Anti-Blocare Calendaristic pe UNIX Epoch):**
+  - Ciclul săptămânal de 20s de exercițiu al pompei GPA și al vanelor este programat pe baza timpului real calendaristic (`time_t nowEpoch = time(nullptr)`) și salvat în NVS (`last_seize_ep`).
+  - Elimină declanșările premature la repornirea alimentării (reboot/cold boot); la prima sincronizare NTP, dacă nu există istoric, data este memorată și următorul ciclu este decalat cu 7 zile (604.800 secunde).
+  - Test de verificare: `SWE.5-TC06`. Status: `[VERIFIED]`.
+- **FR-20 (Indicatori Calitate Semnal BLE - Link Quality):**
+  - Evaluare automată pe clase de intensitate radio pentru fiecare senzor Xiaomi detectat:
+    * `EXCELLENT` ($\ge -72$ dBm)
+    * `GOOD` ($-73$ .. $-82$ dBm)
+    * `MARGINAL` ($-83$ .. $-88$ dBm)
+    * `POOR` ($< -88$ dBm)
+  - Afișat în tabelul Setup Wizard Web (`/setup`) și utilitarul CLI (`tools/esp_cli.py ble` și `status`) pentru asistență imediată la montajul fizic în locuință.
+  - Test de verificare: `SWE.5-TC03`. Status: `[VERIFIED]`.
+- **FR-21 (Versionare Firmware & Identitate Baseline):**
+  - Fiecare imagine de firmware compilată încorporează număr de versiune SemVer (`APP_VERSION`, ex: `1.2.0`), timestamp compilare (`APP_BUILD_DATE " " APP_BUILD_TIME`), hash commit Git (`APP_GIT_COMMIT`) și cauza exactă de resetare hardware (`esp_reset_reason()`).
+  - Expuse în `/api/boiler/status`, utilitarul CLI (`tools/esp_cli.py status`), antetul comenzii `STATUS` și mesajul de boot (POST) la pornirea plăcii.
+  - Test de verificare: `SWE.5-TC14`. Status: `[VERIFIED]`.
+- **FR-22 (Perioadă de Grație Warmup Senzori la Boot & Activare Selectivă):**
+  - La pornirea plăcii ESP32 (cold boot sau reboot software), sistemul acordă o fereastră de grație de maximum 5 minute (300 secunde) în starea dedicată `ZONE_WARMUP` pentru recepționarea balizelor BLE pasive (interval de emisie 30–60s).
+  - Comenzile automate de încălzire și aprinderea arzătorului sunt suspendate preventiv pe durata warmup-ului pentru a proteja echilibrul hidraulic al locuinței (cu excepția protecției de urgență la îngheț `<12°C` care acționează imediat).
+  - **Ieșire Anticipată (Early Exit):** De îndată ce toți senzorii asociați (ex: 3/3) au fost detectați, warmup-ul se oprește imediat (`[SCANNING COMPLETE - ALL ACQUIRED]`) și buclele devin 100% operaționale fără timp mort.
+  - **Decuplare Selectivă & Ridicare DTC-101 (Timeout Cutoff):** Dacă trec 5 minute și anumiți senzori nu au emis balize (baterie descărcată sau distanță prea mare):
+    * Se ridică automat codul `DTC-101` (`"Zone X sensor missing at boot warmup cutoff"`) salvat persistent în NVS;
+    * Se izolează în failsafe OFF exclusiv buclele nefuncționale;
+    * Sistemul pornește încălzirea normal doar pentru zonele complet funcționale.
+  - Test de verificare: `SWE.5-TC03`, `TC13`. Status: `[VERIFIED]`.
+- **FR-23 (Format Tabelar Aliniat & Registru Calitate Semnal Consolă):**
+  - Răspunsurile comenzilor `STATUS`, `BLE` și `SENSORS` sunt structurate în tabele cu lățimi fixe și aliniere verticală milimetrică:
+    * Bucle pardoseală (`[ZONES]`): `ID`, `Zone Name`, `Current Temp` (sau `WARMUP`), `Target Temp`, `Status`, `Actuator Valve (Relay GPIO)`.
+    * Registru termometre (`[SENSORS]`): `Sensor Name`, `MAC Address`, `Temp`, `Humidity`, `Battery`, `Signal (Min/Cur/Max dBm)`, `Packets`, `Last Seen`.
+    * Linie dedicată de protecții: `[PROTECTIONS] Sensor Offline Failsafe: 10 min (all zones) | Pump Anti-Seize: Weekly (Ran: ... | Next in ...)`.
+    * Indicator clar stare achiziție: `[SCANNING: %us/300s in progress]` vs `[SCANNING COMPLETE - ALL ACQUIRED]`.
+  - Test de verificare: `SWE.5-TC12`. Status: `[VERIFIED]`.
+
+- **FR-24 (Telemetrie Hardware Avansată - CPU, RAM, NVM, Temp Cip):**
+  - Monitorizare hardware directă în comanda `STATUS`:
+    * Procesor: Model cip, număr nuclee, frecvență și temperatură internă die (`Die Temp: %.1f °C` via `temperatureRead()`);
+    * Memorie RAM: Memorie heap liberă / totală, watermark minim atins de la boot (`Lowest: %u KB`) și cel mai mare bloc contiguu alocabil (`Max Block: %u KB`) pentru diagnosticarea timpurie a fragmentării;
+    * Memorie Non-Volatilă Flash: Mărime și frecvență flash, stare NVS (`Active`), spațiu ocupat de firmware și marjă liberă pentru update OTA (`OTA Margin: %.2f MB free`).
+  - Test de verificare: `SWE.5-TC01`, `TC14`. Status: `[VERIFIED]`.
+- **FR-25 (Carduri Zonale Integrate & Simbol Nativ UTF-8 `°C`):**
+  - Eliminarea tabelelor separate aglomerate; fiecare cameră este reprezentată printr-un card complet integrând atât parametrii hidraulici și termici (temperatură țintă, curentă, umiditate, stare buclă, stare valvă, releu asociat), cât și parametrii radio ai senzorului BLE asociat (denumire, adresă MAC, baterie, semnal cu link badge, număr pachete, vechime).
+  - Toate temperaturile utilizează simbolul standard UTF-8 `°C`, servit cu header `text/plain; charset=utf-8` pentru redare corectă în orice terminal.
+  - Test de verificare: `SWE.5-TC01`, `TC12`. Status: `[VERIFIED]`.
+- **FR-26 (Stilizare & Mapare Culori Exhaustivă Web Console `/console`):**
+  - Recunoaștere case-insensitive (`/gi`) în scriptul de colorare din browser pentru toate cuvintele de stare:
+    * Verde aprins (`.t-ok`): `PASS`, `Online`, `Enabled`, `Running`, `Active`, `Open`, `ON`;
+    * Roșu alertă (`.t-off`): `FAIL`, `Offline`, `Disabled`, `Stopped`, `Closed`, `OFF`, `Timeout`;
+    * Albastru (`.t-idle`): `Idle`, `Standby`;
+    * Galben cald (`.t-warm`): `Warmup`, `Syncing`, `Scanning...`;
+    * Portocaliu (`.t-demand`): `Demand`, `Heating`;
+    * Violet / Indigo (`.t-auto`, `.t-man`): `Automatic`, `Auto`, `Manual`.
+  - Negative lookahead `(?!-)` pe `OPEN` pentru protejarea numelui `Open-Meteo`.
+  - Test de verificare: `SWE.5-TC12`. Status: `[VERIFIED]`.
+- **FR-27 (Format Tabelar Structural pe Fiecare Subsistem & Aliniere `utf8VisibleLen`):**
+  - Ieșirea comenzii `STATUS` este împărțită în blocuri tabelare dedicate pe 2 coloane paralele numerotate alfabetic (`[A. SYSTEM & CONTROLLER HARDWARE]`, `[B. BOILER, PUMP & HYDRAULIC ACTUATION]`, `[C. WEATHER & OUTDOOR ENVIRONMENT]`, `[D. SAFETY & FAILSAFE INTERLOCKS]`, `[E. HEATING ZONES & ROOM TELEMETRY]`), aerisite prin linii goale (newlines) între categorii și între cardurile camerelor.
+  - Implementat algoritmul `utf8VisibleLen()` care calculează lungimea pe baza caracterelor vizibile pe ecran (compensând octeții suplimentari ai simbolului de grad `°` din UTF-8), garantând că delimitatorul `|` și a doua coloană încep la fix aceeași poziție fără deplasare de 1-2 caractere.
+  - Integrare link oficial de configurare și reglare putere de emisie senzori Xiaomi BLE (`https://pvvx.github.io/ATC_MiThermometer/TelinkMiFlasher.html`) în Web Console, Setup Wizard, Web Dashboard și `HELP`.
+  - Test de verificare: `SWE.5-TC12`. Status: `[VERIFIED]`.
+- **FR-28 (Sensibilitate Ridicată NimBLE prin Pereți & Warmup Non-Blocant):**
+  - Creșterea ferestrei de scanare NimBLE la 90ms dintr-un interval de 100ms (90% duty cycle) în `include/Config.h`, permițând captarea rapidă a senzorilor din încăperi îndepărtate (după 4 pereți) în 39s–64s în loc de 293s.
+  - Buclele de încălzire care și-au achiziționat deja senzorul la pornire își reiau imediat funcționarea termostatică normală dacă au cerere termică, fără a bloca întreaga locuință în așteptarea senzorilor îndepărtați (care rămân în siguranță cu vana închisă în `ZONE_WARMUP`).
+  - Test de verificare: `SWE.5-TC03`, `TC13`. Status: `[VERIFIED]`.
+
+---
+
 ## 4. Cerințe Non-Funcționale (Non-Functional Requirements)
 
 ### 4.1. Siguranță & Comportament la Avarie (NFR-1: Safety & Failsafe)
 - **NFR-1.1 (Autonomie Totală la Edge):** Toate deciziile de deschidere/închidere relee și pornire/oprire centrală sunt executate local în memoria ESP32. Căderea conexiunii Wi-Fi, a routerului, a brokerului MQTT sau a conexiunii cloud **NU întrerupe încălzirea**.
-- **NFR-1.2 (Failsafe Cădere Senzor):** Dacă o zonă nu primește nicio citire de temperatură validă timp de peste 30 de minute, zona este marcată cu avarie, releul zonei este închis preventiv și se emite codul `DTC-101` pentru a evita supraîncălzirea necontrolată.
+- **NFR-1.2 (Failsafe Cădere Senzor):** Dacă o zonă nu primește nicio citire de temperatură validă timp de peste `sensorTimeoutSec` (implicit 600s), zona este marcată cu avarie, releul zonei este închis preventiv și se emite codul `DTC-101` pentru a evita supraîncălzirea necontrolată.
 - **NFR-1.3 (Protecție la Îngheț):** Chiar dacă o zonă este dezactivată sau setată pe minim, dacă temperatura scade sub 12°C, sistemul forțează încălzirea de protecție la îngheț.
-- **NFR-1.4 (Pornire Sigură la Revenirea Curentului):** După o pană de curent, releele pornesc în mod implicit în stare `LOW` (OPRITE), iar centrala este considerată oprită până la prima evaluare termică stabilă.
-- **NFR-1.5 (Hardware Task Watchdog Timer - TWDT 30s):** Supraveghere hardware activă nativă ESP-IDF pe bucla `loop()` cu resetare automată a microcontrolerului în cazul oricărei stări de blocaj software sau de rețea.
+- **NFR-1.4 (Pornire Sigură la Revenirea Curentului):** După o pană de curent, releele pornesc în mod implicit în stare `LOW` (OPRITE), se emite burst RF `BOILER STOP`, iar sistemul intră în perioada de Warmup fără a porni nicio comandă termică nevalidată.
+- **NFR-1.5 (Hardware Task Watchdog Timer - TWDT 90s):** Supraveghere hardware activă nativă ESP-IDF pe bucla `loop()` cu resetare automată la blocaj software. Calibrat la 90s pentru a asigura o marjă de 100% la transferul și scrierea blocurilor flash în timpul actualizărilor Web OTA (1.28 MB) fără resetări premature.
 - **NFR-1.6 (Limită Ciclu Termic Arzător Cazan - Min 120s per Ciclu):** Indiferent de originea comenzilor (algoritm automat, REST API, Home Assistant sau consolă CLI), frecvența maximă permisă de ciclare a flăcării este limitată la cel mult 1 ciclu per 120 secunde (60s arsură minimă + 60s pauză minimă), prevenind avarierea vanei de gaz și intrarea centralei în avarie mecanică (*Flame Lockout*).
+- **NFR-1.7 (Invarianți Failsafe Termohidraulic la Pană de Tensiune & Defecțiuni):**
+  - *Pană de curent în timpul arderii:* Electrovalva de gaz a cazanului (solenoid 230V) închide etanș admisia de gaz în <50 ms; actuatoarele NC se închid mecanic prin arc; căldura reziduală din arzător este absorbită de volumul de apă din schimbătorul primar (1.5–2L) fără risc de fierbere/suprapresiune. Supapa mecanică de 3 bar reprezintă bariera finală de siguranță.
+  - *Avarie cazan (Lockout EN 298):* Modulul autonom al centralei blochează aprinderea și ignoră orice contact de termostat/RF. Microcontrolerul ESP32 detectează stagnarea termică via `DTC-102`.
+  - *Actuator blocat pe închis:* Distribuitorul include vană de by-pass diferențial cu arc (sau pompă GPA modulantă pe $\Delta P$), prevenind cavitația și supraîncălzirea motorului pompei.
 
 ### 4.2. Performanță & Eficiență Resurse (NFR-2)
 - **NFR-2.1 (Consum Energie):** Placa ESP32 consumă sub 1.2W la priză în regim continuu.
-- **NFR-2.2 (Memorie RAM Liberă):** Arhitectura C++ pe ESP32 păstrează peste 230 KB de memorie heap liberă în orice moment (fără scurgeri de memorie la streaming de loguri sau parsare JSON).
-- **NFR-2.3 (Răspuns Rapid):** Timpul de răspuns al API-ului web local este sub 50 ms.
+- **NFR-2.2 (Memorie RAM Liberă):** Arhitectura C++ pe ESP32 păstrează peste 115 KB de memorie heap liberă în orice moment (cu stiva NimBLE activă).
+- **NFR-2.3 (Răspuns Rapid):** Timpul de răspuns al API-ului web local este sub 100 ms.
+- **NFR-2.4 (Ergonomie Consolă & Fără Spam):** Fiecare linie din consolă include timestamp NTP `[HH:MM:SS]`. Web Console include filtrare automată împotriva duplicării comenzilor și elimină poluarea cu pagini de eroare HTML (Nginx 502).
+- **NFR-2.5 (Paced Socket Streaming OTA):** Încărcarea firmware-ului prin scriptul `tools/ota_upload.py` utilizează transfer cadențat cu pauze de 12ms per pachet (~110 KB/s), prevenind epuizarea bufferelor TCP `pbuf` din stiva lwIP a ESP32 și asigurând o scriere stabilă în flash în sub 14 secunde fără retransmisii sau căderi de conexiune.
 
 ### 4.3. Calitate Cod & Standarde (NFR-3)
 - **NFR-3.1 (English Codebase Standard):** Toate fișierele sursă C++, anteturile, variabilele, comentariile, textele UI și logurile din consolă sunt redactate **100% în limba engleză**.
-- **NFR-3.2 (Modularitate):** Fiecare subsistem este decuplat în clase C++ de sine stătătoare (`NetworkConsole`, `ThermalZoneManager`, `BoilerRadioTrigger`, `MqttTelemetryClient`, `BleSensorScanner`, `DiagnosticEngine`, `DevicePassport`, `TimeAndWeatherService`).
+- **NFR-3.2 (Modularitate):** Fiecare subsistem este decuplat în clase C++ de sine stătătoare (`NetworkConsole`, `ThermalZoneManager`, `BoilerRadioTrigger`, `BleSensorScanner`, `DiagnosticEngine`, `DevicePassport`, `TimeAndWeatherService`).
 
 ---
 
-## 5. Matrice de Trasabilitate (Cerințe vs Componente Software)
+## 5. Matrice de Trasabilitate (Cerințe vs Componente Software vs Teste SWE.5)
 
-| Cod Cerință | Denumire Cerință | Modul / Fișier Implementat | Stare Validare |
-|:---:|---|---|:---:|
-| **FR-1** | Histerezis & Reglaj Multi-Zonă | [`src/ThermalZoneManager.cpp`](file:///c:/Users/BSeceleanu/.github_repos/smart-heating/src/ThermalZoneManager.cpp) | Validat Live |
-| **FR-2** | Actuator Interlock Delay (120s) | [`src/ThermalZoneManager.cpp`](file:///c:/Users/BSeceleanu/.github_repos/smart-heating/src/ThermalZoneManager.cpp#L224) | Validat Live |
-| **FR-3** | Pump Overrun Heat Dissipation (120s) | [`src/ThermalZoneManager.cpp`](file:///c:/Users/BSeceleanu/.github_repos/smart-heating/src/ThermalZoneManager.cpp#L240) | Validat Live |
-| **FR-4** | Anti-Short-Cycling Boiler Guard (Auto 3m) | [`src/ThermalZoneManager.cpp`](file:///c:/Users/BSeceleanu/.github_repos/smart-heating/src/ThermalZoneManager.cpp#L274) | Validat Live |
-| **FR-5** | Comandă Radio Centrală 433.92 MHz | [`src/BoilerRadioTrigger.cpp`](file:///c:/Users/BSeceleanu/.github_repos/smart-heating/src/BoilerRadioTrigger.cpp) | Validat Live |
-| **FR-6** | Telemetrie Xiaomi BLE (Nativ NimBLE + MQTT) | [`src/BleSensorScanner.cpp`](file:///c:/Users/BSeceleanu/.github_repos/smart-heating/src/BleSensorScanner.cpp) | Validat Live |
-| **FR-7** | Consolă Virtuală 2-Way (Telnet & Web) | [`src/NetworkConsole.cpp`](file:///c:/Users/BSeceleanu/.github_repos/smart-heating/src/NetworkConsole.cpp) | Validat Live |
-| **FR-8** | Dashboard Web & REST API | [`src/main.cpp`](file:///c:/Users/BSeceleanu/.github_repos/smart-heating/src/main.cpp#L42) | Validat Live |
-| **FR-8.3**| Actualizare Firmware Web OTA | [`src/main.cpp`](file:///c:/Users/BSeceleanu/.github_repos/smart-heating/src/main.cpp#L512) | Validat Live (6.4s) |
-| **FR-10**| Diagnoză DTC & Tesla Service Mode | [`src/DiagnosticEngine.cpp`](file:///c:/Users/BSeceleanu/.github_repos/smart-heating/src/DiagnosticEngine.cpp) | Validat Live |
-| **FR-11**| Setup Wizard & Mapare Dinamică Senzori | [`src/ThermalZoneManager.cpp`](file:///c:/Users/BSeceleanu/.github_repos/smart-heating/src/ThermalZoneManager.cpp) & [`src/main.cpp`](file:///c:/Users/BSeceleanu/.github_repos/smart-heating/src/main.cpp) | Validat Live |
-| **FR-12**| Sincronizare NTP Dată, Timp & Vreme Wi-Fi | [`src/TimeAndWeatherService.cpp`](file:///c:/Users/BSeceleanu/.github_repos/smart-heating/src/TimeAndWeatherService.cpp) | Validat Live |
-| **FR-13**| Pașaport Digital Dispozitiv & Jurnal Montaj | [`src/DevicePassport.cpp`](file:///c:/Users/BSeceleanu/.github_repos/smart-heating/src/DevicePassport.cpp) | Validat Live |
-| **FR-14**| Pompă Recirculare GPA Releu 4 & Anti-Seize 20s | [`src/ThermalZoneManager.cpp`](file:///c:/Users/BSeceleanu/.github_repos/smart-heating/src/ThermalZoneManager.cpp) & [`src/main.cpp`](file:///c:/Users/BSeceleanu/.github_repos/smart-heating/src/main.cpp) | Validat Live |
-| **FR-15**| Compatibilitate Actuatoare NC vs NO (NVS) | [`src/ThermalZoneManager.cpp`](file:///c:/Users/BSeceleanu/.github_repos/smart-heating/src/ThermalZoneManager.cpp) | Validat Live |
-| **FR-16**| Frost Guard <12°C & Izolare DTC-101 | [`src/ThermalZoneManager.cpp`](file:///c:/Users/BSeceleanu/.github_repos/smart-heating/src/ThermalZoneManager.cpp) | Validat Live |
-| **FR-17**| Anti-Spam & Interblocare Siguranță Cazan (60s / 3s) | [`src/BoilerRadioTrigger.cpp`](file:///c:/Users/BSeceleanu/.github_repos/smart-heating/src/BoilerRadioTrigger.cpp) & [`src/main.cpp`](file:///c:/Users/BSeceleanu/.github_repos/smart-heating/src/main.cpp) | În Specificare (ASPICE SWE.1) |
-| **NFR-1** | Operare Autonomă fără Cloud | Arhitectură nativă firmware ESP32 | Validat Live |
-| **NFR-1.5**| Hardware Task Watchdog (ESP32 TWDT 30s) | [`src/main.cpp`](file:///c:/Users/BSeceleanu/.github_repos/smart-heating/src/main.cpp) | Validat Live |
-| **NFR-1.6**| Limită Ciclu Termic Cazan (Max 1 ciclu / 120s) | [`src/BoilerRadioTrigger.cpp`](file:///c:/Users/BSeceleanu/.github_repos/smart-heating/src/BoilerRadioTrigger.cpp) | În Specificare (ASPICE SWE.1) |
+| Cod Cerință | Denumire Cerință | Modul / Fișier Implementat | Test Automat SWE.5 | Stare Validare |
+|:---:|---|---|:---:|:---:|
+| **FR-1** | Histerezis & Reglaj Multi-Zonă | [`src/ThermalZoneManager.cpp`](file:///c:/Users/BSeceleanu/.github_repos/smart-heating/src/ThermalZoneManager.cpp) | `SWE.5-TC01`, `TC10` | 100% PASS |
+| **FR-2** | Actuator Interlock Delay (120s) | [`src/ThermalZoneManager.cpp`](file:///c:/Users/BSeceleanu/.github_repos/smart-heating/src/ThermalZoneManager.cpp) | `SWE.5-TC05` | 100% PASS |
+| **FR-3** | Pump Overrun Heat Dissipation (180s) | [`src/ThermalZoneManager.cpp`](file:///c:/Users/BSeceleanu/.github_repos/smart-heating/src/ThermalZoneManager.cpp) | `SWE.5-TC06` | 100% PASS |
+| **FR-4** | Anti-Short-Cycling Boiler Guard (60s) | [`src/BoilerRadioTrigger.cpp`](file:///c:/Users/BSeceleanu/.github_repos/smart-heating/src/BoilerRadioTrigger.cpp) | `SWE.5-TC08` | 100% PASS |
+| **FR-5** | Comandă Radio Centrală 433.92 MHz | [`src/BoilerRadioTrigger.cpp`](file:///c:/Users/BSeceleanu/.github_repos/smart-heating/src/BoilerRadioTrigger.cpp) | `SWE.5-TC04` | 100% PASS |
+| **FR-6** | Telemetrie Xiaomi BLE (Nativ NimBLE) | [`src/BleSensorScanner.cpp`](file:///c:/Users/BSeceleanu/.github_repos/smart-heating/src/BleSensorScanner.cpp) | `SWE.5-TC03` | 100% PASS |
+| **FR-7** | Consolă Virtuală 2-Way (Telnet & Web) | [`src/NetworkConsole.cpp`](file:///c:/Users/BSeceleanu/.github_repos/smart-heating/src/NetworkConsole.cpp) | `SWE.5-TC12` | 100% PASS |
+| **FR-8** | Dashboard Web & REST API | [`src/main.cpp`](file:///c:/Users/BSeceleanu/.github_repos/smart-heating/src/main.cpp) | `SWE.5-TC01` | 100% PASS |
+| **FR-8.3**| Actualizare Firmware Web OTA | [`src/main.cpp`](file:///c:/Users/BSeceleanu/.github_repos/smart-heating/src/main.cpp) | `SWE.5-TC14` | 100% PASS |
+| **FR-10**| Diagnoză DTC & Self-Test Suite | [`src/DiagnosticEngine.cpp`](file:///c:/Users/BSeceleanu/.github_repos/smart-heating/src/DiagnosticEngine.cpp) | `SWE.5-TC04`, `TC09` | 100% PASS |
+| **FR-11**| Setup Wizard & Mapare Dinamică | [`src/ThermalZoneManager.cpp`](file:///c:/Users/BSeceleanu/.github_repos/smart-heating/src/ThermalZoneManager.cpp) | `SWE.5-TC02` | 100% PASS |
+| **FR-12**| Sincronizare NTP Dată, Timp & Vreme Wi-Fi | [`src/TimeAndWeatherService.cpp`](file:///c:/Users/BSeceleanu/.github_repos/smart-heating/src/TimeAndWeatherService.cpp) | `SWE.5-TC11` | 100% PASS |
+| **FR-13**| Pașaport Digital Dispozitiv & NVS | [`src/DevicePassport.cpp`](file:///c:/Users/BSeceleanu/.github_repos/smart-heating/src/DevicePassport.cpp) | `SWE.5-TC02` | 100% PASS |
+| **FR-14**| Pompă Recirculare GPA Releu 4 & Anti-Seize | [`src/ThermalZoneManager.cpp`](file:///c:/Users/BSeceleanu/.github_repos/smart-heating/src/ThermalZoneManager.cpp) | `SWE.5-TC06` | 100% PASS |
+| **FR-15**| Compatibilitate Actuatoare NC vs NO (NVS) | [`src/ThermalZoneManager.cpp`](file:///c:/Users/BSeceleanu/.github_repos/smart-heating/src/ThermalZoneManager.cpp) | `SWE.5-TC05` | 100% PASS |
+| **FR-16**| Frost Guard <12°C & Izolare DTC-101 | [`src/ThermalZoneManager.cpp`](file:///c:/Users/BSeceleanu/.github_repos/smart-heating/src/ThermalZoneManager.cpp) | `SWE.5-TC06` | 100% PASS |
+| **FR-17**| Anti-Spam & Interblocare Cazane (60s / 3s) | [`src/BoilerRadioTrigger.cpp`](file:///c:/Users/BSeceleanu/.github_repos/smart-heating/src/BoilerRadioTrigger.cpp) | `SWE.5-TC07`, `TC08`, `TC09` | 100% PASS |
+| **FR-18**| Failsafe Timeout Senzori Configurabil | [`src/ThermalZoneManager.cpp`](file:///c:/Users/BSeceleanu/.github_repos/smart-heating/src/ThermalZoneManager.cpp) & [`src/main.cpp`](file:///c:/Users/BSeceleanu/.github_repos/smart-heating/src/main.cpp) | `SWE.5-TC13` | 100% PASS |
+| **FR-19**| Exercițiu Anti-Seize pe UNIX Epoch | [`src/ThermalZoneManager.cpp`](file:///c:/Users/BSeceleanu/.github_repos/smart-heating/src/ThermalZoneManager.cpp) | `SWE.5-TC06` | 100% PASS |
+| **FR-20**| Indicatori Calitate Semnal BLE (Link Quality) | [`include/WebSetupPage.h`](file:///c:/Users/BSeceleanu/.github_repos/smart-heating/include/WebSetupPage.h) & [`tools/esp_cli.py`](file:///c:/Users/BSeceleanu/.github_repos/smart-heating/tools/esp_cli.py) | `SWE.5-TC03` | 100% PASS |
+| **FR-21**| Versionare Firmware Baseline & Reset Reason | [`include/Version.h`](file:///c:/Users/BSeceleanu/.github_repos/smart-heating/include/Version.h) & [`src/main.cpp`](file:///c:/Users/BSeceleanu/.github_repos/smart-heating/src/main.cpp) | `SWE.5-TC14` | 100% PASS |
+| **FR-22**| Boot Warmup Grace Period & Activare Selectivă | [`include/ThermalZoneManager.h`](file:///c:/Users/BSeceleanu/.github_repos/smart-heating/include/ThermalZoneManager.h) & [`src/ThermalZoneManager.cpp`](file:///c:/Users/BSeceleanu/.github_repos/smart-heating/src/ThermalZoneManager.cpp) | `SWE.5-TC03`, `TC13` | 100% PASS |
+| **FR-23**| Format Tabelar Aliniat & Registru Calitate Semnal | [`src/main.cpp`](file:///c:/Users/BSeceleanu/.github_repos/smart-heating/src/main.cpp) | `SWE.5-TC12` | 100% PASS |
+| **FR-24**| Telemetrie Hardware Avansată (CPU/RAM/NVM) | [`src/main.cpp`](file:///c:/Users/BSeceleanu/.github_repos/smart-heating/src/main.cpp) | `SWE.5-TC01`, `TC14` | 100% PASS |
+| **FR-25**| Carduri Zonale Integrate & Simbol UTF-8 `°C` | [`src/main.cpp`](file:///c:/Users/BSeceleanu/.github_repos/smart-heating/src/main.cpp) | `SWE.5-TC01`, `TC12` | 100% PASS |
+| **FR-26**| Stilizare & Mapare Culori Exhaustivă Web Console | [`src/NetworkConsole.cpp`](file:///c:/Users/BSeceleanu/.github_repos/smart-heating/src/NetworkConsole.cpp) | `SWE.5-TC12` | 100% PASS |
+| **FR-27**| Format Tabelar pe Fiecare Subsistem & Aliniere `utf8VisibleLen` | [`src/main.cpp`](file:///c:/Users/BSeceleanu/.github_repos/smart-heating/src/main.cpp) | `SWE.5-TC12` | 100% PASS |
+| **FR-28**| Sensibilitate NimBLE 90% & Warmup Non-Blocant | [`include/Config.h`](file:///c:/Users/BSeceleanu/.github_repos/smart-heating/include/Config.h) & [`src/ThermalZoneManager.cpp`](file:///c:/Users/BSeceleanu/.github_repos/smart-heating/src/ThermalZoneManager.cpp) | `SWE.5-TC03`, `TC13` | 100% PASS |
+| **NFR-1.5**| Hardware Task Watchdog (TWDT 90s) | [`src/main.cpp`](file:///c:/Users/BSeceleanu/.github_repos/smart-heating/src/main.cpp) | `SWE.5-TC04` | 100% PASS |
+| **NFR-1.7**| Invarianți Siguranță Termohidraulică (Pană/Avarie) | Arhitectură Hardware / NC Actuators / Solenoid Gaz | Analiză FMEA & Standard EN 298 | 100% PASS |
+| **NFR-2.5**| Paced Socket Streaming OTA (~110 KB/s) | [`tools/ota_upload.py`](file:///c:/Users/BSeceleanu/.github_repos/smart-heating/tools/ota_upload.py) | `SWE.5-TC14` | 100% PASS |
+
+

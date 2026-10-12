@@ -21,7 +21,7 @@ DiagnosticEngine::DiagnosticEngine()
 }
 
 void DiagnosticEngine::begin() {
-  netConsole.println(F("[DIAG] Diagnostic Engine & Service Mode initialized."));
+  Serial.println(F("[DIAG] Diagnostic Engine & Service Mode initialized."));
 }
 
 void DiagnosticEngine::setServiceMode(bool enable) {

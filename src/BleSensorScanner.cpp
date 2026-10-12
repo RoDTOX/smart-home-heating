@@ -23,12 +23,12 @@ BleSensorScanner::BleSensorScanner()
 }
 
 void BleSensorScanner::begin() {
-    netConsole.println(F("[BLE] Initializing ESP32 NimBLE stack (passive observer)..."));
+    Serial.println(F("[BLE] Initializing ESP32 NimBLE stack (passive observer)..."));
     NimBLEDevice::init("ESP32-SmartHeating");
 
     _pBLEScan = NimBLEDevice::getScan();
     if (!_pBLEScan) {
-        netConsole.println(F("[BLE] ERROR: Failed to acquire NimBLEScan instance!"));
+        Serial.println(F("[BLE] ERROR: Failed to acquire NimBLEScan instance!"));
         return;
     }
 
@@ -52,9 +52,9 @@ void BleSensorScanner::restartScan() {
     _lastScanCheckMs = millis();
 
     if (started) {
-        netConsole.println(F("[BLE] Continuous passive BLE scanner active (listening for BTHome v2 & PVVX)..."));
+        Serial.println(F("[BLE] Continuous passive BLE scanner active (listening for BTHome v2 & PVVX)..."));
     } else {
-        netConsole.println(F("[BLE] WARNING: BLE scan failed to start. Will retry in update loop."));
+        Serial.println(F("[BLE] WARNING: BLE scan failed to start. Will retry in update loop."));
     }
 }
 
@@ -277,6 +277,8 @@ void BleSensorScanner::updateOrAddSensor(const char* mac, const char* name, floa
         strncpy(target->mac, mac, sizeof(target->mac) - 1);
         target->mac[sizeof(target->mac) - 1] = '\0';
         target->packetCount = 0;
+        target->minRssi = rssi;
+        target->maxRssi = rssi;
     }
 
     if (target) {
@@ -286,6 +288,8 @@ void BleSensorScanner::updateOrAddSensor(const char* mac, const char* name, floa
         target->humidity = hum;
         target->battery = bat;
         target->rssi = rssi;
+        if (rssi < target->minRssi) target->minRssi = rssi;
+        if (rssi > target->maxRssi) target->maxRssi = rssi;
         target->lastSeenMs = millis();
         target->packetCount++;
         target->source = src;

@@ -14,10 +14,11 @@ TimeAndWeatherService::TimeAndWeatherService()
       _outdoorTemp(-999.0f),
       _outdoorHumidity(-999.0f),
       _weatherValid(false),
-      _lastWeatherSuccessMs(0) {}
+      _lastWeatherSuccessMs(0),
+      _ntpAnnounced(false) {}
 
 void TimeAndWeatherService::begin() {
-    netConsole.println(F("[Time] Configuring NTP synchronization (Timezone: Europe/Bucharest)..."));
+    Serial.println(F("[Time] Configuring NTP synchronization (Timezone: Europe/Bucharest)..."));
     // Standard Romania POSIX Timezone with daylight saving auto-transition
     configTzTime("EET-2EEST,M3.5.0/3,M10.5.0/4", "pool.ntp.org", "time.google.com", "time.cloudflare.com");
     _ntpConfigured = true;
@@ -131,7 +132,7 @@ void TimeAndWeatherService::fetchWeather() {
                  "&current=temperature_2m,relative_humidity_2m";
 
     HTTPClient http;
-    http.setTimeout(1500);
+    http.setTimeout(5000);
     if (!http.begin(url)) {
         return;
     }
@@ -139,7 +140,7 @@ void TimeAndWeatherService::fetchWeather() {
     int httpCode = http.GET();
     if (httpCode == 200) {
         String payload = http.getString();
-        StaticJsonDocument<512> doc;
+        JsonDocument doc;
         DeserializationError err = deserializeJson(doc, payload);
         if (!err) {
             if (doc.containsKey("current")) {
@@ -152,12 +153,12 @@ void TimeAndWeatherService::fetchWeather() {
                 }
                 _weatherValid = true;
                 _lastWeatherSuccessMs = millis();
-                netConsole.printf("[Weather] Outdoor Open-Meteo: %.1f C | %.1f %% Hum (Coords: %s,%s)\n",
-                                  _outdoorTemp, _outdoorHumidity, lat.c_str(), lon.c_str());
+                netConsole.printf("[INIT]   * Outdoor Weather:  Synchronized: %.1f \xC2\xB0""C, %.1f %% RH (Open-Meteo API)\n",
+                                  _outdoorTemp, _outdoorHumidity);
             }
         }
     } else {
-        netConsole.printf("[Weather] Warning: HTTP %d while fetching Open-Meteo\n", httpCode);
+        Serial.printf("[Weather] Warning: HTTP %d while fetching Open-Meteo\n", httpCode);
     }
     http.end();
 }
@@ -165,10 +166,28 @@ void TimeAndWeatherService::fetchWeather() {
 void TimeAndWeatherService::update() {
     uint32_t now = millis();
 
-    // Initial weather fetch once connected to Wi-Fi
-    if (WiFi.status() == WL_CONNECTED && (!_weatherValid || now - _lastWeatherPollMs >= _weatherPollIntervalMs)) {
-        _lastWeatherPollMs = now;
-        fetchWeather();
+    // Announce real-time clock synchronization as soon as NTP succeeds
+    if (!_ntpAnnounced && isTimeSynced()) {
+        _ntpAnnounced = true;
+        time_t nowEpoch = time(nullptr);
+        struct tm ti;
+        localtime_r(&nowEpoch, &ti);
+        char timeBuf[32];
+        strftime(timeBuf, sizeof(timeBuf), "%Y-%m-%d %H:%M:%S", &ti);
+        netConsole.printf("[INIT]   * Real-Time Clock:  Synchronized: %s (Europe/Bucharest via NTP)\n", timeBuf);
+    }
+
+    // Poll Open-Meteo once connected to Wi-Fi (15m interval when valid, 60s backoff if pending/failed)
+    if (WiFi.status() == WL_CONNECTED) {
+        // Allow network and NTP to settle for 5 seconds after boot before first weather query
+        if (_lastWeatherPollMs == 0 && now < 5000) {
+            return;
+        }
+        uint32_t interval = _weatherValid ? _weatherPollIntervalMs : 60000UL;
+        if (_lastWeatherPollMs == 0 || (now - _lastWeatherPollMs >= interval)) {
+            _lastWeatherPollMs = now;
+            fetchWeather();
+        }
     }
 }
 

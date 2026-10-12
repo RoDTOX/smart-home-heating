@@ -30,6 +30,7 @@ public:
     bool hasTelnetClient();
     void broadcast(const char* str);
     void executeCommand(const String& cmd);
+    void clear();
 
 private:
     WiFiServer _telnetServer;
@@ -42,8 +43,11 @@ private:
     size_t _head;
     size_t _count;
     uint32_t _totalBytes;
+    bool _atLineStart;
 
     void appendToRing(char c);
+    void printTimestamp();
+    void rawWrite(const uint8_t *buffer, size_t size);
     void setupWebRoutes();
 };
 

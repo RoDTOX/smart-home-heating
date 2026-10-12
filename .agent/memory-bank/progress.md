@@ -3,7 +3,62 @@
 ## Status
 All core functional subsystems (heating hysteresis engine, boiler RF trigger, native BLE passive scanner, 2-way console, web OTA, diagnostic engine with DTCs, service mode, digital passport, NTP & weather sync, headless API-first architecture, hydronic safety controls, anti-spam burner interlocks, and automated PC system test suite) are fully implemented, compiled, uploaded, and verified live on ESP32 (`192.168.1.20`) with 100% ASPICE SWE.5 pass rate.
 
-## Completed Work (2026-10-09)
+## Completed Work (2026-10-12 - Task 23)
+- **Aliniere Tabelară Milimetrică pe 2 Coloane (`STATUS`):**
+  - Înlocuit formatul de linii orizontale lungi cu pipe-uri printr-un tabel structurat pe 2 coloane paralele perfect aliniate. Coloana stângă conține parametrii hidraulici și termici (`Target Temperature`, `Current Temperature`, `Room Humidity`, `Loop Status`, `Actuator Valve`, `Hydraulic Relay`), iar coloana dreaptă cuprinde telemetria radio (`Sensor Name`, `Sensor Status`, `Sensor Battery`, `RF Signal Link`, `Telemetry Data`).
+  - Reformatat `Status: Sensor Timeout` în `Sensor Status: Timeout` (radio) și `Loop Status: Sensor Timeout (Failsafe OFF)` (hidraulic).
+- **Eliminare Linii SYNCING din POST:**
+  - POST-ul la boot include exclusiv verificările definitive (10/10 PASS). Serviciul NTP se sincronizează în bucla de boot pentru a raporta `Real-Time Clock: PASS (YYYY-MM-DD HH:MM:SS via NTP)`.
+  - Adăugat blocul asincron `[INIT] Background Tasks Dispatched:` imediat sub POST pentru procesele de lungă durată (Outdoor Weather, Sensor Discovery).
+- **Logare Progresivă în Timp Real:** La achiziția fiecărui senzor se raportează progresul live: `[Warmup] Sensor acquired (1/3)...`, `(2/3)...`, eliminând apariția bruscă la final.
+- **Colorare Exhaustivă Case-Insensitive `/gi` în Web Console:**
+  - Mapate toate stările de după `:` (`Idle`, `Timeout`, `Online`, `Offline`, `Closed`, `Open`, `Warmup`, `Demand`, `Automatic`, etc.) cu stiluri CSS dedicate. Folosit negative lookahead pe `OPEN` pentru a exclude `Open-Meteo`.
+- **Optimizare Paced Socket OTA & TWDT 90s:**
+  - Upload-ul de firmware este cadențat la ~110 KB/s cu pauze de 12ms/pachet, eliminând definitiv supraîncărcarea bufferelor TCP `pbuf` din ESP32. Timp de upload stabil de ~13.5s.
+  - Teste automate ASPICE SWE.5: **14/14 PASS (100.0%)**.
+
+## Completed Work (2026-10-12 - Task 22)
+- **Telemetrie Hardware Avansată:** Adăugat `[CPU]` (ESP32-D0WD-V3, 2 Cores @ 240 MHz, Rev 3, Die Temp via `temperatureRead()`, Uptime), `[MEMORY]` (RAM liber/total, Lowest Watermark, Max Allocable Block), `[FLASH]` (NVS Active, Flash 4MB @ 40MHz, Firmware size, OTA Margin).
+- **Redesign Complet Zone în STATUS:** Tabelul separat `[SENSORS]` a fost scos definitiv. Creată secțiunea `[HEATING ZONES & ROOM TELEMETRY]` cu carduri structurate pe 4 linii per cameră, integrând toate detaliile (temperatură target/curentă în `°C`, umiditate, valvă, releu, nume senzor, MAC, baterie, semnal min/max, pachete, vechime).
+- **Simbolul Grad Celsius (`°C`) & UTF-8 Header:** Setat `text/plain; charset=utf-8` și forțat UTF-8 în CLI pentru redare clară fără caractere distorsionate.
+- **Colorare & Contrast Web Console:** Stilizat `[WEATHER]`, anotimpuri, temperaturi și tag-uri hardware în `/console`.
+- **Verificare SWE.5 100%:** Rulată suita automată completă cu 14/14 PASS.
+
+## Completed Work (2026-10-12 - Task 21)
+- **Eliminare Acronime Tehnice (Zero Bloat):** Înlocuit complet `GPA` (`Secondary Pump on Relay 4`), `TWDT` (`Hardware Watchdog Armed: 60s timeout`), `NC Polarity` (`Normally Closed [NC], User-Configured in NVS`), `NimBLE Active` (`Bluetooth Receiver active, listening`).
+- **Timp Real & Reziliență Offline Fără Wi-Fi:**
+  - Adăugat `Boot Time` în bannerul de pornire și mesaj dedicat de confirmare a sincronizării ceasului (`[Time] Real-time clock synchronized`).
+  - Documentat și testat comportamentul RTC intern ESP32: menține ora chiar dacă Wi-Fi este oprit timp de 2 zile.
+  - Logica de reglaj termic, comanda actuatoarelor, pompa și protecția la îngheț sunt 100% autonome local, fără dependență de rețea.
+- **Integrare Servicii în Power-On Self-Test (POST):** Ceasul real (`Real-Time Clock`), serviciul meteo (`Outdoor Weather`) și perioada de grație a senzorilor (`Sensor Boot Warmup`) integrate direct în tabelul POST.
+- **Unificare Tabel Zone-Senzori (`STATUS`):** Integrată maparea completă a senzorului (Nume, MAC, Baterie %, Semnal dBm + Badge) direct în tabelul `[ZONES] Heating Loops & Sensor Mapping (%u loops)`, eliminând confuzia dintre denumirea senzorului și a camerei.
+- **Evidențiere Vizuală Web Console:** Cuvinte-cheie de stare (`OFF`, `ON`, `IDLE`, `DEMAND`, `AUTOMATIC`, `MANUAL`, `WARMUP`, `PASS`, `FAIL`) și link badges colorate viu și cu bold în `/console`.
+- **Suită ASPICE SWE.5 100%:** Rulate toate cele 14 teste automate (`test_system.py`) pe hardware cu 14/14 PASS (100%).
+
+## Completed Work (2026-10-12 - Task 20)
+- **Perioadă de Warmup Senzori la Boot (Max 5 min / 300s):**
+  - Implementată starea `ZONE_WARMUP` pentru a elimina alertele false premature de deconectare a senzorilor.
+  - Ieșire anticipată din warmup în momentul în care toți senzorii asociați au fost detectați (ex. 3/3 în 30–60s).
+  - Ridicare automată cod `DTC-101` la expirarea celor 5 minute dacă un senzor rămâne nedetectat, izolând doar zona afectată.
+- **Formatare Tabelară Aliniată:** Tabele cu lățimi fixe pentru buclele de încălzire și registrul termometrelor.
+
+## Completed Work (2026-10-12 - Task 18 & 19)
+- **Consolă & Ergonomie Terminal (`NetworkConsole`):**
+  - Marcaje de timp NTP `[HH:MM:SS]` la fiecare linie în Serial, Telnet și Web Console.
+  - Colorare categorii loguri în Web Terminal (`/console`).
+  - Prevenire poluare terminal cu pagini de eroare Nginx 502/504 Bad Gateway.
+- **Reziliență Serviciu Meteo (`TimeAndWeatherService`):**
+  - Socket HTTP timeout mărit la 3000ms și backoff de 60s la erori HTTP -11.
+- **Programare Calendaristică Anti-Seize pe UNIX Epoch (`ThermalZoneManager`):**
+  - Migrare de la `millis()` la `time(nullptr)` în NVS, eliminând pornirea falsă a pompei timp de 20s la reboot.
+- **Timeout Senzor Failsafe Configurabil (`DTC-101`):**
+  - Configurabil persistent în NVS (`_sensorTimeoutSec`, default 600s / 10 min) via CLI `timeout` și `/api/setup/sensor-timeout`.
+- **Indicatori Calitate Semnal BLE:**
+  - Evaluare RSSI (`EXCELLENT`, `GOOD`, `MARGINAL`, `POOR`) în Setup Wizard Web și CLI.
+- **Hardware Watchdog TWDT 60s & Verificare SWE.5 100%:**
+  - Calibrare TWDT la 60s pentru stabilitate Web OTA (1.28 MB). Suită automată pe hardware: **12/12 PASS (100.0%)**.
+
+## Completed Work (2026-10-09 - Task 17)
 - **Eliminare Bloatware (Galaxy-A6 & MQTT):**
   - Eliminat complet modulul legacy MQTT (`MqttTelemetryClient.cpp`, `MqttTelemetryClient.h`).
   - Dezactivat `-D MQTT_MAX_PACKET_SIZE=512` și eliminat dependența de `PubSubClient`.

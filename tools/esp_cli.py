@@ -18,6 +18,12 @@ DEFAULT_IP = os.environ.get("ESP_HEATING_IP", "192.168.1.20")
 DEFAULT_PORT_HTTP = 80
 DEFAULT_PORT_TELNET = 23
 
+def get_link_quality(rssi):
+    if rssi >= -72: return "EXCELLENT"
+    elif rssi >= -82: return "GOOD"
+    elif rssi >= -88: return "MARGINAL"
+    else: return "POOR"
+
 def cmd_status(args):
     url_status = f"http://{args.ip}:{args.port}/api/boiler/status"
     url_zones = f"http://{args.ip}:{args.port}/api/zones"
@@ -32,12 +38,20 @@ def cmd_status(args):
             print("==================================================")
             print("  ESP32 Smart Heating - Live Status Report")
             print("==================================================")
+            ver = sdata.get('firmwareVersion', '1.2.0')
+            bld = sdata.get('buildDate', 'N/A')
+            git_c = sdata.get('gitCommit', 'N/A')
+            rst = sdata.get('resetReason', 'Normal Boot')
+            print(f"Firmware Version:   v{ver} (Build: {bld} | Git: {git_c})")
+            print(f"Reset Cause:        {rst}")
             print(f"Boiler State:       {'FIRE ACTIVE [ON]' if sdata.get('boiler') == 'ON' else 'IDLE [OFF]'}")
             print(f"Thermal Demand:     {'DEMAND ACTIVE' if sdata.get('boilerDemand') else 'NO DEMAND'}")
             print(f"Operation Mode:     {'AUTOMATIC' if sdata.get('autoMode') else 'MANUAL'}")
             print(f"Actuator Type:      {zdata.get('actuatorType', 'NC')} ({'Normally Closed' if zdata.get('actuatorType') == 'NC' else 'Normally Open'})")
             print(f"Circulation Pump:   {'RUNNING [ON]' if zdata.get('pumpActive') else 'IDLE [OFF]'} (Relay 4: {'ENABLED' if zdata.get('pumpEnabled') else 'DISABLED'})")
             print(f"Frost Guard:        {'ACTIVE (<12°C)' if zdata.get('frostGuardActive') else 'STANDBY'}")
+            tout = sdata.get('sensorTimeoutSec', 600)
+            print(f"Sensor Timeout:     {tout}s ({tout // 60} min)")
             print(f"Free Heap RAM:      {sdata.get('freeHeap', 0) // 1024} KB")
             print(f"Wi-Fi RSSI:         {sdata.get('rssi')} dBm")
             print(f"System Uptime:      {sdata.get('uptimeSec')}s")
@@ -54,7 +68,9 @@ def cmd_status(args):
             print("--------------------------------------------------")
             print("Room Sensors (Xiaomi BLE Direct):")
             for s in sdata.get("sensors", []):
-                print(f"  - {s.get('name'):<15} ({s.get('mac')}): {s.get('temp', 0):.1f}°C, {s.get('hum', 0):.0f}%, Bat: {s.get('bat')}%, RSSI: {s.get('rssi')} dBm (seen {s.get('ageSec')}s ago)")
+                rssi = s.get('rssi', -99)
+                q = get_link_quality(rssi)
+                print(f"  - {s.get('name'):<15} ({s.get('mac')}): {s.get('temp', 0):.1f}°C, {s.get('hum', 0):.0f}%, Bat: {s.get('bat')}%, RSSI: {rssi} dBm [{q}] (seen {s.get('ageSec')}s ago)")
             print("==================================================")
         else:
             print(f"[-] HTTP Error: status={r_stat.status_code}, zones={r_zon.status_code}")
@@ -80,10 +96,11 @@ def cmd_ble(args):
                 hum = s.get('hum', 0.0)
                 bat = s.get('bat', 0)
                 rssi = s.get('rssi', 0)
+                q = get_link_quality(rssi)
                 pkts = s.get('packets', 0)
                 src = s.get('source', '')
                 age = s.get('ageSec', 0)
-                print(f"  [{i}] {name:<16} ({mac}) | {temp:.2f}°C | {hum:.1f}% | Bat: {bat}% | RSSI: {rssi} dBm | Pkts: {pkts} | {src} ({age}s ago)")
+                print(f"  [{i}] {name:<16} ({mac}) | {temp:.2f}°C | {hum:.1f}% | Bat: {bat}% | RSSI: {rssi} dBm [{q}] | Pkts: {pkts} | {src} ({age}s ago)")
             print("==================================================")
         else:
             print(f"[-] HTTP Error: {r.status_code} {r.text}")
@@ -277,6 +294,28 @@ def cmd_exercise(args):
     except Exception as e:
         print(f"[-] Error: {e}")
 
+def cmd_timeout(args):
+    """View or configure sensor failsafe timeout delay (seconds)."""
+    if args.sec is not None:
+        url = f"http://{args.ip}:{args.port}/api/setup/sensor-timeout?timeoutSec={args.sec}"
+        try:
+            r = requests.post(url, timeout=3)
+            print(f"[+] Sensor timeout response: {r.status_code} {r.text}")
+        except Exception as e:
+            print(f"[-] Error: {e}")
+    else:
+        try:
+            r = requests.get(f"http://{args.ip}:{args.port}/api/setup/sensor-timeout", timeout=3)
+            d = r.json()
+            tout = d.get('sensorTimeoutSec', 600)
+            print("==================================================")
+            print("  Sensor Ingestion Failsafe Timeout")
+            print("==================================================")
+            print(f"Current Timeout: {tout} seconds ({tout // 60} minutes)")
+            print("==================================================")
+        except Exception as e:
+            print(f"[-] Error: {e}")
+
 def cmd_exec(args):
     """Executes any arbitrary command via the 2-way Network Console API."""
     url = f"http://{args.ip}:{args.port}/api/console/send?cmd={args.cmd}"
@@ -285,10 +324,21 @@ def cmd_exec(args):
         print(f"[+] Command '{args.cmd}' sent: {r.status_code} {r.text}")
         time.sleep(0.3)
         r_log = requests.get(f"http://{args.ip}:{args.port}/api/console/logs", timeout=3)
+        r_log.encoding = 'utf-8'
         lines = r_log.text.strip().split("\n")
-        print("[+] Output tail:")
-        for line in lines[-6:]:
-            print(f"    {line}")
+        print("[+] Output:")
+        cmd_marker = f"[CMD] > {args.cmd}".upper()
+        start_idx = -1
+        for idx in range(len(lines) - 1, -1, -1):
+            if cmd_marker in lines[idx].upper():
+                start_idx = idx
+                break
+        if start_idx != -1:
+            for line in lines[start_idx:]:
+                print(f"    {line}")
+        else:
+            for line in lines[-20:]:
+                print(f"    {line}")
     except Exception as e:
         print(f"[-] Error: {e}")
 
@@ -338,6 +388,9 @@ def main():
 
     sub.add_parser("exercise", help="Trigger 20s anti-seize exercise cycle (pump & valves)")
 
+    p_tout = sub.add_parser("timeout", help="View or configure sensor failsafe timeout (seconds)")
+    p_tout.add_argument("sec", nargs="?", type=int, default=None, help="Timeout in seconds (e.g. 600)")
+
     p_mode = sub.add_parser("mode", help="Set operating mode")
     p_mode.add_argument("mode", choices=["auto", "manual"], help="auto or manual")
 
@@ -373,6 +426,8 @@ def main():
         cmd_actuator(args)
     elif args.command == "exercise":
         cmd_exercise(args)
+    elif args.command == "timeout":
+        cmd_timeout(args)
     elif args.command == "on":
         cmd_boiler(args, "on")
     elif args.command == "off":

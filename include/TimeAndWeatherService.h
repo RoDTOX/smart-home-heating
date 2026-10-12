@@ -39,6 +39,7 @@ private:
     float _outdoorHumidity;
     bool _weatherValid;
     uint32_t _lastWeatherSuccessMs;
+    bool _ntpAnnounced;
 
     void fetchWeather();
 };

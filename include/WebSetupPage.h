@@ -30,7 +30,8 @@ const char SETUP_HTML[] PROGMEM = R"rawliteral(
     tr:hover{background:#1e293b;}
     .badge-rssi{font-weight:700;padding:2px 6px;border-radius:4px;font-size:0.75rem;}
     .rssi-good{background:#065f46;color:#34d399;}
-    .rssi-mid{background:#854d0e;color:#fde047;}
+    .rssi-mid{background:#0369a1;color:#7dd3fc;}
+    .rssi-warn{background:#854d0e;color:#fde047;}
     .rssi-weak{background:#7f1d1d;color:#fca5a5;}
     .btn-sm{background:#0284c7;color:#fff;border:none;border-radius:6px;padding:4px 8px;font-size:0.75rem;font-weight:700;cursor:pointer;margin-right:4px;}
     .btn-sm:hover{background:#0369a1;}
@@ -58,6 +59,7 @@ const char SETUP_HTML[] PROGMEM = R"rawliteral(
         <a href="/">Dashboard</a>
         <a href="console">Terminal</a>
         <a href="update">Firmware OTA</a>
+        <a href="https://pvvx.github.io/ATC_MiThermometer/TelinkMiFlasher.html" target="_blank" rel="noopener">BLE Sensor Config</a>
       </div>
     </div>
 
@@ -389,11 +391,14 @@ const char SETUP_HTML[] PROGMEM = R"rawliteral(
           list.sort((a,b) => b.rssi - a.rssi); // Closest first
           list.forEach(s => {
             let rClass = 'rssi-weak';
-            if (s.rssi >= -65) rClass = 'rssi-good';
-            else if (s.rssi >= -80) rClass = 'rssi-mid';
+            let qText = 'POOR';
+            if (s.rssi >= -72) { rClass = 'rssi-good'; qText = 'EXCELLENT'; }
+            else if (s.rssi >= -82) { rClass = 'rssi-mid'; qText = 'GOOD'; }
+            else if (s.rssi >= -88) { rClass = 'rssi-warn'; qText = 'MARGINAL'; }
+            else { rClass = 'rssi-weak'; qText = 'POOR'; }
             let assignedText = s.assignedZone >= 0 ? '<span style="color:#34d399;font-weight:700;">Zone ' + (s.assignedZone + 1) + '</span>' : '<span style="color:#64748b;">Unassigned</span>';
             html += `<tr>
-              <td><span class="badge-rssi ${rClass}">${s.rssi} dBm</span></td>
+              <td><span class="badge-rssi ${rClass}">${s.rssi} dBm <small style="opacity:0.85;">(${qText})</small></span></td>
               <td><code>${s.mac}</code></td>
               <td><b>${s.name}</b></td>
               <td>${s.temp.toFixed(1)}°C / ${s.hum.toFixed(0)}%</td>

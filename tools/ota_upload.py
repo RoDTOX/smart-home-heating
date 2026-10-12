@@ -1,57 +1,98 @@
-#!/usr/bin/env python3
-"""
-Web OTA Firmware Uploader for ESP32 Smart Heating Controller.
-Flashes compiled binary over local Wi-Fi in ~6-7 seconds without USB cables.
-"""
-
+import socket
+import time
 import os
 import sys
-import time
-import argparse
+
+HOST = "192.168.1.20"
+PORT = 80
+BIN_PATH = ".pio/build/esp32dev/firmware.bin"
+
+if not os.path.exists(BIN_PATH):
+    print(f"Error: {BIN_PATH} not found")
+    sys.exit(1)
+
+bin_size = os.path.getsize(BIN_PATH)
+print(f"Firmware binary: {bin_size} bytes ({bin_size / 1024:.1f} KB)")
+
+# Direct paced socket streaming to ensure ESP32 lwIP buffers never overflow
+
+
+boundary = "---------------------------SmartHeatingOTA2026"
+header_part = (
+    f"--{boundary}\r\n"
+    f'Content-Disposition: form-data; name="firmware"; filename="firmware.bin"\r\n'
+    f"Content-Type: application/octet-stream\r\n\r\n"
+).encode('utf-8')
+
+footer_part = f"\r\n--{boundary}--\r\n".encode('utf-8')
+total_content_len = len(header_part) + bin_size + len(footer_part)
+
+req_headers = (
+    f"POST /update HTTP/1.1\r\n"
+    f"Host: {HOST}\r\n"
+    f"Authorization: Basic YWRtaW46MjEwNTE5OTA=\r\n"
+    f"Content-Type: multipart/form-data; boundary={boundary}\r\n"
+    f"Content-Length: {total_content_len}\r\n"
+    f"Connection: close\r\n\r\n"
+).encode('utf-8')
+
+s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+s.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
+s.settimeout(60)
+print(f"Connecting to {HOST}:{PORT}...")
+t0 = time.time()
+s.connect((HOST, PORT))
+print(f"Connected in {time.time() - t0:.3f}s. Sending headers...")
+s.sendall(req_headers)
+s.sendall(header_part)
+
+chunk_size = 1436
+sent = 0
+last_report = time.time()
+
+with open(BIN_PATH, "rb") as f:
+    while True:
+        chunk = f.read(chunk_size)
+        if not chunk:
+            break
+        s.sendall(chunk)
+        sent += len(chunk)
+        time.sleep(0.012)  # Paced streaming (~110 KB/s) prevents lwIP TCP buffer exhaustion
+        now = time.time()
+        if now - last_report >= 2.0:
+            pct = (sent / bin_size) * 100
+            speed = (sent / 1024) / (now - t0)
+            print(f"[{now - t0:.1f}s] Sent {sent}/{bin_size} ({pct:.1f}%) @ {speed:.1f} KB/s")
+            last_report = now
+
+s.sendall(footer_part)
+t_upload = time.time() - t0
+print(f"Upload finished in {t_upload:.2f}s. Waiting for board response...")
+
+try:
+    resp = b""
+    while True:
+        data = s.recv(1024)
+        if not data:
+            break
+        resp += data
+    print(f"Response in {time.time() - t0:.2f}s: {resp.decode('utf-8', errors='ignore')[:300]}")
+except Exception as e:
+    print(f"Upload completed / Socket closed ({time.time() - t0:.2f}s): {e}")
+finally:
+    s.close()
+
+print("[*] Waiting 7 seconds for ESP32 reboot...")
+time.sleep(7)
+
 import requests
+try:
+    r = requests.get(f"http://{HOST}:{PORT}/api/boiler/status", timeout=5)
+    if r.status_code == 200:
+        data = r.json()
+        print(f"[+] SUCCESS: ESP32 is online! Firmware v{data.get('firmwareVersion')} (Build: {data.get('buildDate')})")
+    else:
+        print(f"[-] Status returned code {r.status_code}")
+except Exception as e:
+    print(f"[-] Reboot check warning: {e}")
 
-def upload_ota(ip="192.168.1.20", bin_path=".pio/build/esp32dev/firmware.bin", username="admin", password=None):
-    if password is None:
-        password = os.environ.get("OTA_PASS", "21051990")
-
-    bin_path = os.path.abspath(bin_path)
-    if not os.path.isfile(bin_path):
-        print(f"[-] Error: Firmware binary not found at '{bin_path}'")
-        print("    Run 'pio run -e esp32dev' first to build the project.")
-        sys.exit(1)
-
-    file_size = os.path.getsize(bin_path)
-    url = f"http://{ip}/update"
-    auth = (username, password)
-
-    print(f"[*] Uploading firmware: {bin_path} ({file_size} bytes)")
-    print(f"[*] Target device: {url}")
-
-    try:
-        with open(bin_path, "rb") as f:
-            files = {"firmware": ("firmware.bin", f, "application/octet-stream")}
-            start = time.time()
-            res = requests.post(url, auth=auth, files=files, timeout=60)
-            elapsed = time.time() - start
-
-        if res.status_code == 200:
-            print(f"[+] OTA upload successful in {elapsed:.2f}s! Status: 200 OK")
-            print("    Device is now rebooting into the new firmware...")
-        else:
-            print(f"[-] OTA failed with status {res.status_code}: {res.text}")
-    except Exception as e:
-        print(f"[-] OTA upload error: {e}")
-        sys.exit(1)
-
-def main():
-    parser = argparse.ArgumentParser(description="ESP32 Smart Heating Web OTA Uploader")
-    parser.add_argument("--ip", default="192.168.1.20", help="ESP32 IP address (default: 192.168.1.20)")
-    parser.add_argument("--bin", default=".pio/build/esp32dev/firmware.bin", help="Path to firmware.bin")
-    parser.add_argument("--user", default="admin", help="OTA username (default: admin)")
-    parser.add_argument("--pass", dest="password", default=None, help="OTA password")
-
-    args = parser.parse_args()
-    upload_ota(ip=args.ip, bin_path=args.bin, username=args.user, password=args.password)
-
-if __name__ == "__main__":
-    main()

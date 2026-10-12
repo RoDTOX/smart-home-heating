@@ -13,8 +13,9 @@ enum ZoneState {
     ZONE_IDLE,          // Target reached, valve closed
     ZONE_WARMING_UP,    // Valve opening in progress (waiting for actuator interlock)
     ZONE_HEATING,       // Valve fully open, boiler and pump active
-    ZONE_FAULT_TIMEOUT, // Sensor missing >30min, zone shut down for safety
-    ZONE_FROST_GUARD    // Emergency frost protection active (<12C)
+    ZONE_FAULT_TIMEOUT, // Sensor missing > timeout, zone shut down for safety
+    ZONE_FROST_GUARD,   // Emergency frost protection active (<12C)
+    ZONE_WARMUP         // Boot grace period: acquiring sensor beacons (max 5 min)
 };
 
 struct ThermalZoneConfig {
@@ -77,7 +78,18 @@ public:
     // Summer Anti-Seize Exercise (Pumps & Valves)
     void triggerAntiSeizeExercise();
     bool isAntiSeizeRunning() const { return _antiSeizeRunning; }
-    uint32_t getLastAntiSeizeRunMs() const { return _lastAntiSeizeRunMs; }
+    uint32_t getLastAntiSeizeEpoch() const { return _lastAntiSeizeEpoch; }
+
+    // Sensor Ingestion Failsafe Timeout (default 600s / 10min)
+    uint32_t getSensorTimeoutSec() const { return _sensorTimeoutSec; }
+    void setSensorTimeoutSec(uint32_t sec);
+
+    // Boot Sensor Warmup (Grace period: max 300s / 5min)
+    bool isBootWarmupActive() const { return _bootWarmupActive; }
+    uint32_t getBootWarmupElapsedSec() const;
+    uint32_t getBootWarmupRemainingSec() const;
+    size_t getPairedZoneCount() const;
+    size_t getAcquiredZoneCount() const;
 
     // Setters
     void setTargetTemperature(size_t index, float target);
@@ -116,7 +128,10 @@ private:
     bool _frostProtectionActive;
     bool _antiSeizeRunning;
     uint32_t _antiSeizeStartMs;
-    uint32_t _lastAntiSeizeRunMs;
+    uint32_t _lastAntiSeizeEpoch;
+    uint32_t _sensorTimeoutSec;
+    bool _bootWarmupActive;
+    uint32_t _bootWarmupStartMs;
 
     uint32_t _interlockDelayMs;
     uint32_t _pumpOverrunMs;

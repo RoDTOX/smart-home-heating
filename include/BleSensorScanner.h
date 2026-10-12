@@ -19,6 +19,8 @@ struct BleSensorData {
     float humidity;
     uint8_t battery;
     int8_t rssi;
+    int8_t minRssi;
+    int8_t maxRssi;
     uint32_t lastSeenMs;
     uint32_t packetCount;
     SensorSource source;

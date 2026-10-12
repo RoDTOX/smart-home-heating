@@ -29,9 +29,9 @@ void DevicePassport::begin() {
         generateDefaultSerialNumber();
         save();
     }
-    netConsole.printf("[Passport] Serial: %s | Commissioned: %s | Customer: %s\n",
-                      _serialNumber, _isCommissioned ? "YES" : "NO",
-                      strlen(_customerName) > 0 ? _customerName : "Unassigned");
+    Serial.printf("[Passport] Serial: %s | Commissioned: %s | Customer: %s\n",
+                  _serialNumber, _isCommissioned ? "YES" : "NO",
+                  strlen(_customerName) > 0 ? _customerName : "Unassigned");
 }
 
 void DevicePassport::load() {
