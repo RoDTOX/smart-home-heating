@@ -323,6 +323,45 @@ Acest document este planul de referință pentru implementarea controlerului aut
           * Toate endpoint-urile PWA verificate live cu cod `200 OK`.
           * Suită completă de regresie rulată pe hardware live: **63/63 teste PASS (100.0%)**, **33/33 cerințe acoperite (100.0%)** în 39.80 secunde.
 
+- [x] **30. Schemă Termodinamică & Hidraulică Interactivă și Animată (Stil Tesla Service Mode HVAC & Cooling Loops):** (Finalizat & Validat Live 14.10.2026)
+      - *Rezultat & Arhitectură SVG Vectorială:*
+        * **Tab Navigare Dedicat:** Buton rapid în headerul panoului (`🏎️ Schemă Termică (Tesla Mode)`) ce comută instantaneu vizualizarea cu persistență locală.
+        * **Sub-Sistem Cazan Gaz:** Card dedicat cazanului cu flacără dinamică animată (verde la ardere, gri în standby), timer live de cooldown anti-short cycling și etichetă idempotență RF 433.92 MHz.
+        * **Grup Amestec & Pompă (GPA):** Reprezentare vană de amestec și rotor de recirculare animat rotativ (`.pump-spinning`), debit 1850 RPM și afișaj interlock 120s / overrun 180s.
+        * **Supermanifold & 3 Bucle Pardoseală:** Conducte tur/retur animate cu flux de particule (`teslaPipeFlow`), debitmetre individuale, actuatoare electrotermice NC (indicator dinamic 230V vs 0V NC) și căsuțe de cameră cu telemetrie live ($T_{cameră} \mid T_{target}$).
+        * **Casete Telemetrie Stil Tesla:** $T_{tur}$ (48.5°C ardere / 24°C standby), $T_{retur}$ (38.0°C / 23.5°C), $\Delta T$ sorbție (10.5°C Optim / 0.5°C Echilibru) și stare pompă.
+        * **Consolă Acțiuni Service Directe:** 5 butoane tactile: Purjare/Test Pompă GPA, Test RF Cazan (Ping), Test Valvă Copil, Test Valvă Living, Curățare DTC Diagnoză.
+      - *Validat:* Flash OTA pe ESP32 (`192.168.1.20`) și testat automat în browser nativ (`TC-UI-13` PASS, `TC-UI-15` PASS).
+
+- [x] **31. Diagramă Interactivă de Stări FSM & Fir Logic Live în Zona de Admin / Diagnoză:** (Finalizat & Validat Live 14.10.2026)
+      - *Rezultat & Motor Decizional FSM:*
+        * **Tab Navigare FSM:** Buton rapid `🧠 Fir Logic & Stări (FSM Admin)` cu afișare full-screen a motorului de stări.
+        * **9 Noduri de Stare Distincte:**
+          1. `IDLE / STANDBY` (toate zonele la setpoint, cazan/pompă standby)
+          2. `CERERE TERMICĂ` (cel puțin o zonă cere căldură)
+          3. `AȘTEPTARE ACTUATOR` (interlock ceară termică 120-180s)
+          4. `MANUAL HOLD` (cerere zonă activă, cazan oprit manual)
+          5. `ÎNCĂLZIRE ACTIVĂ` (flacără aprinsă via 433MHz, pompă GPA activă)
+          6. `POST-CIRCULAȚIE POMPĂ` (pompă releu 4 activă 180s pe keeper zone)
+          7. `GARDĂ COOLDOWN` (interdicție reaprindere rapidă 60s)
+          8. `PROTECȚIE ÎNGHEȚ` (urgență sub 12°C)
+          9. `GEAM DESCHIS` (cădere >1.2°C / 5min, valvă închisă 30m)
+        * **Evidențiere Live Stare Activă:** Nodul curent este evidențiat dinamic cu bordură cyan electric (`.active`), badge activ și timer live decrementat secundă de secundă (ex: `19s Lockout`).
+        * **Afișaj Header Fir Logic:** Indicator sintetic live în colțul din dreapta (`Stare Activă Hardware: 7. GARDĂ COOLDOWN (19s LOCKOUT)`).
+      - *Validat:* 100% PASS în testul E2E de browser (`TC-UI-14` PASS) și captură live `e2e_07_fsm_live_diagram.png`.
+
+- [x] **32. Framework Nativ de Testare Automată Browser E2E & Scenarii User (Agent-Driven Chrome CDP):** (Finalizat & Validat Live 14.10.2026)
+      - *Rezultat:* Utilitar complet [`tools/browser_live_test.py`](file:///c:/Users/BSeceleanu/.github_repos/smart-heating/tools/browser_live_test.py) ce controlează direct Google Chrome prin Chrome DevTools Protocol (CDP) WebSocket pe portul 9888.
+      - *Scor Rulare:* **10/10 teste PASS (100.0%)** direct pe hardware live `192.168.1.20` cu capturi de ecran automate salvate în directorul de artefacte (`e2e_01_beginner_mode.png` .. `e2e_07_fsm_live_diagram.png`).
+
+- [x] **33. Directivă Arhitecturală Advisor (Argon Maximum) & Remediere Audit Chrome DevTools / Lighthouse:** (Finalizat & Validat Live 14.10.2026)
+      - *Rezultat & Remediere Arhitecturală:*
+        * **Matrice Orar Circadian (4×3):** Înlocuit grila densă cu un modal tabelar compact 4 Ancore × 3 Zone, auto-save debounced (800ms) și butoane de salvare per rând cu feedback verde.
+        * **FSM Stateflow pe 2 Planuri în SVG:** Planul A (Master Plant & Pompă GPA) cu săgeți vectoriale orientate și substări de ardere/cooldown, Planul B (Zone Parallel FSM) pe 3 benzi paralele cu interblocări locale.
+        * **Schemă Termică Dinamică 7 Bucle Pardoseală (Tesla Mode):** Topologie reală 3 zone (7 circuite) + bypass băi permanent, calcul dinamic progres ceară actuatoare (`openSec/120s`) și model termodinamic Tur/Retur plafonat la regim de pardoseală ($36.0^\circ\text{C}\text{–}43.5^\circ\text{C}$).
+        * **Remediere Audit DevTools & Lighthouse (WCAG AA + Network):** Contrast cromatic ridicat (>5.8:1), etichetare accesibilă switch-uri/inputuri (`aria-label`), landmark semantic `<main class="container" role="main">`, ergonomie mobilă `@media (max-width: 520px)` și toleranță latență reverse proxy Nginx (`AbortController` 4000ms).
+      - *Validat:* 68/68 PASS (100.0%) pe ASPICE SWE.5 (`tools/test_system.py`) și 10/10 PASS (100.0%) pe CDP browser test (`tools/browser_live_test.py`).
+
 ---
 
 ## 🔮 Viitor / Nice to Have: Migrare Home Server pe ThinkPad L590 (Înlocuire Galaxy A6)

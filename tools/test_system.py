@@ -1333,6 +1333,108 @@ class SystemTestSuite:
             return TestResult(test_id, name, req, "FAIL", (time.time() - start)*1000, str(e))
 
     # ---------------------------------------------------------
+    # Group 19: Negative Validation & Boundary Constraints
+    # ---------------------------------------------------------
+
+    def test_tc19_1_invalid_anchor_rejection(self):
+        """SWE.5-TC19.1: Invalid Anchor Rejection (HTTP 400) (FR-8, FR-26.1)"""
+        test_id = "SWE.5-TC19.1"
+        name = "Invalid Anchor Rejection (HTTP 400)"
+        req = "FR-8, FR-26.1"
+        start = time.time()
+        try:
+            r = requests.post(f"{self.base_url}/api/schedule/anchor?anchor=invalid_anchor_xyz", timeout=self.timeout)
+            latency = (time.time() - start) * 1000
+            assert r.status_code == 400, f"Expected HTTP 400 for invalid anchor, got {r.status_code}"
+            data = r.json()
+            assert "Invalid anchor" in data.get("message", ""), f"Unexpected error message: {data}"
+            details = f"HTTP 400 rejected invalid anchor name: {data.get('message')}"
+            return TestResult(test_id, name, req, "PASS", latency, details)
+        except Exception as e:
+            return TestResult(test_id, name, req, "FAIL", (time.time() - start)*1000, str(e))
+
+    def test_tc19_2_temperature_boundary_clamping(self):
+        """SWE.5-TC19.2: Out-of-Bounds Temperature Clamping (FR-1)"""
+        test_id = "SWE.5-TC19.2"
+        name = "Out-of-Bounds Temperature Clamping"
+        req = "FR-1"
+        start = time.time()
+        try:
+            # Send absurdly high target temp (99.0°C)
+            r = requests.post(f"{self.base_url}/api/zones/setpoint?id=1&target=99.0", timeout=self.timeout)
+            assert r.status_code == 200, f"Request failed: {r.status_code}"
+            r_z = requests.get(f"{self.base_url}/api/zones", timeout=self.timeout)
+            z1 = r_z.json().get("zones", [])[0]
+            assert z1.get("targetTemp") == 30.0, f"Expected upper clamp 30.0°C, got {z1.get('targetTemp')}"
+
+            # Send absurdly low target temp (-10.0°C)
+            requests.post(f"{self.base_url}/api/zones/setpoint?id=1&target=-10.0", timeout=self.timeout)
+            r_z2 = requests.get(f"{self.base_url}/api/zones", timeout=self.timeout)
+            z1_low = r_z2.json().get("zones", [])[0]
+            assert z1_low.get("targetTemp") == 15.0, f"Expected lower clamp 15.0°C, got {z1_low.get('targetTemp')}"
+
+            # Restore nominal target temp (22.0°C)
+            requests.post(f"{self.base_url}/api/zones/setpoint?id=1&target=22.0", timeout=self.timeout)
+            latency = (time.time() - start) * 1000
+            details = "Verified firmware hard-clamping to physical safety limits [15.0°C, 30.0°C]"
+            return TestResult(test_id, name, req, "PASS", latency, details)
+        except Exception as e:
+            # Ensure cleanup
+            requests.post(f"{self.base_url}/api/zones/setpoint?id=1&target=22.0", timeout=self.timeout)
+            return TestResult(test_id, name, req, "FAIL", (time.time() - start)*1000, str(e))
+
+    def test_tc19_3_invalid_zone_index_handling(self):
+        """SWE.5-TC19.3: Invalid Zone Index Handling (HTTP 400) (FR-1, FR-8)"""
+        test_id = "SWE.5-TC19.3"
+        name = "Invalid Zone Index Handling (HTTP 400)"
+        req = "FR-1, FR-8"
+        start = time.time()
+        try:
+            r = requests.post(f"{self.base_url}/api/zones/setpoint?id=99&target=21.0", timeout=self.timeout)
+            latency = (time.time() - start) * 1000
+            assert r.status_code == 400, f"Expected HTTP 400 for out-of-range zone index, got {r.status_code}"
+            data = r.json()
+            assert "Invalid zone index" in data.get("error", ""), f"Unexpected error payload: {data}"
+            details = f"HTTP 400 safely rejected zone index 99: {data.get('error')}"
+            return TestResult(test_id, name, req, "PASS", latency, details)
+        except Exception as e:
+            return TestResult(test_id, name, req, "FAIL", (time.time() - start)*1000, str(e))
+
+    def test_tc19_4_invalid_preset_apply_rejection(self):
+        """SWE.5-TC19.4: Invalid Preset Application Rejection (HTTP 400) (FR-26.2)"""
+        test_id = "SWE.5-TC19.4"
+        name = "Invalid Preset Application Rejection"
+        req = "FR-26.2"
+        start = time.time()
+        try:
+            r = requests.post(f"{self.base_url}/api/schedule/preset/apply?id=non_existent_preset_99", timeout=self.timeout)
+            latency = (time.time() - start) * 1000
+            assert r.status_code == 400, f"Expected HTTP 400 for invalid preset id, got {r.status_code}"
+            data = r.json()
+            assert "Preset not found or invalid" in data.get("message", ""), f"Unexpected message: {data}"
+            details = f"HTTP 400 rejected non-existent preset: {data.get('message')}"
+            return TestResult(test_id, name, req, "PASS", latency, details)
+        except Exception as e:
+            return TestResult(test_id, name, req, "FAIL", (time.time() - start)*1000, str(e))
+
+    def test_tc19_5_factory_preset_overwrite_protection(self):
+        """SWE.5-TC19.5: Factory Preset Overwrite Protection (HTTP 400) (FR-26.2)"""
+        test_id = "SWE.5-TC19.5"
+        name = "Factory Preset Overwrite Protection"
+        req = "FR-26.2"
+        start = time.time()
+        try:
+            r = requests.post(f"{self.base_url}/api/schedule/preset/save?id=default&name=Hacked", timeout=self.timeout)
+            latency = (time.time() - start) * 1000
+            assert r.status_code == 400, f"Expected HTTP 400 when attempting to overwrite factory preset, got {r.status_code}"
+            data = r.json()
+            assert "Cannot overwrite factory preset" in data.get("message", ""), f"Unexpected message: {data}"
+            details = f"HTTP 400 protected factory preset 'default': {data.get('message')}"
+            return TestResult(test_id, name, req, "PASS", latency, details)
+        except Exception as e:
+            return TestResult(test_id, name, req, "FAIL", (time.time() - start)*1000, str(e))
+
+    # ---------------------------------------------------------
     # Test Runner & Traceability Matrix Evaluation
     # ---------------------------------------------------------
 
@@ -1425,6 +1527,12 @@ class SystemTestSuite:
             self.test_tc18_2_preset_apply_eco,
             self.test_tc18_3_preset_save_custom_slot,
             self.test_tc18_4_preset_restore_default,
+            # Group 19: Negative Validation & Boundary Constraints
+            self.test_tc19_1_invalid_anchor_rejection,
+            self.test_tc19_2_temperature_boundary_clamping,
+            self.test_tc19_3_invalid_zone_index_handling,
+            self.test_tc19_4_invalid_preset_apply_rejection,
+            self.test_tc19_5_factory_preset_overwrite_protection,
         ]
 
         self.results = []

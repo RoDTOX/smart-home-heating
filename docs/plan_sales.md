@@ -163,10 +163,11 @@ Pentru a maximiza profitul orar, munca se împarte strict:
 - [ ] **TODO-2.5:** Cere o recenzie scrisă pe WhatsApp de la primul client mulțumit („Social Proof”).
 
 ### Etapa 3: Relația cu Instalatorii & Scalare (Săptămânile 3–4)
-- [ ] **TODO-3.1:** Identifică instalatorul care se ocupă de mentenanța complexului sau a blocurilor vecine.
-- [ ] **TODO-3.2:** Invită instalatorul la o cafea / discuție de 10 minute și prezintă-i sistemul montat la tine acasă.
-- [ ] **TODO-3.3:** Stabilește înțelegerea de comision (150–200 lei per client adus).
-- [ ] **TODO-3.4:** Creează un pliant A5 simplu sau carte de vizită digitală pentru instalator.
+- [x] **TODO-3.1:** Prezentare și validare concept cu primul tehnician autorizat ISCIR (Executat 14.10.2026). *Rezultat: Feedback excelent, validare preț („de unde îți mai rămâne profit la 1000-1500 lei?”), confirmare frustrări concurență (Viessmann/Salus cloud drops, latență 8-10s).*
+- [ ] **TODO-3.2:** Finalizează ambalarea fizică profesională (carcasă 3D/DIN, cablaj WAGO) și video-ul demonstrativ de 30s.
+- [ ] **TODO-3.3:** Recontactează tehnicianul ISCIR (fereastră 2–3 săptămâni: început Noiembrie 2026) cu video-ul și kitul la cheie; propune formal comisionul de 150–200 lei per recomandare.
+- [ ] **TODO-3.4:** Creează un pliant A5 simplu sau carte de vizită digitală / fișă PDF de 1 pagină pentru instalator.
+- [ ] **TODO-3.5:** Testează campanie video pe TikTok / Facebook Ads (buget 1.000 – 2.000 lei conform recomandării instalatorului).
 
 ### Etapa 4: Optimizare Hardware & Stoc Tampon (Luna 2)
 - [ ] **TODO-4.1:** Creează un stoc tampon mic de piese (2 controllere gata asamblate + 2 module cazan ESP-NOW + 12 actuatoare + 6 senzori) pentru livrare imediată în 24h.

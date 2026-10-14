@@ -188,3 +188,38 @@ flowchart TD
    - Parteneriat cu 2–3 instalatori independenți de instalații termice.
    - Furnizarea sistemului ca "Kit de automatizare inteligentă de distribuitor" asamblat și testat profesional.
    - Fiecare lucrare aduce un profit brut de 400–600 RON pe echipament + marja de manoperă a instalatorului, amortizându-se complet pentru proprietar încă din prima iarnă.
+
+---
+
+## 8. Validare Reală din Teren: Interviu Tehnician Autorizat ISCIR (14 Octombrie 2026)
+
+În data de 14.10.2026 a avut loc prima confruntare a conceptului cu realitatea din teren, în cadrul vizitei periodice VTP a unui tehnician de service / instalator autorizat ISCIR.
+
+### 8.1. Feedback Tehnic & Puncte Durerose ale Pieței (Mot-à-mot)
+1. **OpenTherm & Eșecul Soluțiilor Marilor Branduri:**
+   - *„Viessmann încearcă să facă aplicație smart, cu calibrare activă în funcție [de curba termică/ambient], dar nu merge deloc.”*
+   - Marii producători încearcă să forțeze algoritmi modulanți complecși dependenți de software extern, dar ratează fiabilitatea de bază.
+2. **Frustrări Cronice cu Sistemele Existente (Salus, Cloud-uri, Ecosisteme terțe):**
+   - *„Nu se conectează, au probleme continue de conexiune cu serverele, merg greu, se încarcă greu, iau comanda după 8–10 secunde.”*
+   - **Confirmare UVP:** Această mărturie validează direct decizia noastră arhitecturală de a rula **100% local pe ESP32**, cu latență sub 150 ms și zero dependență de servere cloud care pică sau răspund greoi.
+
+### 8.2. Validare Preț & Unit Economics: „Unde e marja?”
+- Reacția spontană a instalatorului la auzul intervalului de preț propus (1.000 – 1.500 RON complet montat):  
+  > *„Dacă tu vinzi cu 1.000 – 1.500 lei, de unde îți mai rămân ție bani de profit?”*
+- **Interpretare comercială:**  
+  - Instalatorii sunt obișnuiți ca o automatizare multi-zonă de brand să plece de la 3.000 – 4.500 RON.
+  - Un preț de 1.490 RON este perceput ca un chilipir / chilipir absolut de către clientul final.
+  - Dat fiind costul nostru de producție BOM de ~450 – 480 RON, marja brută este de **~1.000 RON per instalare**, confirmând că există spațiu generos atât pentru profitul propriu, cât și pentru comisionul de recomandare de **150 – 200 RON** acordat instalatorului.
+
+### 8.3. Go-to-Market & Achiziție Clienți (Recomandarea Meseriașului)
+- Instalatorul a confirmat că la început *„o să fie greu de găsit primii clienți”* prin simplu bouche-à-oreille fără dovezi vizuale.
+- **Rețeta recomandată de el:**
+  1. *Video demonstrativ scurt:* Filmat sistemul fizic complet „gata-montat” pe distribuitorul funcțional (înainte/după, deschidere electrovalve, viteză de reacție pe telefon).
+  2. *Campanie de promovare plătită:* Buget de **1.000 – 2.000 RON** direcționat pe TikTok și Facebook Ads, targetat local pe proprietari de apartamente noi / case.
+  3. *Elasticitatea cererii:*  
+     > *„Cine vrea cu adevărat [confort și rezolvarea dezechilibrului termic], 1.000 – 1.500 lei nu e mult deloc.”*
+
+### 8.4. Concluzie Discuție & Pas Următor
+- Tehnicianul a fost **plăcut impresionat de planul tehnic și de viziune**, urând multă baftă.
+- Colaborarea directă nu a fost forțată pe loc, întrucât prototipul necesita finalizarea ambalării fizice (carcasă profesională, fără fire expuse).
+- **Angajament:** Recontactare telefonică în **2–3 săptămâni** cu video-ul gata și kitul fizic asamblat la cheie pentru stabilirea parteneriatului de recomandare.

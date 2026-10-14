@@ -47,6 +47,11 @@ Minimalism strictly stops where safety begins. **NEVER** cut corners on:
 - Do NOT bloat microcontroller flash with heavy, volatile frontend UI experiments.
 - Primary interaction, testing, and debugging are performed via REST endpoints and the CLI tool ([`tools/esp_cli.py`](file:///c:/Users/BSeceleanu/.github_repos/smart-heating/tools/esp_cli.py)).
 
+### Shell & Tooling Hygiene (Zero-Escape Protocol)
+- **UTF-8 Mandate:** Windows environment is configured with `PYTHONUTF8=1` / `PYTHONIOENCODING=utf-8`. If invoking one-off verification commands, use `python -X utf8` or ensure `sys.stdout.reconfigure(encoding='utf-8')` to prevent `UnicodeEncodeError` on Romanian diacritics (`ă`, `ș`, `ț`) and thermodynamic symbols (`°C`, `⏳`).
+- **Zero Multiline Inline Scripting:** **NEVER** run ad-hoc multiline Python scripts containing nested quotes, parentheses, or HTML/regex through PowerShell inline `python -c "..."`. PowerShell's tokenizer strips escape quotes `\"` and misinterprets parentheses as subexpressions, causing fatal `UnexpectedToken` parser crashes.
+- **Native Tools First:** For file modifications and searches, always use native agent tools (`replace_file_content`, `multi_replace_file_content`, `write_to_file`, `view_file`). If batch script automation is strictly required, write a dedicated script in `tools/` (e.g., `tools/temp_task.py`), execute `python tools/temp_task.py`, and remove it after completion.
+
 ---
 
 ## 3. Task Workflow Protocol

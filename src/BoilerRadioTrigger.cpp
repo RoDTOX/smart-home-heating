@@ -95,18 +95,94 @@ static const uint16_t rf_off_durations[RF_NUM_STEPS] PROGMEM = {
     471, 198, 458, 198, 459, 198, 458, 198, 65000,
 };
 
+#include <Preferences.h>
+
 BoilerRadioTrigger boilerRadio;
 
 BoilerRadioTrigger::BoilerRadioTrigger()
     : _dataPin(5), _lastCommandOn(false), _hasTransmittedOnce(false),
-      _lastTxTime(0), _lastStateChangeTime(0),
+      _lastTxTime(0), _lastStateChangeTime(0), _pendingAction(PENDING_NONE),
       _spamAttemptCount(0), _lastSpamAttemptMs(0) {
+}
+
+void BoilerRadioTrigger::loadStateFromPreferences() {
+    Preferences prefs;
+    if (prefs.begin("boiler", true)) {
+        _lastCommandOn = prefs.getBool("last_cmd", false);
+        prefs.end();
+    }
+}
+
+void BoilerRadioTrigger::saveStateToPreferences() {
+    Preferences prefs;
+    if (prefs.begin("boiler", false)) {
+        bool oldVal = prefs.getBool("last_cmd", false);
+        if (oldVal != _lastCommandOn || !prefs.isKey("last_cmd")) {
+            prefs.putBool("last_cmd", _lastCommandOn);
+        }
+        prefs.end();
+    }
 }
 
 void BoilerRadioTrigger::begin(uint8_t dataPin) {
     _dataPin = dataPin;
     pinMode(_dataPin, OUTPUT);
     digitalWrite(_dataPin, LOW);
+
+    loadStateFromPreferences();
+
+    // Safety & Power-Loss Recovery:
+    // The physical 433MHz boiler receiver retains whatever state it held before power cut.
+    // At boot/reboot, the controller's safe default state is OFF (Standby).
+    // An immediate forced STOP burst guarantees the physical burner is shut down.
+    netConsole.printf("[RF 433MHz][BOOT-SAFE] Boot power resume (last NVS state: %s). Emitting failsafe STOP [OFF] burst...\n",
+                      _lastCommandOn ? "ON" : "OFF");
+    sendBoilerOff(true);
+}
+
+void BoilerRadioTrigger::setPendingAction(PendingBoilerAction action) {
+    _pendingAction = action;
+    uint32_t waitSec = 0;
+    canTransmit(action == PENDING_ON, &waitSec);
+    netConsole.printf("[RF 433MHz][QUEUE] Scheduled deferred boiler %s command (cooldown: %u s remaining).\n",
+                      action == PENDING_OFF ? "STOP [OFF]" : "START [ON]", waitSec);
+}
+
+const char* BoilerRadioTrigger::getPendingActionStr() const {
+    switch (_pendingAction) {
+        case PENDING_OFF: return "OFF";
+        case PENDING_ON:  return "ON";
+        default:          return "NONE";
+    }
+}
+
+void BoilerRadioTrigger::update() {
+    uint32_t now = millis();
+
+    // 1. Process deferred pending commands
+    if (_pendingAction == PENDING_OFF) {
+        if (canTransmit(false)) {
+            netConsole.println(F("[RF 433MHz][QUEUE] Anti-short-cycling delay expired. Executing deferred boiler STOP [OFF]!"));
+            sendBoilerOff(false);
+        }
+    } else if (_pendingAction == PENDING_ON) {
+        if (canTransmit(true)) {
+            netConsole.println(F("[RF 433MHz][QUEUE] Minimum pause expired. Executing deferred boiler START [ON]!"));
+            sendBoilerOn(false);
+        }
+    }
+
+    // 2. Periodic 15-minute safety heartbeat burst (FR-17.7 redundancy)
+    if (_hasTransmittedOnce && _pendingAction == PENDING_NONE && (now - _lastTxTime >= 900000UL)) {
+        if (_lastCommandOn) {
+            transmitBurst(rf_on_durations);
+        } else {
+            transmitBurst(rf_off_durations);
+        }
+        _lastTxTime = now;
+        netConsole.printf("[RF 433MHz][HEARTBEAT] 15m safety refresh burst emitted (%s).\n",
+                          _lastCommandOn ? "ON" : "OFF");
+    }
 }
 
 bool BoilerRadioTrigger::canTransmit(bool targetOn, uint32_t* remainingSec, bool* isIdempotent) const {
@@ -193,6 +269,8 @@ bool BoilerRadioTrigger::sendBoilerOn(bool force) {
     _lastTxTime = millis();
     _lastStateChangeTime = _lastTxTime;
     _spamAttemptCount = 0;
+    _pendingAction = PENDING_NONE;
+    saveStateToPreferences();
     netConsole.println(F("[RF 433MHz] Boiler ON burst sent successfully."));
     return true;
 }
@@ -222,6 +300,8 @@ bool BoilerRadioTrigger::sendBoilerOff(bool force) {
     _lastTxTime = millis();
     _lastStateChangeTime = _lastTxTime;
     _spamAttemptCount = 0;
+    _pendingAction = PENDING_NONE;
+    saveStateToPreferences();
     netConsole.println(F("[RF 433MHz] Boiler OFF burst sent successfully."));
     return true;
 }

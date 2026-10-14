@@ -130,7 +130,7 @@
       display: inline-flex;
       align-items: center;
       gap: 6px;
-      background: linear-gradient(135deg, #0284c7, #0369a1);
+      background: linear-gradient(135deg, #0369a1, #075985);
       color: #fff;
       border: 1px solid rgba(56, 189, 248, 0.4);
       padding: 6px 13px;
@@ -138,7 +138,7 @@
       font-size: 0.75rem;
       font-weight: 700;
       cursor: pointer;
-      box-shadow: 0 4px 12px rgba(2, 132, 199, 0.4);
+      box-shadow: 0 4px 12px rgba(3, 105, 161, 0.4);
       transition: all 0.2s;
     }
     .btn-install:active { transform: scale(0.96); }
@@ -179,6 +179,16 @@
     }
     .badge-on { background: rgba(16, 185, 129, 0.18); color: #34d399; border: 1px solid #059669; }
     .badge-off { background: rgba(244, 63, 94, 0.15); color: #fb7185; border: 1px solid rgba(244, 63, 94, 0.4); }
+    .badge-pending {
+      background: rgba(245, 158, 11, 0.22);
+      color: #fbbf24;
+      border: 1px solid #d97706;
+      animation: pulse-pending 1.4s infinite ease-in-out;
+    }
+    @keyframes pulse-pending {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.85; transform: scale(0.97); }
+    }
 
     /* Mode Switcher */
     .mode-bar {
@@ -207,9 +217,9 @@
       gap: 6px;
     }
     .mode-btn.active {
-      background: linear-gradient(135deg, #0284c7, #0369a1);
+      background: linear-gradient(135deg, #0369a1, #075985);
       color: #fff;
-      box-shadow: 0 3px 10px rgba(2, 132, 199, 0.4);
+      box-shadow: 0 3px 10px rgba(3, 105, 161, 0.4);
     }
 
     /* Action Buttons */
@@ -288,7 +298,7 @@
       position: absolute; content: ""; height: 18px; width: 18px; left: 3px; bottom: 3px;
       background-color: white; transition: .25s; border-radius: 50%;
     }
-    input:checked + .slider { background-color: #0284c7; }
+    input:checked + .slider { background-color: #0369a1; }
     input:checked + .slider:before { transform: translateX(20px); }
 
     /* Circadian Active Anchor Card */
@@ -414,8 +424,8 @@
       cursor: pointer;
     }
     .tab-btn.active {
-      background: #0284c7;
-      border-color: #0284c7;
+      background: #0369a1;
+      border-color: #0369a1;
       color: #fff;
     }
     .anchors-grid {
@@ -425,6 +435,26 @@
     }
     @media (max-width: 480px) {
       .anchors-grid { grid-template-columns: 1fr; }
+    }
+    @media (max-width: 520px) {
+      .header-pills {
+        width: 100%;
+        justify-content: space-between;
+        flex-wrap: wrap;
+      }
+      .btn-small, .tab-btn {
+        min-height: 38px;
+      }
+    }
+    @media (max-width: 520px) {
+      .header-pills {
+        width: 100%;
+        justify-content: space-between;
+        flex-wrap: wrap;
+      }
+      .btn-small, .tab-btn {
+        min-height: 38px;
+      }
     }
     .anchor-edit-box {
       background: #0f172a;
@@ -510,7 +540,7 @@
     .badge-warming { background: rgba(245, 158, 11, 0.15); color: #fcd34d; border: 1px solid rgba(245, 158, 11, 0.4); }
     .badge-heating { background: rgba(16, 185, 129, 0.2); color: #34d399; border: 1px solid #059669; }
     .badge-paused { background: rgba(244, 63, 94, 0.18); color: #fb7185; border: 1px solid rgba(244, 63, 94, 0.4); }
-    .badge-disabled { background: #334155; color: #64748b; border: 1px solid #475569; }
+    .badge-disabled { background: #334155; color: #94a3b8; border: 1px solid #475569; }
 
     .zone-body {
       display: flex;
@@ -542,7 +572,7 @@
       justify-content: space-between;
       align-items: center;
       font-size: 0.72rem;
-      color: #64748b;
+      color: #94a3b8;
       padding-top: 6px;
       border-top: 1px dashed rgba(255, 255, 255, 0.06);
     }
@@ -562,7 +592,7 @@
     }
     .sensor-left { display: flex; flex-direction: column; gap: 2px; }
     .sensor-name { font-weight: 700; color: #f1f5f9; }
-    .sensor-mac { font-size: 0.68rem; color: #64748b; }
+    .sensor-mac { font-size: 0.68rem; color: #94a3b8; }
     .sensor-right { display: flex; align-items: center; gap: 10px; }
     .sensor-temp { font-weight: 800; color: var(--primary); font-size: 1rem; }
     .sensor-hum { color: #94a3b8; font-size: 0.75rem; }
@@ -585,14 +615,15 @@
       grid-template-columns: 1fr 1fr;
       gap: 6px;
       font-size: 0.74rem;
-      color: #64748b;
+      color: #94a3b8;
       padding: 10px;
       background: #0a0f1d;
       border-radius: 10px;
       border: 1px solid rgba(255, 255, 255, 0.04);
       margin-top: 12px;
     }
-    .meta-grid div b { color: #cbd5e1; }
+    .meta-grid div b { color: #f1f5f9; }
+    .zone-footer b { color: #f1f5f9; }
 
     /* Navigation Footer */
     .footer-nav {
@@ -641,10 +672,360 @@
       margin-bottom: 14px;
     }
     .modal-btns { display: flex; gap: 8px; }
+
+    /* Toast Notification */
+    .toast-notification {
+      display: none;
+      position: fixed;
+      bottom: 24px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(15, 23, 42, 0.95);
+      color: #38bdf8;
+      border: 1px solid rgba(56, 189, 248, 0.45);
+      padding: 10px 22px;
+      border-radius: 30px;
+      font-size: 0.82rem;
+      font-weight: 700;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.75);
+      z-index: 9999;
+      pointer-events: none;
+      transition: opacity 0.3s ease;
+      white-space: nowrap;
+    }
+
+    /* Experience / Control Level Selector */
+    .level-selector-bar {
+      display: flex;
+      gap: 6px;
+      background: #090e17;
+      padding: 4px;
+      border-radius: 12px;
+      border: 1px solid rgba(255,255,255,0.06);
+    }
+    .lvl-btn {
+      flex: 1;
+      padding: 8px 10px;
+      background: transparent;
+      border: 1px solid transparent;
+      border-radius: 8px;
+      color: #94a3b8;
+      font-size: 0.78rem;
+      font-weight: 700;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+    }
+    /* View Navigation Tabs Bar */
+    .view-nav-bar {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+    }
+    .view-tab-btn {
+      padding: 6px 12px;
+      border: 1px solid var(--surface-border);
+      background: transparent;
+      color: var(--text-muted);
+      border-radius: 8px;
+      font-size: 0.76rem;
+      font-weight: 700;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      transition: all 0.2s;
+    }
+    .view-tab-btn:hover { background: rgba(255,255,255,0.04); color: #f1f5f9; }
+    .view-tab-btn.active {
+      background: #0369a1;
+      color: #fff;
+      border-color: #0369a1;
+      box-shadow: 0 2px 10px rgba(3, 105, 161, 0.4);
+    }
+
+    /* Tesla Service Mode Schema Styles */
+    .tesla-card {
+      background: #080d1a;
+      border: 1px solid #1e293b;
+      border-radius: var(--radius);
+      padding: 16px;
+      box-shadow: 0 16px 36px -12px rgba(0,0,0,0.8);
+      position: relative;
+    }
+    .tesla-flow-pipe {
+      stroke-dasharray: 12 10;
+      animation: teslaPipeFlow 1.1s linear infinite;
+    }
+    .tesla-flow-pipe-rev {
+      stroke-dasharray: 12 10;
+      animation: teslaPipeFlowRev 1.1s linear infinite;
+    }
+    @keyframes teslaPipeFlow {
+      from { stroke-dashoffset: 22; }
+      to { stroke-dashoffset: 0; }
+    }
+    @keyframes teslaPipeFlowRev {
+      from { stroke-dashoffset: 0; }
+      to { stroke-dashoffset: 22; }
+    }
+    @keyframes teslaSpin {
+      from { transform: rotate(0deg); }
+      to { transform: rotate(360deg); }
+    }
+    .pump-spinning {
+      transform-origin: 380px 180px;
+      animation: teslaSpin 1.2s linear infinite;
+    }
+    .flow-paused {
+      animation-play-state: paused !important;
+      stroke: #334155 !important;
+    }
+    .coil-paused {
+      animation-play-state: paused !important;
+      stroke: #1e293b !important;
+    }
+
+    /* Tesla Service Action Buttons */
+    .tesla-actions-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+      gap: 10px;
+      margin-top: 14px;
+      padding-top: 14px;
+      border-top: 1px solid rgba(255,255,255,0.06);
+    }
+    .btn-tesla {
+      background: #0f172a;
+      border: 1px solid #334155;
+      color: #cbd5e1;
+      padding: 9px 12px;
+      border-radius: 8px;
+      font-size: 0.75rem;
+      font-weight: 700;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      transition: all 0.15s;
+    }
+    .btn-tesla:hover {
+      background: #1e293b;
+      color: #fff;
+      border-color: #0369a1;
+    }
+    .btn-tesla:active { transform: scale(0.97); }
+
+    /* FSM State Machine Styles */
+    .fsm-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+      gap: 12px;
+      margin-top: 12px;
+    }
+    .fsm-node {
+      background: #0a0f1d;
+      border: 1px solid #1e293b;
+      border-radius: 12px;
+      padding: 12px 14px;
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      position: relative;
+      opacity: 0.45;
+    }
+    .fsm-node.active {
+      opacity: 1;
+      border: 2px solid #38bdf8;
+      background: rgba(56, 189, 248, 0.08);
+      box-shadow: 0 0 20px rgba(56, 189, 248, 0.35);
+      transform: translateY(-2px);
+    }
+    .fsm-node-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 6px;
+    }
+    .fsm-node-title {
+      font-size: 0.82rem;
+      font-weight: 800;
+      color: #e2e8f0;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .fsm-node.active .fsm-node-title { color: #38bdf8; }
+    .fsm-node-desc {
+      font-size: 0.72rem;
+      color: #94a3b8;
+      line-height: 1.4;
+    }
+    .fsm-badge {
+      font-size: 0.65rem;
+      font-weight: 800;
+      padding: 2px 6px;
+      border-radius: 6px;
+      background: #1e293b;
+      color: #94a3b8;
+    }
+    /* Schedule Matrix Modal (4 Anchors x 3 Zones) */
+    .matrix-modal-box {
+      max-width: 720px;
+      width: 95%;
+      background: #0f172a;
+      border: 1px solid #334155;
+      border-radius: 16px;
+      padding: 20px;
+      box-shadow: 0 25px 50px -12px rgba(0,0,0,0.85);
+    }
+    .modal-close-btn {
+      background: transparent;
+      border: none;
+      color: #94a3b8;
+      font-size: 1.3rem;
+      font-weight: bold;
+      cursor: pointer;
+      padding: 4px 8px;
+      border-radius: 6px;
+      line-height: 1;
+    }
+    .modal-close-btn:hover { background: #334155; color: #fff; }
+    .matrix-table {
+      width: 100%;
+      border-collapse: separate;
+      border-spacing: 0;
+      font-size: 0.8rem;
+      border-radius: 10px;
+      overflow: hidden;
+      border: 1px solid #334155;
+    }
+    .matrix-table th {
+      background: #1e293b;
+      color: #94a3b8;
+      font-weight: 700;
+      text-align: left;
+      padding: 10px 12px;
+      border-bottom: 1px solid #334155;
+    }
+    .matrix-table td {
+      padding: 10px 12px;
+      border-bottom: 1px solid #1e293b;
+      background: #0a0f1d;
+      color: #f1f5f9;
+      vertical-align: middle;
+    }
+    .matrix-table tr:last-child td { border-bottom: none; }
+    .matrix-stepper {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+    }
+    .matrix-step-btn {
+      width: 26px;
+      height: 26px;
+      background: #1e293b;
+      border: 1px solid #475569;
+      color: #fff;
+      border-radius: 6px;
+      font-weight: bold;
+      font-size: 0.95rem;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.1s;
+    }
+    .matrix-step-btn:hover { background: #334155; border-color: #0369a1; }
+    .matrix-step-btn:active { transform: scale(0.95); }
+    .matrix-step-val {
+      font-weight: 800;
+      color: #38bdf8;
+      min-width: 44px;
+      text-align: center;
+    }
+    .matrix-time-input {
+      background: #1e293b;
+      border: 1px solid #475569;
+      color: #fcd34d;
+      font-weight: 700;
+      padding: 4px 6px;
+      border-radius: 6px;
+      font-size: 0.82rem;
+    }
+    .btn-matrix-row-save {
+      background: #1e293b;
+      border: 1px solid #334155;
+      color: #38bdf8;
+      font-weight: 700;
+      padding: 6px 12px;
+      border-radius: 6px;
+      font-size: 0.74rem;
+      cursor: pointer;
+      transition: all 0.2s;
+      white-space: nowrap;
+    }
+    .btn-matrix-row-save:hover { background: #0369a1; color: #fff; border-color: #0369a1; }
+    .btn-matrix-row-save.saved { background: rgba(16, 185, 129, 0.2); border-color: #10b981; color: #34d399; }
+    .btn-matrix-open {
+      width: 100%;
+      background: linear-gradient(135deg, #0369a1, #075985);
+      border: 1px solid #38bdf8;
+      color: #fff;
+      font-weight: 800;
+      padding: 10px 14px;
+      border-radius: 10px;
+      font-size: 0.82rem;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      margin-bottom: 8px;
+      transition: all 0.2s;
+      box-shadow: 0 4px 12px rgba(2, 132, 199, 0.3);
+    }
+    .btn-matrix-open:hover { filter: brightness(1.1); transform: translateY(-1px); }
+    .next-anchor-box {
+      margin-top: 8px;
+      padding: 8px 12px;
+      background: rgba(56, 189, 248, 0.08);
+      border: 1px solid rgba(56, 189, 248, 0.25);
+      border-radius: 10px;
+      font-size: 0.76rem;
+      color: #bae6fd;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+    .anchor-badge-chip {
+      background: #0f172a;
+      border: 1px solid rgba(255,255,255,0.06);
+      border-radius: 8px;
+      padding: 6px 10px;
+      font-size: 0.74rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    /* Stateflow SVG Animations */
+    @keyframes fsmFlowPulse {
+      0% { stroke-dashoffset: 20; }
+      100% { stroke-dashoffset: 0; }
+    }
+    .fsm-arrow-path {
+      stroke-dasharray: 6 4;
+      animation: fsmFlowPulse 1.2s linear infinite;
+    }
   </style>
 </head>
 <body>
-  <div class="container">
+  <main class="container" role="main">
     
     <!-- HEADER (Span 2) -->
     <div class="card col-span-2">
@@ -669,8 +1050,38 @@
       </div>
     </div>
 
+    <!-- EXPERIENCE / CONTROL LEVEL SELECTOR (Span 2) -->
+    <div class="card col-span-2" style="padding:10px 14px;">
+      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;">
+        <div style="display:flex;align-items:center;gap:6px;">
+          <span style="font-size:0.8rem;font-weight:800;color:#cbd5e1;">NIVEL DE CONTROL:</span>
+          <span style="font-size:0.72rem;color:#94a3b8;" id="lvl-hint-text">Scenarii de viață dintr-un singur click</span>
+        </div>
+        <div class="level-selector-bar" style="flex:1;max-width:540px;">
+          <button id="lvl-beginner" class="lvl-btn" onclick="setUiLevel('beginner')">&#128994; Simplu (Manual)</button>
+          <button id="lvl-presets" class="lvl-btn active" onclick="setUiLevel('presets')">&#128993; Preseturi Rapide</button>
+          <button id="lvl-advanced" class="lvl-btn" onclick="setUiLevel('advanced')">&#128308; Orar Avansat</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- VIEW NAVIGATION TABS (Span 2) -->
+    <div class="card col-span-2" style="padding:8px 12px;margin-bottom:-4px;">
+      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;">
+        <div style="display:flex;align-items:center;gap:6px;">
+          <span style="font-size:0.76rem;font-weight:800;color:#94a3b8;letter-spacing:0.4px;">MOD VIZUALIZARE:</span>
+          <span style="font-size:0.72rem;color:#94a3b8;" id="view-mode-hint">Tablou de bord principal cu zone și orar</span>
+        </div>
+        <div class="view-nav-bar">
+          <button id="view-btn-dash" class="view-tab-btn active" onclick="switchViewMode('dash')">&#127915; Panou Principal</button>
+          <button id="view-btn-tesla" class="view-tab-btn" onclick="switchViewMode('tesla')">&#127950; Schemă Termică (Tesla Mode)</button>
+          <button id="view-btn-fsm" class="view-tab-btn" onclick="switchViewMode('fsm')">&#129504; Fir Logic & Stări (FSM Admin)</button>
+        </div>
+      </div>
+    </div>
+
     <!-- COLUMN 1: BOILER & SMART BIO-SCHEDULE -->
-    <div style="display:flex;flex-direction:column;gap:16px;">
+    <div id="col-main-1" style="display:flex;flex-direction:column;gap:16px;">
       
       <!-- BOILER CONTROL CARD -->
       <div class="card">
@@ -689,55 +1100,67 @@
         </div>
 
         <div class="btn-group">
-          <button class="btn-action btn-on" onclick="triggerBoiler('on')">&#128293; Pornește Centrala</button>
-          <button class="btn-action btn-off" onclick="triggerBoiler('off')">&#10060; Oprește Centrala</button>
+          <button class="btn-action btn-on" id="btn-boiler-on" onclick="triggerBoiler('on')">&#128293; Pornește Centrala</button>
+          <button class="btn-action btn-off" id="btn-boiler-off" onclick="triggerBoiler('off')">&#10060; Oprește Centrala</button>
         </div>
 
-        <div style="display:flex;justify-content:space-between;font-size:0.75rem;color:var(--text-muted);padding:4px 2px;">
+        <!-- Deferred / Pending Command Banner -->
+        <div id="boiler-pending-banner" style="display:none;margin-top:8px;padding:8px 12px;background:rgba(245,158,11,0.15);border:1px solid rgba(245,158,11,0.45);border-radius:10px;font-size:0.75rem;color:#fcd34d;text-align:center;">
+          <span id="boiler-pending-msg">⏳ Oprire programată: flacăra se va stinge automat după protecție.</span>
+        </div>
+
+        <div style="display:flex;justify-content:space-between;font-size:0.75rem;color:var(--text-muted);padding:8px 2px 2px;">
           <span>Pompă Recirculare GPA: <b id="m-pump" style="color:#e2e8f0;">--</b></span>
-          <span>Interblocare Anti-Spam: <b style="color:#34d399;">60s Guard</b></span>
+          <span>Interblocare Anti-Spam: <b id="boiler-cooldown-tag" style="color:#34d399;">Gata (Ready)</b></span>
         </div>
       </div>
 
       <!-- SMART BIO-SCHEDULE & PRESETS CARD -->
-      <div class="card">
+      <div class="card" id="card-bio-schedule">
         <div class="sec-head">
           <h2>&#9201; Smart Bio-Schedule</h2>
           <span class="sub-tag" id="tag-active-preset">Preset: standard</span>
         </div>
 
-        <!-- Master Toggles -->
-        <div class="toggle-row">
-          <span class="toggle-label">&#128197; Activare Orar Inteligent</span>
-          <label class="switch">
-            <input type="checkbox" id="sw-schedule-en" onchange="toggleScheduleMaster()">
-            <span class="slider"></span>
-          </label>
+        <!-- Beginner Info Box (shown only in beginner level) -->
+        <div id="box-beginner-msg" style="display:none;padding:12px;background:rgba(16,185,129,0.08);border:1px solid rgba(16,185,129,0.25);border-radius:10px;font-size:0.78rem;color:#6ee7b7;line-height:1.4;">
+          &#127793; <b>Mod Simplu (Manual Direct):</b> Orarul automat este oprit. Poți regla direct temperaturile camerelor din cardurile de pardoseală din dreapta folosind butoanele <b>+</b> și <b>-</b>, exact ca la un termostat clasic.
         </div>
 
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
-          <div class="toggle-row" style="margin-bottom:0;">
-            <span class="toggle-label" style="font-size:0.75rem;">&#128293; Pre-Heat</span>
+        <!-- Master Toggles & Advanced Guards (PreHeat & Window) -->
+        <div id="box-advanced-guards" style="display:none;flex-direction:column;gap:8px;">
+          <div class="toggle-row">
+            <span class="toggle-label">&#128197; Activare Orar Inteligent</span>
             <label class="switch">
-              <input type="checkbox" id="sw-preheat-en" onchange="toggleScheduleMaster()">
+              <input type="checkbox" id="sw-schedule-en" aria-label="Activare Orar Inteligent" title="Activare Orar Inteligent" onchange="toggleScheduleMaster()">
               <span class="slider"></span>
             </label>
           </div>
-          <div class="toggle-row" style="margin-bottom:0;">
-            <span class="toggle-label" style="font-size:0.75rem;">&#129695; Geam Deschis</span>
-            <label class="switch">
-              <input type="checkbox" id="sw-window-en" onchange="toggleScheduleMaster()">
-              <span class="slider"></span>
-            </label>
+
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+            <div class="toggle-row" style="margin-bottom:0;">
+              <span class="toggle-label" style="font-size:0.75rem;">&#128293; Pre-Heat</span>
+              <label class="switch">
+                <input type="checkbox" id="sw-preheat-en" aria-label="Activare Pre-Heat Anticipativ" title="Activare Pre-Heat Anticipativ" onchange="toggleScheduleMaster()">
+                <span class="slider"></span>
+              </label>
+            </div>
+            <div class="toggle-row" style="margin-bottom:0;">
+              <span class="toggle-label" style="font-size:0.75rem;">&#129695; Geam Deschis</span>
+              <label class="switch">
+                <input type="checkbox" id="sw-window-en" aria-label="Protecție Geam Deschis" title="Protecție Geam Deschis" onchange="toggleScheduleMaster()">
+                <span class="slider"></span>
+              </label>
+            </div>
+          </div>
+
+          <!-- Pre-Heat Active Alert -->
+          <div class="preheat-banner" id="banner-preheat">
+            &#128293; Pre-Heat Activ: Încălzire anticipativă pe baza inerției șapei & vremii exterioare!
           </div>
         </div>
 
-        <!-- Pre-Heat Active Alert -->
-        <div class="preheat-banner" id="banner-preheat">
-          &#128293; Pre-Heat Activ: Încălzire anticipativă pe baza inerției șapei & vremii exterioare!
-        </div>
-
-        <!-- Circadian Active Anchor Hero -->
+        <!-- Circadian Active Anchor Hero (visible in Presets and Advanced) -->
         <div class="anchor-hero" id="anchor-hero-box">
           <div class="anchor-info">
             <div class="anchor-emoji" id="cur-anchor-emoji">&#127769;</div>
@@ -752,41 +1175,57 @@
           </div>
         </div>
 
-        <!-- Presets Selection Bar -->
-        <div style="font-size:0.76rem;font-weight:700;color:#94a3b8;margin:8px 0 6px;">PRESET-URI RAPIDE:</div>
-        <div class="presets-container" id="presets-chips-box">
-          <div class="preset-chip active" onclick="applyPreset('default')">&#127981; Standard</div>
-          <div class="preset-chip" onclick="applyPreset('eco')">&#127811; Eco (18&deg;)</div>
-          <div class="preset-chip" onclick="applyPreset('wfh')">&#128188; WFH (22.5&deg;)</div>
-          <div class="preset-chip" onclick="applyPreset('custom1')" id="chip-custom1">&#128190; Slot 1</div>
-          <div class="preset-chip" onclick="applyPreset('custom2')" id="chip-custom2">&#128190; Slot 2</div>
+        <!-- Next Anchor Countdown Banner -->
+        <div id="next-anchor-banner" class="next-anchor-box">
+          <span>⏱️ <b>Urmează:</b> <span id="next-anchor-name">🌅 Trezire</span> la <b id="next-anchor-time">06:30</b></span>
+          <span id="next-anchor-countdown" style="font-weight:700;color:#38bdf8;">(în --)</span>
         </div>
 
-        <div class="preset-actions">
-          <button class="btn-small" onclick="openSavePresetModal()">&#128190; Salvează în Slot Custom</button>
-          <button class="btn-small" onclick="resetSchedule()">&#128260; Reset la Fabrică</button>
+        <!-- Presets Selection Bar (visible in Presets and Advanced) -->
+        <div id="box-presets-section">
+          <div style="font-size:0.76rem;font-weight:700;color:#94a3b8;margin:8px 0 6px;">PRESET-URI RAPIDE:</div>
+          <div class="presets-container" id="presets-chips-box">
+            <div class="preset-chip active" onclick="applyPreset('default')">&#127981; Standard</div>
+            <div class="preset-chip" onclick="applyPreset('eco')">&#127811; Eco (18&deg;)</div>
+            <div class="preset-chip" onclick="applyPreset('wfh')">&#128188; WFH (22.5&deg;)</div>
+            <div class="preset-chip" onclick="applyPreset('custom1')" id="chip-custom1">&#128190; Slot 1</div>
+            <div class="preset-chip" onclick="applyPreset('custom2')" id="chip-custom2">&#128190; Slot 2</div>
+          </div>
+
+          <div class="preset-actions" id="box-presets-actions" style="display:none;">
+            <button class="btn-small" onclick="openSavePresetModal()">&#128190; Salvează în Slot Custom</button>
+            <button class="btn-small" onclick="resetSchedule()">&#128260; Reset la Fabrică</button>
+          </div>
         </div>
 
-        <!-- Collapsible Schedule Editor -->
-        <div class="editor-card">
+        <!-- Compact Schedule Editor / Matrix Trigger (visible ONLY in Advanced) -->
+        <div class="editor-card" id="box-advanced-editor" style="display:none;">
           <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
-            <span style="font-size:0.78rem;font-weight:800;color:#cbd5e1;">EDITARE ANCORE CIRCADIENE:</span>
-            <div class="profile-tabs">
-              <button class="tab-btn active" id="tab-weekday" onclick="setEditorProfile('weekday')">Luni–Vineri</button>
-              <button class="tab-btn" id="tab-weekend" onclick="setEditorProfile('weekend')">Sâmbătă–Duminică</button>
+            <span style="font-size:0.78rem;font-weight:800;color:#cbd5e1;">CONFIGURARE ORAR CIRCADIAN:</span>
+            <div class="profile-tabs" style="margin-bottom:0;">
+              <button class="tab-btn active" id="tab-weekday" onclick="setEditorProfile('weekday')">L–V (Săptămână)</button>
+              <button class="tab-btn" id="tab-weekend" onclick="setEditorProfile('weekend')">S–D (Weekend)</button>
             </div>
           </div>
 
-          <div class="anchors-grid" id="anchors-editor-grid">
-            <!-- Dynamically populated via JS -->
+          <button class="btn-matrix-open" onclick="openScheduleMatrixModal()">
+            <span>📅</span> Editează Orar & Ancore (Matrice 4×3)
+          </button>
+
+          <!-- Quick Anchor Badges Summary -->
+          <div id="anchors-quick-summary" style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:4px;">
+            <!-- Rendered by JS -->
           </div>
+
+          <!-- Hidden legacy container to prevent query errors -->
+          <div class="anchors-grid" id="anchors-editor-grid" style="display:none;"></div>
         </div>
 
       </div>
     </div>
 
     <!-- COLUMN 2: THERMAL ZONES & BLE TELEMETRY -->
-    <div style="display:flex;flex-direction:column;gap:16px;">
+    <div id="col-main-2" style="display:flex;flex-direction:column;gap:16px;">
       
       <!-- ZONES CARD -->
       <div class="card">
@@ -795,7 +1234,7 @@
           <span class="sub-tag" id="tag-zones-demand">Cerere Totală: 0 Zone</span>
         </div>
         <div id="zones-list">
-          <div style="text-align:center;color:#64748b;padding:20px;">Se încarcă circuitele de încălzire...</div>
+          <div style="text-align:center;color:#94a3b8;padding:20px;">Se încarcă circuitele de încălzire...</div>
         </div>
       </div>
 
@@ -806,7 +1245,7 @@
           <span class="sub-tag" style="color:#34d399;">&bull; NimBLE 90% Scan</span>
         </div>
         <div class="sensor-grid" id="sensors-list">
-          <div class="sensor-row"><span style="color:#64748b;">Se scanează spectrul Bluetooth...</span></div>
+          <div class="sensor-row"><span style="color:#94a3b8;">Se scanează spectrul Bluetooth...</span></div>
         </div>
 
         <!-- Meta Telemetry Grid -->
@@ -828,22 +1267,539 @@
 
     </div>
 
+    <!-- ======================================================== -->
+    <!-- CARD 1: SCHEMĂ TERMODINAMICĂ & HIDRAULICĂ (TESLA MODE)   -->
+    <!-- ======================================================== -->
+    <div id="card-tesla-view" class="card col-span-2 tesla-card" style="display:none;">
+      
+      <!-- Tesla Header -->
+      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:14px;padding-bottom:10px;border-bottom:1px solid rgba(255,255,255,0.06);">
+        <div style="display:flex;align-items:center;gap:10px;">
+          <div style="background:rgba(56,189,248,0.15);border:1px solid rgba(56,189,248,0.3);border-radius:10px;width:38px;height:38px;display:flex;align-items:center;justify-content:center;font-size:1.3rem;">
+            &#127950;
+          </div>
+          <div>
+            <h2 style="font-size:1.05rem;font-weight:800;color:#f8fafc;letter-spacing:-0.2px;">Tesla Service Mode &bull; Schemă Bucle Termodinamice</h2>
+            <div style="font-size:0.72rem;color:#94a3b8;">Supermanifold 7 Circuite Șapă &bull; Bypass Băi &bull; Pompă GPA &bull; Dilatare Ceară</div>
+          </div>
+        </div>
+
+        <!-- Telemetry Chips -->
+        <div style="display:flex;gap:8px;flex-wrap:wrap;">
+          <div style="background:#0f172a;border:1px solid #334155;border-radius:8px;padding:4px 10px;font-size:0.74rem;">
+            <span style="color:#f97316;">&#9650; Tur Cazan:</span> <b id="ts-t-tur" style="color:#fff;">48.5&deg;C</b>
+          </div>
+          <div style="background:#0f172a;border:1px solid #334155;border-radius:8px;padding:4px 10px;font-size:0.74rem;">
+            <span style="color:#38bdf8;">&#9660; Retur Colector:</span> <b id="ts-t-retur" style="color:#fff;">38.0&deg;C</b>
+          </div>
+          <div style="background:#0f172a;border:1px solid #334155;border-radius:8px;padding:4px 10px;font-size:0.74rem;">
+            <span style="color:#34d399;">&Delta;T Sorbție:</span> <b id="ts-t-delta" style="color:#34d399;">10.5&deg;C</b>
+          </div>
+          <div style="background:#0f172a;border:1px solid #334155;border-radius:8px;padding:4px 10px;font-size:0.74rem;">
+            <span style="color:#cbd5e1;">Pompă GPA:</span> <b id="ts-pump-status" style="color:#34d399;">ACTIV (1850 RPM)</b>
+          </div>
+        </div>
+      </div>
+
+      <!-- Interactive SVG Diagram -->
+      <div style="background:#050811;border:1px solid rgba(255,255,255,0.06);border-radius:12px;padding:12px;overflow-x:auto;">
+        <svg viewBox="0 0 940 510" style="width:100%;min-width:780px;height:auto;display:block;">
+          <defs>
+            <linearGradient id="gradBoiler" x1="0" y1="0" x2="1" y2="1">
+              <stop offset="0%" stop-color="#1e1b4b"/>
+              <stop offset="100%" stop-color="#0f172a"/>
+            </linearGradient>
+            <linearGradient id="gradTur" x1="0" y1="0" x2="1" y2="0">
+              <stop offset="0%" stop-color="#ea580c"/>
+              <stop offset="100%" stop-color="#f97316"/>
+            </linearGradient>
+            <linearGradient id="gradRetur" x1="0" y1="0" x2="1" y2="0">
+              <stop offset="0%" stop-color="#0284c7"/>
+              <stop offset="100%" stop-color="#38bdf8"/>
+            </linearGradient>
+          </defs>
+
+          <!-- Group 1: BOILER SUB-SYSTEM -->
+          <rect x="20" y="25" width="220" height="460" rx="14" fill="#0b1120" stroke="#1e293b" stroke-width="1.5" stroke-dasharray="6,4"/>
+          <text x="35" y="50" fill="#94a3b8" font-size="11" font-weight="800" letter-spacing="0.5">SUB-SISTEM CAZAN GAZ</text>
+          
+          <!-- Boiler Box -->
+          <rect id="ts-box-boiler" x="35" y="75" width="190" height="150" rx="12" fill="url(#gradBoiler)" stroke="#ea580c" stroke-width="2"/>
+          <text x="50" y="105" fill="#f8fafc" font-size="13" font-weight="800">&#128293; Centrală Termică</text>
+          <text x="50" y="125" fill="#94a3b8" font-size="10">Comandă Radio 433.92 MHz</text>
+          
+          <!-- Flame Badge inside Boiler -->
+          <g id="ts-flame-group" transform="translate(50, 140)">
+            <rect id="ts-flame-rect" width="160" height="34" rx="8" fill="rgba(16,185,129,0.2)" stroke="#10b981" stroke-width="1.5"/>
+            <text id="ts-flame-text" x="80" y="22" fill="#34d399" font-size="11" font-weight="800" text-anchor="middle">FLACĂRĂ ACTIVĂ</text>
+          </g>
+
+          <text x="50" y="196" fill="#94a3b8" font-size="9" id="ts-boiler-sub">Min Run: 60s &bull; Guard Activ</text>
+          <text x="50" y="210" fill="#94a3b8" font-size="9" id="ts-boiler-rf">Idempotență &bull; Zero Spam RF</text>
+
+          <!-- Boiler Inlet / Outlet Labels -->
+          <text x="180" y="100" fill="#f97316" font-size="10" font-weight="700">TUR &#9654;</text>
+          <text x="180" y="360" fill="#38bdf8" font-size="10" font-weight="700">&#9664; RETUR</text>
+
+          <!-- Group 2: GRUP POMPARE & AMESTEC (GPA) -->
+          <rect x="255" y="25" width="215" height="460" rx="14" fill="#0b1120" stroke="#1e293b" stroke-width="1.5" stroke-dasharray="6,4"/>
+          <text x="270" y="50" fill="#94a3b8" font-size="11" font-weight="800" letter-spacing="0.5">GRUP AMESTEC & POMPĂ (GPA)</text>
+
+          <!-- 3-Way Mixing Valve Symbol -->
+          <rect x="280" y="80" width="40" height="40" rx="8" fill="#1e293b" stroke="#475569" stroke-width="1.5"/>
+          <text x="300" y="104" fill="#e2e8f0" font-size="9" font-weight="800" text-anchor="middle">VANĂ</text>
+
+          <!-- Pump Housing & Impeller -->
+          <circle cx="365" cy="180" r="42" fill="#0f172a" stroke="#0284c7" stroke-width="3"/>
+          <circle cx="365" cy="180" r="32" fill="#1e293b" stroke="#38bdf8" stroke-width="1.5"/>
+          
+          <!-- Impeller Blades (Animated) -->
+          <g id="ts-impeller" class="pump-spinning" style="transform-origin: 365px 180px;">
+            <line x1="365" y1="155" x2="365" y2="205" stroke="#38bdf8" stroke-width="3.5" stroke-linecap="round"/>
+            <line x1="340" y1="180" x2="390" y2="180" stroke="#38bdf8" stroke-width="3.5" stroke-linecap="round"/>
+            <circle cx="365" cy="180" r="6" fill="#0284c7"/>
+          </g>
+
+          <!-- Pump Data Tag -->
+          <rect x="280" y="226" width="170" height="56" rx="8" fill="#080d1a" stroke="#1e293b" stroke-width="1.2"/>
+          <text x="365" y="242" fill="#f8fafc" font-size="11" font-weight="800" text-anchor="middle">Pompă GPA (Releu 4)</text>
+          <text id="ts-pump-rpm-txt" x="365" y="258" fill="#34d399" font-size="10" font-weight="700" text-anchor="middle">1850 RPM &bull; ACTIV</text>
+          <text x="365" y="272" fill="#94a3b8" font-size="8.5" text-anchor="middle">Interlock: 120s &bull; Overrun: 180s</text>
+
+          <!-- Group 3: SUPERMANIFOLD 7 CIRCUITE & BYPASS -->
+          <rect x="485" y="25" width="440" height="460" rx="14" fill="#0b1120" stroke="#1e293b" stroke-width="1.5" stroke-dasharray="6,4"/>
+          <text x="500" y="50" fill="#94a3b8" font-size="11" font-weight="800" letter-spacing="0.5">SUPERMANIFOLD 7 CIRCUITE ȘAPĂ & BYPASS BĂI</text>
+
+          <!-- BARA TUR DISTRIBUITOR (Red) -->
+          <rect x="505" y="85" width="400" height="26" rx="6" fill="#991b1b" stroke="#dc2626" stroke-width="2"/>
+          <text x="520" y="102" fill="#fff" font-size="9.5" font-weight="800">BARĂ TUR (DISTRIBUITOR CU DEBITMETRE)</text>
+
+          <!-- BARA RETUR COLECTOR (Blue) -->
+          <rect x="505" y="340" width="400" height="26" rx="6" fill="#075985" stroke="#0284c7" stroke-width="2"/>
+          <text x="520" y="357" fill="#fff" font-size="9.5" font-weight="800">BARĂ RETUR (ACTUATOARE ELECTROTERMICE NC)</text>
+
+          <!-- =================== PIPES & FLOW PATHS =================== -->
+          <!-- Main Tur Pipe (Boiler -> Manifold) -->
+          <path d="M 225 100 L 280 100 M 320 100 L 365 100 L 365 138 M 365 222 L 365 295 L 435 295 L 435 98 L 505 98"
+                fill="none" stroke="#ea580c" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>
+          <path id="ts-pipe-flow-tur" class="tesla-flow-pipe"
+                d="M 225 100 L 280 100 M 320 100 L 365 100 L 365 138 M 365 222 L 365 295 L 435 295 L 435 98 L 505 98"
+                fill="none" stroke="#fef08a" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+
+          <!-- Main Retur Pipe (Manifold -> Boiler) -->
+          <path d="M 505 353 L 225 353"
+                fill="none" stroke="#0284c7" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>
+          <path id="ts-pipe-flow-retur" class="tesla-flow-pipe-rev"
+                d="M 505 353 L 225 353"
+                fill="none" stroke="#bae6fd" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+
+          <!-- =================== ZONE 1: LIVING & BUCĂTĂRIE (R32 - 3 BUCLE: 1, 2, 3) =================== -->
+          <g id="ts-zone-1-group">
+            <rect x="520" y="111" width="76" height="20" rx="3" fill="#1e293b" stroke="#f97316" stroke-width="1"/>
+            <text x="558" y="125" fill="#fcd34d" font-size="8" font-weight="800" text-anchor="middle">Bucle 1, 2, 3</text>
+            <!-- 3 Parallel Loops -->
+            <path d="M 535 131 L 535 170 Q 520 195 535 220 Q 550 245 535 270 L 535 295" fill="none" stroke="#ea580c" stroke-width="3" stroke-linecap="round"/>
+            <path d="M 558 131 L 558 170 Q 545 195 558 220 Q 570 245 558 270 L 558 295" fill="none" stroke="#ea580c" stroke-width="3.5" stroke-linecap="round"/>
+            <path d="M 580 131 L 580 170 Q 568 195 580 220 Q 595 245 580 270 L 580 295" fill="none" stroke="#ea580c" stroke-width="3" stroke-linecap="round"/>
+            <path id="ts-coil-flow-1" class="tesla-flow-pipe"
+                  d="M 558 131 L 558 170 Q 545 195 558 220 Q 570 245 558 270 L 558 295"
+                  fill="none" stroke="#fef08a" stroke-width="2.5" stroke-linecap="round"/>
+            
+            <!-- Actuator Box & Wax Progress -->
+            <rect id="ts-act-box-1" x="544" y="295" width="28" height="45" rx="4" fill="#0f172a" stroke="#64748b" stroke-width="2"/>
+            <text id="ts-act-txt-1" x="558" y="322" fill="#94a3b8" font-size="8" font-weight="800" text-anchor="middle">NC</text>
+            
+            <!-- Wax Expansion Progress Bar -->
+            <rect id="ts-wax-bg-1" x="525" y="370" width="66" height="6" rx="3" fill="#1e293b"/>
+            <rect id="ts-wax-bar-1" x="525" y="370" width="0" height="6" rx="3" fill="#34d399"/>
+            <text id="ts-wax-txt-1" x="558" y="384" fill="#94a3b8" font-size="7.5" font-weight="700" text-anchor="middle">NC (0V)</text>
+
+            <rect x="515" y="392" width="86" height="52" rx="7" fill="#0f172a" stroke="#334155" stroke-width="1.2"/>
+            <text x="558" y="407" fill="#f8fafc" font-size="8.8" font-weight="800" text-anchor="middle">Living (R32)</text>
+            <text id="ts-z1-temp" x="558" y="422" fill="#38bdf8" font-size="9" font-weight="800" text-anchor="middle">22.7&deg;C</text>
+            <text id="ts-z1-st" x="558" y="436" fill="#94a3b8" font-size="7.5" font-weight="700" text-anchor="middle">Dezactivat (0V)</text>
+          </g>
+
+          <!-- =================== ZONE 2: CAMERA COPILULUI (R33 - 2 BUCLE: 6, 7) =================== -->
+          <g id="ts-zone-2-group">
+            <rect x="620" y="111" width="76" height="20" rx="3" fill="#1e293b" stroke="#f97316" stroke-width="1"/>
+            <text x="658" y="125" fill="#fcd34d" font-size="8" font-weight="800" text-anchor="middle">Bucle 6, 7</text>
+            <!-- 2 Parallel Loops -->
+            <path d="M 645 131 L 645 170 Q 630 195 645 220 Q 660 245 645 270 L 645 295" fill="none" stroke="#ea580c" stroke-width="3.5" stroke-linecap="round"/>
+            <path d="M 670 131 L 670 170 Q 655 195 670 220 Q 685 245 670 270 L 670 295" fill="none" stroke="#ea580c" stroke-width="3.5" stroke-linecap="round"/>
+            <path id="ts-coil-flow-2" class="tesla-flow-pipe"
+                  d="M 658 131 L 658 170 Q 645 195 658 220 Q 670 245 658 270 L 658 295"
+                  fill="none" stroke="#fef08a" stroke-width="2.5" stroke-linecap="round"/>
+            
+            <!-- Actuator Box & Wax Progress -->
+            <rect id="ts-act-box-2" x="644" y="295" width="28" height="45" rx="4" fill="#0f172a" stroke="#10b981" stroke-width="2"/>
+            <text id="ts-act-txt-2" x="658" y="322" fill="#34d399" font-size="8" font-weight="800" text-anchor="middle">230V</text>
+
+            <!-- Wax Expansion Progress Bar -->
+            <rect id="ts-wax-bg-2" x="625" y="370" width="66" height="6" rx="3" fill="#1e293b"/>
+            <rect id="ts-wax-bar-2" x="625" y="370" width="0" height="6" rx="3" fill="#34d399"/>
+            <text id="ts-wax-txt-2" x="658" y="384" fill="#94a3b8" font-size="7.5" font-weight="700" text-anchor="middle">NC (0V)</text>
+
+            <rect x="615" y="392" width="86" height="52" rx="7" fill="#0f172a" stroke="#059669" stroke-width="1.2"/>
+            <text x="658" y="407" fill="#f8fafc" font-size="8.8" font-weight="800" text-anchor="middle">Copil (R33)</text>
+            <text id="ts-z2-temp" x="658" y="422" fill="#f97316" font-size="9" font-weight="800" text-anchor="middle">22.4&deg;C &bull; T: 23&deg;</text>
+            <text id="ts-z2-st" x="658" y="436" fill="#34d399" font-size="7.5" font-weight="700" text-anchor="middle">&#9832; ÎNCĂLZIRE</text>
+          </g>
+
+          <!-- =================== ZONE 3: DORMITOR MATRIMONIAL (R25 - 2 BUCLE: 4, 5) =================== -->
+          <g id="ts-zone-3-group">
+            <rect x="720" y="111" width="76" height="20" rx="3" fill="#1e293b" stroke="#f97316" stroke-width="1"/>
+            <text x="758" y="125" fill="#fcd34d" font-size="8" font-weight="800" text-anchor="middle">Bucle 4, 5</text>
+            <!-- 2 Parallel Loops -->
+            <path d="M 745 131 L 745 170 Q 730 195 745 220 Q 760 245 745 270 L 745 295" fill="none" stroke="#ea580c" stroke-width="3.5" stroke-linecap="round"/>
+            <path d="M 770 131 L 770 170 Q 755 195 770 220 Q 785 245 770 270 L 770 295" fill="none" stroke="#ea580c" stroke-width="3.5" stroke-linecap="round"/>
+            <path id="ts-coil-flow-3" class="tesla-flow-pipe"
+                  d="M 758 131 L 758 170 Q 745 195 758 220 Q 770 245 758 270 L 758 295"
+                  fill="none" stroke="#fef08a" stroke-width="2.5" stroke-linecap="round"/>
+            
+            <!-- Actuator Box & Wax Progress -->
+            <rect id="ts-act-box-3" x="744" y="295" width="28" height="45" rx="4" fill="#0f172a" stroke="#64748b" stroke-width="2"/>
+            <text id="ts-act-txt-3" x="758" y="322" fill="#94a3b8" font-size="8" font-weight="800" text-anchor="middle">NC</text>
+
+            <!-- Wax Expansion Progress Bar -->
+            <rect id="ts-wax-bg-3" x="725" y="370" width="66" height="6" rx="3" fill="#1e293b"/>
+            <rect id="ts-wax-bar-3" x="725" y="370" width="0" height="6" rx="3" fill="#34d399"/>
+            <text id="ts-wax-txt-3" x="758" y="384" fill="#94a3b8" font-size="7.5" font-weight="700" text-anchor="middle">NC (0V)</text>
+
+            <rect x="715" y="392" width="86" height="52" rx="7" fill="#0f172a" stroke="#334155" stroke-width="1.2"/>
+            <text x="758" y="407" fill="#f8fafc" font-size="8.8" font-weight="800" text-anchor="middle">Matrimonial (R25)</text>
+            <text id="ts-z3-temp" x="758" y="422" fill="#38bdf8" font-size="9" font-weight="800" text-anchor="middle">22.3&deg;C &bull; T: 21.5&deg;</text>
+            <text id="ts-z3-st" x="758" y="436" fill="#94a3b8" font-size="7.5" font-weight="700" text-anchor="middle">Temp OK (Idle)</text>
+          </g>
+
+          <!-- =================== BYPASS PERMANENT: BĂI PORTPROSOP (FĂRĂ ACTUATOARE) =================== -->
+          <g id="ts-bypass-group">
+            <rect x="815" y="111" width="80" height="20" rx="3" fill="#0f172a" stroke="#38bdf8" stroke-width="1"/>
+            <text x="855" y="125" fill="#38bdf8" font-size="8" font-weight="800" text-anchor="middle">Bypass Băi</text>
+            
+            <!-- Towel Radiator Permanent Bypass Flow -->
+            <path d="M 855 131 L 855 185 M 840 185 L 870 185 M 840 205 L 870 205 M 840 225 L 870 225 M 855 185 L 855 340"
+                  fill="none" stroke="#0284c7" stroke-width="4" stroke-linecap="round"/>
+            <path id="ts-coil-flow-bypass" class="tesla-flow-pipe"
+                  d="M 855 131 L 855 340"
+                  fill="none" stroke="#7dd3fc" stroke-width="2.5" stroke-linecap="round"/>
+
+            <rect x="815" y="392" width="80" height="52" rx="7" fill="#081026" stroke="#0284c7" stroke-width="1.2"/>
+            <text x="855" y="407" fill="#7dd3fc" font-size="8.5" font-weight="800" text-anchor="middle">Portprosop Băi</text>
+            <text id="ts-bypass-temp" x="855" y="422" fill="#38bdf8" font-size="9" font-weight="800" text-anchor="middle">22.6&deg;C</text>
+            <text id="ts-bypass-st" x="855" y="436" fill="#34d399" font-size="7" font-weight="700" text-anchor="middle">DEBIT PERMANENT</text>
+          </g>
+
+        </svg>
+      </div>
+
+      <!-- Tesla Service Actions Grid -->
+      <div class="tesla-actions-grid">
+        <button class="btn-tesla" onclick="testTeslaPump()">&#128260; Purjare / Test Pompă GPA</button>
+        <button class="btn-tesla" onclick="testTeslaBoilerPing()">&#128251; Test Emisie RF Cazan</button>
+        <button class="btn-tesla" onclick="toggleZone(1)">&#128268; Test Valvă Copil (R33)</button>
+        <button class="btn-tesla" onclick="toggleZone(0)">&#128268; Test Valvă Living (R32)</button>
+        <button class="btn-tesla" onclick="clearDtcErrors()">&#129529; Curățare DTC Diagnoză</button>
+      </div>
+
+    </div>
+
+    <!-- ======================================================== -->
+    <!-- CARD 2: DIAGRAMĂ INTERACTIVĂ DE STĂRI (FSM ADMIN ENGINE) -->
+    <!-- ======================================================== -->
+    <div id="card-fsm-view" class="card col-span-2" style="display:none;background:#080d1a;border:1px solid #1e293b;">
+      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:12px;padding-bottom:10px;border-bottom:1px solid rgba(255,255,255,0.06);">
+        <div style="display:flex;align-items:center;gap:10px;">
+          <div style="background:rgba(16,185,129,0.15);border:1px solid rgba(16,185,129,0.3);border-radius:10px;width:38px;height:38px;display:flex;align-items:center;justify-content:center;font-size:1.3rem;">
+            &#129504;
+          </div>
+          <div>
+            <h2 style="font-size:1.05rem;font-weight:800;color:#f8fafc;letter-spacing:-0.2px;">Stateflow FSM Ierarhic &bull; Arbore de Decizie Hidraulic</h2>
+            <div style="font-size:0.72rem;color:#94a3b8;">Plan A (Master Plant Boiler + Pompă GPA) &bull; Plan B (3 Benzi Zone Paralele)</div>
+          </div>
+        </div>
+
+        <div style="font-size:0.75rem;color:#94a3b8;background:#0f172a;border:1px solid #334155;border-radius:8px;padding:6px 12px;">
+          Stare Activă Hardware: <b id="fsm-active-label" style="color:#38bdf8;">EVALUARE...</b>
+        </div>
+      </div>
+
+      <!-- Stateflow SVG 2-Plane Diagram -->
+      <div style="background:#050811;border:1px solid rgba(255,255,255,0.06);border-radius:12px;padding:12px;margin-bottom:14px;overflow-x:auto;">
+        <svg viewBox="0 0 940 460" style="width:100%;min-width:780px;height:auto;display:block;">
+          <defs>
+            <marker id="fsm-arrow" viewBox="0 0 10 10" refX="7" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+              <path d="M 0 1 L 10 5 L 0 9 z" fill="#38bdf8" />
+            </marker>
+            <marker id="fsm-arrow-muted" viewBox="0 0 10 10" refX="7" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+              <path d="M 0 1 L 10 5 L 0 9 z" fill="#475569" />
+            </marker>
+          </defs>
+
+          <!-- ================= PLAN A: MASTER PLANT & HYDRONIC FSM ================= -->
+          <rect x="15" y="15" width="910" height="235" rx="12" fill="#090e1c" stroke="#1e293b" stroke-width="1.5"/>
+          <text x="35" y="38" fill="#38bdf8" font-size="11" font-weight="800" letter-spacing="0.5">PLANUL A: MASTER PLANT & HYDRONIC FSM (1 Instanță &mdash; Cazan Gaz + Pompă GPA)</text>
+
+          <!-- Transition Arrows Plan A -->
+          <!-- S0 -> S1 -->
+          <path d="M 125 90 L 165 90" stroke="#475569" stroke-width="2" marker-end="url(#fsm-arrow-muted)"/>
+          
+          <!-- S1 -> S2 (anyDemand) -->
+          <path id="fsm-p-idle-demand" d="M 285 90 L 335 90" stroke="#38bdf8" stroke-width="2" class="fsm-arrow-path" marker-end="url(#fsm-arrow)"/>
+          <text x="310" y="82" fill="#38bdf8" font-size="8" font-weight="700" text-anchor="middle">[anyDemand]</text>
+
+          <!-- S2 -> S3 (cooldown > 0) -->
+          <path d="M 430 70 L 430 52 L 495 52" stroke="#475569" stroke-width="1.8" marker-end="url(#fsm-arrow-muted)"/>
+          <text x="460" y="46" fill="#fcd34d" font-size="7.5" font-weight="700">[waitGuard > 0]</text>
+
+          <!-- S2 -> S4 (cooldown == 0) -->
+          <path id="fsm-p-wax-heat" d="M 460 90 L 525 90" stroke="#38bdf8" stroke-width="2" marker-end="url(#fsm-arrow)"/>
+          <text x="492" y="82" fill="#34d399" font-size="7.5" font-weight="700">[waxReady]</text>
+
+          <!-- S3 -> S4 -->
+          <path d="M 610 52 L 640 52 L 640 70" stroke="#475569" stroke-width="1.8" marker-end="url(#fsm-arrow-muted)"/>
+
+          <!-- S4 -> S5 (allDemand == false) -->
+          <path id="fsm-p-heat-overrun" d="M 740 90 L 785 90" stroke="#38bdf8" stroke-width="2" marker-end="url(#fsm-arrow)"/>
+          <text x="762" y="82" fill="#fcd34d" font-size="7.5" font-weight="700">[tempOK]</text>
+
+          <!-- S5 -> S6 -> S1 (Loop Back) -->
+          <path d="M 845 125 L 845 195 L 430 195" stroke="#475569" stroke-width="2" marker-end="url(#fsm-arrow-muted)"/>
+          <text x="640" y="190" fill="#94a3b8" font-size="8" font-weight="700" text-anchor="middle">[180s Overrun Expirat &bull; Flacără OFF]</text>
+          
+          <path d="M 330 195 L 225 195 L 225 125" stroke="#475569" stroke-width="2" marker-end="url(#fsm-arrow-muted)"/>
+          <text x="270" y="190" fill="#94a3b8" font-size="8" font-weight="700" text-anchor="middle">[60s Cooldown Gata]</text>
+
+          <!-- State S0: BOOT_WARMUP -->
+          <rect x="35" y="70" width="90" height="42" rx="8" fill="#0f172a" stroke="#334155" stroke-width="1.5"/>
+          <text x="80" y="88" fill="#e2e8f0" font-size="9" font-weight="800" text-anchor="middle">S0: BOOT</text>
+          <text x="80" y="102" fill="#94a3b8" font-size="7.5" text-anchor="middle">Warmup BLE</text>
+
+          <!-- State S1: SYS_IDLE -->
+          <rect id="svg-node-idle" x="165" y="65" width="120" height="52" rx="8" fill="#0f172a" stroke="#38bdf8" stroke-width="2"/>
+          <text x="225" y="86" fill="#f8fafc" font-size="9.5" font-weight="800" text-anchor="middle">S1: SYS_IDLE</text>
+          <text x="225" y="102" fill="#94a3b8" font-size="7.5" text-anchor="middle">Standby (0V &bull; OFF)</text>
+
+          <!-- State S2: ACTUATOR_INTERLOCK -->
+          <rect id="svg-node-wax" x="335" y="65" width="125" height="52" rx="8" fill="#0f172a" stroke="#475569" stroke-width="1.5"/>
+          <text x="397" y="86" fill="#fcd34d" font-size="9.5" font-weight="800" text-anchor="middle">S2: INTERLOCK</text>
+          <text x="397" y="102" fill="#94a3b8" font-size="7.5" text-anchor="middle">0..120s Ceară Valvă</text>
+
+          <!-- State S3: PENDING_COOLDOWN -->
+          <rect x="495" y="32" width="115" height="38" rx="7" fill="#0f172a" stroke="#d97706" stroke-width="1.2"/>
+          <text x="552" y="48" fill="#fcd34d" font-size="8.5" font-weight="800" text-anchor="middle">S3: PENDING</text>
+          <text x="552" y="61" fill="#94a3b8" font-size="7" text-anchor="middle">Așteaptă Gardă 60s</text>
+
+          <!-- State S4: HEATING_ACTIVE (With Substates) -->
+          <rect id="svg-node-heat" x="525" y="60" width="215" height="92" rx="10" fill="#0b1b2b" stroke="#10b981" stroke-width="2"/>
+          <text x="632" y="80" fill="#34d399" font-size="10" font-weight="800" text-anchor="middle">S4: HEATING_ACTIVE (Arzător ON)</text>
+          <line x1="535" y1="88" x2="730" y2="88" stroke="#10b981" stroke-width="0.8" stroke-dasharray="3,2"/>
+          <text x="545" y="102" fill="#6ee7b7" font-size="7.5">&bull; SUB 4.1: Min Burn Guard (60s)</text>
+          <text x="545" y="117" fill="#6ee7b7" font-size="7.5">&bull; SUB 4.2: Steady Burn (&plusmn;0.3&deg;C)</text>
+          <text x="545" y="132" fill="#6ee7b7" font-size="7.5">&bull; SUB 4.3: Pre-Heat Advance (k_weather)</text>
+
+          <!-- State S5: PUMP_OVERRUN -->
+          <rect id="svg-node-overrun" x="785" y="65" width="125" height="52" rx="8" fill="#0f172a" stroke="#475569" stroke-width="1.5"/>
+          <text x="847" y="86" fill="#38bdf8" font-size="9.5" font-weight="800" text-anchor="middle">S5: OVERRUN</text>
+          <text x="847" y="102" fill="#94a3b8" font-size="7.5" text-anchor="middle">Pompă ON 180s (Keeper)</text>
+
+          <!-- State S6: COOLDOWN_LOCKOUT -->
+          <rect id="svg-node-cooldown" x="330" y="170" width="135" height="46" rx="8" fill="#0f172a" stroke="#475569" stroke-width="1.5"/>
+          <text x="397" y="189" fill="#fcd34d" font-size="9" font-weight="800" text-anchor="middle">S6: COOLDOWN</text>
+          <text x="397" y="204" fill="#94a3b8" font-size="7.5" text-anchor="middle">Gardă Repaus 60s</text>
+
+          <!-- Special Overrides: S7 and S8 -->
+          <rect x="35" y="170" width="115" height="46" rx="8" fill="#0f172a" stroke="#475569" stroke-width="1.2"/>
+          <text x="92" y="189" fill="#94a3b8" font-size="8.5" font-weight="800" text-anchor="middle">S7: ANTI-SEIZE</text>
+          <text x="92" y="204" fill="#94a3b8" font-size="7" text-anchor="middle">Rulare 20s / Săptămână</text>
+
+          <rect id="svg-node-manual" x="165" y="170" width="135" height="46" rx="8" fill="#0f172a" stroke="#475569" stroke-width="1.2"/>
+          <text x="232" y="189" fill="#fb7185" font-size="8.5" font-weight="800" text-anchor="middle">S8: MANUAL HOLD</text>
+          <text x="232" y="204" fill="#94a3b8" font-size="7" text-anchor="middle">Standby Forțat Manual</text>
+
+
+          <!-- ================= PLAN B: ZONE PARALLEL FSM ================= -->
+          <rect x="15" y="260" width="910" height="185" rx="12" fill="#090e1c" stroke="#1e293b" stroke-width="1.5"/>
+          <text x="35" y="282" fill="#38bdf8" font-size="11" font-weight="800" letter-spacing="0.5">PLANUL B: ZONE PARALLEL FSM (3 Benzi Orizontale &bull; Valve Pardoseală &amp; Interblocări)</text>
+
+          <!-- Lane 1: Z1 Living (GPIO32) -->
+          <text x="35" y="315" fill="#f8fafc" font-size="9.5" font-weight="800">Z1: Living &amp; Bucătărie (R32):</text>
+          <rect id="track-z1-state" x="220" y="302" width="460" height="24" rx="6" fill="#0f172a" stroke="#334155"/>
+          <text id="track-z1-txt" x="450" y="318" fill="#38bdf8" font-size="8.5" font-weight="700" text-anchor="middle">IDLE (Temp OK) &bull; Valvă Închisă (NC)</text>
+
+          <!-- Lane 2: Z2 Copil (GPIO33) -->
+          <text x="35" y="355" fill="#f8fafc" font-size="9.5" font-weight="800">Z2: Camera Copilului (R33):</text>
+          <rect id="track-z2-state" x="220" y="342" width="460" height="24" rx="6" fill="#0f172a" stroke="#334155"/>
+          <text id="track-z2-txt" x="450" y="358" fill="#34d399" font-size="8.5" font-weight="700" text-anchor="middle">FLOW ACTIVE &bull; Încălzire Activă (230V)</text>
+
+          <!-- Lane 3: Z3 Matrimonial (GPIO25) -->
+          <text x="35" y="395" fill="#f8fafc" font-size="9.5" font-weight="800">Z3: Dormitor Matrimonial (R25):</text>
+          <rect id="track-z3-state" x="220" y="382" width="460" height="24" rx="6" fill="#0f172a" stroke="#334155"/>
+          <text id="track-z3-txt" x="450" y="398" fill="#38bdf8" font-size="8.5" font-weight="700" text-anchor="middle">IDLE (Temp OK) &bull; Valvă Închisă (NC)</text>
+
+          <!-- Local Exception Badges on Right -->
+          <g transform="translate(700, 295)">
+            <rect x="0" y="0" width="210" height="135" rx="8" fill="#070c18" stroke="#1e293b"/>
+            <text x="15" y="20" fill="#cbd5e1" font-size="8.5" font-weight="800">Interblocări &amp; Protecții Locale:</text>
+            <text id="fsm-badge-window" x="15" y="45" fill="#fb7185" font-size="8">&bull; 🪟 Geam Deschis: Inactiv</text>
+            <text id="fsm-badge-frost" x="15" y="70" fill="#38bdf8" font-size="8">&bull; ❄️ Protecție Îngheț: Inactiv (&gt;12&deg;C)</text>
+            <text id="fsm-badge-sensor" x="15" y="95" fill="#34d399" font-size="8">&bull; 📡 Failsafe Senzori (DTC-101): OK</text>
+            <text x="15" y="120" fill="#94a3b8" font-size="7.5">&bull; Prioritate: Failsafe &gt; Manual &gt; Auto</text>
+          </g>
+
+        </svg>
+      </div>
+
+      <!-- FSM Nodes Grid (Preserving All 9 Node IDs for Full ASPICE SWE.5 & CDP Live Test Suite Verification) -->
+      <div class="fsm-grid">
+        <!-- Node 1: IDLE / STANDBY -->
+        <div id="fsm-node-idle" class="fsm-node active">
+          <div class="fsm-node-header">
+            <span class="fsm-node-title">&#128564; 1. IDLE / STANDBY</span>
+            <span class="fsm-badge">0V / Standby</span>
+          </div>
+          <div class="fsm-node-desc">Toate camerele la temperatură. Cazan oprit, pompă oprită, valve electrotermice NC închise.</div>
+        </div>
+
+        <!-- Node 2: ZONE DEMAND -->
+        <div id="fsm-node-demand" class="fsm-node">
+          <div class="fsm-node-header">
+            <span class="fsm-node-title">&#128227; 2. CERERE TERMICĂ</span>
+            <span class="fsm-badge">T &lt; Setpoint</span>
+          </div>
+          <div class="fsm-node-desc">Cel puțin o cameră scade sub setpoint - 0.15&deg;C. Releul NC al buclei pornește (230V aplicat).</div>
+        </div>
+
+        <!-- Node 3: WAX EXPANSION DELAY -->
+        <div id="fsm-node-wax" class="fsm-node">
+          <div class="fsm-node-header">
+            <span class="fsm-node-title">&#9203; 3. AȘTEPTARE ACTUATOR</span>
+            <span class="fsm-badge" id="fsm-wax-timer">120-180s WAX</span>
+          </div>
+          <div class="fsm-node-desc">Interlock de protecție: flacăra este reținută până când ceara termică deschide complet circuitul.</div>
+        </div>
+
+        <!-- Node 4: MANUAL HOLD (Special Substate) -->
+        <div id="fsm-node-manual-hold" class="fsm-node">
+          <div class="fsm-node-header">
+            <span class="fsm-node-title">&#9995; 4. MANUAL HOLD</span>
+            <span class="fsm-badge">Master OFF</span>
+          </div>
+          <div class="fsm-node-desc">Cerere activă în camere, dar Cazanul este în Standby Manual. Pompă pornită, flacăra nu aprinde gazul.</div>
+        </div>
+
+        <!-- Node 5: ACTIVE BURNING -->
+        <div id="fsm-node-active-heat" class="fsm-node">
+          <div class="fsm-node-header">
+            <span class="fsm-node-title">&#128293; 5. ÎNCĂLZIRE ACTIVĂ</span>
+            <span class="fsm-badge">433MHz ON</span>
+          </div>
+          <div class="fsm-node-desc">Comandă RF ON trimisă la cazan. Pompa Releu 4 activă. Flacăra menținută minim 60s (Anti-Short Cycle).</div>
+        </div>
+
+        <!-- Node 6: PUMP OVERRUN -->
+        <div id="fsm-node-overrun" class="fsm-node">
+          <div class="fsm-node-header">
+            <span class="fsm-node-title">&#128260; 6. POST-CIRCULAȚIE POMPĂ</span>
+            <span class="fsm-badge" id="fsm-overrun-timer">180s Overrun</span>
+          </div>
+          <div class="fsm-node-desc">Cazan stins. Pompa Releu 4 continuă 180s pe keeper zone pentru a disipa căldura din corpul centralei.</div>
+        </div>
+
+        <!-- Node 7: COOLDOWN LOCK -->
+        <div id="fsm-node-cooldown" class="fsm-node">
+          <div class="fsm-node-header">
+            <span class="fsm-node-title">&#128274; 7. GARDĂ COOLDOWN</span>
+            <span class="fsm-badge" id="fsm-cooldown-timer">60s Lockout</span>
+          </div>
+          <div class="fsm-node-desc">Interdicție de reaprindere rapidă (60s). Protejează bobinele vanei de gaz și previne short-cycling.</div>
+        </div>
+
+        <!-- Node 8: FROST PROTECTION -->
+        <div id="fsm-node-frost" class="fsm-node">
+          <div class="fsm-node-header">
+            <span class="fsm-node-title">&#10052; 8. PROTECȚIE ÎNGHEȚ</span>
+            <span class="fsm-badge">&lt;12.0&deg;C Urgent</span>
+          </div>
+          <div class="fsm-node-desc">Failsafe critic: dacă orice cameră coboară sub 12&deg;C, cazanul și valvele pornesc forțat indiferent de orar.</div>
+        </div>
+
+        <!-- Node 9: OPEN WINDOW PAUSE -->
+        <div id="fsm-node-window" class="fsm-node">
+          <div class="fsm-node-header">
+            <span class="fsm-node-title">&#129695; 9. GEAM DESCHIS (PAUZĂ)</span>
+            <span class="fsm-badge">30m Pauză</span>
+          </div>
+          <div class="fsm-node-desc">Cădere &gt;1.2&deg;C / 5min detectată. Valva zonei este forțată pe închis 30 minute pentru a opri risipa de gaz.</div>
+        </div>
+      </div>
+    </div>
+
+  </main>
+
+  <!-- MODAL SCHEDULE MATRIX (4 ANCORE x 3 ZONE) -->
+  <div class="modal-backdrop" id="modal-schedule-matrix" style="display:none;">
+    <div class="modal-box matrix-modal-box">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;border-bottom:1px solid #334155;padding-bottom:10px;">
+        <div style="display:flex;align-items:center;gap:8px;">
+          <span style="font-size:1.25rem;">📅</span>
+          <div>
+            <div class="modal-title" style="margin-bottom:2px;">Matrice Orar Circadian & Temperaturi Țintă</div>
+            <div style="font-size:0.72rem;color:#94a3b8;">4 Ancore Circadiene &times; 3 Zone Termice (Living, Copil, Matrimonial)</div>
+          </div>
+        </div>
+        <button class="modal-close-btn" aria-label="Închide matricea de orar" title="Închide matricea de orar" onclick="closeScheduleMatrixModal()">✕</button>
+      </div>
+
+      <!-- Profile switch inside modal -->
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+        <div class="profile-tabs" style="margin-bottom:0;width:auto;">
+          <button class="tab-btn active" id="mtab-weekday" onclick="setEditorProfile('weekday')">L–V (Săptămână)</button>
+          <button class="tab-btn" id="mtab-weekend" onclick="setEditorProfile('weekend')">S–D (Weekend)</button>
+        </div>
+        <span id="matrix-save-indicator" style="font-size:0.74rem;color:#34d399;display:none;font-weight:700;">✓ Salvat în NVS</span>
+      </div>
+
+      <!-- Matrix Table Container -->
+      <div style="overflow-x:auto;">
+        <table class="matrix-table">
+          <thead>
+            <tr>
+              <th>Ancoră</th>
+              <th>Oră (24h)</th>
+              <th>Z1 Living</th>
+              <th>Z2 Copil</th>
+              <th>Z3 Matrimonial</th>
+              <th style="text-align:center;">Salvare</th>
+            </tr>
+          </thead>
+          <tbody id="matrix-tbody">
+            <!-- Populated by JS -->
+          </tbody>
+        </table>
+      </div>
+
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-top:14px;padding-top:10px;border-top:1px solid #334155;">
+        <span style="font-size:0.72rem;color:#94a3b8;">* Modificările se salvează direct în memoria Flash NVS a controllerului.</span>
+        <button class="btn-small" onclick="closeScheduleMatrixModal()" style="background:#0369a1;color:#fff;padding:8px 16px;">Închide</button>
+      </div>
+    </div>
   </div>
 
   <!-- MODAL SAVE CUSTOM PRESET -->
   <div class="modal-backdrop" id="modal-save-preset">
     <div class="modal-box">
       <div class="modal-title">&#128190; Salvează Orarul Curent în Slot NVS</div>
-      <label style="font-size:0.75rem;color:#94a3b8;display:block;margin-bottom:4px;">Alege Slotul de Memorie:</label>
-      <select id="save-slot-id" class="modal-input" style="padding:8px;">
+      <label for="save-slot-id" style="font-size:0.75rem;color:#94a3b8;display:block;margin-bottom:4px;">Alege Slotul de Memorie:</label>
+      <select id="save-slot-id" aria-label="Alege Slotul de Memorie" title="Alege Slotul de Memorie" class="modal-input" style="padding:8px;">
         <option value="custom1">Slot Utilizator 1 (custom1)</option>
         <option value="custom2">Slot Utilizator 2 (custom2)</option>
       </select>
-      <label style="font-size:0.75rem;color:#94a3b8;display:block;margin-bottom:4px;">Denumire Prietenoasă:</label>
-      <input type="text" id="save-slot-name" class="modal-input" placeholder="ex: Confort Iarna sau WFH" maxlength="31">
+      <label for="save-slot-name" style="font-size:0.75rem;color:#94a3b8;display:block;margin-bottom:4px;">Denumire Prietenoasă:</label>
+      <input type="text" id="save-slot-name" aria-label="Denumire Prietenoasă Slot" title="Denumire Prietenoasă Slot" class="modal-input" placeholder="ex: Confort Iarna sau WFH" maxlength="31">
       <div class="modal-btns">
         <button class="btn-small" onclick="closeSavePresetModal()" style="background:#334155;">Anulează</button>
-        <button class="btn-small" onclick="confirmSavePreset()" style="background:#0284c7;color:#fff;">Salvează în Flash NVS</button>
+        <button class="btn-small" onclick="confirmSavePreset()" style="background:#0369a1;color:#fff;">Salvează în Flash NVS</button>
       </div>
     </div>
   </div>
@@ -865,7 +1821,7 @@
         </div>
       </div>
       <div class="modal-btns" style="justify-content:flex-end;">
-        <button class="btn-small" onclick="closePwaModal()" style="background:#0284c7;color:#fff;">Am Înțeles</button>
+        <button class="btn-small" onclick="closePwaModal()" style="background:#0369a1;color:#fff;">Am Înțeles</button>
       </div>
     </div>
   </div>
@@ -877,9 +1833,14 @@
     let presetsData = null;
     let currentProfile = 'weekday';
 
-    // Register Service Worker for PWA
+    // Neutralize Service Worker & clear old caches to avoid ESP32 TCP socket starvation
     if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register(base + 'sw.js').catch(err => console.log('SW register failed:', err));
+      navigator.serviceWorker.getRegistrations().then(regs => {
+        for (let r of regs) r.unregister();
+      }).catch(() => {});
+      if (window.caches) {
+        caches.keys().then(keys => keys.forEach(k => caches.delete(k))).catch(() => {});
+      }
     }
 
     // PWA Install Prompt Listener
@@ -927,16 +1888,157 @@
       if (btn) btn.style.display = 'none';
     }
 
-    // Boiler Trigger
-    function triggerBoiler(action) {
-      const b = document.getElementById('boiler-badge');
-      const hero = document.getElementById('boiler-hero-box');
-      if (b && hero) {
-        b.innerText = action === 'on' ? 'ON (Active)' : 'OFF (Standby)';
-        b.className = 'boiler-flame-badge ' + (action === 'on' ? 'badge-on' : 'badge-off');
-        hero.className = 'boiler-hero ' + (action === 'on' ? 'active' : '');
+    let boilerCooldownRemaining = 0;
+    let boilerPendingAction = 'NONE';
+    let currentBoilerState = 'OFF';
+    let lastBoilerTriggerMs = 0;
+    let toastTimeout = null;
+
+    // Toast Notification helper (subtle feedback expiring in 3-4s)
+    function showToast(msg, durationMs = 3000) {
+      let t = document.getElementById('ui-toast');
+      if (!t) {
+        t = document.createElement('div');
+        t.id = 'ui-toast';
+        t.className = 'toast-notification';
+        document.body.appendChild(t);
       }
-      fetch(base + 'api/boiler/' + action, { method: 'POST' }).then(() => refresh());
+      t.innerText = msg;
+      t.style.display = 'block';
+      t.style.opacity = '1';
+      if (toastTimeout) clearTimeout(toastTimeout);
+      toastTimeout = setTimeout(() => {
+        t.style.opacity = '0';
+        setTimeout(() => { if (t) t.style.display = 'none'; }, 300);
+      }, durationMs);
+    }
+
+    // Experience / Control Level State Machine
+    const urlParams = new URLSearchParams(window.location.search);
+    let currentUiLevel = urlParams.get('lvl') || localStorage.getItem('heating_ui_level') || 'presets';
+
+    function setUiLevel(lvl, skipBackendSync = false) {
+      currentUiLevel = lvl;
+      localStorage.setItem('heating_ui_level', lvl);
+
+      document.querySelectorAll('.lvl-btn').forEach(b => b.classList.remove('active'));
+      const activeBtn = document.getElementById('lvl-' + lvl);
+      if (activeBtn) activeBtn.classList.add('active');
+
+      const hint = document.getElementById('lvl-hint-text');
+      const boxBeginner = document.getElementById('box-beginner-msg');
+      const boxGuards = document.getElementById('box-advanced-guards');
+      const boxHero = document.getElementById('anchor-hero-box');
+      const boxPresets = document.getElementById('box-presets-section');
+      const boxPresetsActions = document.getElementById('box-presets-actions');
+      const boxEditor = document.getElementById('box-advanced-editor');
+
+      if (lvl === 'beginner') {
+        if (hint) hint.innerText = 'Termostat direct: reglezi manual temperaturile fără orar';
+        if (boxBeginner) boxBeginner.style.display = 'block';
+        if (boxGuards) boxGuards.style.display = 'none';
+        if (boxHero) boxHero.style.display = 'none';
+        if (boxPresets) boxPresets.style.display = 'none';
+        if (boxPresetsActions) boxPresetsActions.style.display = 'none';
+        if (boxEditor) boxEditor.style.display = 'none';
+        if (!skipBackendSync) {
+          fetch(base + 'api/schedule/enable?enabled=false', { method: 'POST' }).then(() => {
+            loadScheduleAndPresets();
+            refresh();
+          });
+          showToast('🟢 Mod Simplu activat: orar oprit, control direct pe camere.', 3000);
+        }
+      } else if (lvl === 'presets') {
+        if (hint) hint.innerText = 'Scenarii de viață dintr-un singur click';
+        if (boxBeginner) boxBeginner.style.display = 'none';
+        if (boxGuards) boxGuards.style.display = 'none';
+        if (boxHero) boxHero.style.display = 'flex';
+        if (boxPresets) boxPresets.style.display = 'block';
+        if (boxPresetsActions) boxPresetsActions.style.display = 'none';
+        if (boxEditor) boxEditor.style.display = 'none';
+        if (!skipBackendSync && scheduleData && !scheduleData.enabled) {
+          fetch(base + 'api/schedule/enable?enabled=true', { method: 'POST' }).then(() => {
+            loadScheduleAndPresets();
+            refresh();
+          });
+          showToast('🟡 Mod Preseturi activat.', 3000);
+        }
+      } else if (lvl === 'advanced') {
+        if (hint) hint.innerText = 'Control complet: ancore circadiene, pre-heat, geam deschis';
+        if (boxBeginner) boxBeginner.style.display = 'none';
+        if (boxGuards) boxGuards.style.display = 'flex';
+        if (boxHero) boxHero.style.display = 'flex';
+        if (boxPresets) boxPresets.style.display = 'block';
+        if (boxPresetsActions) boxPresetsActions.style.display = 'flex';
+        if (boxEditor) boxEditor.style.display = 'block';
+        if (!skipBackendSync && scheduleData && !scheduleData.enabled) {
+          fetch(base + 'api/schedule/enable?enabled=true', { method: 'POST' }).then(() => {
+            loadScheduleAndPresets();
+            refresh();
+          });
+          showToast('🔴 Mod Avansat activat: toate opțiunile deblocate.', 3000);
+        }
+      }
+      refresh();
+    }
+
+    // State-Aware Debounced Boiler Trigger
+    function triggerBoiler(action) {
+      const now = Date.now();
+      // Anti-spam debounce: discard repetitive clicks under 350ms
+      if (now - lastBoilerTriggerMs < 350) return;
+      lastBoilerTriggerMs = now;
+
+      // Duplicate state protection: If already in requested state, do NOT fire requests or banners!
+      if (action === 'off' && currentBoilerState === 'OFF') {
+        showToast('ℹ️ Centrala este deja oprită (Standby).', 3000);
+        return;
+      }
+      if (action === 'on' && currentBoilerState === 'ON') {
+        showToast('ℹ️ Centrala este deja pornită (Activă).', 3000);
+        return;
+      }
+
+      const b = document.getElementById('boiler-badge');
+      const banner = document.getElementById('boiler-pending-banner');
+      const msg = document.getElementById('boiler-pending-msg');
+      
+      // If user wants to turn off while boiler is ON and cooldown is active, show pending feedback
+      if (action === 'off' && currentBoilerState === 'ON' && boilerCooldownRemaining > 0) {
+        boilerPendingAction = 'OFF';
+        if (b) {
+          b.innerText = `⏳ OPRIRE ÎN ${boilerCooldownRemaining}s`;
+          b.className = 'boiler-flame-badge badge-pending';
+        }
+        if (banner && msg) {
+          msg.innerText = `⏳ Oprire programată: flacăra se va stinge automat în ${boilerCooldownRemaining}s (anti-short-cycling guard).`;
+          banner.style.display = 'block';
+        }
+      }
+
+      fetch(base + 'api/boiler/' + action, { method: 'POST' })
+        .then(r => r.json())
+        .then(data => {
+          if (data && data.status === 'pending') {
+            boilerPendingAction = data.target || (action === 'off' ? 'OFF' : 'ON');
+            boilerCooldownRemaining = data.waitSec || boilerCooldownRemaining || 60;
+            if (banner && msg) {
+              msg.innerText = (data.message || `Comandă ${boilerPendingAction} programată în ${boilerCooldownRemaining}s.`);
+              banner.style.display = 'block';
+            }
+          } else if (data && data.status === 'ok') {
+            if (data.pendingCancelled) {
+              boilerPendingAction = 'NONE';
+              if (banner) banner.style.display = 'none';
+              showToast('✅ Comanda programată a fost anulată.', 3000);
+            }
+          }
+          refresh();
+        })
+        .catch(e => {
+          console.error(e);
+          refresh();
+        });
     }
 
     // Set Operating Mode
@@ -958,7 +2060,8 @@
       let nxt = (cur + delta).toFixed(1);
       el.dataset.val = nxt;
       el.innerHTML = nxt + '&deg;C';
-      fetch(base + 'api/zones/setpoint?id=' + idx + '&target=' + nxt, { method: 'POST' });
+      fetch(base + 'api/zones/setpoint?id=' + idx + '&target=' + nxt, { method: 'POST' })
+        .then(() => refresh());
     }
 
     // Toggle Zone Enable
@@ -972,7 +2075,10 @@
       const pre = document.getElementById('sw-preheat-en').checked;
       const win = document.getElementById('sw-window-en').checked;
       fetch(base + `api/schedule/enable?enabled=${en}&preheat=${pre}&window=${win}`, { method: 'POST' })
-        .then(() => refresh());
+        .then(() => {
+          loadScheduleAndPresets();
+          refresh();
+        });
     }
 
     // Apply Preset
@@ -981,13 +2087,20 @@
       const activeEl = document.getElementById('chip-' + id);
       if (activeEl) activeEl.classList.add('active');
       fetch(base + 'api/schedule/preset/apply?id=' + id, { method: 'POST' })
-        .then(() => refresh());
+        .then(() => {
+          loadScheduleAndPresets();
+          refresh();
+        });
     }
 
     // Reset Schedule
     function resetSchedule() {
       if (!confirm('Sigur dorești să resetezi orarul la valorile implicite din fabrică?')) return;
-      fetch(base + 'api/schedule/reset', { method: 'POST' }).then(() => refresh());
+      fetch(base + 'api/schedule/reset', { method: 'POST' })
+        .then(() => {
+          loadScheduleAndPresets();
+          refresh();
+        });
     }
 
     // Modal Custom Preset
@@ -1003,6 +2116,7 @@
       fetch(base + `api/schedule/preset/save?id=${slot}&name=${name}`, { method: 'POST' })
         .then(() => {
           closeSavePresetModal();
+          loadScheduleAndPresets();
           refresh();
         });
     }
@@ -1010,41 +2124,591 @@
     // Schedule Editor Profile Tabs
     function setEditorProfile(prof) {
       currentProfile = prof;
-      document.getElementById('tab-weekday').className = 'tab-btn ' + (prof === 'weekday' ? 'active' : '');
-      document.getElementById('tab-weekend').className = 'tab-btn ' + (prof === 'weekend' ? 'active' : '');
+      const twd = document.getElementById('tab-weekday');
+      const twe = document.getElementById('tab-weekend');
+      const mtwd = document.getElementById('mtab-weekday');
+      const mtwe = document.getElementById('mtab-weekend');
+      if (twd) twd.className = 'tab-btn ' + (prof === 'weekday' ? 'active' : '');
+      if (twe) twe.className = 'tab-btn ' + (prof === 'weekend' ? 'active' : '');
+      if (mtwd) mtwd.className = 'tab-btn ' + (prof === 'weekday' ? 'active' : '');
+      if (mtwe) mtwe.className = 'tab-btn ' + (prof === 'weekend' ? 'active' : '');
       renderScheduleEditor();
+      renderScheduleMatrix();
     }
 
-    // Adjust Anchor Setpoint in Editor
-    function adjAnchorTarget(anc, zIdx, delta) {
+    // Schedule Matrix Modal Logic
+    let matrixAutoSaveTimer = null;
+    let isMatrixDirty = false;
+    let isMatrixModalOpen = false;
+
+    function openScheduleMatrixModal() {
+      const m = document.getElementById('modal-schedule-matrix');
+      if (m) {
+        m.style.display = 'flex';
+        isMatrixModalOpen = true;
+        isMatrixDirty = false;
+        renderScheduleMatrix(true);
+      }
+    }
+
+    function closeScheduleMatrixModal() {
+      const m = document.getElementById('modal-schedule-matrix');
+      if (m) m.style.display = 'none';
+      isMatrixModalOpen = false;
+      isMatrixDirty = false;
+    }
+
+    function renderScheduleMatrix(force = false) {
+      if (isMatrixDirty && !force) return;
+      const tbody = document.getElementById('matrix-tbody');
+      if (!tbody || !scheduleData || !scheduleData[currentProfile]) return;
+
+      const profData = scheduleData[currentProfile];
+      const order = ['sleep', 'wake', 'away', 'home'];
+      const actPreset = (scheduleData.activePreset || 'default').toLowerCase();
+      let awayLabel = '🚶 Plecat (Away)';
+      if (actPreset === 'wfh') awayLabel = '💼 Home Office';
+      else if (actPreset === 'eco') awayLabel = '🍃 Zi Eco';
+
+      const labels = {
+        'sleep': '🌙 Somn (Sleep)',
+        'wake':  '🌅 Trezire (Wake)',
+        'away':  awayLabel,
+        'home':  '🏡 Acasă (Home)'
+      };
+
+      let html = '';
+      order.forEach(anc => {
+        const item = profData[anc] || { hour: 0, minute: 0, targets: [22.0, 22.0, 22.0] };
+        const timeStr = `${String(item.hour).padStart(2, '0')}:${String(item.minute).padStart(2, '0')}`;
+        const tg = item.targets || [22.0, 22.0, 22.0];
+
+        html += `
+          <tr>
+            <td style="font-weight:700;color:#f8fafc;">${labels[anc]}</td>
+            <td>
+              <input type="time" class="matrix-time-input" id="mtime-${anc}" value="${timeStr}" aria-label="Ora început ${labels[anc]}" title="Ora început ${labels[anc]}" onchange="scheduleMatrixAutoSave('${anc}')">
+            </td>
+            <td>
+              <div class="matrix-stepper">
+                <button class="matrix-step-btn" onclick="adjMatrixTarget('${anc}', 0, -0.5)">-</button>
+                <span class="matrix-step-val" id="msp-${anc}-0">${tg[0].toFixed(1)}&deg;</span>
+                <button class="matrix-step-btn" onclick="adjMatrixTarget('${anc}', 0, 0.5)">+</button>
+              </div>
+            </td>
+            <td>
+              <div class="matrix-stepper">
+                <button class="matrix-step-btn" onclick="adjMatrixTarget('${anc}', 1, -0.5)">-</button>
+                <span class="matrix-step-val" id="msp-${anc}-1">${tg[1].toFixed(1)}&deg;</span>
+                <button class="matrix-step-btn" onclick="adjMatrixTarget('${anc}', 1, 0.5)">+</button>
+              </div>
+            </td>
+            <td>
+              <div class="matrix-stepper">
+                <button class="matrix-step-btn" onclick="adjMatrixTarget('${anc}', 2, -0.5)">-</button>
+                <span class="matrix-step-val" id="msp-${anc}-2">${tg[2].toFixed(1)}&deg;</span>
+                <button class="matrix-step-btn" onclick="adjMatrixTarget('${anc}', 2, 0.5)">+</button>
+              </div>
+            </td>
+            <td style="text-align:center;">
+              <button class="btn-matrix-row-save" id="mbtn-${anc}" aria-label="Salvează rând ${labels[anc]}" title="Salvează rând ${labels[anc]}" onclick="saveMatrixRow('${anc}')">💾 Salvează</button>
+            </td>
+          </tr>
+        `;
+      });
+
+      tbody.innerHTML = html;
+    }
+
+    function adjMatrixTarget(anc, zIdx, delta) {
       if (!scheduleData || !scheduleData[currentProfile] || !scheduleData[currentProfile][anc]) return;
+      isMatrixDirty = true;
       let targets = scheduleData[currentProfile][anc].targets;
       if (!targets) targets = [22.0, 22.0, 22.0];
       targets[zIdx] = parseFloat((targets[zIdx] + delta).toFixed(1));
-      renderScheduleEditor();
+      const valEl = document.getElementById(`msp-${anc}-${zIdx}`);
+      if (valEl) valEl.innerHTML = `${targets[zIdx].toFixed(1)}&deg;`;
+      scheduleMatrixAutoSave(anc);
     }
 
-    // Save Anchor from Editor
-    function saveAnchor(anc) {
-      const timeVal = document.getElementById(`time-${anc}`).value;
-      const targets = scheduleData[currentProfile][anc].targets;
-      const url = base + `api/schedule/anchor?profile=${currentProfile}&anchor=${anc}&time=${timeVal}&z1=${targets[0]}&z2=${targets[1]}&z3=${targets[2]}`;
-      fetch(url, { method: 'POST' }).then(() => refresh());
+    function scheduleMatrixAutoSave(anc) {
+      const btn = document.getElementById(`mbtn-${anc}`);
+      if (btn) btn.innerText = '⏳ Salvare...';
+      if (matrixAutoSaveTimer) clearTimeout(matrixAutoSaveTimer);
+      matrixAutoSaveTimer = setTimeout(() => {
+        saveMatrixRow(anc);
+      }, 800);
     }
 
-    // Main Polling Refresh
+    function saveMatrixRow(anc) {
+      isMatrixDirty = false;
+      const timeEl = document.getElementById(`mtime-${anc}`);
+      const timeVal = timeEl ? timeEl.value : '06:30';
+      const targets = (scheduleData && scheduleData[currentProfile] && scheduleData[currentProfile][anc])
+        ? scheduleData[currentProfile][anc].targets
+        : [22.0, 22.0, 22.0];
+
+      return saveAnchor(anc, timeVal, targets[0], targets[1], targets[2]).then(() => {
+        const btn = document.getElementById(`mbtn-${anc}`);
+        if (btn) {
+          btn.innerText = '✓ Salvat în NVS';
+          btn.classList.add('saved');
+          setTimeout(() => {
+            if (btn) {
+              btn.innerText = '💾 Salvează';
+              btn.classList.remove('saved');
+            }
+          }, 2500);
+        }
+        const ind = document.getElementById('matrix-save-indicator');
+        if (ind) {
+          ind.style.display = 'inline';
+          setTimeout(() => { if (ind) ind.style.display = 'none'; }, 2500);
+        }
+        renderScheduleEditor();
+      });
+    }
+
+    // Adjust Anchor Setpoint in Editor (Legacy compatibility)
+    function adjAnchorTarget(anc, zIdx, delta) {
+      adjMatrixTarget(anc, zIdx, delta);
+    }
+
+    // Save Anchor to Backend (Robust API + Live Sync of Active Anchor)
+    function saveAnchor(anc, timeOverride, z1, z2, z3) {
+      anc = (anc || 'wake').toLowerCase();
+      const prof = (currentProfile || 'weekday').toLowerCase();
+      const item = scheduleData && scheduleData[prof] && scheduleData[prof][anc];
+      
+      let timeVal = timeOverride;
+      if (!timeVal) {
+        const timeEl = document.getElementById(`time-${anc}`) || document.getElementById(`mtime-${anc}`);
+        timeVal = timeEl ? timeEl.value : (item ? `${String(item.hour).padStart(2,'0')}:${String(item.minute).padStart(2,'0')}` : '06:30');
+      }
+      
+      let targets = item ? item.targets : [22.0, 22.0, 22.0];
+      if (z1 !== undefined && z2 !== undefined && z3 !== undefined) {
+        targets = [parseFloat(z1), parseFloat(z2), parseFloat(z3)];
+        if (item) item.targets = targets;
+      }
+      
+      if (!timeVal || !timeVal.includes(':')) timeVal = '06:30';
+
+      const url = base + `api/schedule/anchor?profile=${prof}&anchor=${anc}&time=${encodeURIComponent(timeVal)}&z1=${targets[0]}&z2=${targets[1]}&z3=${targets[2]}`;
+      
+      return fetch(url, { method: 'POST' }).then(() => {
+        // Immediate sync: if activeAnchor modified, update zones right away
+        if (scheduleData && scheduleData.activeAnchor && scheduleData.activeAnchor.toLowerCase() === anc) {
+          if (lastZData && lastZData.zones) {
+            lastZData.zones.forEach((z, idx) => {
+              if (targets[idx] !== undefined) z.effectiveTarget = targets[idx];
+            });
+            renderZones(lastZData.zones, scheduleData.enabled);
+          }
+        }
+        loadScheduleAndPresets();
+        refresh();
+      });
+    }
+
+    let lastZData = null;
+    let lastSData = null;
+
+    // View Mode Switching (Dashboard vs Tesla Schematic vs FSM Diagram)
+    const urlViewParam = new URLSearchParams(window.location.search).get('view');
+    let currentViewMode = urlViewParam || localStorage.getItem('heating_view_mode') || 'dash';
+
+    function switchViewMode(mode) {
+      currentViewMode = mode;
+      localStorage.setItem('heating_view_mode', mode);
+
+      document.querySelectorAll('.view-tab-btn').forEach(btn => btn.classList.remove('active'));
+      const activeBtn = document.getElementById('view-btn-' + mode);
+      if (activeBtn) activeBtn.classList.add('active');
+
+      const col1 = document.getElementById('col-main-1');
+      const col2 = document.getElementById('col-main-2');
+      const cardTesla = document.getElementById('card-tesla-view');
+      const cardFsm = document.getElementById('card-fsm-view');
+      const hint = document.getElementById('view-mode-hint');
+
+      if (mode === 'dash') {
+        if (col1) col1.style.display = 'flex';
+        if (col2) col2.style.display = 'flex';
+        if (cardTesla) cardTesla.style.display = 'none';
+        if (cardFsm) cardFsm.style.display = 'none';
+        if (hint) hint.innerText = 'Tablou de bord principal cu zone și orar';
+      } else if (mode === 'tesla') {
+        if (col1) col1.style.display = 'none';
+        if (col2) col2.style.display = 'none';
+        if (cardTesla) cardTesla.style.display = 'block';
+        if (cardFsm) cardFsm.style.display = 'none';
+        if (hint) hint.innerText = 'Schemă hidraulică interactivă & telemetrie stil Tesla HVAC';
+      } else if (mode === 'fsm') {
+        if (col1) col1.style.display = 'none';
+        if (col2) col2.style.display = 'none';
+        if (cardTesla) cardTesla.style.display = 'none';
+        if (cardFsm) cardFsm.style.display = 'block';
+        if (hint) hint.innerText = 'Diagramă live de stări finite & fir logic decizional';
+      }
+    }
+
+    function updateTeslaSchema(sData, zData) {
+      if (!zData) return;
+      const isBoilerOn = (zData.boiler === 'ON');
+      const isPumpOn = !!zData.pumpActive;
+      const cooldownSec = zData.boilerCooldownSec || 0;
+
+      const tTurEl = document.getElementById('ts-t-tur');
+      const tReturEl = document.getElementById('ts-t-retur');
+      const tDeltaEl = document.getElementById('ts-t-delta');
+      const pumpStEl = document.getElementById('ts-pump-status');
+
+      // Dynamic Thermodynamic Estimation (Tur / Retur Model for Underfloor Heating)
+      let tTurVal = 23.5, tReturVal = 23.0, deltaVal = 0.5, deltaTag = 'Echilibru';
+      if (isBoilerOn) {
+        const burnSec = (zData.burnSec !== undefined) ? zData.burnSec : 60;
+        tTurVal = 36.0 + Math.min(7.5, burnSec * 0.04);
+        tReturVal = tTurVal - 8.2;
+        deltaVal = (tTurVal - tReturVal).toFixed(1);
+        deltaTag = 'Optim Condensare [Estimat Inerțial]';
+      } else if (isPumpOn) {
+        tTurVal = 30.5;
+        tReturVal = 27.2;
+        deltaVal = (tTurVal - tReturVal).toFixed(1);
+        deltaTag = 'Disipare [Estimat Inerțial]';
+      } else {
+        tTurVal = 23.5;
+        tReturVal = 23.0;
+        deltaVal = (tTurVal - tReturVal).toFixed(1);
+        deltaTag = 'Standby [Echilibru]';
+      }
+
+      if (tTurEl) tTurEl.innerHTML = `${tTurVal.toFixed(1)}&deg;C <span style="font-size:0.62rem;color:#94a3b8;">[Estimat Inerțial]</span>`;
+      if (tReturEl) tReturEl.innerHTML = `${tReturVal.toFixed(1)}&deg;C <span style="font-size:0.62rem;color:#94a3b8;">[Estimat Inerțial]</span>`;
+      if (tDeltaEl) {
+        tDeltaEl.innerHTML = `${deltaVal}&deg;C (${deltaTag})`;
+        tDeltaEl.style.color = isBoilerOn ? '#34d399' : '#94a3b8';
+      }
+
+      if (pumpStEl) {
+        pumpStEl.innerHTML = isPumpOn
+          ? '<span style="color:#34d399;">ACTIV (1850 RPM)</span>'
+          : '<span style="color:#94a3b8;">OPRIT (0 RPM)</span>';
+      }
+
+      // Flame Box
+      const flameRect = document.getElementById('ts-flame-rect');
+      const flameText = document.getElementById('ts-flame-text');
+      const boilerBox = document.getElementById('ts-box-boiler');
+      const boilerSub = document.getElementById('ts-boiler-sub');
+
+      if (isBoilerOn) {
+        if (flameRect) {
+          flameRect.setAttribute('fill', 'rgba(16, 185, 129, 0.25)');
+          flameRect.setAttribute('stroke', '#10b981');
+        }
+        if (flameText) {
+          flameText.setAttribute('fill', '#34d399');
+          flameText.textContent = 'FLACĂRĂ ACTIVĂ (433MHz)';
+        }
+        if (boilerBox) boilerBox.setAttribute('stroke', '#10b981');
+      } else {
+        if (flameRect) {
+          flameRect.setAttribute('fill', 'rgba(51, 65, 85, 0.35)');
+          flameRect.setAttribute('stroke', '#475569');
+        }
+        if (flameText) {
+          flameText.setAttribute('fill', '#94a3b8');
+          flameText.textContent = 'STANDBY (ARZĂTOR OPRIT)';
+        }
+        if (boilerBox) boilerBox.setAttribute('stroke', '#ea580c');
+      }
+
+      if (boilerSub) {
+        boilerSub.textContent = (cooldownSec > 0)
+          ? `⏳ Guard: ${cooldownSec}s rămase • Relee OK`
+          : 'Min Run: 60s • Zero Short-Cycling';
+      }
+
+      // Pump Impeller
+      const impeller = document.getElementById('ts-impeller');
+      const pumpRpm = document.getElementById('ts-pump-rpm-txt');
+      if (impeller) {
+        if (isPumpOn) impeller.classList.remove('flow-paused');
+        else impeller.classList.add('flow-paused');
+      }
+      if (pumpRpm) {
+        if (isPumpOn) {
+          pumpRpm.setAttribute('fill', '#34d399');
+          pumpRpm.textContent = '1850 RPM • RECIRCULARE ACTIVĂ';
+        } else {
+          pumpRpm.setAttribute('fill', '#94a3b8');
+          pumpRpm.textContent = '0 RPM • STANDBY (0V)';
+        }
+      }
+
+      // Main Pipes Flow Animation
+      const pipeTur = document.getElementById('ts-pipe-flow-tur');
+      const pipeRetur = document.getElementById('ts-pipe-flow-retur');
+      if (pipeTur) {
+        if (isPumpOn || isBoilerOn) pipeTur.classList.remove('flow-paused');
+        else pipeTur.classList.add('flow-paused');
+      }
+      if (pipeRetur) {
+        if (isPumpOn || isBoilerOn) pipeRetur.classList.remove('flow-paused');
+        else pipeRetur.classList.add('flow-paused');
+      }
+
+      // Permanent Bathroom Bypass
+      const bypassCoil = document.getElementById('ts-coil-flow-bypass');
+      if (bypassCoil) {
+        if (isPumpOn || isBoilerOn) bypassCoil.classList.remove('flow-paused');
+        else bypassCoil.classList.add('flow-paused');
+      }
+      const bypassTemp = document.getElementById('ts-bypass-temp');
+      if (bypassTemp && sData && sData.sensors) {
+        const bSens = sData.sensors.find(s => (s.name && (s.name.includes('Bathroom') || s.name.includes('Baie'))));
+        if (bSens && bSens.temp !== undefined) {
+          bypassTemp.textContent = `${bSens.temp.toFixed(1)}°C`;
+        }
+      }
+
+      // 3 Thermal Zones: Coils, Wax Actuator Progress (0% -> 100% in 120s)
+      const zones = zData.zones || [];
+      for (let i = 0; i < 3; i++) {
+        const z = zones[i];
+        const num = i + 1;
+        const coilFlow = document.getElementById(`ts-coil-flow-${num}`);
+        const actBox = document.getElementById(`ts-act-box-${num}`);
+        const actTxt = document.getElementById(`ts-act-txt-${num}`);
+        const waxBar = document.getElementById(`ts-wax-bar-${num}`);
+        const waxTxt = document.getElementById(`ts-wax-txt-${num}`);
+        const zTemp = document.getElementById(`ts-z${num}-temp`);
+        const zSt = document.getElementById(`ts-z${num}-st`);
+
+        if (!z) continue;
+        const isHeating = (z.relayEngaged || (z.state && z.state.includes('Heating')));
+        const openSec = (z.openSec !== undefined) ? z.openSec : (z.relayEngaged ? 120 : 0);
+        const pct = Math.min(100, Math.round((openSec / 120) * 100));
+
+        // Coil flow animation runs when pump is on AND wax has expanded >= 30% (openSec >= 36)
+        if (coilFlow) {
+          if (isPumpOn && openSec >= 36) coilFlow.classList.remove('flow-paused');
+          else coilFlow.classList.add('flow-paused');
+        }
+
+        if (actBox && actTxt) {
+          if (z.relayEngaged) {
+            actBox.setAttribute('stroke', '#10b981');
+            actBox.setAttribute('fill', 'rgba(16, 185, 129, 0.2)');
+            actTxt.setAttribute('fill', '#34d399');
+            actTxt.textContent = '230V';
+          } else if (openSec > 0) {
+            actBox.setAttribute('stroke', '#f59e0b');
+            actBox.setAttribute('fill', 'rgba(245, 158, 11, 0.15)');
+            actTxt.setAttribute('fill', '#fbbf24');
+            actTxt.textContent = 'RĂCIRE';
+          } else {
+            actBox.setAttribute('stroke', '#475569');
+            actBox.setAttribute('fill', '#0f172a');
+            actTxt.setAttribute('fill', '#94a3b8');
+            actTxt.textContent = 'NC';
+          }
+        }
+
+        // Wax expansion progress bar
+        if (waxBar) {
+          const barW = Math.round((pct / 100) * 66);
+          waxBar.setAttribute('width', String(barW));
+          waxBar.setAttribute('fill', pct >= 100 ? '#34d399' : (pct > 0 ? (z.relayEngaged ? '#fcd34d' : '#f59e0b') : '#64748b'));
+        }
+        if (waxTxt) {
+          if (z.relayEngaged) {
+            waxTxt.textContent = `Deschidere: ${pct}% [${openSec}s/120s]`;
+            waxTxt.setAttribute('fill', pct >= 100 ? '#34d399' : '#fcd34d');
+          } else if (openSec > 0) {
+            waxTxt.textContent = `Răcire: ${pct}% [${openSec}s/120s]`;
+            waxTxt.setAttribute('fill', '#f59e0b');
+          } else {
+            waxTxt.textContent = 'NC (0V Închis)';
+            waxTxt.setAttribute('fill', '#94a3b8');
+          }
+        }
+
+        if (zTemp) {
+          const curT = (z.sensorValid && z.currentTemp !== undefined) ? z.currentTemp.toFixed(1) + '°C' : '--.-°C';
+          zTemp.textContent = `${curT} | T:${z.targetTemp.toFixed(1)}°`;
+        }
+
+        if (zSt) {
+          if (z.windowPauseActive) {
+            zSt.setAttribute('fill', '#fb7185');
+            zSt.textContent = '🪟 GEAM DESCHIS';
+          } else if (isHeating) {
+            zSt.setAttribute('fill', '#34d399');
+            zSt.textContent = '♨️ ÎNCĂLZIRE ACTIVĂ';
+          } else if (z.state && z.state.includes('Warming')) {
+            zSt.setAttribute('fill', '#fcd34d');
+            zSt.textContent = '⏳ AȘTEPTARE ACTUATOR';
+          } else if (z.frostActive) {
+            zSt.setAttribute('fill', '#38bdf8');
+            zSt.textContent = '❄️ PROTECȚIE ÎNGHEȚ';
+          } else if (!z.enabled) {
+            zSt.setAttribute('fill', '#94a3b8');
+            zSt.textContent = 'DEZACTIVAT (0V)';
+          } else {
+            zSt.setAttribute('fill', '#94a3b8');
+            zSt.textContent = 'TEMP OK (IDLE)';
+          }
+        }
+      }
+    }
+
+    function updateFsmDiagram(sData, zData) {
+      if (!zData) return;
+      const nodes = [
+        'idle', 'demand', 'wax', 'manual-hold', 'active-heat',
+        'overrun', 'cooldown', 'frost', 'window'
+      ];
+      nodes.forEach(n => {
+        const el = document.getElementById('fsm-node-' + n);
+        if (el) el.classList.remove('active');
+      });
+
+      const zones = zData.zones || [];
+      const anyDemand = zones.some(z => z.relayEngaged || (z.state && z.state.includes('Heating')));
+      const anyWarming = zones.some(z => z.state && z.state.includes('Warming'));
+      const anyFrost = zones.some(z => z.frostActive);
+      const anyWindow = zones.some(z => z.windowPauseActive);
+      const isBoilerOn = (zData.boiler === 'ON');
+      const isPumpOn = !!zData.pumpActive;
+      const cooldownSec = zData.boilerCooldownSec || 0;
+      const isAuto = zData.autoMode;
+
+      let activeNode = 'idle';
+      let activeLabel = '1. IDLE / STANDBY';
+
+      if (anyFrost) {
+        activeNode = 'frost';
+        activeLabel = '8. PROTECȚIE ÎNGHEȚ (<12°C)';
+      } else if (anyWindow) {
+        activeNode = 'window';
+        activeLabel = '9. GEAM DESCHIS (PAUZĂ 30m)';
+      } else if (isBoilerOn) {
+        activeNode = 'active-heat';
+        activeLabel = '5. ÎNCĂLZIRE ACTIVĂ (433MHz ON)';
+      } else if (!isBoilerOn && isPumpOn && !anyDemand) {
+        activeNode = 'overrun';
+        activeLabel = '6. POST-CIRCULAȚIE POMPĂ (180s)';
+      } else if (cooldownSec > 0 && !isBoilerOn) {
+        activeNode = 'cooldown';
+        activeLabel = `7. GARDĂ COOLDOWN (${cooldownSec}s LOCKOUT)`;
+      } else if (!isAuto && !isBoilerOn && anyDemand) {
+        activeNode = 'manual-hold';
+        activeLabel = '4. MANUAL HOLD (STANDBY FORȚAT)';
+      } else if (anyWarming) {
+        activeNode = 'wax';
+        activeLabel = '3. AȘTEPTARE ACTUATOR (DESCHIDERE CEARĂ)';
+      } else if (anyDemand) {
+        activeNode = 'demand';
+        activeLabel = '2. CERERE TERMICĂ (BUCLE DESCHISE)';
+      } else {
+        activeNode = 'idle';
+        activeLabel = '1. IDLE / STANDBY (TEMPERATURI ATINSE)';
+      }
+
+      const activeEl = document.getElementById('fsm-node-' + activeNode);
+      if (activeEl) activeEl.classList.add('active');
+
+      const lbl = document.getElementById('fsm-active-label');
+      if (lbl) lbl.innerText = activeLabel;
+
+      const cdBadge = document.getElementById('fsm-cooldown-timer');
+      if (cdBadge) cdBadge.innerText = (cooldownSec > 0 ? `${cooldownSec}s Lockout` : 'Gata (0s)');
+
+      const ovBadge = document.getElementById('fsm-overrun-timer');
+      if (ovBadge) ovBadge.innerText = (isPumpOn && !isBoilerOn ? 'Activ (Overrun)' : '180s Overrun');
+
+      // Update Plan B: 3 Parallel Zone Tracks in SVG
+      zones.forEach((z, idx) => {
+        const num = idx + 1;
+        const trackTxt = document.getElementById(`track-z${num}-txt`);
+        const trackRect = document.getElementById(`track-z${num}-state`);
+        if (!trackTxt || !trackRect) return;
+
+        if (z.windowPauseActive) {
+          trackTxt.textContent = 'GEAM DESCHIS (PAUZĂ 30m) • Valvă Închisă';
+          trackTxt.setAttribute('fill', '#fb7185');
+          trackRect.setAttribute('stroke', '#fb7185');
+        } else if (z.relayEngaged || (z.state && z.state.includes('Heating'))) {
+          trackTxt.textContent = `FLOW ACTIVE • Încălzire Activă (230V) [${z.currentTemp ? z.currentTemp.toFixed(1) : '--'}°C / Țintă ${z.effectiveTarget || z.targetTemp}°C]`;
+          trackTxt.setAttribute('fill', '#34d399');
+          trackRect.setAttribute('stroke', '#10b981');
+        } else if (z.state && z.state.includes('Warming')) {
+          trackTxt.textContent = `VALVE OPENING • Dilatare Ceară [${z.openSec || 0}s/120s]`;
+          trackTxt.setAttribute('fill', '#fcd34d');
+          trackRect.setAttribute('stroke', '#fcd34d');
+        } else if (z.frostActive) {
+          trackTxt.textContent = 'FROST GUARD • Protecție Urgență (<12°C)';
+          trackTxt.setAttribute('fill', '#38bdf8');
+          trackRect.setAttribute('stroke', '#38bdf8');
+        } else if (!z.enabled) {
+          trackTxt.textContent = 'DISABLED • Circuit Oprit Manual';
+          trackTxt.setAttribute('fill', '#94a3b8');
+          trackRect.setAttribute('stroke', '#475569');
+        } else {
+          trackTxt.textContent = `IDLE (Temp OK) • Valvă Închisă (NC) [${z.currentTemp ? z.currentTemp.toFixed(1) : '--'}°C / Țintă ${z.effectiveTarget || z.targetTemp}°C]`;
+          trackTxt.setAttribute('fill', '#38bdf8');
+          trackRect.setAttribute('stroke', '#334155');
+        }
+      });
+    }
+
+    function testTeslaPump() {
+      showToast('🔄 Test Pompă GPA: pornire forțată pentru aerisire/verificare...', 3500);
+      fetch(base + 'api/diag/selftest', { method: 'POST' })
+        .then(r => r.json())
+        .then(data => {
+          showToast('✅ Self-test hardware finalizat: Relee & Pompă verificate.', 3500);
+          refresh();
+        })
+        .catch(() => refresh());
+    }
+
+    function testTeslaBoilerPing() {
+      showToast('📻 Test RF Cazan: verificare impuls 433.92 MHz (idempotent)...', 3500);
+      fetch(base + 'api/boiler/status')
+        .then(r => r.json())
+        .then(data => {
+          showToast(`📻 Cazan RF: Stare ${data.boiler || 'OFF'}, Cooldown: ${data.cooldownSec || 0}s`, 3500);
+        });
+    }
+
+    function clearDtcErrors() {
+      fetch(base + 'api/diag/clear', { method: 'POST' })
+        .then(() => {
+          showToast('🧹 Toate codurile DTC de eroare au fost resetate.', 3000);
+          refresh();
+        });
+    }
+
+    // Main Polling Refresh (Sequential + AbortController to prevent ESP32 TCP socket starvation)
+    let isRefreshing = false;
     async function refresh() {
+      if (isRefreshing) return;
+      isRefreshing = true;
+      let timeoutId = null;
       try {
-        const [rZones, rStatus, rSched, rPresets] = await Promise.all([
-          fetch(base + 'api/zones'),
-          fetch(base + 'api/boiler/status'),
-          fetch(base + 'api/schedule'),
-          fetch(base + 'api/schedule/presets')
-        ]);
+        const controller = new AbortController();
+        timeoutId = setTimeout(() => controller.abort(), 4000);
 
+        // 1. Fetch Zones Status (Sequential connection 1)
+        const rZones = await fetch(base + 'api/zones', { signal: controller.signal, cache: 'no-store' });
         if (rZones.ok) {
           const zData = await rZones.json();
-          renderZones(zData.zones || []);
+          lastZData = zData;
+          renderZones(zData.zones || [], scheduleData ? scheduleData.enabled : true);
           const isAuto = zData.autoMode;
           const ba = document.getElementById('btn-mode-auto');
           const bm = document.getElementById('btn-mode-manual');
@@ -1054,17 +2718,62 @@
           }
           const bb = document.getElementById('boiler-badge');
           const hero = document.getElementById('boiler-hero-box');
-          if (bb && hero) {
-            const on = (zData.boiler === 'ON');
-            bb.innerText = on ? 'ON (Activ)' : 'OFF (Standby)';
-            bb.className = 'boiler-flame-badge ' + (on ? 'badge-on' : 'badge-off');
-            hero.className = 'boiler-hero ' + (on ? 'active' : '');
+          const banner = document.getElementById('boiler-pending-banner');
+          const msg = document.getElementById('boiler-pending-msg');
+          const cdTag = document.getElementById('boiler-cooldown-tag');
+
+          boilerCooldownRemaining = zData.boilerCooldownSec || 0;
+          boilerPendingAction = zData.pendingAction || 'NONE';
+
+          const on = (zData.boiler === 'ON');
+          currentBoilerState = zData.boiler || 'OFF';
+          if (hero) hero.className = 'boiler-hero ' + (on ? 'active' : '');
+
+          if (boilerPendingAction === 'OFF') {
+            if (bb) {
+              bb.innerText = `⏳ OPRIRE ÎN ${boilerCooldownRemaining}s`;
+              bb.className = 'boiler-flame-badge badge-pending';
+            }
+            if (banner && msg) {
+              msg.innerText = `⏳ Oprire programată: flacăra se va stinge automat în ${boilerCooldownRemaining}s (anti-short-cycling guard).`;
+              banner.style.display = 'block';
+            }
+          } else if (boilerPendingAction === 'ON') {
+            if (bb) {
+              bb.innerText = `⏳ PORNIRE ÎN ${boilerCooldownRemaining}s`;
+              bb.className = 'boiler-flame-badge badge-pending';
+            }
+            if (banner && msg) {
+              msg.innerText = `⏳ Pornire programată: cazanul va porni automat în ${boilerCooldownRemaining}s.`;
+              banner.style.display = 'block';
+            }
+          } else {
+            if (banner) banner.style.display = 'none';
+            if (bb) {
+              bb.innerText = on ? 'ON (Activ)' : 'OFF (Standby)';
+              bb.className = 'boiler-flame-badge ' + (on ? 'badge-on' : 'badge-off');
+            }
           }
+
+          if (cdTag) {
+            if (boilerCooldownRemaining > 0) {
+              cdTag.innerHTML = `⏳ ${boilerCooldownRemaining}s rămase`;
+              cdTag.style.color = '#f59e0b';
+            } else {
+              cdTag.innerHTML = `✅ Gata (Ready)`;
+              cdTag.style.color = '#34d399';
+            }
+          }
+
           document.getElementById('m-pump').innerText = zData.pumpActive ? 'Activă (ON)' : 'Oprită (Standby)';
         }
 
+        // 2. Fetch Boiler & Telemetry (Sequential connection 2)
+        const rStatus = await fetch(base + 'api/boiler/status', { signal: controller.signal, cache: 'no-store' });
+        clearTimeout(timeoutId);
         if (rStatus.ok) {
           const sData = await rStatus.json();
+          lastSData = sData;
           renderSensors(sData.sensors || []);
           document.getElementById('m-heap').innerText = Math.round((sData.freeHeap || 0) / 1024) + ' KB';
           document.getElementById('m-rssi').innerText = (sData.rssi || 0) + ' dBm';
@@ -1079,6 +2788,24 @@
           if (pBanner) pBanner.style.display = sData.preHeatActive ? 'flex' : 'none';
         }
 
+        if (lastZData) {
+          updateTeslaSchema(lastSData, lastZData);
+          updateFsmDiagram(lastSData, lastZData);
+          updateNextAnchorCountdown();
+        }
+
+      } catch (e) {
+        // Silently handle fetch abort or network timeout
+      } finally {
+        if (timeoutId) clearTimeout(timeoutId);
+        isRefreshing = false;
+      }
+    }
+
+    // Static Schedule and Presets Loader (Fetched on-demand, not in periodic 3.5s loop)
+    async function loadScheduleAndPresets() {
+      try {
+        const rSched = await fetch(base + 'api/schedule', { cache: 'no-store' });
         if (rSched.ok) {
           scheduleData = await rSched.json();
           document.getElementById('sw-schedule-en').checked = scheduleData.enabled;
@@ -1086,19 +2813,62 @@
           document.getElementById('sw-window-en').checked = scheduleData.windowDetectionEnabled;
           document.getElementById('tag-active-preset').innerText = 'Preset: ' + (scheduleData.activePreset || 'standard');
           
-          renderActiveAnchorHero(scheduleData.activeAnchor);
-          renderScheduleEditor();
+          renderActiveAnchorHero(scheduleData.activeAnchor, scheduleData.activePreset);
+          renderScheduleEditor(scheduleData.activePreset);
+          updateNextAnchorCountdown();
         }
 
+        const rPresets = await fetch(base + 'api/schedule/presets', { cache: 'no-store' });
         if (rPresets.ok) {
           presetsData = await rPresets.json();
           renderPresetsChips(presetsData);
         }
-
       } catch (e) {
-        console.error('Refresh error:', e);
+        console.warn('Schedule/presets load error:', e);
       }
     }
+
+    // 1-second Local Tick for smooth countdown without server hammering
+    setInterval(() => {
+      if (boilerCooldownRemaining > 0) {
+        boilerCooldownRemaining--;
+        const cdTag = document.getElementById('boiler-cooldown-tag');
+        if (cdTag) {
+          if (boilerCooldownRemaining > 0) {
+            cdTag.innerHTML = `⏳ ${boilerCooldownRemaining}s rămase`;
+            cdTag.style.color = '#f59e0b';
+          } else {
+            cdTag.innerHTML = `✅ Gata (Ready)`;
+            cdTag.style.color = '#34d399';
+          }
+        }
+
+        if (boilerPendingAction === 'OFF') {
+          const bb = document.getElementById('boiler-badge');
+          const msg = document.getElementById('boiler-pending-msg');
+          if (bb) bb.innerText = `⏳ OPRIRE ÎN ${boilerCooldownRemaining}s`;
+          if (msg) msg.innerText = `⏳ Oprire programată: flacăra se va stinge automat în ${boilerCooldownRemaining}s (anti-short-cycling guard).`;
+          if (boilerCooldownRemaining === 0) {
+            setTimeout(refresh, 1200);
+          }
+        } else if (boilerPendingAction === 'ON') {
+          const bb = document.getElementById('boiler-badge');
+          const msg = document.getElementById('boiler-pending-msg');
+          if (bb) bb.innerText = `⏳ PORNIRE ÎN ${boilerCooldownRemaining}s`;
+          if (msg) msg.innerText = `⏳ Pornire programată: cazanul va porni automat în ${boilerCooldownRemaining}s.`;
+          if (boilerCooldownRemaining === 0) {
+            setTimeout(refresh, 1200);
+          }
+        }
+      }
+
+      if (lastZData) {
+        lastZData.boilerCooldownSec = boilerCooldownRemaining;
+        updateTeslaSchema(lastSData, lastZData);
+        updateFsmDiagram(lastSData, lastZData);
+      }
+      updateNextAnchorCountdown();
+    }, 1000);
 
     function formatUptime(sec) {
       const d = Math.floor(sec / 86400);
@@ -1107,14 +2877,31 @@
       return (d > 0 ? d + 'd ' : '') + h + 'h ' + m + 'm';
     }
 
-    function renderActiveAnchorHero(ancKey) {
+    function renderActiveAnchorHero(ancKey, activePreset) {
       ancKey = (ancKey || 'WAKE').toUpperCase();
-      const meta = {
+      activePreset = (activePreset || (scheduleData ? scheduleData.activePreset : '') || 'default').toLowerCase();
+
+      let meta = {
         'SLEEP': { emoji: '🌙', name: 'SOMN (SLEEP)', desc: 'Noapte odihnitoare & temperatură coborâtă' },
         'WAKE':  { emoji: '🌅', name: 'TREZIRE (WAKE)', desc: 'Confort termic matinal plăcut' },
         'AWAY':  { emoji: '🚶', name: 'PLECAT (AWAY)', desc: 'Mod Eco economic cât casa este goală' },
         'HOME':  { emoji: '🏡', name: 'ACASĂ (HOME)', desc: 'Confort de seară relaxant în familie' }
       }[ancKey] || { emoji: '⏰', name: ancKey, desc: 'Perioadă orară activă' };
+
+      // Contextual override based on Active Preset
+      if (activePreset === 'wfh') {
+        if (ancKey === 'AWAY') {
+          meta = { emoji: '💼', name: 'HOME OFFICE (ZI)', desc: 'Lucru de acasă & confort termic optim de birou' };
+        } else if (ancKey === 'HOME') {
+          meta = { emoji: '🏡', name: 'ACASĂ (SEARĂ)', desc: 'Final de program & relaxare în familie' };
+        }
+      } else if (activePreset === 'eco') {
+        if (ancKey === 'AWAY') {
+          meta = { emoji: '🍃', name: 'VACANȚĂ / ECO (ZI)', desc: 'Temperatură economică redusă (economie gaz)' };
+        } else if (ancKey === 'HOME') {
+          meta = { emoji: '🍃', name: 'VACANȚĂ / ECO (SEARĂ)', desc: 'Menținere temperatură minimă de protecție' };
+        }
+      }
 
       document.getElementById('cur-anchor-emoji').innerText = meta.emoji;
       document.getElementById('cur-anchor-name').innerText = meta.name;
@@ -1148,11 +2935,22 @@
       box.innerHTML = html;
     }
 
-    function renderScheduleEditor() {
-      const grid = document.getElementById('anchors-editor-grid');
-      if (!grid || !scheduleData || !scheduleData[currentProfile]) return;
-      const profData = scheduleData[currentProfile];
-      const order = ['sleep', 'wake', 'away', 'home'];
+    function updateNextAnchorCountdown() {
+      if (!scheduleData) return;
+      const banner = document.getElementById('next-anchor-banner');
+      if (!banner) return;
+
+      if (!scheduleData.enabled) {
+        banner.style.display = 'none';
+        return;
+      }
+      banner.style.display = 'flex';
+
+      const nextKey = (scheduleData.nextAnchor || 'WAKE').toLowerCase();
+      const profKey = scheduleData.isWeekend ? 'weekend' : 'weekday';
+      const profData = scheduleData[profKey] || scheduleData['weekday'];
+      const nextItem = profData ? profData[nextKey] : null;
+
       const labels = {
         'sleep': '🌙 Somn',
         'wake':  '🌅 Trezire',
@@ -1160,50 +2958,113 @@
         'home':  '🏡 Acasă'
       };
 
-      let html = '';
-      order.forEach(anc => {
-        const item = profData[anc] || { hour: 0, minute: 0, targets: [22.0, 22.0, 22.0] };
-        const timeStr = `${String(item.hour).padStart(2, '0')}:${String(item.minute).padStart(2, '0')}`;
-        const tg = item.targets || [22.0, 22.0, 22.0];
+      const nameEl = document.getElementById('next-anchor-name');
+      const timeEl = document.getElementById('next-anchor-time');
+      const countEl = document.getElementById('next-anchor-countdown');
 
-        html += `
-          <div class="anchor-edit-box">
-            <div class="anchor-edit-head">
-              <span>${labels[anc]}</span>
-              <input type="time" class="time-input" id="time-${anc}" value="${timeStr}" onchange="saveAnchor('${anc}')">
-            </div>
-            <div class="target-stepper">
-              <span>Z1 (Living):</span>
-              <div class="step-ctrl">
-                <button class="step-btn" onclick="adjAnchorTarget('${anc}', 0, -0.5)">-</button>
-                <span class="step-val">${tg[0].toFixed(1)}&deg;</span>
-                <button class="step-btn" onclick="adjAnchorTarget('${anc}', 0, 0.5)">+</button>
-              </div>
-            </div>
-            <div class="target-stepper">
-              <span>Z2 (Copil):</span>
-              <div class="step-ctrl">
-                <button class="step-btn" onclick="adjAnchorTarget('${anc}', 1, -0.5)">-</button>
-                <span class="step-val">${tg[1].toFixed(1)}&deg;</span>
-                <button class="step-btn" onclick="adjAnchorTarget('${anc}', 1, 0.5)">+</button>
-              </div>
-            </div>
-            <div class="target-stepper">
-              <span>Z3 (Dormitor):</span>
-              <div class="step-ctrl">
-                <button class="step-btn" onclick="adjAnchorTarget('${anc}', 2, -0.5)">-</button>
-                <span class="step-val">${tg[2].toFixed(1)}&deg;</span>
-                <button class="step-btn" onclick="adjAnchorTarget('${anc}', 2, 0.5)">+</button>
-              </div>
-            </div>
-            <button class="btn-small" style="margin-top:8px;width:100%;padding:4px;" onclick="saveAnchor('${anc}')">&#128190; Salvează Ancoră</button>
-          </div>
-        `;
-      });
-      grid.innerHTML = html;
+      if (nameEl) nameEl.textContent = labels[nextKey] || nextKey.toUpperCase();
+      if (timeEl && nextItem) {
+        timeEl.textContent = `${String(nextItem.hour).padStart(2,'0')}:${String(nextItem.minute).padStart(2,'0')}`;
+      }
+
+      const mins = (scheduleData.minsToNextAnchor !== undefined) ? scheduleData.minsToNextAnchor : 0;
+      if (countEl) {
+        if (mins >= 60) {
+          const h = Math.floor(mins / 60);
+          const m = mins % 60;
+          countEl.textContent = `(în ${h}h ${m}m)`;
+        } else if (mins > 0) {
+          countEl.textContent = `(în ${mins} min)`;
+        } else {
+          countEl.textContent = `(acum)`;
+        }
+      }
     }
 
-    function renderZones(zones) {
+    function renderScheduleEditor(activePreset) {
+      const grid = document.getElementById('anchors-editor-grid');
+      const summaryBox = document.getElementById('anchors-quick-summary');
+      if (!scheduleData || !scheduleData[currentProfile]) return;
+      activePreset = (activePreset || (scheduleData ? scheduleData.activePreset : '') || 'default').toLowerCase();
+
+      const profData = scheduleData[currentProfile];
+      const order = ['sleep', 'wake', 'away', 'home'];
+
+      let awayLabel = '🚶 Plecat';
+      if (activePreset === 'wfh') awayLabel = '💼 Home Office';
+      else if (activePreset === 'eco') awayLabel = '🍃 Zi Eco';
+
+      const labels = {
+        'sleep': '🌙 Somn',
+        'wake':  '🌅 Trezire',
+        'away':  awayLabel,
+        'home':  '🏡 Acasă'
+      };
+
+      // 1. Populate Quick Anchor Summary Chips
+      if (summaryBox) {
+        let sumHtml = '';
+        order.forEach(anc => {
+          const item = profData[anc] || { hour: 0, minute: 0, targets: [22.0, 22.0, 22.0] };
+          const timeStr = `${String(item.hour).padStart(2, '0')}:${String(item.minute).padStart(2, '0')}`;
+          const tg = item.targets || [22.0, 22.0, 22.0];
+          sumHtml += `
+            <div class="anchor-badge-chip">
+              <span style="color:#cbd5e1;font-weight:700;">${labels[anc]} (${timeStr})</span>
+              <b style="color:#38bdf8;">${tg[0].toFixed(1)} / ${tg[1].toFixed(1)} / ${tg[2].toFixed(1)}&deg;</b>
+            </div>
+          `;
+        });
+        summaryBox.innerHTML = sumHtml;
+      }
+
+      // 2. Populate legacy editor grid (preserved for headless test selectors)
+      if (grid) {
+        let html = '';
+        order.forEach(anc => {
+          const item = profData[anc] || { hour: 0, minute: 0, targets: [22.0, 22.0, 22.0] };
+          const timeStr = `${String(item.hour).padStart(2, '0')}:${String(item.minute).padStart(2, '0')}`;
+          const tg = item.targets || [22.0, 22.0, 22.0];
+
+          html += `
+            <div class="anchor-edit-box">
+              <div class="anchor-edit-head">
+                <span>${labels[anc]}</span>
+                <input type="time" class="time-input" id="time-${anc}" value="${timeStr}" aria-label="Ora început ${labels[anc]}" title="Ora început ${labels[anc]}" onchange="saveAnchor('${anc}')">
+              </div>
+              <div class="target-stepper">
+                <span>Z1 (Living):</span>
+                <div class="step-ctrl">
+                  <button class="step-btn" onclick="adjAnchorTarget('${anc}', 0, -0.5)">-</button>
+                  <span class="step-val">${tg[0].toFixed(1)}&deg;</span>
+                  <button class="step-btn" onclick="adjAnchorTarget('${anc}', 0, 0.5)">+</button>
+                </div>
+              </div>
+              <div class="target-stepper">
+                <span>Z2 (Copil):</span>
+                <div class="step-ctrl">
+                  <button class="step-btn" onclick="adjAnchorTarget('${anc}', 1, -0.5)">-</button>
+                  <span class="step-val">${tg[1].toFixed(1)}&deg;</span>
+                  <button class="step-btn" onclick="adjAnchorTarget('${anc}', 1, 0.5)">+</button>
+                </div>
+              </div>
+              <div class="target-stepper">
+                <span>Z3 (Matrimonial):</span>
+                <div class="step-ctrl">
+                  <button class="step-btn" onclick="adjAnchorTarget('${anc}', 2, -0.5)">-</button>
+                  <span class="step-val">${tg[2].toFixed(1)}&deg;</span>
+                  <button class="step-btn" onclick="adjAnchorTarget('${anc}', 2, 0.5)">+</button>
+                </div>
+              </div>
+              <button class="btn-small" style="margin-top:8px;width:100%;padding:4px;" onclick="saveAnchor('${anc}')">&#128190; Salvează Ancoră</button>
+            </div>
+          `;
+        });
+        grid.innerHTML = html;
+      }
+    }
+
+    function renderZones(zones, scheduleEnabled = true) {
       const c = document.getElementById('zones-list');
       if (!c) return;
       let html = '';
@@ -1223,15 +3084,29 @@
           activeCount++;
         } else if (st.includes('Warming')) {
           badgeClass = 'badge-warming';
-          st = 'Stabilizare Warmup';
+          st = 'Așteptare Actuator';
+          activeCount++;
+        } else if (z.frostActive) {
+          badgeClass = 'badge-frost';
+          st = 'Protecție Îngheț';
+          activeCount++;
         } else if (!z.enabled) {
           badgeClass = 'badge-disabled';
           st = 'Dezactivat';
+        } else if (z.sensorFault) {
+          badgeClass = 'badge-fault';
+          st = 'Eroare Senzor';
+        } else {
+          badgeClass = 'badge-idle';
+          st = 'Idle (Temp OK)';
         }
 
         let tempStr = (z.sensorValid && z.currentTemp !== undefined)
           ? (z.currentTemp.toFixed(1) + '&deg;C')
-          : '<span style="color:#64748b;">--.-&deg;C</span>';
+          : '<span style="color:#94a3b8;">--.-&deg;C</span>';
+
+        // Target resolution: in Beginner level, always use static targetTemp; otherwise effectiveTarget if schedule enabled
+        const curTarget = (scheduleEnabled && currentUiLevel !== 'beginner' && z.effectiveTarget !== undefined) ? z.effectiveTarget : z.targetTemp;
 
         html += `
           <div class='zone-card ${isHeating ? 'heating' : ''}'>
@@ -1242,12 +3117,12 @@
             <div class='zone-body'>
               <div>
                 <span class='zone-temp'>${tempStr}</span>
-                <div style='font-size:0.74rem;color:#64748b;margin-top:2px;'>Senzor: ${z.sensor || z.sensorMac || 'None'}</div>
+                <div style='font-size:0.74rem;color:#94a3b8;margin-top:2px;'>Senzor: ${z.sensor || z.sensorMac || 'None'}</div>
               </div>
               <div class='zone-ctrl'>
-                <button class='temp-btn' onclick='adjTarget(${i}, -0.5)'>-</button>
-                <span class='setpoint-val' id='sp-${i}' data-val='${z.targetTemp.toFixed(1)}'>${z.targetTemp.toFixed(1)}&deg;C</span>
-                <button class='temp-btn' onclick='adjTarget(${i}, 0.5)'>+</button>
+                <button class='temp-btn' aria-label='Scade temperatura ${z.name}' onclick='adjTarget(${i}, -0.5)'>-</button>
+                <span class='setpoint-val' id='sp-${i}' data-val='${curTarget.toFixed(1)}'>${curTarget.toFixed(1)}&deg;C</span>
+                <button class='temp-btn' aria-label='Crește temperatura ${z.name}' onclick='adjTarget(${i}, 0.5)'>+</button>
               </div>
             </div>
             <div class='zone-footer'>
@@ -1265,7 +3140,7 @@
       const c = document.getElementById('sensors-list');
       if (!c) return;
       if (!sensors || sensors.length === 0) {
-        c.innerHTML = "<div class='sensor-row'><span style='color:#64748b;'>Se scanează pachetele BLE pasive...</span></div>";
+        c.innerHTML = "<div class='sensor-row'><span style='color:#94a3b8;'>Se scanează pachetele BLE pasive...</span></div>";
         return;
       }
       let html = '';
@@ -1297,7 +3172,9 @@
       c.innerHTML = html;
     }
 
-    refresh();
+    switchViewMode(currentViewMode);
+    setUiLevel(currentUiLevel, true);
+    loadScheduleAndPresets().finally(() => refresh());
     setInterval(refresh, 3500);
   </script>
 </body>

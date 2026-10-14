@@ -3,6 +3,221 @@
 Jurnalul modificărilor, deciziilor tehnice și verificărilor efectuate pentru proiectul de încălzire inteligentă.
 Corelat cu planul activ: [`docs/plan.md`](file:///c:/Users/BSeceleanu/.github_repos/smart-heating/docs/plan.md).
 
+## [14.10.2026] - Remediere Audit Chrome DevTools AI & Lighthouse (WCAG AA, Semantism & Toleranță Rețea)
+
+### 1. Directivă Remediere Audit DevTools & Lighthouse (5 Puncte 100% Implementate)
+- **Punct 1: Contrast Cromatic Insuficient (WCAG AA PASS > 5.8:1):**
+  - Înlocuit în `web/index.html` culoarea `#64748b` pentru texte pe fundal închis (`#0f172a`, `#0a0f1d`) cu `#94a3b8` (contrast > 5.8:1) pentru etichete de senzori, footer zone, adrese MAC, meta-telemetrie și texte schematice SVG.
+  - Schimbat fundalul activ al butoanelor și tab-urilor din `#0284c7` în `#0369a1` (`#view-btn-dash`, `#tab-weekday`, `.mode-btn.active`, `.btn-matrix-open`, modal action buttons), urcând raportul de contrast cu textul alb la **5.93:1** (100% WCAG AA).
+- **Punct 2: Etichetare Accesibilă Elemente Formulare (Toggles & Steppere):**
+  - Adăugat explicit atributele `aria-label` și `title` pe switch-urile toggle din panoul de gardă (`#sw-schedule-en`, `#sw-preheat-en`, `#sw-window-en`).
+  - Adăugat `aria-label` și `title` pe selectoarele de sloturi NVS, inputurile de denumire preset, câmpurile orare de ancore (`#mtime-*`, `#time-*`), butoanele de închidere/salvare din modale și pe butoanele de reglare a temperaturii camerelor.
+- **Punct 3: Landmark Semantic `<main>`:**
+  - Containerul principal a fost migrat la tag-ul semantic `<main class="container" role="main">`, rezolvând avertismentul Lighthouse privind lipsa unui reper principal (`main landmark`), păstrând neschimbate clasele și ID-urile de aliniere.
+- **Punct 4: Ergonomie Mobilă & Touch Targets (< 520px):**
+  - Adăugată regula responsive `@media (max-width: 520px)`: `.header-pills` utilizează `width: 100%; justify-content: space-between; flex-wrap: wrap;`, iar butoanele `.btn-small` și `.tab-btn` au `min-height: 38px` pentru ținte tactile confortabile.
+- **Punct 5: Toleranță Latență Reverse Proxy Nginx & AbortController 4000ms:**
+  - Mărit timeout-ul `AbortController` din `refresh()` de la 2500ms la **4000ms**, prevenind tăierea prematură a cererilor (`statusCode: 0`) în timpul scanărilor pasive NimBLE prin proxy-ul `galaxy-a6`.
+  - Asigurat `clearTimeout` determinist în blocul `finally` și garantată protecția împotriva ciclurilor de polling suprapuse (`if (isRefreshing) return;`).
+
+### 2. Rezultate Verificare & Conformitate
+- **PlatformIO Build:** 1,206,833 bytes (61.4% flash), sub bugetul critic OTA de 1.25 MB.
+- **Firmware Flashat OTA:** v1.2.0 (Build: Oct 14 2026 20:41:11) activ pe `192.168.1.20`.
+- **Chrome CDP Browser Live Tests:** 10/10 PASS (100.0%) pe scenariile TS-01 la TS-07.
+- **ASPICE SWE.5 Host Suite:** 68/68 PASS (100.0%), toate cele 33 cerințe validate.
+
+## [14.10.2026] - Directivă Arhitecturală Advisor (Argon Maximum): Matrice Orar 4×3, Stateflow FSM pe 2 Planuri & Schemă Termică Dinamică 7 Circuite
+
+### 1. Panoul Principal (`web/index.html`): Matrice Tabelară 4×3, Bug Ancore & Naming Zona 3
+- **Rezolvare Bug Editare Ancore Circadiene (`POST /api/schedule/anchor`):**
+  - Implementat suport complet case-insensitive pe backend (`WAKE` vs `wake`) și parsare atât URL query parameters cât și body JSON.
+  - Conversie robustă a formatelor de oră 12h AM/PM în format 24h standard `HH:MM`.
+  - Sincronizare imediată a țintelor active: când utilizatorul ajustează ancora curent activă, temperaturile zonelor se actualizează instantaneu în RAM și NVS, re-evaluând bucla termodinamică fără delay.
+- **Corectare Mapare Zona 3 (Dormitor Matrimonial):**
+  - Migrare forțată în NVS din C++: Zona 3 (GPIO25) este redenumită din "Baie mare" în "Dormitor Matrimonial".
+  - Uniformizat naming-ul în întregul dashboard: tabele matrice, diagramă FSM și schemă Tesla.
+- **Re-arhitecturare Kiosk & Eliminare Aglomerare Vizuală:**
+  - Înlocuită grila greoaie cu 4 carduri din panoul principal cu un buton proeminent `📅 Editează Orar & Ancore (Matrice 4×3)` și chip-uri rapide de sinteză (`anchors-quick-summary`).
+  - Creat modalul `modal-schedule-matrix`: tabel compact 4 Ancore × 3 Zone cu steppere tactile `+`/`-`, inputuri de timp 24h, auto-save debounced (800ms) și butoane de salvare per rând cu feedback vizual `✓ Salvat în NVS`.
+  - Adăugat banner dinamic cu numărătoare inversă (`next-anchor-banner`) pentru următoarea ancoră circadiană.
+
+### 2. Firul Logic & Stările (FSM Admin): Stateflow Ierarhic pe 2 Planuri în SVG
+- **Diagramă Orientată pe 2 Planuri cu Săgeți Vectoriale:**
+  - **Planul A (Master Plant & Hydronic FSM):** Arborele cazanului și pompei GPA conectat cu săgeți animate (`<path marker-end="url(#fsm-arrow)">`), ilustrând stările $S0 \rightarrow S1 \rightarrow S2 \rightarrow (S3 \mid S4) \rightarrow S5 \rightarrow S6 \rightarrow S1$, substările 4.1 (Min Burn 60s), 4.2 (Steady Burn), 4.3 (Pre-Heat) și stările speciale S7 (Anti-Seize), S8 (Manual Hold).
+  - **Planul B (Zone Parallel FSM):** 3 benzi orizontale paralele pentru Z1 Living (GPIO32), Z2 Copil (GPIO33), Z3 Matrimonial (GPIO25) cu stări live (IDLE, FLOW ACTIVE, VALVE OPENING, FROST GUARD, DISABLED) și casetă dedicată pentru interblocări locale (Geam deschis, Protecție îngheț, Failsafe BLE DTC-101).
+  - Păstrate toate cele 9 ID-uri de noduri necesare testării automate ASPICE SWE.5 și browser CDP.
+
+### 3. Dinamizarea Schemei Termice (Tesla Mode)
+- **Topologie Reală cu 7 Circuite de Pardoseală & Bypass Băi:**
+  - Living & Bucătărie (Z1 / R32): 3 bucle paralele (Buclele 1, 2, 3).
+  - Camera Copilului (Z2 / R33): 2 bucle paralele (Buclele 6, 7).
+  - Dormitor Matrimonial (Z3 / R25): 2 bucle paralele (Buclele 4, 5).
+  - Ramură permanentă de bypass (Portprosop Băi) fără actuatoare, conectată la senzorul BLE `Bathroom` (22.6°C), garantând circulația apei și protecția pompei.
+- **Progres Dinamic Actuatoare cu Ceară & Estimare Termodinamică:**
+  - Calcul dinamic al deschiderii cerii `0% -> 100% [openSec/120s]` bazat pe `openSec` expus pe `/api/zones`, cu bare de progres dedicate.
+  - Animația de curgere a fluidului prin serpentină pornește exclusiv când actuatorul a depășit 30% deschidere (`openSec >= 36`).
+  - Model termodinamic inerțial dinamic (`[Estimat Inerțial]`) pentru temperaturile Tur/Retur și $\Delta T$, corelat cu timpul de funcționare al arzătorului și starea pompei.
+
+### 4. Închidere Audit Stage 2: Rezolvare Micro-Patch pe cele 3 `TestStepWarning`
+- **Punct 1 (Curba Termică Tur Plafonată la Regim Pardoseală):**
+  - Ajustat modelul inerțial în `web/index.html`: Turul este plafonat la $36.0^\circ\text{C}\text{–}43.5^\circ\text{C}$ (cu Retur $27.8^\circ\text{C}\text{–}35.3^\circ\text{C}$ și $\Delta T \approx 8.2^\circ\text{C}$), optimizând reprezentarea pentru regimul de condensare al centralei ($<45^\circ\text{C}$) și eliminând avertismentul de supraîncălzire a șapei.
+- **Punct 2 (Protecție Race Condition Debounce 800ms în Matrice):**
+  - Adăugat flag-ul `isMatrixDirty` și `isMatrixModalOpen`: Pe durata editării repetate a temperaturilor în modalul 4×3, ciclurile periodice de polling nu mai suprascriu DOM-ul matricei, eliminând riscul ca inputul să revină la valoarea veche înaintea finalizării salvării.
+- **Punct 3 (Răcirea & Contracția Progresivă a Actuatoarelor cu Ceară):**
+  - În `src/main.cpp`: La decuplarea releului, `openSec` decrementează liniar de la $120\text{s} \rightarrow 0\text{s}$ în loc să sară brusc la 0, modelând contracția termică a parafinei.
+  - În `web/index.html`: Actuatorul afișează starea `RĂCIRE: X% [Xs/120s]`, iar debitul prin serpentină este menținut animat până când deschiderea scade sub 30% ($36\text{s}$).
+
+### 5. Rezultate Verificare & Calitate
+- **PlatformIO Build:** 1,206,593 bytes (61.4% flash), marjă liberă confortabilă sub limita de 1.25 MB.
+- **Test System (PC Host):** Suită extinsă la 68 de teste atomice (adăugat Group 19 pentru validări negative).
+- **Flashing OTA:** Firmware v1.2.0 (Build: Oct 14 2026 20:18:55) activ pe `192.168.1.20`.
+
+## [14.10.2026] - Eliminare Epuizare Socketuri TCP, Neutralizare Service Worker & Polling Secvențial cu AbortController
+
+### Rezolvare Blocare Pagină în Browser (Hanging Spinner / Socket Starvation)
+- **Diagnoză Problemă Semnalată de Utilizator:**
+  - Tab-ul de Chrome rămânea blocat în spinnerul circular de încărcare cyan din cauza epuizării celor 4-5 socketuri TCP hardware ale ESP32 (`CONFIG_LWIP_MAX_SOCKETS`).
+  - *Cauze identificate:*
+    1. **Intercepție Service Worker (`sw.js`):** Scriptul PWA `sw.js` intercepta navigarea pe `/` și rula pre-caching agresiv (`/`, `/manifest.json`, `/icon-192.png`, `/icon-512.png`), lansând concomitent 4 conexiuni TCP. Când ESP32 respingea o conexiune, handlerul `fetch(e.request)` din worker rămânea agățat pe termen nelimitat în stiva de rețea Chrome.
+    2. **Furtună de Conexiuni Paralele în `refresh()`:** Funcția rula `Promise.all([fetch('/api/zones'), fetch('/api/boiler/status'), fetch('/api/schedule'), fetch('/api/schedule/presets')])`, generând alte 4 cereri simultane la fiecare 3.5 secunde.
+- **Măsuri de Remediere Arhitecturală (Extreme Minimalism & Anti-Bloat):**
+  - **Neutralizare Service Worker:** Înlocuit scriptul de caching din `src/main.cpp` cu un script auto-destructiv de curățare (`skipWaiting` + ștergere toate cheile de cache + `unregister()`). În `web/index.html`, înlocuit înregistrarea SW cu un mecanism proactiv de dezinstalare și curățare cache.
+  - **Polling Secvențial & Serializat:** Structurat `refresh()` să interogheze exclusiv `/api/zones` și `/api/boiler/status` într-o manieră secvențială (`await ...; await ...;`), garantând strict **maxim 1 socket deschis** în orice moment.
+  - **Decuplare Orar & Preseturi:** Datele statice de orar circadian și catalogul de preseturi sunt încărcate o singură dată la inițializare (`loadScheduleAndPresets()`) și re-interogate la cerere exclusiv când utilizatorul modifică un preset sau o ancoră.
+  - **Protecție `AbortController` (Timeout 2500ms):** Orice cerere de telemetrie blocată este abandonată automat după 2.5s, prevenind suprapunerea apelurilor și blocarea browserului.
+- **Validare Live:**
+  - Firmware compilat (1176.8 KB, 61.0% flash) și încărcat prin Web OTA (`v1.2.0 Build: Oct 14 2026 18:05:34`).
+  - Timp de răspuns pagină `/`: **248 ms** (HTTP 200).
+  - Latență endpoint-uri API: `/api/zones` (**75 ms**), `/api/boiler/status` (**101 ms**).
+  - Suita de teste sistem PC (`tools/test_system.py`): **63/63 PASS (100.0%)**.
+  - Suita de teste live în browser Chrome (`tools/browser_live_test.py`): **10/10 PASS (100.0%)**, pagina se încarcă instantaneu fără spinner infinit.
+
+## [14.10.2026] - Schemă Termodinamică Tesla Service Mode (Task 30) & Diagramă Live Stări FSM (Task 31)
+
+### Schemă Termodinamică & Hidraulică Interactivă (web/index.html - Sarcina 30)
+- **Vizualizare Vectorială SVG Inspirată din Tesla Supermanifold:**
+  - Adăugat un tab de comutare rapidă în header (`🏎️ Schemă Termică (Tesla Mode)`), care ascunde coloanele panoului principal și afișează o reprezentare completă, animată, a instalației hidraulice.
+  - **Sub-sistem Cazan Gaz:** Card dedicat cazanului cu flacără dinamică (verde cu border radiant la ardere activă, gri în standby), timer live de cooldown rămas și indicatori de protecție radio 433.92 MHz.
+  - **Grup Pompare & Amestec (GPA):** Reprezentare vană de amestec și rotor pompă animat cu rotație continuă (`.pump-spinning`), etichetat cu turație (1850 RPM) și timpi de interblocare (120s ceară, 180s overrun).
+  - **Supermanifold & 3 Circuite Pardoseală:** Conducte tur (portocaliu cald) și retur (albastru) cu animație vectorială de curgere (`teslaPipeFlow`), debitmetre pe tur, actuatoare electrotermice NC cu comutare dinamică (230V verde vs NC gri) și casete de cameră cu telemetrie live ($T_{cameră} \mid T_{target}$).
+  - **Casete Telemetrie Stil Tesla:** $T_{tur}$ (48.5°C ardere / 24°C standby), $T_{retur}$ (38.0°C / 23.5°C), $\Delta T$ sorbție (10.5°C Optim / 0.5°C Echilibru) și stare pompă.
+  - **Panou Butoane Acțiuni Service:** 5 butoane tactile: Purjare/Test Pompă GPA (`/api/diag/selftest`), Test RF Cazan (`/api/boiler/status`), Test Valvă Copil, Test Valvă Living și Curățare DTC Diagnoză.
+
+### Diagramă Interactivă de Stări FSM & Fir Logic Live (web/index.html - Sarcina 31)
+- **Motor Decizional cu 9 Noduri de Stare Finite:**
+  - Adăugat tabul `🧠 Fir Logic & Stări (FSM Admin)` afișând starea logică a întregului sistem:
+    1. `IDLE / STANDBY` (toate camerele la temperatură)
+    2. `CERERE TERMICĂ` (scădere sub histerezis, bucle deschise)
+    3. `AȘTEPTARE ACTUATOR` (interlock ceară termică 120-180s)
+    4. `MANUAL HOLD` (cerere zonă activă, cazan oprit manual)
+    5. `ÎNCĂLZIRE ACTIVĂ` (flacără aprinsă via 433MHz, pompă GPA activă)
+    6. `POST-CIRCULAȚIE POMPĂ` (pompă releu 4 activă 180s pe keeper zone)
+    7. `GARDĂ COOLDOWN` (interdicție reaprindere rapidă 60s)
+    8. `PROTECȚIE ÎNGHEȚ` (urgență sub 12°C)
+    9. `GEAM DESCHIS` (cădere >1.2°C / 5min, valvă închisă 30m)
+  - **Evidențiere Live & Timere:** Nodul stării active este evidențiat dinamic cu bordură cyan electric, efect de glow și afișarea timerelor active în interiorul nodului (ex: `19s Lockout`).
+  - **Indicator Header:** Afișaj sintetic live în colțul din dreapta (`Stare Activă Hardware: 7. GARDĂ COOLDOWN (19s LOCKOUT)`).
+
+### Verificare Live pe Browser Nativ (Chrome CDP) & ASPICE SWE.5
+- **Suită E2E 100% PASS (10/10 teste):**
+  - Rulat `tools/browser_live_test.py` direct pe browserul Chrome al utilizatorului cu 10/10 teste validate: geometrie, cele 3 moduri de control (simplu, preseturi, avansat), protecție anti-spam, schemă Tesla (`TC-UI-13`), acțiuni service (`TC-UI-15`) și diagramă FSM (`TC-UI-14`).
+  - Capturate două noi screenshot-uri de înaltă rezoluție în brain: `e2e_06_tesla_service_mode.png` și `e2e_07_fsm_live_diagram.png`.
+- **Flash OTA Hardware & Teste de Sistem:**
+  - Firmware compilat (1176.5 KB, 60.9% flash) și flashuit pe placă via OTA în 7.9s (`v1.2.0 Build: Oct 14 2026 16:55:37`).
+  - Toate cele 63 de teste SWE.5 (`tools/test_system.py`) continuă să ruleze cu **100% PASS**.
+
+## [14.10.2026] - Suită Automată de Testare E2E pe Browser Nativ (Task 32) & Reparare Layout Grid 2 Coloane
+
+### Testare Automată Browser Nativ via Chrome DevTools Protocol (tools/browser_live_test.py)
+- **Implementare Framework E2E Interactiv pe Google Chrome:**
+  - Creat instrumentul automat `tools/browser_live_test.py` care se conectează prin CDP WebSocket direct la browserul Google Chrome nativ deschis pe ecranul utilizatorului la `http://192.168.1.20`.
+  - Toate cele 5 scenarii de testare au trecut cu **100% succes (7/7 PASS)**:
+    * `TC-UI-11` (Geometrie): Coloana 1 ($X=56\text{px}, Y=199.6\text{px}$) și Coloana 2 ($X=595\text{px}, Y=199.6\text{px}$) sunt perfect paralele, simetrice și aliniate side-by-side.
+    * `TC-UI-01` (Nivel Simplu): Ascundere orar automat și editor ancore; notificare verde discretă; control direct temperaturi.
+    * `TC-UI-05` (Nivel Preseturi): Ascundere butoane tehnice (`Reset fabrică`, `Salvare slot custom`).
+    * `TC-UI-03` (Selecție Preseturi): Toate cele 5 chip-uri de preseturi detectate și funcționale.
+    * `TC-UI-04` (Comutare Dinamică Ținte): Temperaturile țintă din zone se actualizează dinamic în DOM fără reîncărcare de pagină.
+    * `TC-UI-06` (Nivel Avansat): Editorul circadian tabelar și acțiunile de sloturi NVS devin complet vizibile.
+    * `TC-UI-09` (Anti-Spam Toast Feedback): Apăsarea pe OFF când centrala este deja oprită afișează un toast discret de 3 secunde (`ℹ️ Centrala este deja oprită (Standby)`) fără flood HTTP sau bannere false de oprire.
+  - Generate 5 capturi de ecran de înaltă rezoluție în directorul brain (`e2e_01_beginner_mode.png` .. `e2e_05_anti_spam_toast.png`).
+
+### Reparare Definitivă Layout Grid & Identificatori Coloane (web/index.html)
+- **Eliminare `</div>` Parazit & Balansare Container:**
+  - Șters tag-ul de închidere prematură a containerului CSS Grid (`.container`), permițând coloanei a doua (circuite pardoseală) să stea paralel cu prima coloană în loc să cadă sub ea.
+  - Atribuit identificatori unici `#col-main-1` și `#col-main-2` pentru selectare DOM deterministă.
+  - Firmware recompilat curat (Flash: 60.6%, RAM: 19.9%) și încărcat via OTA în 7.6s (Build: Oct 14 2026 16:31:38). Suita completă SWE.5: **63/63 PASS (100.0%)**.
+
+## [14.10.2026] - Sincronizare Aprindere Cazan la Cerere, 3 Niveluri de Control UI (Începător, Mediu, Avansat) & Protecție Anti-Spam
+
+### Reparare Critică Secvențiere Cazan (src/ThermalZoneManager.cpp)
+- **Sincronizare Automată a Aprinderii Flăcării cu Cererea Termică:**
+  - Identificat și rezolvat defectul de logică prin care o zonă aflată în `Heating Active` (de ex. Camera Copilului la 22.6°C cu țintă 23.0°C) avea pompa activă, dar cazanul rămânea blocat pe `OFF`:
+    * În vechea implementare, flag-ul `_boilerDemand` devenea `true` chiar dacă transmisia RF eșuase sau cazanul fusese oprit ulterior (ex: la boot sau prin test API forțat). Ramura de pornire `if (!_boilerDemand)` nu se mai reevalua niciodată!
+    * Înlocuit verificarea cu starea efectivă a emițătorului `if (!boiler.isLastCommandOn())`. Dacă există cerere termică (`anyZoneReadyForBoiler`), sistemul verifică starea reală a arzătorului și comandă aprinderea (`sendBoilerOn()`) imediat ce timpii de protecție permit sau programează pornirea automată în coada `PENDING_ON`.
+    * Validat pe hardware live: centrala a pornit automat (`Boiler: ON`, `PumpActive: True`) imediat după expirarea cooldown-ului de siguranță.
+- **Sincronizare Setpoint Manual în Timpul Pre-Heat-ului Anticipativ:**
+  - În `setTargetTemperature(index, target)`, dacă Pre-Heat-ul anticipativ este activ (`_preHeatActive == true`), modificarea manuală de la butoanele `+`/`-` este propagată atât în `_nextAnchor` cât și în `_activeAnchor`. Astfel, setpoint-ul ajustat de utilizator devine activ pe loc și este reflectat instantaneu pe ecran fără a fi ignorat de orar.
+
+### Interfață Kiosk cu 3 Niveluri de Control & Protecție Anti-Spam (web/index.html)
+- **Selector de Nivel de Control (Segmented Control Bar):**
+  - Implementat un comutator elegant pe 3 niveluri de experiență, salvat persistent în `localStorage`:
+    * `🟢 Simplu (Manual Direct):` Pentru începători. Oprește orarul automat și ascunde taburile complicate. Fiecare cameră este reglată direct din butoanele `+`/`-`, exact ca la un termostat digital simplu și clar.
+    * `🟡 Preseturi Rapide:` Pentru utilizare zilnică. Afișează chip-urile mari cu scenarii de viață (`Standard`, `Home Office`, `Vacanță / Eco`) dintr-un singur click, ascunzând editorul avansat de ore.
+    * `🔴 Orar Avansat:` Pentru inginerie și reglaj fin. Deblochează toate opțiunile: ancore circadiene (Sleep, Wake, Away, Home), timpi Pre-Heat anticipativ, protecție geam deschis, salvare sloturi NVS `custom1`/`custom2`.
+- **Protecție Anti-Spam & Toast Discret de 3 Secunde:**
+  - În `triggerBoiler(action)`, s-a eliminat comportamentul derutant la click-uri repetate sau spam pe aceeași stare:
+    * Dacă utilizatorul apasă `OFF` când centrala este deja oprită: NU se mai trimit cereri repetate și NU se afișează bannerul de oprire în Xs. Se afișează doar un mesaj toast discret timp de 3 secunde: `ℹ️ Centrala este deja oprită (Standby)`.
+    * La fel pentru `ON` când este deja pornită: `ℹ️ Centrala este deja pornită (Activă)`.
+    * Adăugat debounce de 350ms pentru a ignora atingerile multiple accidentale pe ecranul tactil al tabletei.
+- **Validare ASPICE SWE.5:**
+  - Suita de 63 de teste atomice (`python tools/test_system.py`) a trecut cu **100% succes (63/63 PASS, 33/33 cerințe acoperite)**.
+
+## [14.10.2026] - Siguranță Cazan la Cold Boot (Failsafe Power-Loss) & Coadă Execuție Amânată (Pending Cooldown)
+
+### Siguranță Hardware & Sincronizare Fizică Cazan (include/BoilerRadioTrigger.h, src/BoilerRadioTrigger.cpp)
+- **Failsafe la Pornire după Cădere de Tensiune (Power-Loss Safety Invariant):**
+  - Rezolvată discrepanța critică semnalată: dacă placa ESP32 este scoasă din priză în timp ce cazanul este activ (`ON`), la reluarea alimentării (Cold Boot) receptorul radio de perete rămânea blocat pe ON din lipsa unui semnal de oprire.
+  - În `BoilerRadioTrigger::begin()`, la inițializarea hardware-ului se emite imediat un burst forțat `sendBoilerOff(true)` către receptorul 433.92 MHz și se stochează starea `OFF` în NVS. Aceasta garantează oprirea fizică a flăcării la orice repornire/pană de curent, eliminând riscul de ardere necontrolată a gazului și sincronizând perfect receptorul fizic cu interfața.
+  - Implementat mecanism NVS Flash Wear Guard pe namespace-ul `"boiler"` (`saveStateToPreferences()` / `loadStateFromPreferences()`), scriind în flash doar la schimbarea efectivă a stării (`if (oldVal != newVal)`).
+  - Adăugat mecanism de heartbeat periodic (la fiecare 15 minute) în `BoilerRadioTrigger::update()` pentru redundanță radio suplimentară.
+
+### Coadă Execuție Amânată & Cooldown Interactiv (src/main.cpp, web/index.html)
+- **Comenzi Amânate (Deferred Execution / Pending Actions):**
+  - În `handleApiOff()` și `handleApiOn()`, dacă utilizatorul acționează manual butonul de comutare în timpul perioadei de protecție a arzătorului (anti-short-cycling guard: 60s ardere minimă / 60s pauză minimă), cererea nu mai este pur și simplu respinsă fără acțiune.
+  - Sistemul înregistrează acțiunea în coada internă (`PENDING_OFF` sau `PENDING_ON`) și returnează codul HTTP 429 cu `"pending": true`, `"target": "OFF"`, `"waitSec": X` (conform RFC 6585 și cerințelor de siguranță FR-17).
+  - În bucla principală `loop()`, metoda `boilerRadio.update()` monitorizează expirarea timpului minim și execută automat transmisia RF imediat ce interblocarea expiră.
+  - Dacă utilizatorul trimite comanda opusă înainte de expirare (de ex. apasă ON în timp ce era programată oprirea amânată), acțiunea amânată este anulată instantaneu (`pendingCancelled: true`).
+- **Feedback Vizual & Timer Cooldown în Dashboard Kiosk (`web/index.html`):**
+  - Adăugat stilul `.badge-pending` cu animație pulsatorie portocalie (`#fbbf24`).
+  - Adăugat bannerul de avertizare `#boiler-pending-banner` și tag-ul `#boiler-cooldown-tag` ce afișează numărătoarea inversă la secundă (`⏳ Xs rămase` vs `✅ Gata (Ready)`).
+  - Implementat un temporizator local la secundă (`setInterval`) în JavaScript pentru actualizare fluidă fără interogări abuzive către microcontroler.
+- **Validare ASPICE SWE.5 & Teste Automate:**
+  - Suita de 63 teste atomice (`tools/test_system.py`) a trecut cu **100% succes (63/63 PASS, 33/33 cerințe)**.
+  - Validat fluxul complet pe hardware live (`192.168.1.20`): `POST /api/boiler/on` -> `POST /api/boiler/off` -> `429 Pending` -> Anulare / Execuție automată.
+
+## [14.10.2026] - Sincronizare Setpoint-uri Preseturi & UX Ancore Dinamice (Home Office & Eco)
+
+### Corecții Funcționale & Aliniere Termodinamică (src/ThermalZoneManager.cpp, src/main.cpp, web/index.html)
+- **Sincronizare Automată Setpoint-uri Zone la Aplicarea Preseturilor:**
+  - La apelul `applyPreset()` (ex: `wfh`, `eco`, `default`) și `resetScheduleToDefault()`, setpoint-urile individuale ale fiecărei zone termice (`_configs[i].targetTemp`) sunt sincronizate instantaneu cu valorile din ancora activă curentă din orar.
+  - S-a respectat regula de protecție la uzură a memoriei flash (NVS Flash Wear Guard): salvarea în NVS se execută doar dacă valorile s-au modificat (`fabsf(old - new) > 0.05f`).
+  - În `setTargetTemperature(idx, target)`, dacă Bio-Schedule este activat, ajustarea manuală de la butoanele `+`/`-` ale zonei din dreapta este propagată instantaneu în ținta ancorei active din profilul curent (`setAnchorTarget`), făcând trecerea automată pe profilul `custom` și determinând termostatul să preia modificarea fără latență.
+  - În `handleApiScheduleEnable`, s-a adăugat suport pentru parametrii query opționali `preheat` și `window`.
+- **Corecție Afișaj UI Dashboard Kiosk (`web/index.html`):**
+  - În `renderZones()`, setpoint-ul zonei afișat pe cardurile din dreapta folosește acum `z.effectiveTarget` (temperatura țintă reală reglată de Bio-Schedule) în loc de `z.targetTemp` rezidual, eliminând discrepanța vizuală reclamată între țintele din orar și setpoint-urile zonelor.
+  - Adăugat `.then(() => refresh())` în `adjTarget()`, oferind feedback vizual instantaneu la ajustarea temperaturilor per zonă.
+  - În `refresh()`, citirea `scheduleData` a fost mutată înainte de `renderZones()`, transmițând starea corectă a orarului activ.
+- **UX Ancore Contextuale Adaptate la Preset (Home Office / Vacanță Eco):**
+  - În `renderActiveAnchorHero()`:
+    * Când este activ presetul `Home Office` (`wfh`), intervalul orar de zi (ancora tehnică `away`, 08:30–17:00) nu mai afișează confuzant `🚶 PLECAT (AWAY) - Mod Eco economic cât casa este goală`, ci este etichetat contextual: `💼 HOME OFFICE (ZI)` cu descrierea `Lucru de acasă & confort termic optim de birou`.
+    * Pentru presetul `Vacanță / Eco` (`eco`), ancora de zi afișează `🍃 VACANȚĂ / ECO (ZI)` cu descrierea `Temperatură economică redusă (economie gaz)`.
+  - În `renderScheduleEditor()`:
+    * Denumirea cardului 3 de editare a orarului circadian se adaptează dinamic: `💼 Home Office` pentru WFH, `🍃 Zi Eco` pentru Eco, și `🚶 Plecat` pentru Standard/Confort.
+- **Verificare & Validare ASPICE SWE.5:**
+  - Compilare PlatformIO curată (RAM: 19.9%, Flash: 60.3%, 1,185 KB).
+  - Flash OTA pe hardware live (`192.168.1.20`) finalizat cu succes în 30.95 secunde.
+  - Suita de teste atomice SWE.5 (`tools/test_system.py`) a trecut cu **100% succes (63/63 PASS, 33/33 cerințe)**.
+
 ## [14.10.2026] - Interfață Grafică PWA Kiosk (Samsung Galaxy Tab A9), Optimizare Flash (-133 KB) & Validare SWE.5
 
 ### Dashboard PWA Kiosk & Bio-Schedule Complet (web/index.html)

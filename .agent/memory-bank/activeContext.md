@@ -4,17 +4,54 @@
 - **Target Hardware Deployed & Operational:**
   - Board: **ESP32-Relay X4 V1.1** featuring module **DOIT WiFi MODEL ESP32-32E N4** (ESP32-D0WD-V3, 240MHz Dual-Core, 4MB Flash, MAC: `20:50:0d:1a:72:14`).
   - IP Address: **`192.168.1.20`** (on `SBC_WiFi`).
-  - Firmware Version: **v1.2.0 (Build: Oct 14 2026 12:55:23)**.
-  - Flash Binary Size: **1,186,112 bytes (1.15 MB, 60.0% flash)** — optimizare masivă cu **133.8 KB de flash eliberați** (eliminat stack-ul mbedtls SSL nefolosit via `WiFiClient`, dezactivat tabele text NimBLE și minificat resursele web la build-time). Spațiu de rezervă confortabil de **121.7 KB sub limita maximă a partiției OTA** (1.25 MB).
-  - Free Heap: **~118–130 KB** stabil cu scaner NimBLE pasiv și servire web PROGMEM GZIP fără alocări dinamice.
-  - Web Server & Web OTA: Active on port 80 (`http://192.168.1.20/`, `/setup`, `/console`, `/update`, `/manifest.json`, `/sw.js`, `/icon.svg`, `/icon-192.png`).
-  - Verification Suite: **63/63 PASS (100.0%)** pe suita completă de teste atomice ASPICE SWE.5 cu Matrice de Trasabilitate Bidirecțională (33/33 cerințe acoperite 100.0%, 0 neacoperite).
-  - Wall Kiosk Display: Tableta **Samsung Galaxy Tab A9 8.7" LTE** (PLS LCD, 60Hz, funcție One UI *Protect Battery* 80–85% pentru operare 24/7) configurată cu aplicația web PWA instalabilă direct din browserul Chrome.
+  - Firmware Version: **v1.2.0 (Build: Oct 14 2026 20:41:11)**.
+  - Flash Binary Size: **1,206,833 bytes (1.20 MB, 61.4% flash)** — binar compact cu spațiu liber de **103.9 KB sub limita maximă a partiției OTA** (1.25 MB).
+  - Free Heap: **~122 KB** stabil cu scaner NimBLE pasiv și servire web PROGMEM GZIP fără alocări dinamice.
+  - Web Server & Web OTA: Active on port 80 (`http://192.168.1.20/`, `/setup`, `/console`, `/update`, `/manifest.json`, `/sw.js`, `/icon.svg`, `/icon-192.png`, `/icon-512.png`).
+  - ASPICE SWE.5 Host Verification: **68/68 PASS (100.0%)** pe suita completă de teste atomice ASPICE SWE.5 cu Matrice de Trasabilitate Bidirecțională (33/33 cerințe acoperite 100.0%, 0 defecte).
+  - Browser E2E Live Test Suite (Task 32): **10/10 PASS (100.0%)** pe browserul Google Chrome nativ via CDP (TS-01 la TS-07: geometrie 2 coloane, 3 nivele de control, anti-spam toast, schemă Tesla Supermanifold, acțiuni service, diagramă stări FSM).
+  - Wall Kiosk Display: Tableta **Samsung Galaxy Tab A9 8.7" LTE** configurată cu aplicația web PWA instalabilă direct din browserul Chrome / Samsung Internet.
+- **Remediere Audit Chrome DevTools AI & Lighthouse (WCAG AA + Network) (Finalizat 14.10.2026):**
+  - **Punct 1 (Contrast Cromatic):** `#64748b` înlocuit cu `#94a3b8` (>5.8:1 contrast pe `#0f172a`/`#0a0f1d`), `#0284c7` pe butoane active înlocuit cu `#0369a1` (5.93:1 contrast pe text alb, 100% WCAG AA).
+  - **Punct 2 (Form Controls Labels):** Atribute `aria-label` și `title` adăugate pe switch-urile toggle `#sw-schedule-en`, `#sw-preheat-en`, `#sw-window-en`, inputurile de timp (`#mtime-*`, `#time-*`), selectoarele din modale și pe butoanele stepper de temperatură.
+  - **Punct 3 (Semantic Landmark):** Containerul `.container` transformat în `<main class="container" role="main">`.
+  - **Punct 4 (Ergonomie Mobilă & Touch Targets):** Adăugată regula `@media (max-width: 520px)` cu flex-wrap pe `.header-pills` și `min-height: 38px` pe `.btn-small` și `.tab-btn`.
+  - **Punct 5 (Toleranță Latență Proxy):** Timeout-ul `AbortController` din `refresh()` mărit la 4000ms, cu curățare sigură în `finally` și blocare ciclu concurent `if (isRefreshing) return;`.
+- **Directivă Arhitecturală Advisor (Argon Maximum) — Remediere UI Kiosk, Stateflow FSM & Schemă Termică (Finalizat 14.10.2026):**
+  - **Problema 1: Panou Principal, Editare Ancore Circadiene & Naming Zona 3:**
+    * Corectat bug-ul de pe `POST /api/schedule/anchor`: tratare robustă case-insensitive (`WAKE` / `wake`), parsare atât URL params cât și body JSON, conversie 12h AM/PM în 24h `HH:MM`. Modificarea ancorei active sincronizează instant setpoint-urile de zonă și forțează re-evaluarea orarului.
+    * Naming corectat: Zona 3 (GPIO25) este garantată ca **"Dormitor Matrimonial"** (nu "Baie mare"), cu migrare forțată în NVS din C++.
+    * Re-arhitecturare Kiosk: Eliminat dezastrul vizual (grila cu 4 carduri dense) din coloana stângă a panoului principal; mutat editorul de ancore într-o **Matrice Tabelară Compactă (4 Ancore × 3 Zone)** deschisă printr-un modal dedicat (`modal-schedule-matrix`), cu auto-save debounced (800ms) și butoane per rând cu feedback vizual verde (`✓ Salvat în NVS`).
+    * Adăugat banner dinamic cu numărătoare inversă (`next-anchor-banner`) pentru următoarea ancoră circadiană.
+  - **Problema 2: Firul Logic & Stările (FSM Admin) — Stateflow Ierarhic pe 2 Planuri în SVG:**
+    * Înlocuit grid-ul plat 1–9 cu o diagramă orientată SVG pe 2 planuri cu săgeți vectoriale (`<path marker-end="url(#fsm-arrow)">`):
+      - **Planul A: Master Plant & Hydronic FSM** (Cazan Gaz + Pompă GPA): tranziții orientate $S0 \rightarrow S1 \rightarrow S2 \rightarrow (S3 \mid S4) \rightarrow S5 \rightarrow S6 \rightarrow S1$ cu substările 4.1 (Min Burn Guard 60s), 4.2 (Steady Burn), 4.3 (Pre-Heat) și stările speciale S7 (Anti-Seize), S8 (Manual Hold).
+      - **Planul B: Zone Parallel FSM**: 3 benzi orizontale paralele pentru Z1 Living (GPIO32), Z2 Copil (GPIO33), Z3 Matrimonial (GPIO25), plus casetă de interblocări locale (Geam deschis, Protecție îngheț, DTC-101 Failsafe).
+    * Păstrate toate cele 9 ID-uri de noduri pentru compatibilitate 100% cu ASPICE SWE.5 și suita CDP (`fsm-node-idle`, `fsm-node-demand`, `fsm-node-wax`, `fsm-node-manual-hold`, `fsm-node-active-heat`, `fsm-node-overrun`, `fsm-node-cooldown`, `fsm-node-frost`, `fsm-node-window`).
+  - **Problema 3: Dinamizarea Schemei Termice (Tesla Mode):**
+    * Topologie reală cu **7 circuite de șapă** (Z1: Buclele 1, 2, 3; Z2: Buclele 6, 7; Z3: Buclele 4, 5) + ramură de **Bypass Hidraulic Permanent (Portprosop Băi)** legată la senzorul BLE `Bathroom` (22.6°C).
+    * Progres dinamic dilatare ceară actuatoare (`0% -> 100% [openSec/120s]`) pe baza parametrului `openSec` din `/api/zones`, cu bare de progres dedicate și pornirea animației de curgere la >30% deschidere (`openSec >= 36`).
+    * Model termodinamic dinamic Tur / Retur inerțial (`[Estimat Inerțial]`) fără temperaturi fixe hardcodate.
+  - **Verificare & Calitate:** PlatformIO build curat (Flash 1.20 MB, 61.4%), 63/63 teste PASS (100.0%) pe `tools/test_system.py`, 10/10 teste PASS (100.0%) pe `tools/browser_live_test.py` în Chrome nativ.
+- **Sincronizare Aprindere Cazan, 3 Niveluri de Control UI & Anti-Spam (Rezolvat 14.10.2026):**
+  - **Failsafe Power-Loss Invariant:** La pornirea din priză (`begin()`), se emite imediat `sendBoilerOff(true)` burst pe 433.92 MHz și se stochează `OFF` în NVS. Acest lucru garantează oprirea fizică a flăcării după orice cădere de tensiune sau reboot și sincronizează receptorul bistabil cu ecranul.
+  - **Coadă Execuție Amânată (Pending Actions):** La comutarea stării în perioada de anti-short-cycling guard (60s ardere / 60s pauză), serverul înregistrează `PENDING_OFF` sau `PENDING_ON` și returnează HTTP 429 cu `pending: true`, `target`, `waitSec`.
+  - **Execuție Automată la Expirare:** În bucla `loop()`, `boilerRadio.update()` verifică disponibilitatea transmisiei și execută comanda fără intervenția utilizatorului. Apăsarea comenzii inverse anulează imediat acțiunea amânată (`pendingCancelled: true`).
+  - **UI Kiosk Reacțional:** Badge pulsatoriu portocaliu (`.badge-pending`), banner informativ dedicat și contor de cooldown la secundă (`⏳ Xs rămase`).
+- **Sincronizare Preseturi & UX Ancore Dinamice (Rezolvat 14.10.2026):**
+  - **Sincronizare Setpoint-uri Zone cu Orarul:**
+    * La aplicarea oricărui preset (`wfh`, `eco`, `default`) sau resetare, `_configs[i].targetTemp` din fiecare zonă este sincronizat automat cu țintele ancorei active din noul preset.
+    * Cardurile din dreapta (`Zone Termice Pardoseală`) afișează acum `effectiveTarget` (temperatura reală comandată de Bio-Schedule), eliminând discrepanța vizuală între orar și zone.
+    * Butoanele `+`/`-` din cardurile de zone propagă ajustarea instantaneu în ancora activă curentă din Bio-Schedule (`setAnchorTarget`), făcând trecerea automată pe profilul `custom` și determinând termostatul să reacționeze fără latență.
+  - **Afișaj Ancore Contextuale (Home Office / WFH):**
+    * Când presetul activ este `wfh`, intervalul de zi (ancora tehnică `away`, 08:30–17:00) nu mai afișează derutant `🚶 PLECAT (AWAY) - Casa este goală`, ci `💼 HOME OFFICE (ZI)` cu descrierea `Lucru de acasă & confort termic optim de birou`.
+    * Pentru presetul `eco`, ancora afișează `🍃 VACANȚĂ / ECO (ZI)` cu descrierea `Temperatură economică redusă (economie gaz)`.
+    * În editorul de orar din stânga jos, cardul ancorei de zi își adaptează eticheta dinamic (`💼 Home Office` / `🍃 Zi Eco` / `🚶 Plecat`).
 - **Interfață Grafică PWA Kiosk & Bio-Schedule Dashboard (web/index.html):**
-  - **PWA Nativ cu Suport WebAPK:** Manifest complet cu `display: standalone`, `theme_color: #080c14`, pictograme rasterizate PNG (192x192) și vectoriale SVG. Service Worker non-blocant (`/sw.js`) cu cache passthrough pentru API-uri.
+  - **PWA Nativ cu Suport WebAPK:** Manifest complet cu `display: standalone`, `theme_color: #080c14`, pictograme fizice rasterizate PNG (`icon-192.png`, `icon-512.png` cu masturi maskable/any) și vectoriale SVG. Service Worker non-blocant (`/sw.js`) cu precaching și cache passthrough pentru API-uri.
   - **Buton Instalare & Asistență Kiosk:** Buton tactil `📲 Instalează App` integrat cu `beforeinstallprompt` și dialog modal detaliat pentru adăugarea ca scurtătură/aplicație nativă pe tablete Android/Chrome via `chrome://flags` secure origins.
   - **Layout Kiosk Responsive pe 2 Coloane:**
-    * Col 1: Cazan Gaz (indicator erou flacără ON/OFF, comutator AUTOMATIC / MANUAL, comenzi), Smart Bio-Schedule (comutatoare master, Pre-Heat anticipativ, Geam deschis), Card Ancoră Circadiană activă (`🌙 Sleep`, `🌅 Wake`, `🚶 Away`, `🏡 Home`), Selector rapid Preset-uri chips (`standard`, `eco`, `wfh`, `custom1`, `custom2`), Modal salvare preset NVS și Editor ancore L-V vs Weekend.
+    * Col 1: Cazan Gaz (indicator erou flacără ON/OFF, comutator AUTOMATIC / MANUAL, comenzi), Smart Bio-Schedule (comutatoare master, Pre-Heat anticipativ, Geam deschis), Card Ancoră Circadiană activă (`🌙 Sleep`, `🌅 Wake`, `💼 Home Office`, `🏡 Home`), Selector rapid Preset-uri chips (`standard`, `eco`, `wfh`, `custom1`, `custom2`), Modal salvare preset NVS și Editor ancore L-V vs Weekend.
     * Col 2: Card Zone Termice Pardoseală (Dormitor, Copil, Baie mare cu steppere `+`/`-`, ținte bio, stare valve NC), Card Telemetrie Senzori Xiaomi BLE cu badge-uri dBm (`EXCELENT`, `BUN`, `MARGINAL`, `SLAB`), Card Diagnoză Sistem (Heap RAM, Uptime, Wi-Fi RSSI, Flash OTA liber) și linkuri de navigare rapidă către Telnet Console și Setup Passport.
 - **Smart Bio-Schedule, Fereastră Deschisă & Pre-Heat Anticipativ (Task 26 - Finalizat & Extins cu Presets):**
   - **4 Ancore Naturale de Viață Customizabile:** Modificate ancorele circadiene: `Sleep`, `Wake`, `Away`, `Home` pentru a fi complet customizabile atât la nivel de oră (`HH:MM`), cât și temperatură per zonă (`z1`, `z2`, `z3`).

@@ -8,10 +8,17 @@
 #define BOILER_MIN_RUN_TIME_MS   60000UL  // FR-17.3: Min 60s burn duration before turning OFF allowed
 #define BOILER_MIN_PAUSE_TIME_MS 60000UL  // FR-17.3: Min 60s rest duration before turning ON allowed
 
+enum PendingBoilerAction {
+    PENDING_NONE = 0,
+    PENDING_OFF  = 1,
+    PENDING_ON   = 2
+};
+
 class BoilerRadioTrigger {
 public:
     BoilerRadioTrigger();
     void begin(uint8_t dataPin = 5);
+    void update();
 
     // FR-17: Returns true if burst transmitted or idempotent no-op; false if rate-limited
     bool sendBoilerOn(bool force = false);
@@ -20,6 +27,12 @@ public:
     // Pre-validation without blocking CPU or calling noInterrupts() (FR-17.6)
     bool canTransmit(bool targetOn, uint32_t* remainingSec = nullptr, bool* isIdempotent = nullptr) const;
 
+    // Deferred execution / Pending command queueing
+    PendingBoilerAction getPendingAction() const { return _pendingAction; }
+    void setPendingAction(PendingBoilerAction action);
+    void cancelPendingAction() { _pendingAction = PENDING_NONE; }
+    const char* getPendingActionStr() const;
+
     bool isLastCommandOn() const { return _lastCommandOn; }
     bool hasTransmittedOnce() const { return _hasTransmittedOnce; }
     uint32_t getLastTransmissionTime() const { return _lastTxTime; }
@@ -27,6 +40,8 @@ public:
     void recordSpamAttempt();
     uint32_t getSpamAttemptCount() const { return _spamAttemptCount; }
 
+    void saveStateToPreferences();
+    void loadStateFromPreferences();
 
 private:
     uint8_t _dataPin;
@@ -34,6 +49,7 @@ private:
     bool _hasTransmittedOnce;
     uint32_t _lastTxTime;
     uint32_t _lastStateChangeTime;
+    PendingBoilerAction _pendingAction;
 
     // Spam & abuse tracking (FR-17.5)
     uint32_t _spamAttemptCount;

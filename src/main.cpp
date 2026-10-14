@@ -264,19 +264,15 @@ void handleIcon512() {
 void handleServiceWorker() {
   server.sendHeader("Access-Control-Allow-Origin", "*");
   server.sendHeader("Service-Worker-Allowed", "/");
-  server.sendHeader("Cache-Control", "no-cache");
+  server.sendHeader("Cache-Control", "no-cache, no-store, must-revalidate");
   static const char PROGMEM SW_JS[] =
-      "const CACHE = 'smart-heating-v1';\n"
-      "const PRECACHE = ['/', '/manifest.json', '/icon-192.png', '/icon-512.png'];\n"
-      "self.addEventListener('install', e => {\n"
+      "self.addEventListener('install', () => self.skipWaiting());\n"
+      "self.addEventListener('activate', e => {\n"
       "  e.waitUntil(\n"
-      "    caches.open(CACHE).then(c => c.addAll(PRECACHE)).then(() => self.skipWaiting())\n"
+      "    caches.keys().then(keys => Promise.all(keys.map(k => caches.delete(k))))\n"
+      "      .then(() => self.registration.unregister())\n"
+      "      .then(() => self.clients.claim())\n"
       "  );\n"
-      "});\n"
-      "self.addEventListener('activate', e => e.waitUntil(self.clients.claim()));\n"
-      "self.addEventListener('fetch', e => {\n"
-      "  if (e.request.url.includes('/api/') || e.request.method !== 'GET') return;\n"
-      "  e.respondWith(fetch(e.request).catch(() => caches.match(e.request)));\n"
       "});\n";
   server.send_P(200, "application/javascript", SW_JS);
 }
@@ -313,6 +309,13 @@ void handleApiOn() {
 
   server.sendHeader("Access-Control-Allow-Origin", "*");
 
+  // If a pending OFF was scheduled, user pressing ON cancels the scheduled shutdown
+  if (boilerRadio.getPendingAction() == PENDING_OFF) {
+    boilerRadio.cancelPendingAction();
+    server.send(200, "application/json", F("{\"status\":\"ok\",\"boiler\":\"ON\",\"pendingCancelled\":true,\"message\":\"Oprirea programata a fost anulata. Cazanul ramane ACTIV.\"}"));
+    return;
+  }
+
   // 1. Check idempotency (FR-17.1)
   if (!force && boilerRadio.hasTransmittedOnce() && boilerRadio.isLastCommandOn()) {
     server.send(200, "application/json", F("{\"status\":\"ok\",\"boiler\":\"ON\",\"idempotent\":true}"));
@@ -322,6 +325,14 @@ void handleApiOn() {
   // 2. Pre-validate against anti-short-cycling guard & RF cooldown (FR-17.2, FR-17.3, FR-17.4)
   if (!force && !boilerRadio.canTransmit(true, &waitSec, &isIdempotent)) {
     boilerRadio.recordSpamAttempt();
+    // Schedule deferred startup if not already running
+    if (!boilerRadio.isLastCommandOn()) {
+      boilerRadio.setPendingAction(PENDING_ON);
+      String resp = "{\"status\":\"pending\",\"error\":\"Anti-short-cycling guard active\",\"target\":\"ON\",\"waitSec\":" + String(waitSec) +
+                    ",\"pending\":true,\"boiler\":\"OFF\",\"message\":\"Pornire programata automat dupa expirarea pauzei minime (" + String(waitSec) + "s)\"}";
+      server.send(429, "application/json", resp);
+      return;
+    }
     String resp = "{\"status\":\"rate_limited\",\"error\":\"Anti-short-cycling guard active\",\"waitSec\":" +
                   String(waitSec) + ",\"boiler\":\"" + (boilerRadio.isLastCommandOn() ? "ON" : "OFF") + "\"}";
     server.send(429, "application/json", resp);
@@ -348,6 +359,13 @@ void handleApiOff() {
 
   server.sendHeader("Access-Control-Allow-Origin", "*");
 
+  // If a pending ON was scheduled, user pressing OFF cancels the scheduled startup
+  if (boilerRadio.getPendingAction() == PENDING_ON) {
+    boilerRadio.cancelPendingAction();
+    server.send(200, "application/json", F("{\"status\":\"ok\",\"boiler\":\"OFF\",\"pendingCancelled\":true,\"message\":\"Pornirea programata a fost anulata.\"}"));
+    return;
+  }
+
   // 1. Check idempotency (FR-17.1)
   if (!force && boilerRadio.hasTransmittedOnce() && !boilerRadio.isLastCommandOn()) {
     server.send(200, "application/json", F("{\"status\":\"ok\",\"boiler\":\"OFF\",\"idempotent\":true}"));
@@ -357,6 +375,14 @@ void handleApiOff() {
   // 2. Pre-validate against anti-short-cycling guard & RF cooldown (FR-17.2, FR-17.3, FR-17.4)
   if (!force && !boilerRadio.canTransmit(false, &waitSec, &isIdempotent)) {
     boilerRadio.recordSpamAttempt();
+    // Schedule deferred shutdown: remember command and automatically trigger OFF when cooldown ends!
+    if (boilerRadio.isLastCommandOn()) {
+      boilerRadio.setPendingAction(PENDING_OFF);
+      String resp = "{\"status\":\"pending\",\"error\":\"Anti-short-cycling guard active\",\"target\":\"OFF\",\"waitSec\":" + String(waitSec) +
+                    ",\"pending\":true,\"boiler\":\"ON\",\"message\":\"Oprire programata automat dupa expirarea timpului minim de ardere (" + String(waitSec) + "s)\"}";
+      server.send(429, "application/json", resp);
+      return;
+    }
     String resp = "{\"status\":\"rate_limited\",\"error\":\"Anti-short-cycling guard active\",\"waitSec\":" +
                   String(waitSec) + ",\"boiler\":\"" + (boilerRadio.isLastCommandOn() ? "ON" : "OFF") + "\"}";
     server.send(429, "application/json", resp);
@@ -386,6 +412,8 @@ void handleApiZones() {
   uint32_t boilerWaitSec = 0;
   boilerRadio.canTransmit(!boilerRadio.isLastCommandOn(), &boilerWaitSec);
   json += "\"boilerCooldownSec\":" + String(boilerWaitSec) + ",";
+  json += "\"pendingAction\":\"" + String(boilerRadio.getPendingActionStr()) + "\",";
+  json += "\"pendingWaitSec\":" + String(boilerWaitSec) + ",";
   json += "\"boilerDemand\":" +
           String(thermalZones.isBoilerDemanded() ? "true" : "false") + ",";
   json += "\"actuatorType\":\"" +
@@ -433,6 +461,28 @@ void handleApiZones() {
     json += "\"demand\":" + String(st.demand ? "true" : "false") + ",";
     json +=
         "\"relayEngaged\":" + String(st.relayEngaged ? "true" : "false") + ",";
+    uint32_t openSec = 0;
+    if (st.relayEngaged) {
+      if (st.stateChangedMs > 0 && millis() >= st.stateChangedMs) {
+        openSec = (millis() - st.stateChangedMs) / 1000;
+        if (openSec > 120) openSec = 120;
+      } else {
+        openSec = 120;
+      }
+    } else {
+      // Linear cooling contraction: 120s -> 0s
+      if (st.stateChangedMs > 0 && millis() >= st.stateChangedMs) {
+        uint32_t offElapsed = (millis() - st.stateChangedMs) / 1000;
+        if (offElapsed < 120) {
+          openSec = 120 - offElapsed;
+        } else {
+          openSec = 0;
+        }
+      } else {
+        openSec = 0;
+      }
+    }
+    json += "\"openSec\":" + String(openSec) + ",";
     json += "\"state\":\"" + String(thermalZones.getStateStr(st.state)) + "\"";
     json += "}";
   }
@@ -771,6 +821,11 @@ void handleApiStatus() {
   json += "\"resetReason\":\"" + String(getResetReasonStr(esp_reset_reason())) + "\",";
   json += "\"boiler\":\"" +
           String(boilerRadio.isLastCommandOn() ? "ON" : "OFF") + "\",";
+  uint32_t bWaitSec = 0;
+  boilerRadio.canTransmit(!boilerRadio.isLastCommandOn(), &bWaitSec);
+  json += "\"boilerCooldownSec\":" + String(bWaitSec) + ",";
+  json += "\"pendingAction\":\"" + String(boilerRadio.getPendingActionStr()) + "\",";
+  json += "\"pendingWaitSec\":" + String(bWaitSec) + ",";
   json += "\"lastTxMs\":" + String(boilerRadio.getLastTransmissionTime()) + ",";
   json += "\"freeHeap\":" + String(ESP.getFreeHeap()) + ",";
   json += "\"rssi\":" + String(WiFi.RSSI()) + ",";
@@ -939,6 +994,14 @@ void handleApiScheduleEnable() {
     en = (server.arg("enabled") == "true" || server.arg("enabled") == "1");
   }
   thermalZones.setScheduleEnabled(en);
+  if (server.hasArg("preheat")) {
+    bool pre = (server.arg("preheat") == "true" || server.arg("preheat") == "1");
+    thermalZones.setPreHeatEnabled(pre);
+  }
+  if (server.hasArg("window")) {
+    bool win = (server.arg("window") == "true" || server.arg("window") == "1");
+    thermalZones.setWindowDetectionEnabled(win);
+  }
   server.send(200, "application/json", thermalZones.getScheduleJson());
 }
 
@@ -960,6 +1023,24 @@ void handleApiScheduleAnchor() {
   if (server.hasArg("anchor")) {
     anchorId = ThermalZoneManager::parseAnchorId(server.arg("anchor").c_str());
   }
+
+  // Support JSON payload in POST body
+  bool hasJson = false;
+  JsonDocument doc;
+  if (server.hasArg("plain") && server.arg("plain").length() > 0) {
+    if (!deserializeJson(doc, server.arg("plain"))) {
+      hasJson = true;
+      if (doc["profile"].is<const char*>()) {
+        String p = doc["profile"].as<const char*>();
+        p.toLowerCase();
+        weekend = (p == "weekend" || p == "we" || p == "1");
+      }
+      if (doc["anchor"].is<const char*>()) {
+        anchorId = ThermalZoneManager::parseAnchorId(doc["anchor"].as<const char*>());
+      }
+    }
+  }
+
   if (anchorId >= BIO_ANCHORS_COUNT) {
     server.send(400, "application/json", F("{\"status\":\"error\",\"message\":\"Invalid anchor. Use sleep, wake, away, or home.\"}"));
     return;
@@ -970,12 +1051,23 @@ void handleApiScheduleAnchor() {
   uint8_t h = curProf[anchorId].hour;
   uint8_t m = curProf[anchorId].minute;
 
-  if (server.hasArg("time")) {
-    String t = server.arg("time");
-    int colon = t.indexOf(':');
+  String timeStr = "";
+  if (hasJson && doc["time"].is<const char*>()) {
+    timeStr = doc["time"].as<const char*>();
+  } else if (server.hasArg("time")) {
+    timeStr = server.arg("time");
+  }
+
+  if (timeStr.length() > 0) {
+    timeStr.trim();
+    int colon = timeStr.indexOf(':');
     if (colon > 0) {
-      h = (uint8_t)t.substring(0, colon).toInt();
-      m = (uint8_t)t.substring(colon + 1).toInt();
+      h = (uint8_t)timeStr.substring(0, colon).toInt();
+      m = (uint8_t)timeStr.substring(colon + 1).toInt();
+      String tUpper = timeStr;
+      tUpper.toUpperCase();
+      if (tUpper.indexOf("PM") != -1 && h < 12) h += 12;
+      else if (tUpper.indexOf("AM") != -1 && h == 12) h = 0;
     }
   } else {
     if (server.hasArg("hour")) h = (uint8_t)server.arg("hour").toInt();
@@ -985,6 +1077,18 @@ void handleApiScheduleAnchor() {
   float targets[MAX_THERMAL_ZONES];
   for (size_t i = 0; i < MAX_THERMAL_ZONES; i++) {
     targets[i] = curProf[anchorId].targets[i];
+  }
+
+  if (hasJson) {
+    if (doc["z1"].is<float>()) targets[0] = doc["z1"].as<float>();
+    if (doc["z2"].is<float>()) targets[1] = doc["z2"].as<float>();
+    if (doc["z3"].is<float>()) targets[2] = doc["z3"].as<float>();
+    if (doc["targets"].is<JsonArray>()) {
+      JsonArray arr = doc["targets"].as<JsonArray>();
+      for (size_t i = 0; i < MAX_THERMAL_ZONES && i < arr.size(); i++) {
+        targets[i] = arr[i].as<float>();
+      }
+    }
   }
 
   if (server.hasArg("z1")) targets[0] = server.arg("z1").toFloat();
@@ -1799,6 +1903,7 @@ void loop() {
   bleScanner.update();
   timeAndWeather.update();
   diagEngine.update();
+  boilerRadio.update();
   thermalZones.update(boilerRadio);
 
   // Non-blocking serial command reader

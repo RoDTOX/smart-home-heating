@@ -3,6 +3,59 @@
 ## Status
 All core functional subsystems (heating hysteresis engine, boiler RF trigger, native BLE passive scanner, 2-way console, web OTA, diagnostic engine with DTCs, service mode, digital passport, NTP & weather sync, headless API-first architecture, hydronic safety controls, anti-spam burner interlocks, Bio-Schedule with presets engine, and atomic PC system test suite with bidirectional traceability matrix) are fully implemented, compiled, uploaded, and verified live on ESP32 (`192.168.1.20`) with 100% ASPICE SWE.5 pass rate (63/63 PASS, 33/33 requirements covered, 0 uncovered).
 
+## Completed Work (2026-10-14 - Sarcina 30 Schemă Tesla Service Mode & Sarcina 31 Diagramă Stări FSM)
+- **Schemă Termodinamică & Hidraulică Interactivă (Sarcina 30):**
+  - Adăugată vedere completă vectorială SVG în stilul Tesla Supermanifold:
+    * Trasee animate pentru circuitul Tur (portocaliu cald) și Retur (albastru rece) cu flux de particule via `@keyframes teslaPipeFlow`.
+    * Card cazan cu flacără dinamică (verde radiant la ardere, standby gri) și contor cooldown rămas.
+    * Pompă GPA cu rotor animat rotativ (`.pump-spinning`), debit 1850 RPM și casetă de date pe fundal de contrast ridicat.
+    * Supermanifold cu debitmetre, actuatoare electrotermice NC comutate 230V vs 0V și casete de cameră cu telemetrie live ($T_{cameră} \mid T_{target}$).
+    * Casete telemetrie stil Tesla: $T_{tur}$ (48.5°C ardere / 24°C standby), $T_{retur}$ (38.0°C / 23.5°C), $\Delta T$ sorbție (10.5°C Optim / 0.5°C Echilibru) și stare pompă.
+    * Panou de comandă service cu 5 acțiuni tactile: Purjare/Test Pompă GPA, Test RF Cazan, Test Valvă Copil, Test Valvă Living, Curățare DTC Diagnoză.
+- **Diagramă Interactivă de Stări FSM & Fir Logic Live (Sarcina 31):**
+  - Adăugată vedere cu 9 noduri de stare decizionale: `IDLE / STANDBY`, `CERERE TERMICĂ`, `AȘTEPTARE ACTUATOR`, `MANUAL HOLD`, `ÎNCĂLZIRE ACTIVĂ`, `POST-CIRCULAȚIE POMPĂ`, `GARDĂ COOLDOWN`, `PROTECȚIE ÎNGHEȚ`, `GEAM DESCHIS`.
+  - Evidențiere dinamică a nodului activ (`.active`, bordură cyan electric, efect de glow) cu afișarea timerelor active în interiorul nodului (ex: `19s Lockout`) și indicator sintetic în colțul din dreapta.
+- **Suită Automată de Testare E2E pe Browser Nativ (Task 32 - `tools/browser_live_test.py`):**
+  - Rulat direct pe Google Chrome al utilizatorului via CDP WebSocket cu **100% succes (10/10 PASS)**:
+    * `TC-UI-11` (Geometrie): Coloane paralele side-by-side ($X_1=56\text{px}$, $X_2=595\text{px}$).
+    * `TC-UI-01`, `TC-UI-05`, `TC-UI-03`, `TC-UI-04`, `TC-UI-06`: Cele 3 moduri de control (simplu, preseturi, avansat) cu comutare ținte fără reload.
+    * `TC-UI-09`: Anti-spam toast discret de 3s la clicuri repetate pe OFF.
+    * `TC-UI-13`: Schemă Tesla vizibilă, circuite vectoriale și telemetrie tur/retur.
+    * `TC-UI-15`: Butoane acțiuni service Tesla funcționale cu toast feedback instantaneu.
+    * `TC-UI-14`: Diagramă FSM cu 9 noduri și evidențiere dinamică a nodului activ.
+  - Salvate capturi de ecran complete în directorul de artefacte (`e2e_01_beginner_mode.png` .. `e2e_07_fsm_live_diagram.png`).
+- **Validare Binar & ASPICE SWE.5:**
+  - Firmware compilat (1176.5 KB, 60.9% flash, 112.5 KB spațiu liber sub limita OTA de 1.25 MB) și încărcat via OTA în 7.9s (`v1.2.0 Build: Oct 14 2026 16:55:37`).
+  - Suita de 63 de teste SWE.5 (`tools/test_system.py`) continuă să ruleze cu **100.0% PASS**.
+
+## Completed Work (2026-10-14 - Task 32 Native Browser E2E Automation, Layout Repair & Complexity Tuning)
+- **Suită Automată de Testare E2E pe Browser Nativ (Task 32 - `tools/browser_live_test.py`):**
+  - Executată cu succes direct pe Google Chrome prin Chrome DevTools Protocol (CDP) cu 100% rată de succes (**7/7 PASS**):
+    * `TC-UI-11` (Geometrie): Coloana 1 ($X=56\text{px}, Y=199.6\text{px}$) și Coloana 2 ($X=595\text{px}, Y=199.6\text{px}$) sunt strict paralele, simetrice și aliniate side-by-side fără nicio cădere sub grid.
+    * `TC-UI-01` (Nivel Simplu): Ascundere completă orar și instrumente de inginerie, afișare notificare discretă și control direct temperatură.
+    * `TC-UI-05` (Nivel Preseturi): Ascundere butoane tehnice (`Reset fabrică`, `Salvare slot custom`) pentru un UX curat.
+    * `TC-UI-03` & `TC-UI-04` (Scenarii Preseturi): Toate cele 5 chip-uri de preseturi comută dinamic temperaturile fără reîncărcare de pagină (`Home Office`, `Vacanță / Eco`, `Standard / Confort`).
+    * `TC-UI-06` (Nivel Avansat): Deblocare completă editor tabelar ancore L-V / Weekend și acțiuni sloturi NVS.
+    * `TC-UI-09` (Anti-Spam Toast Feedback): Clicurile repetate pe `OFF` când centrala este deja oprită afișează un toast discret de 3 secunde (`ℹ️ Centrala este deja oprită (Standby)`) fără declanșare de pachete HTTP sau bannere alarmiste.
+  - Generat și salvat 5 artefacte vizuale de înaltă rezoluție în directorul brain (`e2e_01_beginner_mode.png` .. `e2e_05_anti_spam_toast.png`).
+- **Corecție Structură HTML & Balanță Grid (`web/index.html`):**
+  - Eliminat tagul duplicat `</div>` care rupea prematur containerul CSS Grid. Adăugat identificatori riguroși `#col-main-1` și `#col-main-2`.
+
+## Completed Work (2026-10-14 - Boiler Failsafe, Deferred Pending Actions & PWA Kiosk)
+- **Failsafe la Cold Boot (Power-Loss Safety Invariant):**
+  - La pornirea din priză (`begin()`), se transmite forțat `sendBoilerOff(true)` burst pe 433.92 MHz și se stochează starea `OFF` în NVS. Acest comportament garantează stingerea fizică a arzătorului după orice cădere de tensiune sau resetare la cald, eliminând orice discrepanță între receptorul radio fizic și ecranul de control.
+  - Adăugată persistență NVS cu protecție anti-uzură flash pe namespace-ul `"boiler"` și heartbeat periodic la 15 minute.
+- **Coadă Execuție Amânată (Pending Execution & Anti-Short-Cycling Cooldown):**
+  - În `handleApiOff` și `handleApiOn`, comenzile trimise în timpul perioadei de protecție a arzătorului (60s ardere minimă / 60s pauză minimă) sunt memorate în coada `PENDING_OFF` / `PENDING_ON` și returnează HTTP 429 cu `pending: true` și `waitSec`.
+  - În `loop()`, metoda `boilerRadio.update()` execută automat comanda amânată imediat ce expiră timpul de gardă. Apăsarea comenzii inverse anulează comanda programată (`pendingCancelled: true`).
+  - În interfața web: badge dedicat pulsatoriu (`.badge-pending`), banner informativ și numărătoare inversă la secundă (`⏳ Xs rămase`).
+- **Sincronizare Preseturi & UX Ancore Dinamice:**
+  - Sincronizate setpoint-urile fiecărei zone termice cu ancora orarului la aplicarea oricărui preset (`wfh`, `eco`, `default`).
+  - Cardurile de zone afișează `effectiveTarget` din orar, iar butoanele `+`/`-` modifică ținta ancorei curente din Bio-Schedule.
+  - Denumirile ancorelor se adaptează contextual la preset (`💼 HOME OFFICE (ZI)` la WFH, `🍃 VACANȚĂ / ECO (ZI)` la Eco).
+- **Verificare ASPICE SWE.5:**
+  - 100% PASS la toate cele 63 de teste atomice (33/33 cerințe acoperite) pe firmware flashuit live via OTA pe `192.168.1.20`.
+
 ## Completed Work (2026-10-13 - Task 26)
 - **Smart Bio-Schedule cu 4 Ancore Naturale de Viață:**
   - Înlocuită paradigma clasică a orarelor de 168 celule cu un model adaptiv bazat pe 4 stări organice de confort: `Sleep` (20.0–21.0°C), `Wake` (22.0–22.5°C), `Away` (19.5–20.0°C), `Home` (21.5–23.0°C).

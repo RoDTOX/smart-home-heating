@@ -119,6 +119,14 @@ void ThermalZoneManager::loadFromPreferences() {
         _configs[i].enabled = prefs.getBool((p + "en").c_str(), _configs[i].enabled);
     }
     prefs.end();
+
+    // Ensure Zone 3 is always Dormitor Matrimonial (never Baie mare)
+    if (strcmp(_configs[2].name, "Baie mare") == 0 || strlen(_configs[2].name) == 0) {
+        strncpy(_configs[2].name, "Dormitor Matrimonial", sizeof(_configs[2].name) - 1);
+        _configs[2].name[sizeof(_configs[2].name) - 1] = '\0';
+        saveToPreferences();
+    }
+
     Serial.println(F("[Thermal] Zone configs, pump settings, and actuator type loaded from NVS."));
 }
 
@@ -307,8 +315,22 @@ void ThermalZoneManager::setTargetTemperature(size_t index, float target) {
     if (index < MAX_THERMAL_ZONES) {
         if (target < 15.0f) target = 15.0f;
         if (target > 30.0f) target = 30.0f;
-        _configs[index].targetTemp = target;
-        saveToPreferences();
+        if (fabsf(_configs[index].targetTemp - target) > 0.05f) {
+            _configs[index].targetTemp = target;
+            saveToPreferences();
+        }
+
+        // If Bio-Schedule is active, also adjust the current active anchor's target
+        // so the user's manual bump takes immediate effect in the thermodynamic loop!
+        if (_scheduleConfig.enabled && timeAndWeather.isTimeSynced()) {
+            bool weekend = timeAndWeather.isWeekend();
+            BioAnchorId targetAnchor = _preHeatActive ? _nextAnchor : _activeAnchor;
+            setAnchorTarget(weekend, targetAnchor, index, target);
+            if (_preHeatActive && _activeAnchor != targetAnchor) {
+                setAnchorTarget(weekend, _activeAnchor, index, target);
+            }
+        }
+
         netConsole.printf("[Thermal] Zone %u (%s) new target temp: %.1f C\n",
             _configs[index].id, _configs[index].name, target);
     }
@@ -593,6 +615,16 @@ bool ThermalZoneManager::updateAnchor(bool weekend, BioAnchorId anchor, uint8_t 
     _activePresetId[sizeof(_activePresetId) - 1] = '\0';
     saveSchedulePreferences();
     evaluateSchedule(millis());
+
+    // Immediate sync: if active anchor is being edited, update active zone targets immediately
+    bool isCurrentAnchor = (anchor == _activeAnchor && weekend == timeAndWeather.isWeekend());
+    if (isCurrentAnchor && targets) {
+        for (size_t i = 0; i < MAX_THERMAL_ZONES; i++) {
+            _configs[i].targetTemp = profile[anchor].targets[i];
+        }
+        saveToPreferences();
+    }
+
     netConsole.printf("[Thermal] Updated anchor %s (%s): %02u:%02u [%.1f, %.1f, %.1f]\n",
                       getAnchorName(anchor), weekend ? "Weekend" : "Weekday",
                       hour, minute, profile[anchor].targets[0], profile[anchor].targets[1], profile[anchor].targets[2]);
@@ -690,6 +722,24 @@ bool ThermalZoneManager::applyPreset(const char* presetId) {
     _activePresetId[sizeof(_activePresetId) - 1] = '\0';
     saveSchedulePreferences();
     evaluateSchedule(millis());
+
+    // Synchronize individual zone targetTemps to match the new preset's active anchor targets
+    bool weekend = timeAndWeather.isTimeSynced() ? timeAndWeather.isWeekend() : false;
+    const BioAnchorConfig* prof = weekend ? _scheduleConfig.weekend : _scheduleConfig.weekday;
+    BioAnchorId anc = _activeAnchor;
+    if (anc >= BIO_ANCHORS_COUNT) anc = BIO_ANCHOR_HOME;
+    bool zChanged = false;
+    for (size_t i = 0; i < MAX_THERMAL_ZONES; i++) {
+        float newT = prof[anc].targets[i];
+        if (fabsf(_configs[i].targetTemp - newT) > 0.05f) {
+            _configs[i].targetTemp = newT;
+            zChanged = true;
+        }
+    }
+    if (zChanged) {
+        saveToPreferences();
+    }
+
     netConsole.printf("[Thermal] Applied Bio-Schedule preset: '%s'\n", presetId);
     return true;
 }
@@ -730,6 +780,23 @@ void ThermalZoneManager::resetScheduleToDefault() {
     _activePresetId[sizeof(_activePresetId) - 1] = '\0';
     saveSchedulePreferences();
     evaluateSchedule(millis());
+
+    bool weekend = timeAndWeather.isTimeSynced() ? timeAndWeather.isWeekend() : false;
+    const BioAnchorConfig* prof = weekend ? _scheduleConfig.weekend : _scheduleConfig.weekday;
+    BioAnchorId anc = _activeAnchor;
+    if (anc >= BIO_ANCHORS_COUNT) anc = BIO_ANCHOR_HOME;
+    bool zChanged = false;
+    for (size_t i = 0; i < MAX_THERMAL_ZONES; i++) {
+        float newT = prof[anc].targets[i];
+        if (fabsf(_configs[i].targetTemp - newT) > 0.05f) {
+            _configs[i].targetTemp = newT;
+            zChanged = true;
+        }
+    }
+    if (zChanged) {
+        saveToPreferences();
+    }
+
     netConsole.println(F("[Thermal] Bio-Schedule reset to factory DEFAULT preset."));
 }
 
@@ -744,6 +811,23 @@ void ThermalZoneManager::setScheduleEnabled(bool enabled) {
         _scheduleConfig.enabled = enabled;
         saveSchedulePreferences();
         evaluateSchedule(millis());
+        if (enabled && timeAndWeather.isTimeSynced()) {
+            bool weekend = timeAndWeather.isWeekend();
+            const BioAnchorConfig* prof = weekend ? _scheduleConfig.weekend : _scheduleConfig.weekday;
+            BioAnchorId anc = _activeAnchor;
+            if (anc >= BIO_ANCHORS_COUNT) anc = BIO_ANCHOR_HOME;
+            bool zChanged = false;
+            for (size_t i = 0; i < MAX_THERMAL_ZONES; i++) {
+                float newT = prof[anc].targets[i];
+                if (fabsf(_configs[i].targetTemp - newT) > 0.05f) {
+                    _configs[i].targetTemp = newT;
+                    zChanged = true;
+                }
+            }
+            if (zChanged) {
+                saveToPreferences();
+            }
+        }
         netConsole.printf("[Thermal] Smart Bio-Schedule %s\n", enabled ? "ENABLED" : "DISABLED");
     }
 }
@@ -1296,38 +1380,38 @@ void ThermalZoneManager::update(BoilerRadioTrigger& boiler) {
 
     // 3. Boiler Flame & Secondary Circulation Pump Control
     if (anyZoneReadyForBoiler) {
-        if (!_boilerDemand) {
-            // Anti-short-cycling check
-            if (now - _lastBoilerOffTime >= _minBoilerOffMs || _lastBoilerOffTime == 0) {
-                _boilerDemand = true;
-                _lastBoilerOnTime = now;
-                boiler.sendBoilerOn();
-                netConsole.println(F("[Thermal] BOILER START commanded via RF 433MHz!"));
+        _boilerDemand = true;
 
-                // Start circulation pump if enabled (Interlock satisfied: at least 1 actuator is open!)
-                if (_pumpControlEnabled && !_pumpActive) {
-                    applyRelay(PIN_RELAY_SPARE, true);
-                    _pumpActive = true;
-                    netConsole.println(F("[Thermal] Circulation Pump (Relay 4) STARTED."));
+        // If boiler is not running, command ignition as soon as safety timers permit
+        if (!boiler.isLastCommandOn()) {
+            if (boiler.canTransmit(true)) {
+                if (boiler.sendBoilerOn()) {
+                    _lastBoilerOnTime = now;
+                    netConsole.println(F("[Thermal] BOILER START commanded via RF 433MHz!"));
                 }
-            } else {
-                uint32_t waitSec = (_minBoilerOffMs - (now - _lastBoilerOffTime)) / 1000;
-                netConsole.printf("[Thermal] Anti-short-cycling active. Waiting %u s before ignition...\n", waitSec);
+            } else if (boiler.getPendingAction() != PENDING_ON) {
+                boiler.setPendingAction(PENDING_ON);
+                netConsole.println(F("[Thermal] BOILER START queued (Anti-short-cycling guard active)..."));
             }
-        } else {
-            // Boiler is running; ensure pump is running as well
-            if (_pumpControlEnabled && !_pumpActive) {
-                applyRelay(PIN_RELAY_SPARE, true);
-                _pumpActive = true;
-            }
+        }
+
+        // Start circulation pump if enabled (Interlock satisfied: at least 1 actuator is open!)
+        if (_pumpControlEnabled && !_pumpActive) {
+            applyRelay(PIN_RELAY_SPARE, true);
+            _pumpActive = true;
+            netConsole.println(F("[Thermal] Circulation Pump (Relay 4) STARTED."));
         }
     } else {
         // No zones ready for boiler
-        if (_boilerDemand) {
+        if (_boilerDemand || boiler.isLastCommandOn()) {
             _boilerDemand = false;
             _lastBoilerOffTime = now;
-            boiler.sendBoilerOff();
-            netConsole.println(F("[Thermal] BOILER STOP commanded via RF 433MHz!"));
+            if (boiler.isLastCommandOn()) {
+                boiler.sendBoilerOff();
+                netConsole.println(F("[Thermal] BOILER STOP commanded via RF 433MHz!"));
+            } else if (boiler.getPendingAction() == PENDING_ON) {
+                boiler.cancelPendingAction();
+            }
 
             // Schedule Pump Overrun (Post-circulation)
             if (_pumpControlEnabled && _pumpActive) {
