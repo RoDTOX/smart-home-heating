@@ -218,6 +218,7 @@ void handleManifest() {
       "  \"name\": \"Smart Heating Controller\",\n"
       "  \"short_name\": \"SmartHeating\",\n"
       "  \"description\": \"Autonomous Multi-Zone Heating & Boiler Controller\",\n"
+      "  \"id\": \"/\",\n"
       "  \"start_url\": \"/\",\n"
       "  \"scope\": \"/\",\n"
       "  \"display\": \"standalone\",\n"
@@ -227,20 +228,21 @@ void handleManifest() {
       "  \"icons\": [\n"
       "    {\n"
       "      \"src\": \"/icon-192.png\",\n"
-      "      \"sizes\": \"192x192 512x512\",\n"
+      "      \"sizes\": \"192x192\",\n"
       "      \"type\": \"image/png\",\n"
       "      \"purpose\": \"any\"\n"
       "    },\n"
       "    {\n"
-      "      \"src\": \"/icon-192.png\",\n"
-      "      \"sizes\": \"192x192 512x512\",\n"
+      "      \"src\": \"/icon-512.png\",\n"
+      "      \"sizes\": \"512x512\",\n"
       "      \"type\": \"image/png\",\n"
-      "      \"purpose\": \"maskable\"\n"
+      "      \"purpose\": \"any\"\n"
       "    },\n"
       "    {\n"
-      "      \"src\": \"/icon.svg\",\n"
-      "      \"sizes\": \"any\",\n"
-      "      \"type\": \"image/svg+xml\"\n"
+      "      \"src\": \"/icon-512.png\",\n"
+      "      \"sizes\": \"512x512\",\n"
+      "      \"type\": \"image/png\",\n"
+      "      \"purpose\": \"maskable\"\n"
       "    }\n"
       "  ]\n"
       "}";
@@ -254,7 +256,9 @@ void handleIcon192() {
 }
 
 void handleIcon512() {
-  handleIcon192();
+  server.sendHeader("Access-Control-Allow-Origin", "*");
+  server.sendHeader("Cache-Control", "public, max-age=604800");
+  server.send_P(200, "image/png", (const char*)ICON_512_PNG, ICON_512_PNG_LEN);
 }
 
 void handleServiceWorker() {
@@ -263,8 +267,13 @@ void handleServiceWorker() {
   server.sendHeader("Cache-Control", "no-cache");
   static const char PROGMEM SW_JS[] =
       "const CACHE = 'smart-heating-v1';\n"
-      "self.addEventListener('install', e => self.skipWaiting());\n"
-      "self.addEventListener('activate', e => self.clients.claim());\n"
+      "const PRECACHE = ['/', '/manifest.json', '/icon-192.png', '/icon-512.png'];\n"
+      "self.addEventListener('install', e => {\n"
+      "  e.waitUntil(\n"
+      "    caches.open(CACHE).then(c => c.addAll(PRECACHE)).then(() => self.skipWaiting())\n"
+      "  );\n"
+      "});\n"
+      "self.addEventListener('activate', e => e.waitUntil(self.clients.claim()));\n"
       "self.addEventListener('fetch', e => {\n"
       "  if (e.request.url.includes('/api/') || e.request.method !== 'GET') return;\n"
       "  e.respondWith(fetch(e.request).catch(() => caches.match(e.request)));\n"
