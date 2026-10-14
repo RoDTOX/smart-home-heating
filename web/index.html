@@ -103,7 +103,7 @@
       box-shadow: 0 4px 12px rgba(56, 189, 248, 0.3);
     }
     .brand h1 { font-size: 1.25rem; font-weight: 800; color: #fff; letter-spacing: -0.3px; }
-    .brand .subtitle { font-size: 0.72rem; color: var(--text-muted); }
+    .brand .subtitle { font-size: 0.72rem; color: #cbd5e1; }
 
     .header-pills {
       display: flex;
@@ -133,9 +133,10 @@
       background: linear-gradient(135deg, #0369a1, #075985);
       color: #fff;
       border: 1px solid rgba(56, 189, 248, 0.4);
-      padding: 6px 13px;
-      border-radius: 20px;
-      font-size: 0.75rem;
+      padding: 10px 16px;
+      min-height: 44px;
+      border-radius: 22px;
+      font-size: 0.78rem;
       font-weight: 700;
       cursor: pointer;
       box-shadow: 0 4px 12px rgba(3, 105, 161, 0.4);
@@ -202,11 +203,12 @@
     }
     .mode-btn {
       flex: 1;
-      padding: 9px 8px;
+      padding: 10px 16px;
+      min-height: 44px;
       border: none;
       border-radius: 8px;
       font-weight: 700;
-      font-size: 0.8rem;
+      font-size: 0.82rem;
       cursor: pointer;
       background: transparent;
       color: var(--text-muted);
@@ -705,11 +707,12 @@
     }
     .lvl-btn {
       flex: 1;
-      padding: 8px 10px;
+      padding: 10px 12px;
+      min-height: 42px;
       background: transparent;
       border: 1px solid transparent;
       border-radius: 8px;
-      color: #94a3b8;
+      color: #cbd5e1;
       font-size: 0.78rem;
       font-weight: 700;
       cursor: pointer;
@@ -726,10 +729,11 @@
       flex-wrap: wrap;
     }
     .view-tab-btn {
-      padding: 6px 12px;
+      padding: 8px 14px;
+      min-height: 42px;
       border: 1px solid var(--surface-border);
       background: transparent;
-      color: var(--text-muted);
+      color: #cbd5e1;
       border-radius: 8px;
       font-size: 0.76rem;
       font-weight: 700;
@@ -802,7 +806,8 @@
       background: #0f172a;
       border: 1px solid #334155;
       color: #cbd5e1;
-      padding: 9px 12px;
+      padding: 10px 14px;
+      min-height: 44px;
       border-radius: 8px;
       font-size: 0.75rem;
       font-weight: 700;
@@ -823,21 +828,37 @@
     /* FSM State Machine Styles */
     .fsm-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
-      gap: 12px;
-      margin-top: 12px;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 1.5rem;
+      margin-top: 14px;
+    }
+    @media (max-width: 768px) {
+      .fsm-grid {
+        grid-template-columns: 1fr;
+        gap: 1.25rem;
+      }
     }
     .fsm-node {
       background: #0a0f1d;
       border: 1px solid #1e293b;
       border-radius: 12px;
-      padding: 12px 14px;
-      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      padding: 14px 16px;
+      min-height: 120px;
       position: relative;
-      opacity: 0.45;
+      z-index: 1;
+      overflow: hidden;
+      transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+      opacity: 0.65;
+    }
+    .fsm-node:hover {
+      z-index: 10;
+      opacity: 0.95;
+      box-shadow: 0 0 15px rgba(0, 0, 0, 0.6);
+      border-color: #38bdf8;
     }
     .fsm-node.active {
       opacity: 1;
+      z-index: 10;
       border: 2px solid #38bdf8;
       background: rgba(56, 189, 248, 0.08);
       box-shadow: 0 0 20px rgba(56, 189, 248, 0.35);
@@ -852,24 +873,25 @@
     .fsm-node-title {
       font-size: 0.82rem;
       font-weight: 800;
-      color: #e2e8f0;
+      color: #f1f5f9;
       display: flex;
       align-items: center;
       gap: 6px;
     }
     .fsm-node.active .fsm-node-title { color: #38bdf8; }
     .fsm-node-desc {
-      font-size: 0.72rem;
-      color: #94a3b8;
-      line-height: 1.4;
+      font-size: 0.74rem;
+      color: #cbd5e1;
+      line-height: 1.45;
     }
     .fsm-badge {
       font-size: 0.65rem;
       font-weight: 800;
-      padding: 2px 6px;
+      padding: 2px 7px;
       border-radius: 6px;
       background: #1e293b;
-      color: #94a3b8;
+      color: #cbd5e1;
+      border: 1px solid #334155;
     }
     /* Schedule Matrix Modal (4 Anchors x 3 Zones) */
     .matrix-modal-box {
@@ -1043,6 +1065,7 @@
         </div>
 
         <div class="header-pills">
+          <div class="badge-pill" id="pill-net" title="Sincronizare Rețea ESP32" style="font-size:0.72rem;color:#34d399;border-color:rgba(16,185,129,0.3);background:rgba(16,185,129,0.1);">🟢 Live</div>
           <div class="badge-pill weather" id="pill-weather">&#9925; --.-&deg;C</div>
           <div class="badge-pill time" id="pill-time">&#9200; --:--:--</div>
           <button class="btn-install" id="btn-pwa-install" onclick="installPwa()">&#128242; Instalează App</button>
@@ -1549,54 +1572,54 @@
           <text x="310" y="82" fill="#38bdf8" font-size="8" font-weight="700" text-anchor="middle">[anyDemand]</text>
 
           <!-- S2 -> S3 (cooldown > 0) -->
-          <path d="M 430 70 L 430 52 L 495 52" stroke="#475569" stroke-width="1.8" marker-end="url(#fsm-arrow-muted)"/>
-          <text x="460" y="46" fill="#fcd34d" font-size="7.5" font-weight="700">[waitGuard > 0]</text>
+          <path d="M 430 65 L 430 42 L 495 42" stroke="#475569" stroke-width="1.8" marker-end="url(#fsm-arrow-muted)"/>
+          <text x="460" y="36" fill="#fcd34d" font-size="7.5" font-weight="700">[waitGuard > 0]</text>
 
           <!-- S2 -> S4 (cooldown == 0) -->
-          <path id="fsm-p-wax-heat" d="M 460 90 L 525 90" stroke="#38bdf8" stroke-width="2" marker-end="url(#fsm-arrow)"/>
-          <text x="492" y="82" fill="#34d399" font-size="7.5" font-weight="700">[waxReady]</text>
+          <path id="fsm-p-wax-heat" d="M 460 95 L 525 95" stroke="#38bdf8" stroke-width="2" marker-end="url(#fsm-arrow)"/>
+          <text x="492" y="87" fill="#34d399" font-size="7.5" font-weight="700">[waxReady]</text>
 
           <!-- S3 -> S4 -->
-          <path d="M 610 52 L 640 52 L 640 70" stroke="#475569" stroke-width="1.8" marker-end="url(#fsm-arrow-muted)"/>
+          <path d="M 610 42 L 640 42 L 640 76" stroke="#475569" stroke-width="1.8" marker-end="url(#fsm-arrow-muted)"/>
 
           <!-- S4 -> S5 (allDemand == false) -->
-          <path id="fsm-p-heat-overrun" d="M 740 90 L 785 90" stroke="#38bdf8" stroke-width="2" marker-end="url(#fsm-arrow)"/>
-          <text x="762" y="82" fill="#fcd34d" font-size="7.5" font-weight="700">[tempOK]</text>
+          <path id="fsm-p-heat-overrun" d="M 740 95 L 785 95" stroke="#38bdf8" stroke-width="2" marker-end="url(#fsm-arrow)"/>
+          <text x="762" y="87" fill="#fcd34d" font-size="7.5" font-weight="700">[tempOK]</text>
 
           <!-- S5 -> S6 -> S1 (Loop Back) -->
           <path d="M 845 125 L 845 195 L 430 195" stroke="#475569" stroke-width="2" marker-end="url(#fsm-arrow-muted)"/>
-          <text x="640" y="190" fill="#94a3b8" font-size="8" font-weight="700" text-anchor="middle">[180s Overrun Expirat &bull; Flacără OFF]</text>
+          <text x="640" y="190" fill="#cbd5e1" font-size="8" font-weight="700" text-anchor="middle">[180s Overrun Expirat &bull; Flacără OFF]</text>
           
           <path d="M 330 195 L 225 195 L 225 125" stroke="#475569" stroke-width="2" marker-end="url(#fsm-arrow-muted)"/>
-          <text x="270" y="190" fill="#94a3b8" font-size="8" font-weight="700" text-anchor="middle">[60s Cooldown Gata]</text>
+          <text x="270" y="190" fill="#cbd5e1" font-size="8" font-weight="700" text-anchor="middle">[60s Cooldown Gata]</text>
 
           <!-- State S0: BOOT_WARMUP -->
           <rect x="35" y="70" width="90" height="42" rx="8" fill="#0f172a" stroke="#334155" stroke-width="1.5"/>
           <text x="80" y="88" fill="#e2e8f0" font-size="9" font-weight="800" text-anchor="middle">S0: BOOT</text>
-          <text x="80" y="102" fill="#94a3b8" font-size="7.5" text-anchor="middle">Warmup BLE</text>
+          <text x="80" y="102" fill="#cbd5e1" font-size="7.5" text-anchor="middle">Warmup BLE</text>
 
           <!-- State S1: SYS_IDLE -->
           <rect id="svg-node-idle" x="165" y="65" width="120" height="52" rx="8" fill="#0f172a" stroke="#38bdf8" stroke-width="2"/>
           <text x="225" y="86" fill="#f8fafc" font-size="9.5" font-weight="800" text-anchor="middle">S1: SYS_IDLE</text>
-          <text x="225" y="102" fill="#94a3b8" font-size="7.5" text-anchor="middle">Standby (0V &bull; OFF)</text>
+          <text x="225" y="102" fill="#cbd5e1" font-size="7.5" text-anchor="middle">Standby (0V &bull; OFF)</text>
 
           <!-- State S2: ACTUATOR_INTERLOCK -->
           <rect id="svg-node-wax" x="335" y="65" width="125" height="52" rx="8" fill="#0f172a" stroke="#475569" stroke-width="1.5"/>
           <text x="397" y="86" fill="#fcd34d" font-size="9.5" font-weight="800" text-anchor="middle">S2: INTERLOCK</text>
-          <text x="397" y="102" fill="#94a3b8" font-size="7.5" text-anchor="middle">0..120s Ceară Valvă</text>
+          <text x="397" y="102" fill="#cbd5e1" font-size="7.5" text-anchor="middle">0..120s Ceară Valvă</text>
 
           <!-- State S3: PENDING_COOLDOWN -->
-          <rect x="495" y="32" width="115" height="38" rx="7" fill="#0f172a" stroke="#d97706" stroke-width="1.2"/>
-          <text x="552" y="48" fill="#fcd34d" font-size="8.5" font-weight="800" text-anchor="middle">S3: PENDING</text>
-          <text x="552" y="61" fill="#94a3b8" font-size="7" text-anchor="middle">Așteaptă Gardă 60s</text>
+          <rect x="495" y="24" width="115" height="36" rx="7" fill="#0f172a" stroke="#d97706" stroke-width="1.2"/>
+          <text x="552" y="40" fill="#fcd34d" font-size="8.5" font-weight="800" text-anchor="middle">S3: PENDING</text>
+          <text x="552" y="53" fill="#cbd5e1" font-size="7.5" text-anchor="middle">Așteaptă Gardă 60s</text>
 
           <!-- State S4: HEATING_ACTIVE (With Substates) -->
-          <rect id="svg-node-heat" x="525" y="60" width="215" height="92" rx="10" fill="#0b1b2b" stroke="#10b981" stroke-width="2"/>
-          <text x="632" y="80" fill="#34d399" font-size="10" font-weight="800" text-anchor="middle">S4: HEATING_ACTIVE (Arzător ON)</text>
-          <line x1="535" y1="88" x2="730" y2="88" stroke="#10b981" stroke-width="0.8" stroke-dasharray="3,2"/>
-          <text x="545" y="102" fill="#6ee7b7" font-size="7.5">&bull; SUB 4.1: Min Burn Guard (60s)</text>
-          <text x="545" y="117" fill="#6ee7b7" font-size="7.5">&bull; SUB 4.2: Steady Burn (&plusmn;0.3&deg;C)</text>
-          <text x="545" y="132" fill="#6ee7b7" font-size="7.5">&bull; SUB 4.3: Pre-Heat Advance (k_weather)</text>
+          <rect id="svg-node-heat" x="525" y="76" width="215" height="88" rx="10" fill="#0b1b2b" stroke="#10b981" stroke-width="2"/>
+          <text x="632" y="95" fill="#34d399" font-size="10" font-weight="800" text-anchor="middle">S4: HEATING_ACTIVE (Arzător ON)</text>
+          <line x1="535" y1="103" x2="730" y2="103" stroke="#10b981" stroke-width="0.8" stroke-dasharray="3,2"/>
+          <text x="545" y="117" fill="#6ee7b7" font-size="7.5">&bull; SUB 4.1: Min Burn Guard (60s)</text>
+          <text x="545" y="132" fill="#6ee7b7" font-size="7.5">&bull; SUB 4.2: Steady Burn (&plusmn;0.3&deg;C)</text>
+          <text x="545" y="147" fill="#6ee7b7" font-size="7.5">&bull; SUB 4.3: Pre-Heat Advance (k_weather)</text>
 
           <!-- State S5: PUMP_OVERRUN -->
           <rect id="svg-node-overrun" x="785" y="65" width="125" height="52" rx="8" fill="#0f172a" stroke="#475569" stroke-width="1.5"/>
@@ -2344,12 +2367,14 @@
         if (cardTesla) cardTesla.style.display = 'block';
         if (cardFsm) cardFsm.style.display = 'none';
         if (hint) hint.innerText = 'Schemă hidraulică interactivă & telemetrie stil Tesla HVAC';
+        if (lastZData) updateTeslaSchema(lastSData, lastZData);
       } else if (mode === 'fsm') {
         if (col1) col1.style.display = 'none';
         if (col2) col2.style.display = 'none';
         if (cardTesla) cardTesla.style.display = 'none';
         if (cardFsm) cardFsm.style.display = 'block';
         if (hint) hint.innerText = 'Diagramă live de stări finite & fir logic decizional';
+        if (lastZData) updateFsmDiagram(lastSData, lastZData);
       }
     }
 
@@ -2693,12 +2718,43 @@
         });
     }
 
-    // Main Polling Refresh (Sequential + AbortController to prevent ESP32 TCP socket starvation)
+    // Live Network Status Indicator & Adaptive Polling
+    function updateNetIndicator(ok, latencyMs) {
+      const pill = document.getElementById('pill-net');
+      if (!pill) return;
+      if (!ok) {
+        pill.innerHTML = '🔴 Reconnect...';
+        pill.style.color = '#fb7185';
+        pill.style.borderColor = 'rgba(244, 63, 94, 0.4)';
+        pill.style.background = 'rgba(244, 63, 94, 0.12)';
+      } else if (latencyMs > 1200) {
+        pill.innerHTML = `🟡 ${(latencyMs / 1000).toFixed(1)}s`;
+        pill.style.color = '#fcd34d';
+        pill.style.borderColor = 'rgba(245, 158, 11, 0.4)';
+        pill.style.background = 'rgba(245, 158, 11, 0.12)';
+      } else {
+        pill.innerHTML = '🟢 Live';
+        pill.style.color = '#34d399';
+        pill.style.borderColor = 'rgba(16, 185, 129, 0.3)';
+        pill.style.background = 'rgba(16, 185, 129, 0.1)';
+      }
+    }
+
+    let pollTimer = null;
+    function scheduleNextPoll(delayMs) {
+      if (pollTimer) clearTimeout(pollTimer);
+      pollTimer = setTimeout(refresh, delayMs || 3500);
+    }
+
+    // Main Polling Refresh (Sequential + AbortController + Adaptive Backoff)
     let isRefreshing = false;
     async function refresh() {
       if (isRefreshing) return;
       isRefreshing = true;
       let timeoutId = null;
+      const t0 = performance.now();
+      let success = false;
+      let latencyMs = 0;
       try {
         const controller = new AbortController();
         timeoutId = setTimeout(() => controller.abort(), 4000);
@@ -2789,16 +2845,25 @@
         }
 
         if (lastZData) {
-          updateTeslaSchema(lastSData, lastZData);
-          updateFsmDiagram(lastSData, lastZData);
+          if (currentViewMode === 'tesla') {
+            updateTeslaSchema(lastSData, lastZData);
+          } else if (currentViewMode === 'fsm') {
+            updateFsmDiagram(lastSData, lastZData);
+          }
           updateNextAnchorCountdown();
         }
 
+        success = true;
+        latencyMs = Math.round(performance.now() - t0);
+        updateNetIndicator(true, latencyMs);
+
       } catch (e) {
-        // Silently handle fetch abort or network timeout
+        updateNetIndicator(false, 0);
       } finally {
         if (timeoutId) clearTimeout(timeoutId);
         isRefreshing = false;
+        const nextDelay = success ? (latencyMs > 1200 ? 5000 : 3500) : 6000;
+        scheduleNextPoll(nextDelay);
       }
     }
 
@@ -2864,8 +2929,11 @@
 
       if (lastZData) {
         lastZData.boilerCooldownSec = boilerCooldownRemaining;
-        updateTeslaSchema(lastSData, lastZData);
-        updateFsmDiagram(lastSData, lastZData);
+        if (currentViewMode === 'tesla') {
+          updateTeslaSchema(lastSData, lastZData);
+        } else if (currentViewMode === 'fsm') {
+          updateFsmDiagram(lastSData, lastZData);
+        }
       }
       updateNextAnchorCountdown();
     }, 1000);
@@ -3172,10 +3240,11 @@
       c.innerHTML = html;
     }
 
-    switchViewMode(currentViewMode);
-    setUiLevel(currentUiLevel, true);
-    loadScheduleAndPresets().finally(() => refresh());
-    setInterval(refresh, 3500);
+    requestAnimationFrame(() => {
+      switchViewMode(currentViewMode);
+      setUiLevel(currentUiLevel, true);
+      loadScheduleAndPresets().finally(() => refresh());
+    });
   </script>
 </body>
 </html>

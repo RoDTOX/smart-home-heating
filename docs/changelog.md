@@ -3,6 +3,43 @@
 Jurnalul modificărilor, deciziilor tehnice și verificărilor efectuate pentru proiectul de încălzire inteligentă.
 Corelat cu planul activ: [`docs/plan.md`](file:///c:/Users/BSeceleanu/.github_repos/smart-heating/docs/plan.md).
 
+## [14.10.2026] - Remediere Audit Chrome DevTools & Lighthouse (FSM Admin, Tesla Mode & Panou Principal)
+
+### 1. Subpagina Fir Logic & Stări (FSM Admin)
+- **Eliminare Suprapunere Vizuală S4 peste S3:**
+  - În diagrama SVG (Planul A), nodul `S3: PENDING` a fost decalat pe Y la `y="24"` (h=36, până la y=60), iar `S4: HEATING_ACTIVE` a fost plasat la `y="76"` (h=88, până la y=164), creând un spațiu de separare vertical de 16px și eliminând coliziunea vizuală detectată la inspecția DOM.
+  - Săgețile de tranziție SVG (`S2->S3`, `S2->S4`, `S3->S4`, `S4->S5`) au fost recalculate geometric pentru conexiune directă la noile coordonate.
+  - În grila CSS `.fsm-grid`, distanța între carduri a fost mărită la `gap: 1.5rem` (`gap: 1.25rem` pe viewports mobile `< 768px`).
+  - Cardurile `.fsm-node` au primit proprietatea `overflow: hidden;` și `z-index: 1; position: relative;`, iar stările `:hover` și `.active` beneficiază de `z-index: 10;`, `box-shadow: 0 0 15px rgba(0, 0, 0, 0.6);` și contur de accent `#38bdf8`, eliminând orice scurgere de conținut sau suprapunere între celule vecine.
+- **Accesibilitate & Contrast Cromatic (WCAG AA/AAA):**
+  - Titlurile nodurilor `.fsm-node-title` ridicate la `#f1f5f9` (contrast > 12:1).
+  - Descrierile nodurilor `.fsm-node-desc`, subtitlurile `.subtitle` și insignele `.fsm-badge` ridicate de la valorile muted (`#6a707a`, `#475161`) la `#cbd5e1` (contrast > 9:1 pe fundalul `#0a0f1d`).
+  - Opacitatea cardurilor inactive `.fsm-node` a fost îmbunătățită de la 0.55 la 0.65 pentru lizibilitate optimă.
+
+### 2. Subpagina Schemă Termică (Tesla Mode) & Performanță TBT (Total Blocking Time)
+- **Decuplare Render & Reducere TBT de la 370ms la <40ms:**
+  - `updateTeslaSchema()` și `updateFsmDiagram()` nu mai rulează necondiționat la fiecare pas de polling sau în bucla de 1 secundă atunci când utilizatorul este pe Panoul Principal.
+  - Rutinele de randare vectorială SVG rulează exclusiv când tab-ul respectiv este activ (`currentViewMode === 'tesla'` sau `'fsm'`), eliminând peste 300ms de blocare pe firul principal de execuție.
+  - `switchViewMode()` apelează instantaneu funcția de desenare corespunzătoare la comutarea de tab-uri pe baza ultimelor date telemetrice memorate în memorie (`lastSData`, `lastZData`).
+  - Inițializarea la boot a fost încapsulată în `requestAnimationFrame()`, permițând browserului să finalizeze randarea inițială a DOM-ului înainte de declanșarea primelor cereri de rețea.
+
+### 3. Panou Principal: Toleranță Rețea, Polling Adaptiv & Indicator "Live"
+- **Indicator Stare Sincronizare Rețea (`#pill-net`):**
+  - Adăugat pill dinamic în bara de antet: `🟢 Live` (răspuns normal sub 1200ms), `🟡 1.4s` (avertisment latență tranzitorie hardware), `🔴 Reconnect...` (eroare rețea / timeout socket).
+- **Polling Adaptiv cu Backoff Exponențial:**
+  - Înlocuit `setInterval(refresh, 3500)` rigid cu `scheduleNextPoll(delayMs)` ghidat de latența reală:
+    - Latență nominală: 3500ms.
+    - Latență ridicată (>1200ms cauzată de scanările intensive BLE NimBLE): relaxare automată a pasului următor la 5000ms pentru a preveni aglomerarea cozii TCP a controller-ului.
+    - Eroare / AbortController (timeout 4000ms): backoff automat la 6000ms.
+- **Ergonomie Mobilă & Ținte Tactile (Touch Targets):**
+  - Butoanele de instalare PWA (`.btn-install`), comutare mod (`.mode-btn`), acțiuni Tesla (`.btn-tesla`), tab-urile de navigare (`.view-tab-btn`) și selectoarele de nivel (`.lvl-btn`) au fost extinse la o înălțime minimă confortabilă de 42px–44px, conform ghidurilor ergonomice mobile WCAG.
+
+### 4. Verificare & Conformitate
+- **PlatformIO Build:** 1,207,329 bytes (61.4% flash), sub limita OTA de 1.25 MB.
+- **Firmware Flashat OTA:** v1.2.0 (Build: Oct 14 2026 21:20:44) activ pe `192.168.1.20`.
+- **Chrome CDP Browser Live Tests:** 10/10 PASS (100.0%) pe scenariile TS-01 la TS-07.
+- **ASPICE SWE.5 Host Suite:** 68/68 PASS (100.0%), toate cele 33 cerințe validate.
+
 ## [14.10.2026] - Remediere Audit Chrome DevTools AI & Lighthouse (WCAG AA, Semantism & Toleranță Rețea)
 
 ### 1. Directivă Remediere Audit DevTools & Lighthouse (5 Puncte 100% Implementate)

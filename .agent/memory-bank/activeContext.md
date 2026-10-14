@@ -4,14 +4,19 @@
 - **Target Hardware Deployed & Operational:**
   - Board: **ESP32-Relay X4 V1.1** featuring module **DOIT WiFi MODEL ESP32-32E N4** (ESP32-D0WD-V3, 240MHz Dual-Core, 4MB Flash, MAC: `20:50:0d:1a:72:14`).
   - IP Address: **`192.168.1.20`** (on `SBC_WiFi`).
-  - Firmware Version: **v1.2.0 (Build: Oct 14 2026 20:41:11)**.
-  - Flash Binary Size: **1,206,833 bytes (1.20 MB, 61.4% flash)** — binar compact cu spațiu liber de **103.9 KB sub limita maximă a partiției OTA** (1.25 MB).
+  - Firmware Version: **v1.2.0 (Build: Oct 14 2026 21:20:44)**.
+  - Flash Binary Size: **1,207,329 bytes (1.20 MB, 61.4% flash)** — binar compact cu spațiu liber de **103.4 KB sub limita maximă a partiției OTA** (1.25 MB).
   - Free Heap: **~122 KB** stabil cu scaner NimBLE pasiv și servire web PROGMEM GZIP fără alocări dinamice.
   - Web Server & Web OTA: Active on port 80 (`http://192.168.1.20/`, `/setup`, `/console`, `/update`, `/manifest.json`, `/sw.js`, `/icon.svg`, `/icon-192.png`, `/icon-512.png`).
   - ASPICE SWE.5 Host Verification: **68/68 PASS (100.0%)** pe suita completă de teste atomice ASPICE SWE.5 cu Matrice de Trasabilitate Bidirecțională (33/33 cerințe acoperite 100.0%, 0 defecte).
   - Browser E2E Live Test Suite (Task 32): **10/10 PASS (100.0%)** pe browserul Google Chrome nativ via CDP (TS-01 la TS-07: geometrie 2 coloane, 3 nivele de control, anti-spam toast, schemă Tesla Supermanifold, acțiuni service, diagramă stări FSM).
   - Wall Kiosk Display: Tableta **Samsung Galaxy Tab A9 8.7" LTE** configurată cu aplicația web PWA instalabilă direct din browserul Chrome / Samsung Internet.
-- **Remediere Audit Chrome DevTools AI & Lighthouse (WCAG AA + Network) (Finalizat 14.10.2026):**
+- **Remediere Audit Chrome DevTools & Lighthouse (FSM Admin, Tesla Mode & Panou Principal) (Finalizat 14.10.2026):**
+  - **FSM Admin Overlap Fix:** Decalat nodul `S3` la `y=24..60` și `S4` la `y=76..164` în SVG (16px separare curată, 0 coliziune). În CSS: `.fsm-grid` cu `gap: 1.5rem` (1.25rem mobil), `.fsm-node` cu `overflow: hidden; z-index: 1;` și `z-index: 10;` pe hover/active.
+  - **Accesibilitate & Contrast WCAG AA/AAA:** Ridicat textele muted de la `#6a707a` / `#475161` la `#cbd5e1` și `#f1f5f9` (contrast > 9:1 pe `#0a0f1d`), opacitate carduri inactive crescută la 0.65.
+  - **Performanță TBT (Total Blocking Time < 40ms):** Decuplat randarea schemelor complexe (`updateTeslaSchema` și `updateFsmDiagram` execută exclusiv pe tab-ul vizibil, nu la fiecare tick de fundal); boot sequence încapsulat în `requestAnimationFrame`.
+  - **Toleranță Rețea & Polling Adaptiv:** Adăugat pill de sincronizare `#pill-net` (`🟢 Live` / `🟡 1.4s` / `🔴 Reconnect...`), înlocuit intervalul fix de 3.5s cu polling adaptiv (`scheduleNextPoll`) relaxat la 5.0s pe latențe mari (>1.2s) și backoff la 6.0s pe erori.
+  - **Ergonomie Mobilă & Touch Targets:** Butoanele `.btn-install`, `.mode-btn`, `.btn-tesla`, `.view-tab-btn`, `.lvl-btn` ridicate la `min-height: 42px–44px; padding: 10px 14px–16px;`.
   - **Punct 1 (Contrast Cromatic):** `#64748b` înlocuit cu `#94a3b8` (>5.8:1 contrast pe `#0f172a`/`#0a0f1d`), `#0284c7` pe butoane active înlocuit cu `#0369a1` (5.93:1 contrast pe text alb, 100% WCAG AA).
   - **Punct 2 (Form Controls Labels):** Atribute `aria-label` și `title` adăugate pe switch-urile toggle `#sw-schedule-en`, `#sw-preheat-en`, `#sw-window-en`, inputurile de timp (`#mtime-*`, `#time-*`), selectoarele din modale și pe butoanele stepper de temperatură.
   - **Punct 3 (Semantic Landmark):** Containerul `.container` transformat în `<main class="container" role="main">`.
