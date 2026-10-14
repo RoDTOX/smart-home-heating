@@ -3,6 +3,81 @@
 Jurnalul modificărilor, deciziilor tehnice și verificărilor efectuate pentru proiectul de încălzire inteligentă.
 Corelat cu planul activ: [`docs/plan.md`](file:///c:/Users/BSeceleanu/.github_repos/smart-heating/docs/plan.md).
 
+## [13.10.2026] - Arhitectură Web GZIP Build-Time, Optimizare Flash (-176 KB) & Latență Consolă <50ms
+
+### Optimizare Memorie Flash & Arhitectură Web (Modelul Smart Aquarium)
+- **Decuplare Interfețe Web în Fisiere Dedicate (`web/`):**
+  - Extrase paginile web din string-urile C++ în fișiere curate HTML/CSS/JS: [`web/index.html`](file:///c:/Users/BSeceleanu/.github_repos/smart-heating/web/index.html) (Dashboard interactiv), [`web/setup.html`](file:///c:/Users/BSeceleanu/.github_repos/smart-heating/web/setup.html) (Setup Wizard & Passport) și [`web/console.html`](file:///c:/Users/BSeceleanu/.github_repos/smart-heating/web/console.html) (Live Web Terminal).
+- **Pre-Build Script Automat (`tools/build_web.py`):**
+  - Integrat în `platformio.ini` (`extra_scripts = pre:tools/build_web.py`). Comprimă paginile cu `gzip -9` generând headere PROGMEM:
+    * `include/dashboard_html_gz.h`: 13.8 KB -> 3.7 KB (27.3%).
+    * `include/setup_html_gz.h`: 26.4 KB -> 7.3 KB (27.8%).
+    * `include/console_html_gz.h`: 12.8 KB -> 4.4 KB (34.6%).
+    * Total pachet web în flash: **doar 15.5 KB** (față de >53 KB text brut).
+- **Reducere Masivă Dimensiune Binar & Eliberare Heap:**
+  - Binarul de firmware a scăzut de la **1,304,000 bytes la 1,127,833 bytes (1.10 MB, 57.4% flash)** — economie de **176 KB**!
+  - Eliminat peste 250 de linii de concatenare C++ `String html += ...` din `main.cpp` și `NetworkConsole.cpp`.
+  - Paginile sunt servite cu `server.sendHeader("Content-Encoding", "gzip");` și `server.send_P(200, "text/html", ...);`, eliminând complet alocările dinamice pe heap la încărcarea paginilor (Free Heap stabil la **132 KB**).
+
+### Consolă Web Bidirecțională: Latență <50ms & Delimitatori Vizuali
+- **Răspuns Direct în POST (`NetworkConsole.cpp`):**
+  - La trimiterea unei comenzi prin Web Console (`POST /api/console/send`), noul output este inclus direct în corpul răspunsului HTTP 200 via `getLogsSince()`.
+  - Delimitare vizuală clară: adăugat chenar distinctiv `.cmd-start` cu gradient dark-blue și bordură stânga cyan `#38bdf8` pentru promptul comenzilor (`[CMD] > %s`), plus footer `.cmd-end`.
+- **Eliminare Root-Cause Latență 3s (TCP SYN Collision & Buffer Bottlenecks):**
+  - *Frontend (`web/console.html`):* Înlocuit `setInterval(fetchLogs, 2000)` necoordonat cu `scheduleNextPoll()` adaptiv și `AbortController`. La trimiterea oricărei comenzi, polling-ul este oprit instant, iar cererea de fundal în zbor este anulată cu `abort()`, prevenind coliziunea a două conexiuni TCP simultane pe serverul WebServer single-threaded (ce declanșa timeout-ul Windows TCP SYN de 3.0 secunde).
+  - *Optimizare Scriere Batch (`src/NetworkConsole.cpp`):* Înlocuit ciclul caracter-cu-caracter din `write(buffer, size)` și `rawWrite()` cu scriere pe chunk-uri de linie și `memcpy` direct în ring buffer.
+  - *Accelerare Serial UART (`src/main.cpp`):* Mărit bufferul TX hardware `Serial.setTxBufferSize(4096)` pentru a preveni blocarea CPU la 115200 baud la afișarea comenzilor lungi (`STATUS`).
+  - *Optimizare `getLogsSince()`:* Înlocuit ciclul `output += char` cu două apeluri de slice `output.concat(...)` (<0.05 ms).
+  - *Timestamp Caching:* Memorare în cache a șirului de timestamp pe secunda curentă, eliminând zeci de apeluri redundante de `localtime_r`.
+
+### Verificare și Conformitate
+- **Validare SWE.5:** Suita `tools/test_system.py` a trecut cu **100% PASS (15/15 teste)**.
+- **Flash OTA:** Actualizare confirmată pe ESP32 (`192.168.1.20`) în 17 secunde cu HTTP 200.
+
+## [13.10.2026] - Smart Bio-Schedule (4 Ancore Naturale), Fereastră Deschisă & Pre-Heat Anticipativ (Sarcina 26)
+
+### Motor Orar Circadian (Smart Bio-Schedule & Ancore de Viață)
+- **Eliminare Matrice Orare Rigide (168 celule) în Favoarea a 4 Ancore Naturale:**
+  - Înlocuită paradigma clasică a termostatelor programabile complicate cu 4 stări organice de confort:
+    * `Sleep` (somn: noapte odihnitoare 20.0–21.0°C).
+    * `Wake` (trezire: confort termic dimineața 22.0–22.5°C).
+    * `Away` (plecat: regim Eco când casa e nelocuită 19.5–20.0°C).
+    * `Home` (acasă: confort termic de seară 21.5–23.0°C).
+  - Profiluri separate configurabile pentru Luni–Vineri (zile lucrătoare) și Sâmbătă–Duminică (weekend).
+  - Evaluare orară precisă la fiecare 30 secunde corelată cu ceasul de sistem NTP.
+
+### Gardă Inteligentă Geam Deschis (Open Window Smart Pause Guard)
+- **Detecție Derivă Termică Rapidă:**
+  - Istoric circular de eșantioane de temperatură (10 eșantioane la interval de 30s).
+  - Dacă temperatura dintr-o cameră scade cu mai mult de **1.2°C în sub 5 minute**, sistemul deduce deschiderea unei ferestre pentru aerisire.
+  - Valva zonei respective este forțată automat în starea **ÎNCHIS (PAUZĂ) timp de 30 de minute**, prevenind pierderea masivă de căldură și consumul inutil de gaz. Anunțat în Network Console și în telemetria `STATUS`.
+
+### Algoritm Anticipativ de Pre-Încălzire (Predictive Pre-Heat cu Inerție Termică)
+- **Modelare Inerție Șapă & Corecție Meteo Exterioară:**
+  - Șapa de beton a încălzirii în pardoseală are un timp de răspuns de 1.5–3 ore.
+  - Algoritmul calculează timpul de avans necesar în funcție de diferența de temperatură $\Delta T = T_{target} - T_{current}$ și de factorul meteo exterior preluat de la Open-Meteo:
+    $$k_{weather} = 1.0 + \max(0.0, (15.0 - T_{outdoor}) \times 0.04)$$
+  - Pornirea anticipată se declanșează cu 30–120 minute înainte de ancorele `Wake` și `Home`, astfel încât temperatura dorită este atinsă exact când utilizatorul se trezește sau ajunge acasă.
+
+### Persistență NVS Anti-Uzură Flash & Interfață REST/CLI
+- **Namespace `"sched"` cu Comparație `memcmp()`:**
+  - Structura completă de 136 octeți este stocată în NVS flash.
+  - Flash-ul este scris strict când utilizatorul modifică un parametru (`memcmp != 0`), garantând zero uzură flash la funcționare de lungă durată.
+- **REST Endpoints & Comenzi CLI:**
+  - `GET /api/schedule` și `POST /api/schedule`: citire și configurare JSON.
+  - `POST /api/schedule/enable?state=true|false`: comutare rapidă.
+  - Comenzi interactive adăugate în consolă (`SCHEDULE`, `SCHEDULE ON/OFF`, `SCHEDULE PREHEAT ON/OFF`, `SCHEDULE WINDOW ON/OFF`).
+  - Subcomanda `python tools/esp_cli.py schedule` adăugată în utilitarul CLI.
+
+### Validare Live & Curățare Zgomot Consolă
+- **Eliminat Spam Meteo:**
+  - Actualizările periodice de vreme la 15 minute nu mai poluează consola virtuală cu `[INIT]   * Outdoor Weather:`, fiind anunțate strict la boot și redirecționate pe Serial UART de debug.
+- **Optimizare Flash OTA:**
+  - Minificat CSS-ul paginilor web (`main.cpp`, `NetworkConsole.cpp`, `WebSetupPage.h`), aducând binarul la **1.24 MB** (1,305,280 bytes), cu 1.3 KB sub limita de sector `maxSketchSpace`.
+- **Suită de Testare ASPICE SWE.5:**
+  - Adăugat testul automat `SWE.5-TC15: Smart Bio-Schedule Contract, Anchors & Failsafe Guard (FR-26)`.
+  - Toate cele 15 teste de sistem trecute cu **100.0% PASS** în 15.65 secunde.
+
 ## [12.10.2026] - Eliminare Word Wrap pe Mobil, Scalare Font (`A-`/`A+`) & Watchdog Feed la OTA (Sarcina 25)
 
 ### Eliminare Word Wrap pe Telefon & Scroll Orizontal Fluid (`NetworkConsole`)

@@ -14,7 +14,7 @@
 /** @brief Un-comment to change default device name */
 // #define MYNEWT_VAL_BLE_SVC_GAP_DEVICE_NAME "nimble"
 
-#define MYNEWT_VAL_BLE_HS_LOG_LVL 5
+#define MYNEWT_VAL_BLE_HS_LOG_LVL 0
 
 /** @brief Un-comment to change the default GAP appearance */
 // #define  MYNEWT_VAL_BLE_SVC_GAP_APPEARANCE 0x0
@@ -102,7 +102,7 @@
  *  Values: 0 = NONE, 1 = ERROR, 2 = WARNING, 3 = INFO, 4+ = DEBUG\n
  *  Uses approx. 32kB of flash memory.
  */
-// #define MYNEWT_VAL_NIMBLE_CPP_LOG_LEVEL 0
+#define MYNEWT_VAL_NIMBLE_CPP_LOG_LEVEL 0
 
 /** @brief Un-comment to enable the debug asserts in NimBLE CPP wrapper.*/
 // #define MYNEWT_VAL_NIMBLE_CPP_DEBUG_ASSERT_ENABLED 1

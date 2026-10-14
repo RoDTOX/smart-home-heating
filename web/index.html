@@ -1,0 +1,408 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Smart Heating - Boiler & Zone Controller</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: #0f172a;
+      color: #f8fafc;
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      min-height: 100vh;
+    }
+    .card {
+      background: #1e293b;
+      border-radius: 16px;
+      padding: 20px;
+      width: 100%;
+      max-width: 480px;
+      box-shadow: 0 10px 25px -5px rgba(0,0,0,0.5);
+      border: 1px solid #334155;
+    }
+    h1 {
+      font-size: 1.35rem;
+      margin-bottom: 4px;
+      text-align: center;
+      color: #38bdf8;
+    }
+    .subtitle {
+      font-size: 0.8rem;
+      color: #94a3b8;
+      text-align: center;
+      margin-bottom: 16px;
+    }
+    .status-box {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: #0f172a;
+      padding: 12px 16px;
+      border-radius: 12px;
+      margin-bottom: 14px;
+      border: 1px solid #334155;
+    }
+    .status-val {
+      font-weight: 700;
+      font-size: 1rem;
+      padding: 4px 10px;
+      border-radius: 8px;
+    }
+    .badge-on { background: #065f46; color: #34d399; border: 1px solid #059669; }
+    .badge-off { background: #7f1d1d; color: #f87171; border: 1px solid #dc2626; }
+    .mode-bar {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 16px;
+      background: #0f172a;
+      padding: 4px;
+      border-radius: 12px;
+      border: 1px solid #334155;
+    }
+    .mode-btn {
+      flex: 1;
+      padding: 8px;
+      border: none;
+      border-radius: 8px;
+      font-weight: 700;
+      font-size: 0.85rem;
+      cursor: pointer;
+      background: transparent;
+      color: #94a3b8;
+      transition: all 0.2s;
+    }
+    .mode-btn.active {
+      background: #0284c7;
+      color: #fff;
+      box-shadow: 0 2px 8px rgba(2,132,199,0.4);
+    }
+    .btn-group {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 12px;
+    }
+    .btn-action {
+      flex: 1;
+      border: none;
+      border-radius: 10px;
+      padding: 12px;
+      font-size: 0.9rem;
+      font-weight: 700;
+      cursor: pointer;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      gap: 6px;
+      transition: opacity 0.2s;
+    }
+    .btn-action:active { opacity: 0.8; }
+    .btn-on { background: linear-gradient(135deg, #10b981, #059669); color: #fff; }
+    .btn-off { background: linear-gradient(135deg, #ef4444, #dc2626); color: #fff; }
+    .sec-title {
+      font-size: 0.85rem;
+      font-weight: 700;
+      color: #94a3b8;
+      margin: 16px 0 8px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    .zone-card {
+      background: #0f172a;
+      border: 1px solid #334155;
+      border-radius: 12px;
+      padding: 14px;
+      margin-bottom: 10px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .zone-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .zone-name { font-weight: 700; font-size: 0.95rem; color: #f1f5f9; }
+    .zone-badge {
+      font-size: 0.75rem;
+      font-weight: 700;
+      padding: 3px 8px;
+      border-radius: 6px;
+    }
+    .badge-idle { background: #1e293b; color: #94a3b8; border: 1px solid #475569; }
+    .badge-warming { background: #78350f; color: #fcd34d; border: 1px solid #b45309; }
+    .badge-heating { background: #065f46; color: #34d399; border: 1px solid #059669; }
+    .badge-disabled { background: #334155; color: #64748b; border: 1px solid #475569; }
+    .zone-body {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .zone-temp { font-size: 1.25rem; font-weight: 700; color: #38bdf8; }
+    .zone-ctrl { display: flex; align-items: center; gap: 6px; }
+    .temp-btn {
+      background: #1e293b;
+      color: #f8fafc;
+      border: 1px solid #475569;
+      width: 32px;
+      height: 32px;
+      border-radius: 8px;
+      font-size: 1.1rem;
+      font-weight: 700;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .temp-btn:active { background: #334155; }
+    .setpoint-val { font-size: 1rem; font-weight: 700; min-width: 54px; text-align: center; }
+    .zone-footer {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 0.75rem;
+      color: #64748b;
+      padding-top: 4px;
+      border-top: 1px dashed #1e293b;
+    }
+    .toggle-link { color: #38bdf8; cursor: pointer; text-decoration: none; font-weight: 600; }
+    .sensor-grid { display: flex; flex-direction: column; gap: 6px; }
+    .sensor-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: #0f172a;
+      padding: 8px 12px;
+      border-radius: 8px;
+      border: 1px solid #334155;
+      font-size: 0.85rem;
+    }
+    .sensor-name { font-weight: 600; color: #f1f5f9; }
+    .sensor-temp { font-weight: 700; color: #38bdf8; font-size: 0.95rem; }
+    .meta {
+      margin-top: 16px;
+      padding-top: 12px;
+      border-top: 1px solid #334155;
+      font-size: 0.75rem;
+      color: #64748b;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 4px;
+    }
+    .footer {
+      margin-top: 14px;
+      text-align: center;
+      font-size: 0.8rem;
+      display: flex;
+      justify-content: center;
+      gap: 16px;
+      flex-wrap: wrap;
+    }
+    a { color: #38bdf8; text-decoration: none; }
+    a:hover { text-decoration: underline; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>Smart Heating Controller</h1>
+    <div class="subtitle">Multi-Zone &bull; RF 433.92 MHz &bull; ESP32</div>
+
+    <div class="status-box">
+      <span>Boiler Flame:</span>
+      <span id="boiler-badge" class="status-val badge-off">Checking...</span>
+    </div>
+
+    <div class="mode-bar">
+      <button id="btn-mode-auto" class="mode-btn" onclick="setMode('auto')">&#9881; AUTOMATIC</button>
+      <button id="btn-mode-manual" class="mode-btn" onclick="setMode('manual')">&#9995; MANUAL</button>
+    </div>
+
+    <div class="btn-group">
+      <button class="btn-action btn-on" onclick="trigger('on')">&#128293; Start Boiler</button>
+      <button class="btn-action btn-off" onclick="trigger('off')">&#10060; Stop Boiler</button>
+    </div>
+
+    <div class="sec-title">
+      <span>Thermal Zones (Underfloor)</span>
+      <span>Target</span>
+    </div>
+    <div id="zones-list">
+      <div style="text-align:center;color:#64748b;padding:12px;">Loading thermal zones...</div>
+    </div>
+
+    <div class="sec-title">
+      <span>BLE Sensor Telemetry</span>
+      <span style="color:#34d399;font-size:0.75rem;">&bull; BLE Active</span>
+    </div>
+    <div class="sensor-grid" id="sensors-list">
+      <div class="sensor-row"><span style="color:#64748b;">Scanning for BLE sensors...</span></div>
+    </div>
+
+    <div class="meta">
+      <div>Boiler State: <b id="m-boiler">--</b></div>
+      <div>Free Heap: <b id="m-heap">-- KB</b></div>
+      <div>Wi-Fi RSSI: <b id="m-rssi">-- dBm</b></div>
+      <div>IP Address: <b id="m-ip">--</b></div>
+      <div>Time (NTP): <b id="m-time">--:--:--</b></div>
+      <div>Outdoor Temp: <b id="m-outdoor">--</b></div>
+    </div>
+
+    <div class="footer">
+      <a href="console"><b>&gt;_ Live Console</b></a> &bull;
+      <a href="setup"><b>⚙️ Setup Wizard</b></a> &bull;
+      <a href="update">Firmware OTA</a> &bull;
+      <a href="https://pvvx.github.io/ATC_MiThermometer/TelinkMiFlasher.html" target="_blank" rel="noopener"><b>📡 BLE Sensor Config</b></a>
+    </div>
+  </div>
+
+  <script>
+    const base = window.location.pathname.endsWith('/') ? window.location.pathname : window.location.pathname + '/';
+
+    function trigger(action) {
+      const b = document.getElementById('boiler-badge');
+      if (b) {
+        b.innerText = action === 'on' ? 'ON (Active)' : 'OFF (Idle)';
+        b.className = 'status-val ' + (action === 'on' ? 'badge-on' : 'badge-off');
+      }
+      fetch(base + 'api/boiler/' + action, { method: 'POST' }).then(() => refresh());
+    }
+
+    function setMode(m) {
+      const ba = document.getElementById('btn-mode-auto');
+      const bm = document.getElementById('btn-mode-manual');
+      if (ba && bm) {
+        ba.className = 'mode-btn ' + (m === 'auto' ? 'active' : '');
+        bm.className = 'mode-btn ' + (m === 'manual' ? 'active' : '');
+      }
+      fetch(base + 'api/mode?mode=' + m, { method: 'POST' }).then(() => refresh());
+    }
+
+    function adjTarget(idx, delta) {
+      const el = document.getElementById('sp-' + idx);
+      if (!el) return;
+      let cur = parseFloat(el.dataset.val || el.innerText);
+      let nxt = (cur + delta).toFixed(1);
+      el.dataset.val = nxt;
+      el.innerHTML = nxt + '&deg;C';
+      fetch(base + 'api/zones/setpoint?id=' + idx + '&target=' + nxt, { method: 'POST' });
+    }
+
+    function toggleZone(idx) {
+      fetch(base + 'api/zones/toggle?id=' + idx, { method: 'POST' }).then(() => refresh());
+    }
+
+    async function refresh() {
+      try {
+        const [rZones, rStatus] = await Promise.all([
+          fetch(base + 'api/zones'),
+          fetch(base + 'api/boiler/status')
+        ]);
+        if (rZones.ok) {
+          const zData = await rZones.json();
+          renderZones(zData.zones || []);
+          const isAuto = zData.autoMode;
+          const ba = document.getElementById('btn-mode-auto');
+          const bm = document.getElementById('btn-mode-manual');
+          if (ba && bm) {
+            ba.className = 'mode-btn ' + (isAuto ? 'active' : '');
+            bm.className = 'mode-btn ' + (!isAuto ? 'active' : '');
+          }
+          const bb = document.getElementById('boiler-badge');
+          if (bb) {
+            const on = (zData.boiler === 'ON');
+            bb.innerText = on ? 'ON (Active)' : 'OFF (Idle)';
+            bb.className = 'status-val ' + (on ? 'badge-on' : 'badge-off');
+          }
+          document.getElementById('m-boiler').innerText = zData.boiler || '--';
+        }
+        if (rStatus.ok) {
+          const sData = await rStatus.json();
+          renderSensors(sData.sensors || []);
+          document.getElementById('m-heap').innerText = Math.round((sData.freeHeap || 0) / 1024) + ' KB';
+          document.getElementById('m-rssi').innerText = (sData.rssi || 0) + ' dBm';
+          document.getElementById('m-ip').innerText = window.location.hostname;
+          document.getElementById('m-time').innerText = sData.time || '--:--:--';
+          document.getElementById('m-outdoor').innerText = (sData.outdoorTemp !== undefined && sData.outdoorTemp > -900)
+            ? (sData.outdoorTemp.toFixed(1) + '°C') : 'Pending';
+        }
+      } catch (e) {
+        console.error('Refresh error', e);
+      }
+    }
+
+    function renderZones(zones) {
+      const c = document.getElementById('zones-list');
+      if (!c) return;
+      let html = '';
+      zones.forEach((z, i) => {
+        let badgeClass = 'badge-idle';
+        let st = z.state || '';
+        if (st.includes('Heating')) badgeClass = 'badge-heating';
+        else if (st.includes('Warming')) badgeClass = 'badge-warming';
+        else if (!z.enabled) badgeClass = 'badge-disabled';
+
+        let tempStr = (z.sensorValid && z.currentTemp !== undefined)
+          ? (z.currentTemp.toFixed(1) + '&deg;C')
+          : '<span style="color:#64748b;">--.-&deg;C</span>';
+
+        html += `
+          <div class='zone-card'>
+            <div class='zone-header'>
+              <span class='zone-name'>${z.name}</span>
+              <span class='zone-badge ${badgeClass}'>${st || (z.enabled ? 'Active' : 'Disabled')}</span>
+            </div>
+            <div class='zone-body'>
+              <div>
+                <span class='zone-temp'>${tempStr}</span>
+                <div style='font-size:0.75rem;color:#64748b;margin-top:2px;'>Sensor: ${z.sensor || z.sensorMac || 'None'}</div>
+              </div>
+              <div class='zone-ctrl'>
+                <button class='temp-btn' onclick='adjTarget(${i}, -0.5)'>-</button>
+                <span class='setpoint-val' id='sp-${i}' data-val='${z.targetTemp.toFixed(1)}'>${z.targetTemp.toFixed(1)}&deg;C</span>
+                <button class='temp-btn' onclick='adjTarget(${i}, 0.5)'>+</button>
+              </div>
+            </div>
+            <div class='zone-footer'>
+              <span>Relay GPIO${z.relayPin}: <b>${z.relayEngaged ? 'ON (Open)' : 'OFF (Closed)'}</b></span>
+              <span class='toggle-link' onclick='toggleZone(${i})'>${z.enabled ? 'Disable' : 'Enable'}</span>
+            </div>
+          </div>
+        `;
+      });
+      c.innerHTML = html;
+    }
+
+    function renderSensors(sensors) {
+      const c = document.getElementById('sensors-list');
+      if (!c) return;
+      if (!sensors || sensors.length === 0) {
+        c.innerHTML = "<div class='sensor-row'><span style='color:#64748b;'>Scanning for BLE sensors...</span></div>";
+        return;
+      }
+      let html = '';
+      sensors.forEach(s => {
+        html += `
+          <div class='sensor-row'>
+            <span class='sensor-name'>${s.name || s.mac}</span>
+            <div>
+              <span class='sensor-temp'>${s.temp !== undefined ? s.temp.toFixed(1) : '--'}°C</span>
+              <span style='font-size:0.75rem;color:#64748b;margin-left:6px;'>${s.hum !== undefined ? Math.round(s.hum) : '--'}%</span>
+            </div>
+          </div>
+        `;
+      });
+      c.innerHTML = html;
+    }
+
+    refresh();
+    setInterval(refresh, 3500);
+  </script>
+</body>
+</html>

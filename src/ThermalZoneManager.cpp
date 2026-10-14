@@ -2,12 +2,18 @@
 #include "NetworkConsole.h"
 #include "BleSensorScanner.h"
 #include "DiagnosticEngine.h"
+#include "TimeAndWeatherService.h"
 #include <time.h>
 
 ThermalZoneManager thermalZones;
 
 ThermalZoneManager::ThermalZoneManager()
-    : _autoMode(true),
+    : _activeAnchor(BIO_ANCHOR_HOME),
+      _nextAnchor(BIO_ANCHOR_SLEEP),
+      _minsToNextAnchor(0),
+      _preHeatActive(false),
+      _lastScheduleEvalMs(0),
+      _autoMode(true),
       _boilerDemand(false),
       _pumpControlEnabled(true),
       _pumpActive(false),
@@ -28,6 +34,77 @@ ThermalZoneManager::ThermalZoneManager()
       _lastBoilerOffTime(0),
       _lastBoilerOnTime(0),
       _lastEvaluationMs(0) {
+
+    // Default BioSchedule Config
+    _scheduleConfig.enabled = false;
+    _scheduleConfig.preHeatEnabled = true;
+    _scheduleConfig.windowDetectionEnabled = true;
+
+    // Weekday defaults (Luni - Vineri)
+    // Sleep (22:30): 20.0C, 21.0C, 20.0C
+    _scheduleConfig.weekday[BIO_ANCHOR_SLEEP].hour = 22;
+    _scheduleConfig.weekday[BIO_ANCHOR_SLEEP].minute = 30;
+    _scheduleConfig.weekday[BIO_ANCHOR_SLEEP].targets[0] = 20.0f;
+    _scheduleConfig.weekday[BIO_ANCHOR_SLEEP].targets[1] = 21.0f;
+    _scheduleConfig.weekday[BIO_ANCHOR_SLEEP].targets[2] = 20.0f;
+
+    // Wake (06:30): 22.0C, 22.5C, 22.0C
+    _scheduleConfig.weekday[BIO_ANCHOR_WAKE].hour = 6;
+    _scheduleConfig.weekday[BIO_ANCHOR_WAKE].minute = 30;
+    _scheduleConfig.weekday[BIO_ANCHOR_WAKE].targets[0] = 22.0f;
+    _scheduleConfig.weekday[BIO_ANCHOR_WAKE].targets[1] = 22.5f;
+    _scheduleConfig.weekday[BIO_ANCHOR_WAKE].targets[2] = 22.0f;
+
+    // Away (08:30): 19.5C, 20.0C, 19.5C
+    _scheduleConfig.weekday[BIO_ANCHOR_AWAY].hour = 8;
+    _scheduleConfig.weekday[BIO_ANCHOR_AWAY].minute = 30;
+    _scheduleConfig.weekday[BIO_ANCHOR_AWAY].targets[0] = 19.5f;
+    _scheduleConfig.weekday[BIO_ANCHOR_AWAY].targets[1] = 20.0f;
+    _scheduleConfig.weekday[BIO_ANCHOR_AWAY].targets[2] = 19.5f;
+
+    // Home (17:00): 22.5C, 23.0C, 21.5C
+    _scheduleConfig.weekday[BIO_ANCHOR_HOME].hour = 17;
+    _scheduleConfig.weekday[BIO_ANCHOR_HOME].minute = 0;
+    _scheduleConfig.weekday[BIO_ANCHOR_HOME].targets[0] = 22.5f;
+    _scheduleConfig.weekday[BIO_ANCHOR_HOME].targets[1] = 23.0f;
+    _scheduleConfig.weekday[BIO_ANCHOR_HOME].targets[2] = 21.5f;
+
+    // Weekend defaults (Sambata - Duminica)
+    // Sleep (23:00)
+    _scheduleConfig.weekend[BIO_ANCHOR_SLEEP].hour = 23;
+    _scheduleConfig.weekend[BIO_ANCHOR_SLEEP].minute = 0;
+    _scheduleConfig.weekend[BIO_ANCHOR_SLEEP].targets[0] = 20.5f;
+    _scheduleConfig.weekend[BIO_ANCHOR_SLEEP].targets[1] = 21.5f;
+    _scheduleConfig.weekend[BIO_ANCHOR_SLEEP].targets[2] = 20.5f;
+
+    // Wake (08:30)
+    _scheduleConfig.weekend[BIO_ANCHOR_WAKE].hour = 8;
+    _scheduleConfig.weekend[BIO_ANCHOR_WAKE].minute = 30;
+    _scheduleConfig.weekend[BIO_ANCHOR_WAKE].targets[0] = 22.5f;
+    _scheduleConfig.weekend[BIO_ANCHOR_WAKE].targets[1] = 23.0f;
+    _scheduleConfig.weekend[BIO_ANCHOR_WAKE].targets[2] = 22.0f;
+
+    // Away (12:00)
+    _scheduleConfig.weekend[BIO_ANCHOR_AWAY].hour = 12;
+    _scheduleConfig.weekend[BIO_ANCHOR_AWAY].minute = 0;
+    _scheduleConfig.weekend[BIO_ANCHOR_AWAY].targets[0] = 22.0f;
+    _scheduleConfig.weekend[BIO_ANCHOR_AWAY].targets[1] = 22.5f;
+    _scheduleConfig.weekend[BIO_ANCHOR_AWAY].targets[2] = 21.5f;
+
+    // Home (16:00)
+    _scheduleConfig.weekend[BIO_ANCHOR_HOME].hour = 16;
+    _scheduleConfig.weekend[BIO_ANCHOR_HOME].minute = 0;
+    _scheduleConfig.weekend[BIO_ANCHOR_HOME].targets[0] = 22.5f;
+    _scheduleConfig.weekend[BIO_ANCHOR_HOME].targets[1] = 23.0f;
+    _scheduleConfig.weekend[BIO_ANCHOR_HOME].targets[2] = 21.5f;
+
+    for (size_t i = 0; i < MAX_THERMAL_ZONES; i++) {
+        _windowStates[i].baselineTemp = -999.0f;
+        _windowStates[i].baselineMs = 0;
+        _windowStates[i].pauseActive = false;
+        _windowStates[i].pauseStartMs = 0;
+        _windowStates[i].pauseMinTemp = 999.0f;
+    }
 
     // Default Zone 1
     _configs[0].id = 1;
@@ -133,6 +210,38 @@ void ThermalZoneManager::saveToPreferences() {
     Serial.println(F("[Thermal] Zone configs successfully persisted to NVS."));
 }
 
+void ThermalZoneManager::loadSchedulePreferences() {
+    Preferences prefs;
+    if (!prefs.begin("sched", true)) {
+        return;
+    }
+    if (prefs.isKey("cfg")) {
+        BioScheduleConfig loaded;
+        size_t len = prefs.getBytes("cfg", &loaded, sizeof(loaded));
+        if (len == sizeof(loaded)) {
+            _scheduleConfig = loaded;
+            Serial.println(F("[Thermal] Smart Bio-Schedule loaded from NVS."));
+        }
+    }
+    prefs.end();
+}
+
+void ThermalZoneManager::saveSchedulePreferences() {
+    Preferences prefs;
+    if (!prefs.begin("sched", false)) {
+        netConsole.println(F("[Thermal] ERROR: Failed to open NVS namespace 'sched' for writing!"));
+        return;
+    }
+    // Only write if changed to avoid NVS flash wear
+    BioScheduleConfig currentSaved;
+    size_t len = prefs.getBytes("cfg", &currentSaved, sizeof(currentSaved));
+    if (len != sizeof(currentSaved) || memcmp(&currentSaved, &_scheduleConfig, sizeof(_scheduleConfig)) != 0) {
+        prefs.putBytes("cfg", &_scheduleConfig, sizeof(_scheduleConfig));
+        Serial.println(F("[Thermal] Smart Bio-Schedule persisted to NVS."));
+    }
+    prefs.end();
+}
+
 void ThermalZoneManager::applyRelay(uint8_t pin, bool active) {
     if (pin == PIN_RELAY_SPARE) {
         // Circulation pump is directly active HIGH (runs when energized)
@@ -148,6 +257,8 @@ void ThermalZoneManager::applyRelay(uint8_t pin, bool active) {
 
 void ThermalZoneManager::begin() {
     loadFromPreferences();
+    loadSchedulePreferences();
+    evaluateSchedule(millis());
 
     _bootWarmupActive = true;
     _bootWarmupStartMs = millis();
@@ -180,6 +291,7 @@ const ThermalZoneStatus& ThermalZoneManager::getStatus(size_t index) const {
 }
 
 void ThermalZoneManager::setPumpControlEnabled(bool enabled) {
+    if (_pumpControlEnabled == enabled) return;
     _pumpControlEnabled = enabled;
     if (!enabled && _pumpActive) {
         applyRelay(PIN_RELAY_SPARE, false);
@@ -190,6 +302,7 @@ void ThermalZoneManager::setPumpControlEnabled(bool enabled) {
 }
 
 void ThermalZoneManager::setActuatorNormallyClosed(bool nc) {
+    if (_actuatorNormallyClosed == nc) return;
     _actuatorNormallyClosed = nc;
     saveToPreferences();
     // Refresh all zone relays with new logic polarity
@@ -203,6 +316,7 @@ void ThermalZoneManager::setActuatorNormallyClosed(bool nc) {
 
 void ThermalZoneManager::setFreezeProtectionTemp(float temp) {
     if (temp >= 5.0f && temp <= 16.0f) {
+        if (fabs(_freezeProtectionTemp - temp) < 0.05f) return;
         _freezeProtectionTemp = temp;
         saveToPreferences();
         netConsole.printf("[Thermal] Frost protection threshold set to: %.1f C\n", temp);
@@ -212,6 +326,7 @@ void ThermalZoneManager::setFreezeProtectionTemp(float temp) {
 void ThermalZoneManager::setSensorTimeoutSec(uint32_t sec) {
     if (sec < 60) sec = 60;          // Min 1 minute
     if (sec > 86400) sec = 86400;    // Max 24 hours
+    if (_sensorTimeoutSec == sec) return;
     _sensorTimeoutSec = sec;
     saveToPreferences();
     netConsole.printf("[Thermal] Sensor failsafe timeout set to: %u s\n", _sensorTimeoutSec);
@@ -374,8 +489,269 @@ const char* ThermalZoneManager::getStateStr(ZoneState state) const {
         case ZONE_FAULT_TIMEOUT: return "Sensor Timeout (Failsafe OFF)";
         case ZONE_FROST_GUARD:   return "Frost Protection Active (<12C)";
         case ZONE_WARMUP:        return "Acquiring Sensor (Warmup)";
+        case ZONE_WINDOW_PAUSE:  return "Window Pause (Open Window Detected)";
         default:                 return "Unknown";
     }
+}
+
+const char* ThermalZoneManager::getAnchorName(BioAnchorId id) const {
+    switch (id) {
+        case BIO_ANCHOR_SLEEP: return "SLEEP";
+        case BIO_ANCHOR_WAKE:  return "WAKE";
+        case BIO_ANCHOR_AWAY:  return "AWAY";
+        case BIO_ANCHOR_HOME:  return "HOME";
+        default:               return "UNKNOWN";
+    }
+}
+
+void ThermalZoneManager::setScheduleConfig(const BioScheduleConfig& cfg) {
+    _scheduleConfig = cfg;
+    saveSchedulePreferences();
+    evaluateSchedule(millis());
+}
+
+void ThermalZoneManager::setScheduleEnabled(bool enabled) {
+    if (_scheduleConfig.enabled != enabled) {
+        _scheduleConfig.enabled = enabled;
+        saveSchedulePreferences();
+        evaluateSchedule(millis());
+        netConsole.printf("[Thermal] Smart Bio-Schedule %s\n", enabled ? "ENABLED" : "DISABLED");
+    }
+}
+
+void ThermalZoneManager::setPreHeatEnabled(bool enabled) {
+    if (_scheduleConfig.preHeatEnabled != enabled) {
+        _scheduleConfig.preHeatEnabled = enabled;
+        saveSchedulePreferences();
+        evaluateSchedule(millis());
+        netConsole.printf("[Thermal] Predictive Pre-Heat %s\n", enabled ? "ENABLED" : "DISABLED");
+    }
+}
+
+void ThermalZoneManager::setWindowDetectionEnabled(bool enabled) {
+    if (_scheduleConfig.windowDetectionEnabled != enabled) {
+        _scheduleConfig.windowDetectionEnabled = enabled;
+        saveSchedulePreferences();
+        netConsole.printf("[Thermal] Open Window Detection %s\n", enabled ? "ENABLED" : "DISABLED");
+    }
+}
+
+void ThermalZoneManager::evaluateSchedule(uint32_t now) {
+    if (!_scheduleConfig.enabled || !timeAndWeather.isTimeSynced()) {
+        _activeAnchor = BIO_ANCHOR_HOME;
+        _nextAnchor = BIO_ANCHOR_SLEEP;
+        _minsToNextAnchor = 0;
+        _preHeatActive = false;
+        return;
+    }
+
+    int curHour = timeAndWeather.getHour();
+    int curMin = timeAndWeather.getMinute();
+    bool weekend = timeAndWeather.isWeekend();
+    const BioAnchorConfig* profile = weekend ? _scheduleConfig.weekend : _scheduleConfig.weekday;
+
+    uint32_t curM = curHour * 60 + curMin;
+
+    uint32_t mSleep = profile[BIO_ANCHOR_SLEEP].hour * 60 + profile[BIO_ANCHOR_SLEEP].minute;
+    uint32_t mWake  = profile[BIO_ANCHOR_WAKE].hour  * 60 + profile[BIO_ANCHOR_WAKE].minute;
+    uint32_t mAway  = profile[BIO_ANCHOR_AWAY].hour  * 60 + profile[BIO_ANCHOR_AWAY].minute;
+    uint32_t mHome  = profile[BIO_ANCHOR_HOME].hour  * 60 + profile[BIO_ANCHOR_HOME].minute;
+
+    BioAnchorId current = BIO_ANCHOR_HOME;
+    BioAnchorId next = BIO_ANCHOR_SLEEP;
+    uint32_t minsToNext = 0;
+
+    if (curM >= mSleep || curM < mWake) {
+        current = BIO_ANCHOR_SLEEP;
+        next = BIO_ANCHOR_WAKE;
+        minsToNext = (curM >= mSleep) ? ((1440 - curM) + mWake) : (mWake - curM);
+    } else if (curM >= mWake && curM < mAway) {
+        current = BIO_ANCHOR_WAKE;
+        next = BIO_ANCHOR_AWAY;
+        minsToNext = (mAway >= curM) ? (mAway - curM) : 0;
+    } else if (curM >= mAway && curM < mHome) {
+        current = BIO_ANCHOR_AWAY;
+        next = BIO_ANCHOR_HOME;
+        minsToNext = (mHome >= curM) ? (mHome - curM) : 0;
+    } else { // curM >= mHome && curM < mSleep
+        current = BIO_ANCHOR_HOME;
+        next = BIO_ANCHOR_SLEEP;
+        minsToNext = (mSleep >= curM) ? (mSleep - curM) : 0;
+    }
+
+    BioAnchorId prevAnchor = _activeAnchor;
+    _activeAnchor = current;
+    _nextAnchor = next;
+    _minsToNextAnchor = minsToNext;
+
+    if (prevAnchor != _activeAnchor) {
+        netConsole.printf("[Thermal][SCHEDULE] Bio-Schedule transition: %s -> %s (Profile: %s, Time: %02d:%02d)\n",
+                          getAnchorName(prevAnchor), getAnchorName(_activeAnchor),
+                          weekend ? "Weekend" : "Weekday", curHour, curMin);
+    }
+
+    // Predictive Pre-Heat evaluation
+    bool shouldPreHeat = false;
+    if (_scheduleConfig.preHeatEnabled && (next == BIO_ANCHOR_HOME || next == BIO_ANCHOR_WAKE)) {
+        float tout = timeAndWeather.getOutdoorTemperature();
+        float k = 1.0f;
+        if (timeAndWeather.isWeatherValid()) {
+            k = 1.0f + (15.0f - tout) * 0.03f;
+            if (k < 0.7f) k = 0.7f;
+            if (k > 1.8f) k = 1.8f;
+        }
+
+        for (size_t i = 0; i < MAX_THERMAL_ZONES; i++) {
+            if (!_configs[i].enabled) continue;
+            float targetActive = profile[current].targets[i];
+            float targetNext = profile[next].targets[i];
+            float deltaT = targetNext - targetActive;
+            if (deltaT > 0.4f) {
+                int advanceMins = (int)(deltaT * 40.0f * k);
+                if (advanceMins < 15) advanceMins = 15;
+                if (advanceMins > 150) advanceMins = 150;
+                if (minsToNext <= (uint32_t)advanceMins) {
+                    shouldPreHeat = true;
+                    break;
+                }
+            }
+        }
+    }
+
+    if (shouldPreHeat != _preHeatActive) {
+        _preHeatActive = shouldPreHeat;
+        if (_preHeatActive) {
+            netConsole.printf("[Thermal][PRE-HEAT] Anticipating %s anchor (%u min remaining). Pre-heating active!\n",
+                              getAnchorName(next), minsToNext);
+        } else {
+            netConsole.printf("[Thermal][PRE-HEAT] Pre-heat cycle ended. Transitioned to active anchor %s.\n",
+                              getAnchorName(_activeAnchor));
+        }
+    }
+}
+
+float ThermalZoneManager::getEffectiveTargetTemp(size_t index) const {
+    if (index >= MAX_THERMAL_ZONES) return DEFAULT_SETPOINT_TEMP;
+    if (!_scheduleConfig.enabled || !timeAndWeather.isTimeSynced()) {
+        return _configs[index].targetTemp;
+    }
+    bool weekend = timeAndWeather.isWeekend();
+    const BioAnchorConfig* profile = weekend ? _scheduleConfig.weekend : _scheduleConfig.weekday;
+    BioAnchorId anchorToUse = _preHeatActive ? _nextAnchor : _activeAnchor;
+    return profile[anchorToUse].targets[index];
+}
+
+void ThermalZoneManager::evaluateWindowDetection(size_t index, float currentTemp, uint32_t now) {
+    if (index >= MAX_THERMAL_ZONES) return;
+    if (!_scheduleConfig.windowDetectionEnabled) {
+        _windowStates[index].pauseActive = false;
+        return;
+    }
+
+    if (!_windowStates[index].pauseActive) {
+        if (_windowStates[index].baselineMs == 0 || (now - _windowStates[index].baselineMs > 300000UL)) {
+            _windowStates[index].baselineTemp = currentTemp;
+            _windowStates[index].baselineMs = now;
+        } else if (currentTemp > _windowStates[index].baselineTemp) {
+            _windowStates[index].baselineTemp = currentTemp;
+            _windowStates[index].baselineMs = now;
+        } else if ((_windowStates[index].baselineTemp - currentTemp) >= 1.2f) {
+            _windowStates[index].pauseActive = true;
+            _windowStates[index].pauseStartMs = now;
+            _windowStates[index].pauseMinTemp = currentTemp;
+            netConsole.printf("[Thermal][WINDOW] Open window detected on Zone %u (%s): temp dropped %.1f \xC2\xB0""C in %us! Suspending heating for 30m.\n",
+                              _configs[index].id, _configs[index].name,
+                              _windowStates[index].baselineTemp - currentTemp,
+                              (now - _windowStates[index].baselineMs) / 1000);
+        }
+    } else {
+        if (currentTemp < _windowStates[index].pauseMinTemp) {
+            _windowStates[index].pauseMinTemp = currentTemp;
+        }
+        bool timeoutExpired = (now - _windowStates[index].pauseStartMs >= 1800000UL); // 30 min
+        bool rebounded = (currentTemp >= _windowStates[index].pauseMinTemp + 0.6f);
+        if (timeoutExpired || rebounded) {
+            _windowStates[index].pauseActive = false;
+            _windowStates[index].baselineTemp = currentTemp;
+            _windowStates[index].baselineMs = now;
+            netConsole.printf("[Thermal][WINDOW] Zone %u (%s) window pause cleared (%s). Resuming normal thermostat loop.\n",
+                              _configs[index].id, _configs[index].name,
+                              timeoutExpired ? "30 min timeout" : "temp rebounded +0.6 \xC2\xB0""C");
+        }
+    }
+}
+
+bool ThermalZoneManager::isWindowPauseActive(size_t index) const {
+    if (index >= MAX_THERMAL_ZONES) return false;
+    return _windowStates[index].pauseActive;
+}
+
+uint32_t ThermalZoneManager::getWindowPauseRemainingSec(size_t index) const {
+    if (index >= MAX_THERMAL_ZONES || !_windowStates[index].pauseActive) return 0;
+    uint32_t elapsed = millis() - _windowStates[index].pauseStartMs;
+    if (elapsed >= 1800000UL) return 0;
+    return (1800000UL - elapsed) / 1000;
+}
+
+String ThermalZoneManager::getScheduleJson() const {
+    String json = "{";
+    json += "\"enabled\":" + String(_scheduleConfig.enabled ? "true" : "false") + ",";
+    json += "\"preHeatEnabled\":" + String(_scheduleConfig.preHeatEnabled ? "true" : "false") + ",";
+    json += "\"windowDetectionEnabled\":" + String(_scheduleConfig.windowDetectionEnabled ? "true" : "false") + ",";
+    json += "\"activeAnchor\":\"" + String(getActiveAnchorName()) + "\",";
+    json += "\"nextAnchor\":\"" + String(getAnchorName(_nextAnchor)) + "\",";
+    json += "\"minsToNextAnchor\":" + String(_minsToNextAnchor) + ",";
+    json += "\"preHeatActive\":" + String(_preHeatActive ? "true" : "false") + ",";
+    json += "\"isWeekend\":" + String(timeAndWeather.isWeekend() ? "true" : "false") + ",";
+
+    // Zones status array
+    json += "\"zones\":[";
+    for (size_t i = 0; i < MAX_THERMAL_ZONES; i++) {
+        if (i > 0) json += ",";
+        json += "{";
+        json += "\"id\":" + String(_configs[i].id) + ",";
+        json += "\"name\":\"" + String(_configs[i].name) + "\",";
+        json += "\"effectiveTarget\":" + String(getEffectiveTargetTemp(i), 1) + ",";
+        json += "\"staticTarget\":" + String(_configs[i].targetTemp, 1) + ",";
+        json += "\"windowPauseActive\":" + String(isWindowPauseActive(i) ? "true" : "false") + ",";
+        json += "\"windowPauseRemainingSec\":" + String(getWindowPauseRemainingSec(i));
+        json += "}";
+    }
+    json += "],";
+
+    // Weekday profile
+    const char* anchorKeys[] = {"sleep", "wake", "away", "home"};
+    json += "\"weekday\":{";
+    for (int a = 0; a < BIO_ANCHORS_COUNT; a++) {
+        if (a > 0) json += ",";
+        json += "\"" + String(anchorKeys[a]) + "\":{";
+        json += "\"hour\":" + String(_scheduleConfig.weekday[a].hour) + ",";
+        json += "\"minute\":" + String(_scheduleConfig.weekday[a].minute) + ",";
+        json += "\"targets\":[" +
+                String(_scheduleConfig.weekday[a].targets[0], 1) + "," +
+                String(_scheduleConfig.weekday[a].targets[1], 1) + "," +
+                String(_scheduleConfig.weekday[a].targets[2], 1) + "]";
+        json += "}";
+    }
+    json += "},";
+
+    // Weekend profile
+    json += "\"weekend\":{";
+    for (int a = 0; a < BIO_ANCHORS_COUNT; a++) {
+        if (a > 0) json += ",";
+        json += "\"" + String(anchorKeys[a]) + "\":{";
+        json += "\"hour\":" + String(_scheduleConfig.weekend[a].hour) + ",";
+        json += "\"minute\":" + String(_scheduleConfig.weekend[a].minute) + ",";
+        json += "\"targets\":[" +
+                String(_scheduleConfig.weekend[a].targets[0], 1) + "," +
+                String(_scheduleConfig.weekend[a].targets[1], 1) + "," +
+                String(_scheduleConfig.weekend[a].targets[2], 1) + "]";
+        json += "}";
+    }
+    json += "}";
+
+    json += "}";
+    return json;
 }
 
 uint32_t ThermalZoneManager::getBootWarmupElapsedSec() const {
@@ -464,6 +840,12 @@ void ThermalZoneManager::update(BoilerRadioTrigger& boiler) {
         return; // Don't run standard logic during exercise
     }
 
+    // Periodic Bio-Schedule evaluation (every 10s)
+    if (_scheduleConfig.enabled && (now - _lastScheduleEvalMs >= 10000UL || _lastScheduleEvalMs == 0)) {
+        _lastScheduleEvalMs = now;
+        evaluateSchedule(now);
+    }
+
     // Periodic check for anti-seize
     checkAntiSeizeSchedule(now);
 
@@ -510,6 +892,9 @@ void ThermalZoneManager::update(BoilerRadioTrigger& boiler) {
             _statuses[i].sensorFault = false;
             _statuses[i].currentTemp = currentTemp;
 
+            // Evaluate Open Window Detection
+            evaluateWindowDetection(i, currentTemp, now);
+
             // Transition from warmup or timeout to normal state
             if (_statuses[i].state == ZONE_WARMUP) {
                 _statuses[i].state = _statuses[i].demand ? ZONE_HEATING : ZONE_IDLE;
@@ -539,24 +924,32 @@ void ThermalZoneManager::update(BoilerRadioTrigger& boiler) {
 
             // Normal Hysteresis loop (only if autoMode and not forced by frost guard)
             if (_autoMode && !_statuses[i].frostActive) {
-                if (!_statuses[i].demand) {
-                    if (_statuses[i].currentTemp <= (_configs[i].targetTemp - _configs[i].hysteresis)) {
-                        _statuses[i].demand = true;
-                        netConsole.printf("[Thermal] Zone %u (%s) heat demand: %.1f C <= %.1f C (target: %.1f C)\n",
-                            _configs[i].id, _configs[i].name,
-                            _statuses[i].currentTemp,
-                            _configs[i].targetTemp - _configs[i].hysteresis,
-                            _configs[i].targetTemp);
-                    }
+                if (_windowStates[i].pauseActive) {
+                    _statuses[i].demand = false;
+                    _statuses[i].state = ZONE_WINDOW_PAUSE;
                 } else {
-                    if (_statuses[i].currentTemp >= (_configs[i].targetTemp + _configs[i].hysteresis)) {
-                        _statuses[i].demand = false;
-                        _statuses[i].state = ZONE_IDLE;
-                        netConsole.printf("[Thermal] Zone %u (%s) target reached: %.1f C >= %.1f C (target: %.1f C)\n",
-                            _configs[i].id, _configs[i].name,
-                            _statuses[i].currentTemp,
-                            _configs[i].targetTemp + _configs[i].hysteresis,
-                            _configs[i].targetTemp);
+                    float target = getEffectiveTargetTemp(i);
+                    if (!_statuses[i].demand) {
+                        if (_statuses[i].currentTemp <= (target - _configs[i].hysteresis)) {
+                            _statuses[i].demand = true;
+                            netConsole.printf("[Thermal] Zone %u (%s) heat demand: %.1f C <= %.1f C (target: %.1f C%s)\n",
+                                _configs[i].id, _configs[i].name,
+                                _statuses[i].currentTemp,
+                                target - _configs[i].hysteresis,
+                                target,
+                                _scheduleConfig.enabled ? (_preHeatActive ? ", PRE-HEAT" : ", BIO") : "");
+                        }
+                    } else {
+                        if (_statuses[i].currentTemp >= (target + _configs[i].hysteresis)) {
+                            _statuses[i].demand = false;
+                            _statuses[i].state = ZONE_IDLE;
+                            netConsole.printf("[Thermal] Zone %u (%s) target reached: %.1f C >= %.1f C (target: %.1f C%s)\n",
+                                _configs[i].id, _configs[i].name,
+                                _statuses[i].currentTemp,
+                                target + _configs[i].hysteresis,
+                                target,
+                                _scheduleConfig.enabled ? (_preHeatActive ? ", PRE-HEAT" : ", BIO") : "");
+                        }
                     }
                 }
             }
@@ -661,6 +1054,11 @@ void ThermalZoneManager::update(BoilerRadioTrigger& boiler) {
                     netConsole.printf("[Thermal] Zone %u (%s) closed relay on pin %u.\n",
                         _configs[i].id, _configs[i].name, _configs[i].relayPin);
                 }
+            } else if (_statuses[i].state == ZONE_WINDOW_PAUSE && _statuses[i].relayEngaged) {
+                applyRelay(_configs[i].relayPin, false);
+                _statuses[i].relayEngaged = false;
+                netConsole.printf("[Thermal] Zone %u (%s) closed relay due to window pause.\n",
+                    _configs[i].id, _configs[i].name);
             }
         }
     }

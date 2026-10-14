@@ -1,4 +1,5 @@
 #include "NetworkConsole.h"
+#include "console_html_gz.h"
 #include <time.h>
 
 NetworkConsole netConsole;
@@ -29,53 +30,90 @@ void NetworkConsole::setCommandHandler(CommandCallback cb) {
 }
 
 void NetworkConsole::appendToRing(char c) {
-    _logRing[_head] = c;
-    _head = (_head + 1) % LOG_BUFFER_SIZE;
-    if (_count < LOG_BUFFER_SIZE) {
-        _count++;
+    appendToRing((const uint8_t*)&c, 1);
+}
+
+void NetworkConsole::appendToRing(const uint8_t *data, size_t len) {
+    if (!data || len == 0) return;
+    _totalBytes += len;
+    if (len >= LOG_BUFFER_SIZE) {
+        data += (len - LOG_BUFFER_SIZE);
+        len = LOG_BUFFER_SIZE;
+        memcpy(_logRing, data, LOG_BUFFER_SIZE);
+        _head = 0;
+        _count = LOG_BUFFER_SIZE;
+        return;
     }
-    _totalBytes++;
+    size_t firstPart = (len < (LOG_BUFFER_SIZE - _head)) ? len : (LOG_BUFFER_SIZE - _head);
+    memcpy(&_logRing[_head], data, firstPart);
+    if (len > firstPart) {
+        memcpy(&_logRing[0], data + firstPart, len - firstPart);
+    }
+    _head = (_head + len) % LOG_BUFFER_SIZE;
+    if (_count < LOG_BUFFER_SIZE) {
+        _count = (_count + len < LOG_BUFFER_SIZE) ? (_count + len) : LOG_BUFFER_SIZE;
+    }
 }
 
 void NetworkConsole::printTimestamp() {
     time_t now = time(nullptr);
-    char buf[16];
-    if (now > 1700000000) {
-        struct tm ti;
-        localtime_r(&now, &ti);
-        snprintf(buf, sizeof(buf), "[%02d:%02d:%02d] ", ti.tm_hour, ti.tm_min, ti.tm_sec);
-    } else {
-        uint32_t s = millis() / 1000;
-        snprintf(buf, sizeof(buf), "[+%02u:%02u:%02u] ", (s / 3600) % 24, (s / 60) % 60, s % 60);
+    static time_t lastSec = 0;
+    static char cachedBuf[16] = "";
+    if (now != lastSec || cachedBuf[0] == '\0') {
+        lastSec = now;
+        if (now > 1700000000) {
+            struct tm ti;
+            localtime_r(&now, &ti);
+            snprintf(cachedBuf, sizeof(cachedBuf), "[%02d:%02d:%02d] ", ti.tm_hour, ti.tm_min, ti.tm_sec);
+        } else {
+            uint32_t s = millis() / 1000;
+            snprintf(cachedBuf, sizeof(cachedBuf), "[+%02u:%02u:%02u] ", (s / 3600) % 24, (s / 60) % 60, s % 60);
+        }
     }
-    rawWrite((const uint8_t*)buf, strlen(buf));
+    rawWrite((const uint8_t*)cachedBuf, strlen(cachedBuf));
 }
 
 void NetworkConsole::rawWrite(const uint8_t *buffer, size_t size) {
-    Serial.write(buffer, size);
-    for (size_t i = 0; i < size; i++) {
-        appendToRing((char)buffer[i]);
+    if (!buffer || size == 0) return;
+    int avail = Serial.availableForWrite();
+    if (avail > 0) {
+        size_t toWrite = ((size_t)avail < size) ? (size_t)avail : size;
+        Serial.write(buffer, toWrite);
     }
+    appendToRing(buffer, size);
     if (_telnetClient && _telnetClient.connected()) {
         _telnetClient.write(buffer, size);
     }
 }
 
 size_t NetworkConsole::write(uint8_t c) {
-    if (_atLineStart && c != '\r' && c != '\n') {
-        _atLineStart = false;
-        printTimestamp();
-    }
-    if (c == '\n') {
-        _atLineStart = true;
-    }
-    rawWrite(&c, 1);
-    return 1;
+    return write(&c, 1);
 }
 
 size_t NetworkConsole::write(const uint8_t *buffer, size_t size) {
-    for (size_t i = 0; i < size; i++) {
-        write(buffer[i]);
+    if (!buffer || size == 0) return 0;
+    size_t start = 0;
+    while (start < size) {
+        if (_atLineStart && buffer[start] != '\r' && buffer[start] != '\n') {
+            _atLineStart = false;
+            printTimestamp();
+        }
+
+        size_t end = start;
+        while (end < size && buffer[end] != '\n') {
+            end++;
+        }
+
+        if (end < size && buffer[end] == '\n') {
+            end++;
+            _atLineStart = true;
+        }
+
+        size_t chunkSize = end - start;
+        if (chunkSize > 0) {
+            rawWrite(buffer + start, chunkSize);
+        }
+        start = end;
     }
     return size;
 }
@@ -90,16 +128,26 @@ bool NetworkConsole::hasTelnetClient() {
     return (bool)_telnetClient && (_telnetClient.connected() != 0);
 }
 
+static const char CMD_SEP[] = "--------------------------------------------------";
+
 void NetworkConsole::executeCommand(const String& cmd) {
     String cleanCmd = cmd;
     cleanCmd.trim();
     if (cleanCmd.length() == 0) return;
 
+    this->println();
+    this->println(CMD_SEP);
     this->printf("[CMD] > %s\n", cleanCmd.c_str());
+    this->println(CMD_SEP);
 
     if (_commandHandler) {
         _commandHandler(cleanCmd);
     }
+
+    this->println(CMD_SEP);
+    this->printf("[CMD] < END: %s\n", cleanCmd.c_str());
+    this->println(CMD_SEP);
+    this->println();
 }
 
 void NetworkConsole::clear() {
@@ -161,36 +209,32 @@ void NetworkConsole::setupWebRoutes() {
     _webServer->on("/api/console/send", HTTP_POST, std::bind(&NetworkConsole::handleApiConsoleSend, this));
 }
 
+String NetworkConsole::getLogsSince(uint32_t since) {
+    size_t delta = 0;
+    if (since == 0 || since > _totalBytes || (_totalBytes - since) >= _count) {
+        delta = _count;
+    } else if (since < _totalBytes) {
+        delta = _totalBytes - since;
+    }
+    if (delta == 0) return "";
+
+    String output;
+    output.reserve(delta + 1);
+    size_t startPos = (_head + LOG_BUFFER_SIZE - delta) % LOG_BUFFER_SIZE;
+    if (startPos + delta <= LOG_BUFFER_SIZE) {
+        output.concat((const char*)&_logRing[startPos], (unsigned int)delta);
+    } else {
+        size_t part1 = LOG_BUFFER_SIZE - startPos;
+        size_t part2 = delta - part1;
+        output.concat((const char*)&_logRing[startPos], (unsigned int)part1);
+        output.concat((const char*)&_logRing[0], (unsigned int)part2);
+    }
+    return output;
+}
+
 void NetworkConsole::handleApiConsoleLogs() {
     uint32_t since = _webServer->hasArg("since") ? (uint32_t)_webServer->arg("since").toInt() : 0;
-    String output = "";
-
-    // If since == 0, OR if the board rebooted (since > _totalBytes), OR ring wrapped:
-    if (since == 0 || since > _totalBytes || (_totalBytes >= since && (_totalBytes - since) >= _count)) {
-        // Output all buffered content in chronological order
-        output.reserve(_count);
-        if (_count < LOG_BUFFER_SIZE) {
-            for (size_t i = 0; i < _count; i++) {
-                output += _logRing[i];
-            }
-        } else {
-            // Buffer wrapped: start from _head to end, then 0 to _head
-            for (size_t i = _head; i < LOG_BUFFER_SIZE; i++) {
-                output += _logRing[i];
-            }
-            for (size_t i = 0; i < _head; i++) {
-                output += _logRing[i];
-            }
-        }
-    } else if (since < _totalBytes) {
-        size_t delta = _totalBytes - since;
-        if (delta > _count) delta = _count;
-        output.reserve(delta);
-        size_t startPos = (_head + LOG_BUFFER_SIZE - delta) % LOG_BUFFER_SIZE;
-        for (size_t i = 0; i < delta; i++) {
-            output += _logRing[(startPos + i) % LOG_BUFFER_SIZE];
-        }
-    }
+    String output = getLogsSince(since);
 
     _webServer->sendHeader("X-Log-Seq", String(_totalBytes));
     _webServer->sendHeader("Access-Control-Expose-Headers", "X-Log-Seq");
@@ -206,272 +250,22 @@ void NetworkConsole::handleApiConsoleSend() {
         cmd = _webServer->arg("plain");
     }
 
+    uint32_t since = _webServer->hasArg("since") ? (uint32_t)_webServer->arg("since").toInt() : _totalBytes;
+
     executeCommand(cmd);
 
+    String output = getLogsSince(since);
+
+    _webServer->sendHeader("X-Log-Seq", String(_totalBytes));
+    _webServer->sendHeader("Access-Control-Expose-Headers", "X-Log-Seq");
     _webServer->sendHeader("Access-Control-Allow-Origin", "*");
-    _webServer->send(200, "application/json", "{\"status\":\"ok\"}");
+    _webServer->send(200, "text/plain; charset=utf-8", output);
 }
 
 void NetworkConsole::handleWebConsolePage() {
-    String html = F(
-        "<!DOCTYPE html><html lang='en'><head><meta charset='utf-8'>"
-        "<meta name='viewport' content='width=device-width,initial-scale=1'>"
-        "<title>Smart Heating - Live Wi-Fi Console</title>"
-        "<style>"
-        "*{box-sizing:border-box;margin:0;padding:0;}"
-        "body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,monospace;"
-        "background:#090d16;color:#f1f5f9;display:flex;flex-direction:column;height:100vh;padding:12px;}"
-        ".header{display:flex;justify-content:space-between;align-items:center;padding:8px 12px;"
-        "background:#111827;border-radius:10px;border:1px solid #1f2937;margin-bottom:10px;}"
-        ".title{font-size:1.1rem;font-weight:700;color:#38bdf8;display:flex;align-items:center;gap:8px;}"
-        ".badge{background:#065f46;color:#34d399;font-size:0.75rem;padding:3px 8px;border-radius:6px;font-weight:600;}"
-        ".nav-links{display:flex;gap:12px;font-size:0.85rem;}"
-        ".nav-links a{color:#94a3b8;text-decoration:none;transition:color 0.2s;}"
-        ".nav-links a:hover{color:#38bdf8;}"
-        ".quick-bar{display:flex;gap:6px;overflow-x:auto;padding-bottom:6px;margin-bottom:8px;}"
-        ".qbtn{background:#1f2937;color:#e2e8f0;border:1px solid #374151;border-radius:6px;padding:6px 12px;"
-        "font-size:0.8rem;font-weight:600;cursor:pointer;white-space:nowrap;transition:all 0.15s;}"
-        ".qbtn:hover{background:#374151;color:#ffffff;border-color:#60a5fa;}"
-        ".qbtn.on{background:#065f46;border-color:#059669;color:#a7f3d0;}"
-        ".qbtn.off{background:#7f1d1d;border-color:#dc2626;color:#fecaca;}"
-        ".term-container{flex:1;background:#030712;border:1px solid #1f2937;border-radius:10px;"
-        "padding:10px 12px;overflow-x:auto;overflow-y:auto;font-family:'Courier New',Courier,monospace;"
-        "font-size:0.82rem;line-height:1.42;color:#e2e8f0;white-space:pre;word-break:normal;-webkit-overflow-scrolling:touch;}"
-        ".term-container.wrap-enabled{white-space:pre-wrap;word-break:break-word;}"
-        ".log-line{padding:1px 0;white-space:inherit;}"
-        ".fbtn{background:#1f2937;color:#94a3b8;border:1px solid #374151;border-radius:4px;padding:2px 7px;font-size:0.75rem;cursor:pointer;font-weight:700;line-height:1.2;}"
-        ".fbtn:hover{background:#374151;color:#ffffff;border-color:#60a5fa;}"
-        "@media(max-width:640px){"
-        "body{padding:8px;}"
-        ".header{padding:6px 10px;margin-bottom:6px;}"
-        ".title{font-size:0.95rem;}"
-        ".nav-links{gap:8px;font-size:0.75rem;}"
-        ".quick-bar{margin-bottom:6px;gap:4px;}"
-        ".qbtn{padding:5px 8px;font-size:0.72rem;}"
-        ".term-container{font-size:0.70rem;padding:8px;}"
-        ".cmd-input{padding:8px 10px;font-size:0.85rem;}"
-        ".send-btn{padding:8px 14px;font-size:0.85rem;}"
-        ".controls{font-size:0.70rem;flex-wrap:wrap;gap:6px;}"
-        "}"
-        ".t-time{color:#64748b;}"
-        ".t-thm{color:#fb923c;font-weight:600;}"
-        ".t-wth{color:#38bdf8;font-weight:700;}"
-        ".t-ble{color:#c084fc;font-weight:600;}"
-        ".t-tim{color:#facc15;font-weight:600;}"
-        ".t-pas{color:#34d399;font-weight:600;}"
-        ".t-dia{color:#f472b6;font-weight:600;}"
-        ".t-cmd{color:#22d3ee;font-weight:700;}"
-        ".t-cpu{color:#c084fc;font-weight:700;}"
-        ".t-mem{color:#f472b6;font-weight:700;}"
-        ".t-fls{color:#fb923c;font-weight:700;}"
-        ".t-temp{color:#38bdf8;font-weight:700;}"
-        ".t-err{color:#f87171;font-weight:700;}"
-        ".t-wrn{color:#fbbf24;font-weight:600;}"
-        ".t-ok{color:#4ade80;font-weight:700;}"
-        ".t-off{color:#f87171;font-weight:700;}"
-        ".t-idle{color:#38bdf8;font-weight:700;}"
-        ".t-demand{color:#fb923c;font-weight:700;}"
-        ".t-auto{color:#22d3ee;font-weight:700;}"
-        ".t-man{color:#e879f9;font-weight:700;}"
-        ".t-warm{color:#facc15;font-weight:700;}"
-        ".b-exc{color:#34d399;font-weight:700;background:rgba(52,211,153,0.15);padding:1px 5px;border-radius:4px;}"
-        ".b-good{color:#60a5fa;font-weight:700;background:rgba(96,165,250,0.15);padding:1px 5px;border-radius:4px;}"
-        ".b-marg{color:#f59e0b;font-weight:700;background:rgba(245,158,11,0.15);padding:1px 5px;border-radius:4px;}"
-        ".b-poor{color:#ef4444;font-weight:700;background:rgba(239,68,68,0.15);padding:1px 5px;border-radius:4px;}"
-        ".input-bar{display:flex;gap:8px;margin-top:10px;align-items:center;}"
-        ".cmd-input{flex:1;background:#111827;border:1px solid #374151;color:#f9fafb;padding:10px 14px;"
-        "border-radius:8px;font-family:'Courier New',Courier,monospace;font-size:0.95rem;outline:none;}"
-        ".cmd-input:focus{border-color:#38bdf8;box-shadow:0 0 0 2px rgba(56,189,248,0.2);}"
-        ".send-btn{background:#0284c7;color:#ffffff;border:none;border-radius:8px;padding:10px 20px;"
-        "font-weight:700;cursor:pointer;font-size:0.9rem;transition:background 0.2s;}"
-        ".send-btn:hover{background:#0369a1;}"
-        ".controls{display:flex;justify-content:space-between;align-items:center;font-size:0.75rem;color:#64748b;margin-top:6px;padding:0 4px;}"
-        "</style></head><body>"
-        "<div class='header'>"
-        "<div class='title'><span>&gt;_</span> Smart Heating 2-Way Console <span class='badge' id='statusBadge'>LIVE</span></div>"
-        "<div class='nav-links'>"
-        "<a id='navDash' href='/'>&larr; Dashboard</a>"
-        "<a id='navOta' href='/update'>OTA Firmware</a>"
-        "<a href='https://pvvx.github.io/ATC_MiThermometer/TelinkMiFlasher.html' target='_blank' rel='noopener' title='Configure Xiaomi BLE sensor RF transmit power and settings'>BLE Sensor Config</a>"
-        "</div>"
-        "</div>"
-        "<div class='quick-bar'>"
-        "<button class='qbtn' onclick=\"sendCmd('STATUS')\">STATUS</button>"
-        "<button class='qbtn on' onclick=\"sendCmd('ON')\">START BOILER</button>"
-        "<button class='qbtn off' onclick=\"sendCmd('OFF')\">STOP BOILER</button>"
-        "<button class='qbtn' onclick=\"sendCmd('AUTO')\">AUTO MODE</button>"
-        "<button class='qbtn' onclick=\"sendCmd('MANUAL')\">MANUAL MODE</button>"
-        "<button class='qbtn' onclick=\"sendCmd('HELP')\">HELP (?)</button>"
-        "<button class='qbtn' onclick=\"clearTerm()\">CLEAR</button>"
-        "</div>"
-        "<div class='term-container' id='terminal'></div>"
-        "<form class='input-bar' onsubmit=\"handleSubmit(event)\">"
-        "<input type='text' id='cmdInput' class='cmd-input' placeholder=\"Enter command (e.g. STATUS, ON, OFF, SET 1 22.5, HELP)...\" autocomplete='off' autofocus>"
-        "<button type='submit' class='send-btn'>Send</button>"
-        "</form>"
-        "<div class='controls'>"
-        "<div>Telnet: <b>192.168.1.20:23</b></div>"
-        "<div style='display:flex;gap:10px;align-items:center;'>"
-        "<label title='Toggle word wrap'><input type='checkbox' id='wrapToggle'> Wrap</label>"
-        "<label title='Automatically scroll to newest output'><input type='checkbox' id='autoScroll' checked> Auto-scroll</label>"
-        "<button type='button' class='fbtn' onclick='adjustFont(-1)' title='Decrease font size'>A-</button>"
-        "<button type='button' class='fbtn' onclick='adjustFont(1)' title='Increase font size'>A+</button>"
-        "</div>"
-        "</div>"
-        "<script>"
-        "const base = window.location.pathname.replace(/\\/console\\/?$/, '');"
-        "const navDash = document.getElementById('navDash');"
-        "const navOta = document.getElementById('navOta');"
-        "if (navDash) navDash.href = (base || '') + '/';"
-        "if (navOta) navOta.href = (base || '') + '/update';"
-        "let lastSeq = 0;"
-        "let isFetching = false;"
-        "let isSending = false;"
-        "const term = document.getElementById('terminal');"
-        "const cmdInput = document.getElementById('cmdInput');"
-        "const autoScroll = document.getElementById('autoScroll');"
-        "const wrapToggle = document.getElementById('wrapToggle');"
-        "if (wrapToggle) {"
-        "  const isWrap = localStorage.getItem('termWrap') === 'true';"
-        "  wrapToggle.checked = isWrap;"
-        "  if (isWrap) term.classList.add('wrap-enabled');"
-        "  wrapToggle.addEventListener('change', () => {"
-        "    if (wrapToggle.checked) {"
-        "      term.classList.add('wrap-enabled');"
-        "      localStorage.setItem('termWrap', 'true');"
-        "    } else {"
-        "      term.classList.remove('wrap-enabled');"
-        "      localStorage.setItem('termWrap', 'false');"
-        "    }"
-        "  });"
-        "}"
-        "let termFs = parseFloat(localStorage.getItem('termFontSize') || (window.innerWidth < 640 ? '0.70' : '0.82'));"
-        "term.style.fontSize = termFs + 'rem';"
-        "function adjustFont(dir) {"
-        "  termFs = Math.max(0.52, Math.min(1.2, termFs + dir * 0.06));"
-        "  term.style.fontSize = termFs.toFixed(2) + 'rem';"
-        "  localStorage.setItem('termFontSize', termFs.toFixed(2));"
-        "}"
-        "const history = [];"
-        "let histIdx = -1;"
-        "function escHtml(s){return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}"
-        "function colorize(line){"
-        "  let s = escHtml(line);"
-        "  s = s.replace(/^(\\[\\d{2}:\\d{2}:\\d{2}\\]|\\[\\+\\d{2}:\\d{2}:\\d{2}\\])/, '<span class=\"t-time\">$1</span>');"
-        "  s = s.replace(/(\\[Thermal\\]|\\[Warmup\\])/gi, '<span class=\"t-thm\">$1</span>');"
-        "  s = s.replace(/(\\[Weather\\]|\\[WEATHER\\])/gi, '<span class=\"t-wth\">$1</span>');"
-        "  s = s.replace(/(\\[BLE\\])/gi, '<span class=\"t-ble\">$1</span>');"
-        "  s = s.replace(/(\\[Time\\])/gi, '<span class=\"t-tim\">$1</span>');"
-        "  s = s.replace(/(\\[Passport\\])/gi, '<span class=\"t-pas\">$1</span>');"
-        "  s = s.replace(/(\\[CPU\\])/gi, '<span class=\"t-cpu\">$1</span>');"
-        "  s = s.replace(/(\\[MEMORY\\])/gi, '<span class=\"t-mem\">$1</span>');"
-        "  s = s.replace(/(\\[FLASH\\])/gi, '<span class=\"t-fls\">$1</span>');"
-        "  s = s.replace(/(\\[INIT\\])/gi, '<span class=\"t-tim\">$1</span>');"
-        "  s = s.replace(/(\\[DIAG\\]|\\[DTC-[^\\]]+\\]|\\[POST\\])/gi, '<span class=\"t-dia\">$1</span>');"
-        "  s = s.replace(/(\\[(?:[A-Z]\\.\\s*)?(?:CMD|Ready|STATUS|SYSTEM|BOILER|HARDWARE|PROTECTIONS|SAFETY|WEATHER|ZONES|Zone\\s*\\d+|HEATING|SENSORS)[^\\]]*\\])/gi, '<span class=\"t-cmd\">$1</span>');"
-        "  s = s.replace(/(\\s\\|\\s\\*)/g, ' <span class=\"t-time\">|</span> *');"
-        "  s = s.replace(/(\\[EXCELLENT\\]|\\[EXC\\])/g, '<span class=\"b-exc\">$1</span>');"
-        "  s = s.replace(/(\\[GOOD\\])/g, '<span class=\"b-good\">$1</span>');"
-        "  s = s.replace(/(\\[MARGINAL\\])/g, '<span class=\"b-marg\">$1</span>');"
-        "  s = s.replace(/(\\[POOR\\]|\\[DEGRADED\\])/g, '<span class=\"b-poor\">$1</span>');"
-        "  s = s.replace(/(\\b(?:ERROR|FAIL|FAILED|CRITICAL)\\b)/gi, '<span class=\"t-err\">$1</span>');"
-        "  s = s.replace(/(\\b(?:Warning|WARN)\\b)/gi, '<span class=\"t-wrn\">$1</span>');"
-        "  s = s.replace(/(\\b(?:PASS|ONLINE|CONNECTED|ENABLED|RUNNING|STARTED|ACTIVE)\\b)/gi, '<span class=\"t-ok\">$1</span>');"
-        "  s = s.replace(/(\\b(?:OPEN|ON)\\b)(?!-)/gi, '<span class=\"t-ok\">$1</span>');"
-        "  s = s.replace(/(\\b(?:FAIL|FAILED|OFFLINE|DISCONNECTED|DISABLED|STOPPED|CLOSED|OFF|TIMEOUT)\\b)/gi, '<span class=\"t-off\">$1</span>');"
-        "  s = s.replace(/(\\b(?:IDLE|STANDBY)\\b)/gi, '<span class=\"t-idle\">$1</span>');"
-        "  s = s.replace(/(\\b(?:DEMAND|HEATING)\\b)/gi, '<span class=\"t-demand\">$1</span>');"
-        "  s = s.replace(/(\\b(?:AUTOMATIC|AUTO)\\b)/gi, '<span class=\"t-auto\">$1</span>');"
-        "  s = s.replace(/(\\b(?:MANUAL)\\b)/gi, '<span class=\"t-man\">$1</span>');"
-        "  s = s.replace(/(\\b(?:WARMUP|SYNCING)\\b|Scanning\\.\\.\\.)/gi, '<span class=\"t-warm\">$1</span>');"
-        "  s = s.replace(/(\\b(?:Autumn|Toamna|Winter|Iarna|Spring|Primavara|Summer|Vara)\\b)/gi, '<span class=\"t-auto\">$1</span>');"
-        "  s = s.replace(/(-?\\d+\\.?\\d*\\s*°C)/g, '<span class=\"t-temp\">$1</span>');"
-        "  return s;"
-        "}"
-        "async function fetchLogs() {"
-        "  if (isFetching) return;"
-        "  isFetching = true;"
-        "  try {"
-        "    const r = await fetch(base + '/api/console/logs?since=' + lastSeq);"
-        "    if (!r.ok || r.status !== 200) {"
-        "      throw new Error('HTTP ' + r.status);"
-        "    }"
-        "    const seqHdr = r.headers.get('X-Log-Seq');"
-        "    const newSeq = seqHdr ? parseInt(seqHdr, 10) : 0;"
-        "    if (lastSeq > 0 && newSeq > 0 && newSeq < lastSeq) {"
-        "      term.insertAdjacentHTML('beforeend', '<div class=\"log-line\" style=\"color:#38bdf8;font-weight:bold;border-top:1px dashed #374151;margin:8px 0;padding-top:4px;\">--- [SYSTEM REBOOT DETECTED / NEW FIRMWARE RUNNING] ---</div>');"
-        "    }"
-        "    if (newSeq > 0) {"
-        "      lastSeq = newSeq;"
-        "    }"
-        "    const txt = await r.text();"
-        "    if (txt && txt.length > 0) {"
-        "      const lines = txt.split('\\n');"
-        "      let html = '';"
-        "      for (let i = 0; i < lines.length; i++) {"
-        "        if (i === lines.length - 1 && lines[i] === '') continue;"
-        "        html += '<div class=\"log-line\">' + colorize(lines[i]) + '</div>';"
-        "      }"
-        "      term.insertAdjacentHTML('beforeend', html);"
-        "      while (term.children.length > 2000) term.removeChild(term.firstChild);"
-        "      if (autoScroll.checked) term.scrollTop = term.scrollHeight;"
-        "    }"
-        "    document.getElementById('statusBadge').textContent = 'CONNECTED';"
-        "    document.getElementById('statusBadge').style.background = '#065f46';"
-        "  } catch(e) {"
-        "    document.getElementById('statusBadge').textContent = 'DISCONNECTED';"
-        "    document.getElementById('statusBadge').style.background = '#7f1d1d';"
-        "  } finally {"
-        "    isFetching = false;"
-        "  }"
-        "}"
-        "async function sendCmd(c) {"
-        "  if (!c || isSending) return;"
-        "  isSending = true;"
-        "  history.unshift(c);"
-        "  histIdx = -1;"
-        "  try {"
-        "    await fetch(base + '/api/console/send?cmd=' + encodeURIComponent(c), {method:'POST'});"
-        "    setTimeout(fetchLogs, 150);"
-        "  } catch(e) { console.error(e); }"
-        "  finally {"
-        "    setTimeout(() => { isSending = false; }, 350);"
-        "  }"
-        "}"
-        "function handleSubmit(e) {"
-        "  e.preventDefault();"
-        "  const val = cmdInput.value.trim();"
-        "  if (val) {"
-        "    sendCmd(val);"
-        "    cmdInput.value = '';"
-        "  }"
-        "}"
-        "function clearTerm() {"
-        "  term.innerHTML = '';"
-        "}"
-        "cmdInput.addEventListener('keydown', (e) => {"
-        "  if (e.key === 'ArrowUp') {"
-        "    if (histIdx + 1 < history.length) {"
-        "      histIdx++;"
-        "      cmdInput.value = history[histIdx];"
-        "    }"
-        "    e.preventDefault();"
-        "  } else if (e.key === 'ArrowDown') {"
-        "    if (histIdx > 0) {"
-        "      histIdx--;"
-        "      cmdInput.value = history[histIdx];"
-        "    } else {"
-        "      histIdx = -1;"
-        "      cmdInput.value = '';"
-        "    }"
-        "    e.preventDefault();"
-        "  }"
-        "});"
-        "setInterval(fetchLogs, 800);"
-        "fetchLogs();"
-        "</script>"
-        "</body></html>"
-    );
-
-    _webServer->send(200, "text/html", html);
+    _webServer->sendHeader("Access-Control-Allow-Origin", "*");
+    _webServer->sendHeader("Content-Encoding", "gzip");
+    _webServer->sendHeader("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0");
+    _webServer->sendHeader("Pragma", "no-cache");
+    _webServer->send_P(200, "text/html", (const char*)CONSOLE_HTML_GZ, CONSOLE_HTML_GZ_LEN);
 }

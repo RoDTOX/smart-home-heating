@@ -7,7 +7,8 @@
 #include "ThermalZoneManager.h"
 #include "TimeAndWeatherService.h"
 #include "Version.h"
-#include "WebSetupPage.h"
+#include "dashboard_html_gz.h"
+#include "setup_html_gz.h"
 #include <Arduino.h>
 #include <HTTPUpdateServer.h>
 #include <WebServer.h>
@@ -131,316 +132,29 @@ static uint32_t getAntiSeizeNextDays(uint32_t epoch) {
 }
 
 void printHelp() {
-  netConsole.println();
-  netConsole.println(F("=================================================="));
-  netConsole.printf("  Smart Heating Controller v%s - Command Manual\n", APP_VERSION);
-  netConsole.println(F("=================================================="));
-  netConsole.println(F("[THERMAL & BOILER CONTROL]"));
-  netConsole.println(F("  1 or ON          -> Send boiler START signal (RF 433 MHz)"));
-  netConsole.println(F("  0 or OFF         -> Send boiler STOP signal (RF 433 MHz)"));
-  netConsole.println(F("  AUTO             -> Switch to closed-loop AUTOMATIC mode"));
-  netConsole.println(F("  MANUAL           -> Switch to MANUAL override mode"));
-  netConsole.println(F("  SET <z> <temp>   -> Set target temp (e.g. SET 1 22.5)"));
-  netConsole.println(F("  PUMP <ON|OFF>    -> Manual circulation pump control (Relay 4)"));
-  netConsole.println();
-  netConsole.println(F("[SYSTEM & SAFETY CONFIG]"));
-  netConsole.println(F("  ACTUATOR <NC|NO> -> Toggle actuator electrical polarity"));
-  netConsole.println(F("  TIMEOUT [sec]    -> View/set sensor failsafe timeout"));
-  netConsole.println(F("  EXERCISE         -> Run 20s anti-seize cycle (pump & valves)"));
-  netConsole.println();
-  netConsole.println(F("[SENSORS & ENVIRONMENT]"));
-  netConsole.println(F("  STATUS or S      -> Comprehensive system status & zones"));
-  netConsole.println(F("  BLE or SENSORS   -> List BLE thermometers & link quality"));
-  netConsole.println(F("  WEATHER          -> Outdoor weather from Open-Meteo REST API"));
-  netConsole.println(F("  TIME             -> View NTP clock, date & heating season"));
-  netConsole.println(F("  SENSOR CONFIG    -> https://pvvx.github.io/ATC_MiThermometer/TelinkMiFlasher.html"));
-  netConsole.println();
-  netConsole.println(F("[DIAGNOSTICS & SYSTEM]"));
-  netConsole.println(F("  DIAG             -> Health score and active DTC codes"));
-  netConsole.println(F("  DIAG SELFTEST    -> Run on-demand diagnostic self-test"));
-  netConsole.println(F("  DIAG CLEAR       -> Clear active DTC fault codes"));
-  netConsole.println(F("  PASSPORT         -> Device serial & commissioning data"));
-  netConsole.println(F("  CLEAR or CLS     -> Clear console buffer & screen"));
-  netConsole.println(F("  HELP or ?        -> Display this command manual"));
-  netConsole.println(F("=================================================="));
-  netConsole.println();
+  netConsole.print(F(
+      "\r\n--- Smart Heating Command Manual ---\r\n"
+      "  ON / OFF         -> Start / Stop boiler RF\r\n"
+      "  AUTO / MANUAL    -> Automatic / Manual mode\r\n"
+      "  SET <z> <temp>   -> Set target temp (e.g. SET 1 22.5)\r\n"
+      "  PUMP <ON|OFF>    -> Secondary pump control\r\n"
+      "  SCHEDULE [ON|OFF]-> Smart Bio-Schedule profile\r\n"
+      "  ACTUATOR <NC|NO> -> Actuator polarity\r\n"
+      "  TIMEOUT [sec]    -> Sensor failsafe timeout\r\n"
+      "  EXERCISE         -> Run 20s anti-seize cycle\r\n"
+      "  STATUS or S      -> System status & zones\r\n"
+      "  BLE / SENSORS    -> BLE thermometers list\r\n"
+      "  WEATHER / TIME   -> Outdoor weather & NTP clock\r\n"
+      "  DIAG [SELFTEST]  -> Health score & DTC fault codes\r\n"
+      "  PASSPORT / CLEAR -> Device serial / Clear screen\r\n"
+      "------------------------------------\r\n\r\n"));
 }
 
 void handleRoot() {
-  bool isOn = boilerRadio.isLastCommandOn();
-  uint32_t lastTx = boilerRadio.getLastTransmissionTime();
-  uint32_t secondsAgo = (lastTx > 0) ? (millis() - lastTx) / 1000 : 0;
-  bool isAuto = thermalZones.isAutoMode();
-
-  String html = F(
-      "<!DOCTYPE html><html lang='en'><head><meta charset='utf-8'>"
-      "<meta name='viewport' content='width=device-width,initial-scale=1'>"
-      "<title>Smart Heating - Boiler & Zone Controller</title>"
-      "<style>"
-      "*{box-sizing:border-box;}"
-      "body{font-family:-apple-system,BlinkMacSystemFont,'Segoe "
-      "UI',Roboto,sans-serif;"
-      "background:#0f172a;color:#f8fafc;margin:0;padding:16px;display:flex;"
-      "flex-direction:column;align-items:center;min-height:100vh;}"
-      ".card{background:#1e293b;border-radius:16px;padding:20px;width:100%;max-"
-      "width:480px;"
-      "box-shadow:0 10px 25px -5px rgba(0,0,0,0.5);border:1px solid #334155;}"
-      "h1{font-size:1.35rem;margin:0 0 4px 0;text-align:center;color:#38bdf8;}"
-      ".subtitle{font-size:0.8rem;color:#94a3b8;text-align:center;margin-"
-      "bottom:16px;}"
-      ".status-box{display:flex;justify-content:space-between;align-items:"
-      "center;"
-      "background:#0f172a;padding:12px "
-      "16px;border-radius:12px;margin-bottom:14px;"
-      "border:1px solid #334155;}"
-      ".status-val{font-weight:700;font-size:1rem;padding:4px "
-      "10px;border-radius:8px;}"
-      ".badge-on{background:#065f46;color:#34d399;border:1px solid #059669;}"
-      ".badge-off{background:#7f1d1d;color:#f87171;border:1px solid #dc2626;}"
-      ".mode-bar{display:flex;gap:8px;margin-bottom:16px;background:#0f172a;"
-      "padding:4px;border-radius:12px;border:1px solid #334155;}"
-      ".mode-btn{flex:1;padding:8px;border:none;border-radius:8px;font-weight:"
-      "700;font-size:0.85rem;cursor:pointer;background:transparent;color:#"
-      "94a3b8;transition:all 0.2s;}"
-      ".mode-btn.active{background:#0284c7;color:#ffffff;box-shadow:0 2px 8px "
-      "rgba(2,132,199,0.4);}"
-      ".sec-title{font-size:0.85rem;font-weight:700;color:#94a3b8;margin:16px "
-      "0 8px "
-      "0;display:flex;justify-content:space-between;align-items:center;text-"
-      "transform:uppercase;letter-spacing:0.5px;}"
-      ".zone-card{background:#0f172a;border:1px solid "
-      "#334155;border-radius:12px;padding:14px;margin-bottom:10px;display:flex;"
-      "flex-direction:column;gap:10px;}"
-      ".zone-header{display:flex;justify-content:space-between;align-items:"
-      "center;}"
-      ".zone-name{font-weight:700;font-size:0.95rem;color:#f1f5f9;}"
-      ".zone-badge{font-size:0.75rem;font-weight:700;padding:3px "
-      "8px;border-radius:6px;}"
-      ".badge-idle{background:#1e293b;color:#94a3b8;border:1px solid #475569;}"
-      ".badge-warming{background:#78350f;color:#fcd34d;border:1px solid "
-      "#b45309;}"
-      ".badge-heating{background:#065f46;color:#34d399;border:1px solid "
-      "#059669;}"
-      ".badge-disabled{background:#334155;color:#64748b;border:1px solid "
-      "#475569;}"
-      ".zone-body{display:flex;justify-content:space-between;align-items:"
-      "center;}"
-      ".zone-temp{font-size:1.25rem;font-weight:700;color:#38bdf8;}"
-      ".zone-ctrl{display:flex;align-items:center;gap:6px;}"
-      ".temp-btn{background:#1e293b;color:#f8fafc;border:1px solid "
-      "#475569;width:32px;height:32px;border-radius:8px;font-size:1.1rem;font-"
-      "weight:700;cursor:pointer;display:flex;align-items:center;justify-"
-      "content:center;transition:background 0.1s;}"
-      ".temp-btn:active{background:#334155;}"
-      ".setpoint-val{font-size:1rem;font-weight:700;min-width:54px;text-align:"
-      "center;}"
-      ".zone-footer{display:flex;justify-content:space-between;align-items:"
-      "center;font-size:0.75rem;color:#64748b;padding-top:4px;border-top:1px "
-      "dashed #1e293b;}"
-      ".toggle-link{color:#38bdf8;cursor:pointer;text-decoration:none;font-"
-      "weight:600;}"
-      ".btn-group{display:flex;gap:8px;margin-bottom:12px;}"
-      ".btn-action{flex:1;border:none;border-radius:10px;padding:12px;font-"
-      "size:0.9rem;font-weight:700;cursor:pointer;display:flex;justify-content:"
-      "center;align-items:center;gap:6px;}"
-      ".btn-on{background:linear-gradient(135deg,#10b981,#059669);color:#"
-      "ffffff;}"
-      ".btn-off{background:linear-gradient(135deg,#ef4444,#dc2626);color:#"
-      "ffffff;}"
-      ".sensor-grid{display:flex;flex-direction:column;gap:6px;}"
-      ".sensor-row{display:flex;justify-content:space-between;align-items:"
-      "center;background:#0f172a;padding:8px 12px;border-radius:8px;border:1px "
-      "solid #334155;font-size:0.85rem;}"
-      ".sensor-name{font-weight:600;color:#f1f5f9;}"
-      ".sensor-temp{font-weight:700;color:#38bdf8;font-size:0.95rem;}"
-      ".meta{margin-top:16px;padding-top:12px;border-top:1px solid "
-      "#334155;font-size:0.75rem;color:#64748b;display:grid;grid-template-"
-      "columns:1fr 1fr;gap:4px;}"
-      ".footer{margin-top:14px;text-align:center;font-size:0.8rem;}"
-      "a{color:#38bdf8;text-decoration:none;}"
-      "</style></head><body>"
-      "<div class='card'>"
-      "<h1>Smart Heating Controller</h1>"
-      "<div class='subtitle'>Multi-Zone &bull; RF 433.92 MHz &bull; ESP32</div>"
-      "<div class='status-box'>"
-      "<span>Boiler Flame:</span>");
-
-  if (isOn) {
-    html += F("<span id='boiler-badge' class='status-val badge-on'>ON "
-              "(Active)</span>");
-  } else {
-    html += F("<span id='boiler-badge' class='status-val badge-off'>OFF "
-              "(Idle)</span>");
-  }
-
-  html += F("</div>"
-            "<div class='mode-bar'>");
-  html += "<button id='btn-mode-auto' class='mode-btn " +
-          String(isAuto ? "active" : "") +
-          "' onclick=\"setMode('auto')\">&#9881; AUTOMATIC</button>";
-  html += "<button id='btn-mode-manual' class='mode-btn " +
-          String(!isAuto ? "active" : "") +
-          "' onclick=\"setMode('manual')\">&#9995; MANUAL</button>";
-  html += F("</div>"
-            "<div class='btn-group'>"
-            "<button class='btn-action btn-on' "
-            "onclick=\"trigger('on')\">&#128293; Start Boiler</button>"
-            "<button class='btn-action btn-off' "
-            "onclick=\"trigger('off')\">&#10060; Stop Boiler</button>"
-            "</div>"
-            "<div class='sec-title'>"
-            "<span>Thermal Zones (Underfloor)</span>"
-            "<span>Target</span>"
-            "</div>");
-
-  for (size_t i = 0; i < thermalZones.getZoneCount(); i++) {
-    const ThermalZoneConfig &cfg = thermalZones.getConfig(i);
-    const ThermalZoneStatus &st = thermalZones.getStatus(i);
-
-    String badgeClass = "badge-idle";
-    if (st.state == ZONE_HEATING)
-      badgeClass = "badge-heating";
-    else if (st.state == ZONE_WARMING_UP)
-      badgeClass = "badge-warming";
-    else if (st.state == ZONE_DISABLED)
-      badgeClass = "badge-disabled";
-
-    html += "<div class='zone-card'>";
-    html += "<div class='zone-header'>";
-    html += "<span class='zone-name'>" + String(cfg.name) + "</span>";
-    html += "<span class='zone-badge " + badgeClass + "'>" +
-            String(thermalZones.getStateStr(st.state)) + "</span>";
-    html += "</div>";
-
-    html += "<div class='zone-body'>";
-    html += "<div>";
-    if (st.sensorValid) {
-      html += "<span class='zone-temp'>" + String(st.currentTemp, 1) +
-              "&deg;C</span>";
-    } else {
-      html +=
-          "<span class='zone-temp' style='color:#64748b;'>--.-&deg;C</span>";
-    }
-    html += "<div "
-            "style='font-size:0.75rem;color:#64748b;margin-top:2px;'>Sensor: " +
-            String(cfg.sensorName) + "</div>";
-    html += "</div>";
-
-    html += "<div class='zone-ctrl'>";
-    html += "<button class='temp-btn' onclick=\"adjTarget(" + String(i) +
-            ", -0.5)\">-</button>";
-    html += "<span class='setpoint-val' id='sp-" + String(i) + "' data-val='" +
-            String(cfg.targetTemp, 1) + "'>" + String(cfg.targetTemp, 1) +
-            "&deg;C</span>";
-    html += "<button class='temp-btn' onclick=\"adjTarget(" + String(i) +
-            ", 0.5)\">+</button>";
-    html += "</div>";
-    html += "</div>";
-
-    html += "<div class='zone-footer'>";
-    html += "<span>Relay GPIO" + String(cfg.relayPin) + ": <b>" +
-            String(st.relayEngaged ? "ON (Open)" : "OFF (Closed)") +
-            "</b></span>";
-    html += "<span class='toggle-link' onclick=\"toggleZone(" + String(i) +
-            ")\">" + String(cfg.enabled ? "Disable" : "Enable") + "</span>";
-    html += "</div>";
-    html += "</div>";
-  }
-
-  html += F("<div class='sec-title'>"
-            "<span>BLE Sensor Telemetry</span>");
-
-  html += F("<span style='color:#34d399;font-size:0.75rem;'>&bull; BLE Active</span>");
-  html += F("</div><div class='sensor-grid'>");
-
-  size_t sCount = bleScanner.getSensorCount();
-  size_t validCount = 0;
-  for (size_t i = 0; i < sCount; i++) {
-    const BleSensorData *s = bleScanner.getSensor(i);
-    if (!s || !s->valid)
-      continue;
-    validCount++;
-    html += "<div class='sensor-row'>";
-    html += "<span class='sensor-name'>" + String(s->name) + "</span>";
-    html += "<div><span class='sensor-temp'>" + String(s->temperature, 1) +
-            "&deg;C</span>";
-    html += "<span style='font-size:0.75rem;color:#64748b;margin-left:6px;'>" +
-            String(s->humidity, 0) + "%</span></div>";
-    html += "</div>";
-  }
-  if (validCount == 0) {
-    html += F("<div class='sensor-row'><span style='color:#64748b;'>Scanning for BLE sensors...</span></div>");
-  }
-
-  html += F("</div>"
-            "<div class='meta'>"
-            "<div>Last Command: <b>");
-  html += (lastTx == 0) ? "None" : (String(secondsAgo) + " sec.");
-  html += F("</b></div>"
-            "<div>Free Heap: <b>");
-  html += String(ESP.getFreeHeap() / 1024);
-  html += F(" KB</b></div>"
-            "<div>Wi-Fi RSSI: <b>");
-  html += String(WiFi.RSSI());
-  html += F(" dBm</b></div>"
-            "<div>IP: <b>");
-  html += WiFi.localIP().toString();
-  html += F("</b></div>"
-            "<div>Time (NTP): <b>");
-  html += timeAndWeather.getFormattedTime();
-  html += F("</b></div>"
-            "<div>Outdoor Temp: <b>");
-  html += timeAndWeather.isWeatherValid()
-              ? (String(timeAndWeather.getOutdoorTemperature(), 1) + "&deg;C")
-              : String("Pending");
-  html += F("</b></div></div>"
-            "<div class='footer' "
-            "style='display:flex;justify-content:center;gap:16px;flex-wrap:"
-            "wrap;'><a href='console'><b>&gt;_ Live Console</b></a> &bull; <a "
-            "href='setup'><b>⚙️ Setup Wizard</b></a> &bull; <a "
-            "href='update'>Firmware OTA</a> &bull; <a "
-            "href='https://pvvx.github.io/ATC_MiThermometer/TelinkMiFlasher.html' "
-            "target='_blank' rel='noopener'><b>📡 BLE Sensor Config</b></a></div>"
-            "</div>"
-            "<script>"
-            "const base = window.location.pathname.endsWith('/') ? "
-            "window.location.pathname : window.location.pathname + '/';"
-            "function trigger(action){"
-            "  const b = document.getElementById('boiler-badge');"
-            "  if (b) {"
-            "    b.innerText = action === 'on' ? 'ON (Active)' : 'OFF (Idle)';"
-            "    b.className = 'status-val ' + (action === 'on' ? 'badge-on' : "
-            "'badge-off');"
-            "  }"
-            "  fetch(base + 'api/boiler/' + action, {method:'POST'});"
-            "}"
-            "function setMode(m){"
-            "  const ba = document.getElementById('btn-mode-auto');"
-            "  const bm = document.getElementById('btn-mode-manual');"
-            "  if (ba && bm) {"
-            "    ba.className = 'mode-btn ' + (m === 'auto' ? 'active' : '');"
-            "    bm.className = 'mode-btn ' + (m === 'manual' ? 'active' : '');"
-            "  }"
-            "  fetch(base + 'api/mode?mode=' + m, {method:'POST'});"
-            "}"
-            "function adjTarget(idx, delta){"
-            "  const el = document.getElementById('sp-' + idx);"
-            "  if (!el) return;"
-            "  let cur = parseFloat(el.dataset.val || el.innerText);"
-            "  let nxt = (cur + delta).toFixed(1);"
-            "  el.dataset.val = nxt;"
-            "  el.innerHTML = nxt + '&deg;C';"
-            "  fetch(base + 'api/zones/setpoint?id=' + idx + '&target=' + nxt, "
-            "{method:'POST'});"
-            "}"
-            "function toggleZone(idx){"
-            "  fetch(base + 'api/zones/toggle?id=' + idx, "
-            "{method:'POST'}).then(() => location.reload());"
-            "}"
-            "</script>"
-            "</body></html>");
-
-  server.send(200, "text/html", html);
+  server.sendHeader("Access-Control-Allow-Origin", "*");
+  server.sendHeader("Content-Encoding", "gzip");
+  server.sendHeader("Cache-Control", "no-cache");
+  server.send_P(200, "text/html", (const char*)DASHBOARD_HTML_GZ, DASHBOARD_HTML_GZ_LEN);
 }
 
 void handleApiOn() {
@@ -536,6 +250,9 @@ void handleApiZones() {
           ",";
   json += "\"sensorTimeoutSec\":" + String(thermalZones.getSensorTimeoutSec()) + ",";
   json += "\"lastAntiSeizeEpoch\":" + String(thermalZones.getLastAntiSeizeEpoch()) + ",";
+  json += "\"scheduleEnabled\":" + String(thermalZones.isScheduleEnabled() ? "true" : "false") + ",";
+  json += "\"activeAnchor\":\"" + String(thermalZones.getActiveAnchorName()) + "\",";
+  json += "\"preHeatActive\":" + String(thermalZones.isPreHeatActive() ? "true" : "false") + ",";
   json += "\"zones\":[";
 
   for (size_t i = 0; i < thermalZones.getZoneCount(); i++) {
@@ -550,6 +267,7 @@ void handleApiZones() {
     json += "\"sensorMac\":\"" + String(cfg.sensorMac) + "\",";
     json += "\"relayPin\":" + String(cfg.relayPin) + ",";
     json += "\"targetTemp\":" + String(cfg.targetTemp, 1) + ",";
+    json += "\"effectiveTarget\":" + String(thermalZones.getEffectiveTargetTemp(i), 1) + ",";
     json += "\"hysteresis\":" + String(cfg.hysteresis, 2) + ",";
     json += "\"enabled\":" + String(cfg.enabled ? "true" : "false") + ",";
     json += "\"currentTemp\":" + String(st.currentTemp, 1) + ",";
@@ -559,6 +277,10 @@ void handleApiZones() {
         "\"sensorFault\":" + String(st.sensorFault ? "true" : "false") + ",";
     json +=
         "\"frostActive\":" + String(st.frostActive ? "true" : "false") + ",";
+    json +=
+        "\"windowPauseActive\":" + String(thermalZones.isWindowPauseActive(i) ? "true" : "false") + ",";
+    json +=
+        "\"windowPauseRemainingSec\":" + String(thermalZones.getWindowPauseRemainingSec(i)) + ",";
     json += "\"demand\":" + String(st.demand ? "true" : "false") + ",";
     json +=
         "\"relayEngaged\":" + String(st.relayEngaged ? "true" : "false") + ",";
@@ -678,7 +400,9 @@ void handleApiBleSensors() {
 
 void handleSetup() {
   server.sendHeader("Access-Control-Allow-Origin", "*");
-  server.send_P(200, "text/html", SETUP_HTML);
+  server.sendHeader("Content-Encoding", "gzip");
+  server.sendHeader("Cache-Control", "no-cache");
+  server.send_P(200, "text/html", (const char*)SETUP_HTML_GZ, SETUP_HTML_GZ_LEN);
 }
 
 void handleApiSetupPassport() {
@@ -938,6 +662,12 @@ void handleApiStatus() {
           String(thermalZones.getSensorTimeoutSec()) + ",";
   json += "\"lastAntiSeizeEpoch\":" +
           String(thermalZones.getLastAntiSeizeEpoch()) + ",";
+  json += "\"scheduleEnabled\":" +
+          String(thermalZones.isScheduleEnabled() ? "true" : "false") + ",";
+  json += "\"activeAnchor\":\"" +
+          String(thermalZones.getActiveAnchorName()) + "\",";
+  json += "\"preHeatActive\":" +
+          String(thermalZones.isPreHeatActive() ? "true" : "false") + ",";
   json += "\"sensors\":[";
   size_t count = bleScanner.getSensorCount();
   size_t written = 0;
@@ -961,6 +691,39 @@ void handleApiStatus() {
   json += "]}";
   server.sendHeader("Access-Control-Allow-Origin", "*");
   server.send(200, "application/json", json);
+}
+
+void handleApiScheduleGet() {
+  server.sendHeader("Access-Control-Allow-Origin", "*");
+  server.send(200, "application/json", thermalZones.getScheduleJson());
+}
+
+void handleApiSchedulePost() {
+  server.sendHeader("Access-Control-Allow-Origin", "*");
+
+  if (server.hasArg("enabled")) {
+    bool en = (server.arg("enabled") == "true" || server.arg("enabled") == "1");
+    thermalZones.setScheduleEnabled(en);
+  }
+  if (server.hasArg("preheat")) {
+    bool ph = (server.arg("preheat") == "true" || server.arg("preheat") == "1");
+    thermalZones.setPreHeatEnabled(ph);
+  }
+  if (server.hasArg("window")) {
+    bool wd = (server.arg("window") == "true" || server.arg("window") == "1");
+    thermalZones.setWindowDetectionEnabled(wd);
+  }
+  server.send(200, "application/json", thermalZones.getScheduleJson());
+}
+
+void handleApiScheduleEnable() {
+  server.sendHeader("Access-Control-Allow-Origin", "*");
+  bool en = true;
+  if (server.hasArg("enabled")) {
+    en = (server.arg("enabled") == "true" || server.arg("enabled") == "1");
+  }
+  thermalZones.setScheduleEnabled(en);
+  server.send(200, "application/json", thermalZones.getScheduleJson());
 }
 
 void setupWifi() {
@@ -1166,7 +929,31 @@ void handleSerialCommand(String cmd) {
     netConsole.println(F("----------------------------------------------------------------------------------------------------"));
     netConsole.println();
 
-    netConsole.println(F("[D. SAFETY & FAILSAFE INTERLOCKS]"));
+    netConsole.println(F("[D. SMART BIO-SCHEDULE & PRE-HEAT]"));
+    netConsole.println(F("----------------------------------------------------------------------------------------------------"));
+    char schedStateBuf[48], curAnchorBuf[48], preHeatBuf[48], nextAnchorBuf[48];
+    if (thermalZones.isScheduleEnabled()) {
+      snprintf(schedStateBuf, sizeof(schedStateBuf), "ACTIVE (%s Profile)", timeAndWeather.isWeekend() ? "Weekend" : "Weekday");
+      snprintf(curAnchorBuf, sizeof(curAnchorBuf), "%s", thermalZones.getActiveAnchorName());
+      snprintf(preHeatBuf, sizeof(preHeatBuf), "%s", thermalZones.isPreHeatActive() ? "ACTIVE (Pre-Warming)" : (thermalZones.isPreHeatEnabled() ? "STANDBY (Inertia Guard)" : "DISABLED"));
+      snprintf(nextAnchorBuf, sizeof(nextAnchorBuf), "%s (In %um)",
+               thermalZones.getAnchorName(thermalZones.getNextAnchor()),
+               (unsigned int)thermalZones.getMinutesToNextAnchor());
+    } else {
+      snprintf(schedStateBuf, sizeof(schedStateBuf), "DISABLED (Fixed Setpoints)");
+      snprintf(curAnchorBuf, sizeof(curAnchorBuf), "NONE (Static Targets)");
+      snprintf(preHeatBuf, sizeof(preHeatBuf), "%s", thermalZones.isPreHeatEnabled() ? "STANDBY" : "DISABLED");
+      snprintf(nextAnchorBuf, sizeof(nextAnchorBuf), "N/A");
+    }
+    char winGuardBuf[48];
+    snprintf(winGuardBuf, sizeof(winGuardBuf), "%s", thermalZones.isWindowDetectionEnabled() ? "ARMED (>1.2\xC2\xB0""C in 5m Pause)" : "DISABLED");
+    printTwoCols("Bio-Schedule:", schedStateBuf, "Active Anchor:", curAnchorBuf);
+    printTwoCols("Pre-Heat Mode:", preHeatBuf, "Next Anchor:", nextAnchorBuf);
+    printTwoCols("Window Guard:", winGuardBuf, "Schedule Target:", thermalZones.isScheduleEnabled() ? "Dynamic Bio" : "Static Manual");
+    netConsole.println(F("----------------------------------------------------------------------------------------------------"));
+    netConsole.println();
+
+    netConsole.println(F("[E. SAFETY & FAILSAFE INTERLOCKS]"));
     netConsole.println(F("----------------------------------------------------------------------------------------------------"));
     uint32_t tout = thermalZones.getSensorTimeoutSec();
     uint32_t asEpoch = thermalZones.getLastAntiSeizeEpoch();
@@ -1180,7 +967,7 @@ void handleSerialCommand(String cmd) {
     netConsole.println(F("===================================================================================================="));
     netConsole.println();
 
-    netConsole.printf("[E. HEATING ZONES & ROOM TELEMETRY] (%u Zones Configured | Mode: %s)\n",
+    netConsole.printf("[F. HEATING ZONES & ROOM TELEMETRY] (%u Zones Configured | Mode: %s)\n",
                       (unsigned int)thermalZones.getZoneCount(),
                       thermalZones.isAutoMode() ? "AUTOMATIC" : "MANUAL");
     netConsole.println(F("===================================================================================================="));
@@ -1204,8 +991,13 @@ void handleSerialCommand(String cmd) {
       netConsole.println(F("----------------------------------------------------------------------------------------------------"));
 
       // Row 1: Target Temp & Sensor Name
-      char targetStr[24];
-      snprintf(targetStr, sizeof(targetStr), "%.1f \xC2\xB0""C", cfg.targetTemp);
+      char targetStr[32];
+      float effTarget = thermalZones.getEffectiveTargetTemp(i);
+      if (thermalZones.isScheduleEnabled()) {
+        snprintf(targetStr, sizeof(targetStr), "%.1f \xC2\xB0""C (%s)", effTarget, thermalZones.isPreHeatActive() ? "PRE-HEAT" : thermalZones.getActiveAnchorName());
+      } else {
+        snprintf(targetStr, sizeof(targetStr), "%.1f \xC2\xB0""C", cfg.targetTemp);
+      }
       const char *sName = (ble && strlen(ble->name) > 0) ? ble->name : (strlen(cfg.sensorName) > 0 ? cfg.sensorName : "Unassigned");
       printTwoCols("Target Temp:", targetStr, "Sensor Name:", sName);
 
@@ -1239,9 +1031,11 @@ void handleSerialCommand(String cmd) {
       printTwoCols("Room Humidity:", humStr, "Sensor Status:", sensStatStr);
 
       // Row 4: Loop Status & Sensor Battery
-      char loopStatStr[32];
+      char loopStatStr[36];
       if (st.state == ZONE_WARMUP) {
         snprintf(loopStatStr, sizeof(loopStatStr), "WARMUP (%us/300s)", thermalZones.getBootWarmupElapsedSec());
+      } else if (st.state == ZONE_WINDOW_PAUSE) {
+        snprintf(loopStatStr, sizeof(loopStatStr), "WINDOW PAUSE (%us left)", thermalZones.getWindowPauseRemainingSec(i));
       } else if (st.state == ZONE_FAULT_TIMEOUT) {
         snprintf(loopStatStr, sizeof(loopStatStr), "TIMEOUT (Failsafe)");
       } else if (st.frostActive) {
@@ -1395,6 +1189,57 @@ void handleSerialCommand(String cmd) {
     netConsole.printf("  Status:   %s (Fetched %u s ago)\n",
                       timeAndWeather.isWeatherValid() ? "VALID" : "PENDING",
                       timeAndWeather.getWeatherAgeSec());
+  } else if (upperCmd.startsWith("SCHEDULE")) {
+    if (upperCmd == "SCHEDULE ON") {
+      thermalZones.setScheduleEnabled(true);
+      netConsole.println(F("[SCHEDULE] Smart Bio-Schedule ENABLED (Dynamic Life Anchors Active)."));
+    } else if (upperCmd == "SCHEDULE OFF") {
+      thermalZones.setScheduleEnabled(false);
+      netConsole.println(F("[SCHEDULE] Smart Bio-Schedule DISABLED (Static Setpoints Active)."));
+    } else if (upperCmd == "SCHEDULE PREHEAT ON") {
+      thermalZones.setPreHeatEnabled(true);
+      netConsole.println(F("[SCHEDULE] Predictive Pre-Heat ENABLED."));
+    } else if (upperCmd == "SCHEDULE PREHEAT OFF") {
+      thermalZones.setPreHeatEnabled(false);
+      netConsole.println(F("[SCHEDULE] Predictive Pre-Heat DISABLED."));
+    } else if (upperCmd == "SCHEDULE WINDOW ON") {
+      thermalZones.setWindowDetectionEnabled(true);
+      netConsole.println(F("[SCHEDULE] Open Window Detection ENABLED."));
+    } else if (upperCmd == "SCHEDULE WINDOW OFF") {
+      thermalZones.setWindowDetectionEnabled(false);
+      netConsole.println(F("[SCHEDULE] Open Window Detection DISABLED."));
+    } else {
+      const BioScheduleConfig& sc = thermalZones.getScheduleConfig();
+      netConsole.println(F("===================================================================================================="));
+      netConsole.println(F("                                  SMART BIO-SCHEDULE & ANCHORS                                      "));
+      netConsole.println(F("===================================================================================================="));
+      netConsole.printf("  * Schedule Engine:     %s\n", sc.enabled ? "ENABLED (Dynamic Life Anchors Active)" : "DISABLED (Static Setpoints Active)");
+      netConsole.printf("  * Current Anchor:      %s\n", sc.enabled ? thermalZones.getActiveAnchorName() : "N/A");
+      netConsole.printf("  * Next Anchor Event:   %s in %u min\n",
+                        thermalZones.getAnchorName(thermalZones.getNextAnchor()),
+                        thermalZones.getMinutesToNextAnchor());
+      netConsole.printf("  * Pre-Heat Engine:     %s (Advance: %s)\n",
+                        sc.preHeatEnabled ? "ENABLED" : "DISABLED",
+                        thermalZones.isPreHeatActive() ? "ACTIVE (Pre-Warming)" : "STANDBY");
+      netConsole.printf("  * Open Window Guard:   %s (>1.2 C drop in <5 min -> 30 min pause)\n",
+                        sc.windowDetectionEnabled ? "ENABLED" : "DISABLED");
+      netConsole.println(F("----------------------------------------------------------------------------------------------------"));
+      netConsole.println(F("  [WEEKDAY PROFILE (Mon-Fri)]"));
+      for (int a = 0; a < BIO_ANCHORS_COUNT; a++) {
+        const BioAnchorConfig& anc = sc.weekday[a];
+        netConsole.printf("    - %-6s at %02d:%02d -> Z1: %.1f C | Z2: %.1f C | Z3: %.1f C\n",
+                          thermalZones.getAnchorName((BioAnchorId)a), anc.hour, anc.minute,
+                          anc.targets[0], anc.targets[1], anc.targets[2]);
+      }
+      netConsole.println(F("  [WEEKEND PROFILE (Sat-Sun)]"));
+      for (int a = 0; a < BIO_ANCHORS_COUNT; a++) {
+        const BioAnchorConfig& anc = sc.weekend[a];
+        netConsole.printf("    - %-6s at %02d:%02d -> Z1: %.1f C | Z2: %.1f C | Z3: %.1f C\n",
+                          thermalZones.getAnchorName((BioAnchorId)a), anc.hour, anc.minute,
+                          anc.targets[0], anc.targets[1], anc.targets[2]);
+      }
+      netConsole.println(F("===================================================================================================="));
+    }
   } else if (upperCmd == "CLEAR" || upperCmd == "CLS") {
     netConsole.clear();
   } else if (upperCmd == "?" || upperCmd == "HELP") {
@@ -1406,6 +1251,7 @@ void handleSerialCommand(String cmd) {
 }
 
 void setup() {
+  Serial.setTxBufferSize(4096);
   Serial.begin(115200);
   delay(200);
 
@@ -1471,6 +1317,9 @@ void setup() {
   server.on("/api/setup/actuator-type", handleApiSetupActuatorType);
   server.on("/api/setup/pump", handleApiSetupPump);
   server.on("/api/setup/sensor-timeout", handleApiSetupSensorTimeout);
+  server.on("/api/schedule", HTTP_GET, handleApiScheduleGet);
+  server.on("/api/schedule", HTTP_POST, handleApiSchedulePost);
+  server.on("/api/schedule/enable", HTTP_POST, handleApiScheduleEnable);
 
   // Initialize Hardware Task Watchdog Timer (90 seconds timeout)
   esp_task_wdt_init(90, true);

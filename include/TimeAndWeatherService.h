@@ -17,6 +17,10 @@ public:
     int getYear() const;
     int getMonth() const;
     int getDay() const;
+    int getHour() const;
+    int getMinute() const;
+    int getDayOfWeekIndex() const;
+    bool isWeekend() const;
     String getDayOfWeek() const;
     String getSeason() const;
     bool isHeatingSeason() const;
@@ -40,6 +44,7 @@ private:
     bool _weatherValid;
     uint32_t _lastWeatherSuccessMs;
     bool _ntpAnnounced;
+    bool _weatherAnnounced;
 
     void fetchWeather();
 };

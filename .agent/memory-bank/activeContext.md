@@ -1,12 +1,37 @@
 # Active Context: Smart Home Heating System
 
-## Current State (Updated 2026-10-12)
+## Current State (Updated 2026-10-13)
 - **Target Hardware Deployed & Operational:**
   - Board: **ESP32-Relay X4 V1.1** featuring module **DOIT WiFi MODEL ESP32-32E N4** (ESP32-D0WD-V3, 240MHz Dual-Core, 4MB Flash, MAC: `20:50:0d:1a:72:14`).
   - IP Address: **`192.168.1.20`** (on `SBC_WiFi`).
-  - Free Heap: **~120 KB** with native NimBLE passive scanner active.
-  - Web Server & Web OTA: Active on port 80 (`http://192.168.1.20/` and `/update`).
-  - Watchdog: Hardware TWDT configured to 60s for safe Web OTA headroom without false resets.
+  - Firmware Version: **v1.2.0 (Build: Oct 13 2026 23:40:28)**.
+  - Flash Binary Size: **1,128,309 bytes (1.10 MB, 57.4% flash)** — economie masivă de **176 KB** (redus de la 1,304,000 bytes)!
+  - Free Heap: **~124–132 KB** cu scaner NimBLE pasiv și servire web PROGMEM GZIP fără alocări dinamice.
+  - Web Server & Web OTA: Active on port 80 (`http://192.168.1.20/`, `/setup`, `/console`, `/update`).
+  - Verification Suite: **15/15 PASS (100.0%)** on ASPICE SWE.5 integration test suite.
+  - Wall Kiosk Display: Recepționată tableta **Samsung Galaxy Tab A9 8.7" LTE** (PLS LCD, 60Hz, funcție One UI *Protect Battery* 80–85% pentru operare 24/7).
+- **Arhitectură Web GZIP Build-Time & Optimizare Masivă Flash (Modelul Smart Aquarium):**
+  - **Decuplare Pagini Web (`web/`):** Paginile HTML/CSS/JS au fost extrase din codul C++ în fișiere curate dedicate: `web/index.html` (Dashboard), `web/setup.html` (Setup Wizard) și `web/console.html` (Live Console).
+  - **Pre-Build Script Automat (`tools/build_web.py`):** Integrat în `platformio.ini` (`extra_scripts = pre:tools/build_web.py`), comprimă automat paginile cu `gzip -9` în headere PROGMEM (`dashboard_html_gz.h`, `setup_html_gz.h`, `console_html_gz.h`).
+  - **Economie Flash & Eliminare Fragilizare Heap:** Întregul pachet web ocupă doar **15.5 KB** în flash (Dashboard: 3.7 KB, Setup: 7.3 KB, Console: 4.4 KB). Eliminat complet peste 250 de linii de concatenare C++ `String html += ...` din `main.cpp` și `NetworkConsole.cpp`, eliberând 176 KB de flash și menținând heap-ul la 132 KB fără spike-uri de memorie la încărcarea paginilor.
+  - **Consolă Web Ultra-Rapidă & Eliminare Latență 3s:**
+    * Eliminat coliziunea TCP SYN pe WebServer single-threaded prin `AbortController` și `scheduleNextPoll()` în `web/console.html`.
+    * Eliminat bottleneck-ul caracter-cu-caracter din `NetworkConsole.cpp` prin scriere pe chunk-uri de linie și `memcpy` batch în ring buffer.
+    * Mărit buffer-ul hardware UART `Serial.setTxBufferSize(4096)` în `main.cpp` pentru prevenirea blocării CPU la 115200 baud.
+    * Latența comenzilor a scăzut spectaculos: `AUTO` ~200ms, `HELP` ~300ms, `STATUS` sub 1.2s (față de 3+ secunde).
+    * Încadrat clar ieșirea cu delimitatori de comandă (`.cmd-start` cu cyan glow, `.cmd-end` și `.t-sep`).
+- **Plan Următor (Sarcini Aprobate):**
+  - **Sarcina 27:** Telemetrie Hidraulică Avansată Tur-Retur Distribuitor ($\Delta T = T_{tur} - T_{retur}$), prevenire supraîncălzire (Anti-Overshoot), modelare inerție șapă și protecție circulație `DTC-301`.
+  - **Sarcina 28:** Scalabilitate Ecosistem Senzori (BLE 28 lei pentru apartamente vs. Zigbee Sonoff SNZB-02D pentru case mari cu rețea mesh).
+  - **Sarcina 29:** Interfață Kiosk Dashboard dedicată pentru tableta Galaxy Tab A9.
+- **Smart Bio-Schedule, Fereastră Deschisă & Pre-Heat Anticipativ (Task 26 - Finalizat):**
+  - **4 Ancore Naturale de Viață:** Înlocuit orarul rigid de 168 celule cu motor circadian organic: `Sleep` (20.0–21.0°C), `Wake` (22.0–22.5°C), `Away` (19.5–20.0°C), `Home` (21.5–23.0°C), cu profiluri separate Weekday vs Weekend și evaluare la 30s.
+  - **Open Window Smart Pause Guard:** Istoric circular de pantă termică. Scădere >1.2°C în <5 min forțează valva în PAUZĂ timp de 30 min pentru a elimina risipa de gaz la aerisire.
+  - **Predictive Pre-Heat:** Calcul dinamic al inerției șapei cu factor meteo $k_{weather}$ de la Open-Meteo, anticipând pornirea căldurii cu 30–120 minute înainte de trezire sau sosire acasă.
+  - **NVS Anti-Wear Flash:** Structură binară stocată în namespace-ul `"sched"` cu comparație `memcmp()`.
+  - **Consolă Curată & Zero Spam Meteo:** Eliminat logurile repetate de vreme la 15 min; actualizările periodice sunt redirecționate pe Serial UART.
+  - **Optimizare Flash OTA:** Minificat CSS-ul paginilor web, binarul final având 1.24 MB (1,305,280 bytes), încărcat cu succes prin Web OTA.
+  - **Testare:** Adăugat `SWE.5-TC15` în `tools/test_system.py`, trecând 15/15 teste cu 100% PASS.
 - **Eliminare Word Wrap pe Mobil, Scalare Font (`A-`/`A+`) & Watchdog Feed la OTA (Task 25):**
   - **Identificare Root-Cause:** Clasa CSS `.term-container` impunea `white-space: pre-wrap; word-break: break-all;`. Pe ecrane de telefon (<450px), liniile tabelelor de diagnostic și `STATUS` (de 70-100 caractere) erau rupte arbitrar la mijlocul cuvintelor pe 2-3 rânduri, făcând citirea impracticabilă.
   - **Formatare Monospace Rigidă (No-Wrap):** Setat `white-space: pre; word-break: normal;` în `.term-container` cu `overflow-x: auto; overflow-y: auto; -webkit-overflow-scrolling: touch;`. Tabelele își mențin alinierea perfectă pe coloane, permițând scroll orizontal fluid cu gesturi tactile pe telefon.

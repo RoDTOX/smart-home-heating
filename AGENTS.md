@@ -60,6 +60,25 @@ Every non-trivial task (more than one edit or touching more than one file) follo
    - Update [`docs/changelog.md`](file:///c:/Users/BSeceleanu/.github_repos/smart-heating/docs/changelog.md).
    - Only commit and push when the user explicitly requests it.
 
+### 3.1. Two-Stage Review Protocol (Author + Independent Fresh Review)
+
+No firmware modification or control logic change is considered complete, flashed over OTA, or committed without passing both review stages:
+
+1. **Stage 1: Author Self-Review (Verification & Automated Suite)**
+   - Run clean PlatformIO build (`pio run`).
+   - Run host integration test suite (`python tools/test_system.py`) with 100% PASS (14/14).
+   - Author inspects `git diff --stat` and diff to strip temporary debug logs, forgotten scratch files, or unintended side-effects.
+
+2. **Stage 2: Independent Fresh Review (Hardware & Safety Audit)**
+   - Performed from an **Adversarial / Fresh Reviewer** perspective, inspecting strictly `git diff` and affected headers without author implementation bias.
+   - Verify against the 5 critical hydronic & hardware safety hazards:
+     - [ ] **NVS Flash Wear:** Flash writes (`<Preferences.h>`) occur ONLY on actual value changes (`if (oldVal != newVal)`)?
+     - [ ] **Watchdog TWDT Starvation:** Are there blocking network calls, long delays, or unbounded loops that can starve `loop()` past the 30–90s TWDT limit?
+     - [ ] **Heap Leak & Fragmentation:** Did any dynamic allocations (`String`, unbounded vectors, BLE scan lists) get introduced without deallocation? Does Free Heap stay flat at >110 KB?
+     - [ ] **Physical Fail-Safe:** If BLE sensors or Wi-Fi drop, is the default actuator/burner state guaranteed safe (no runaway burner active)?
+     - [ ] **Short-Cycling Guard:** Are minimum burner run/pause timers (60s) and pump overrun cycles (180s) strictly respected?
+   - **Verdict:** Only an explicit `APPROVED` verdict permits OTA flashing and commits. Any blocker (`[🔴CRT]`) or defect (`[🟠MAJ]`) requires author remediation and re-testing before merge.
+
 ---
 
 ## 4. Durability & Safety Invariants
@@ -67,8 +86,8 @@ Every non-trivial task (more than one edit or touching more than one file) follo
 - **Push is Explicit & Confirmed:** Never run `git push` as an automated side effect. Always wait for explicit user instruction (`commit si push`, `push`, etc.).
 - **Destructive Actions:** Deleting files, modifying flash partition tables, or force-pushing requires explicit confirmation across all autonomy levels.
 - **Language Standards:**
-  - C++ codebase, headers, identifiers, REST endpoints, and log messages are **100% in English**.
-  - User conversations, explanations, and documentation files are in **Romanian**.
+  - C++ codebase, headers, identifiers, REST endpoints, official documentation(requirements, bom, etc), and log messages are **100% in English**.
+  - User conversations, explanations are in **Romanian**.
 
 ---
 

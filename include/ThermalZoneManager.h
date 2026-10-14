@@ -15,7 +15,38 @@ enum ZoneState {
     ZONE_HEATING,       // Valve fully open, boiler and pump active
     ZONE_FAULT_TIMEOUT, // Sensor missing > timeout, zone shut down for safety
     ZONE_FROST_GUARD,   // Emergency frost protection active (<12C)
-    ZONE_WARMUP         // Boot grace period: acquiring sensor beacons (max 5 min)
+    ZONE_WARMUP,        // Boot grace period: acquiring sensor beacons (max 5 min)
+    ZONE_WINDOW_PAUSE   // Smart pause: open window detected (>1.2C drop in <5 min)
+};
+
+enum BioAnchorId {
+    BIO_ANCHOR_SLEEP = 0,
+    BIO_ANCHOR_WAKE  = 1,
+    BIO_ANCHOR_AWAY  = 2,
+    BIO_ANCHOR_HOME  = 3,
+    BIO_ANCHORS_COUNT = 4
+};
+
+struct BioAnchorConfig {
+    uint8_t hour;
+    uint8_t minute;
+    float targets[MAX_THERMAL_ZONES];
+};
+
+struct BioScheduleConfig {
+    bool enabled;
+    bool preHeatEnabled;
+    bool windowDetectionEnabled;
+    BioAnchorConfig weekday[BIO_ANCHORS_COUNT];
+    BioAnchorConfig weekend[BIO_ANCHORS_COUNT];
+};
+
+struct WindowDetectionState {
+    float baselineTemp;
+    uint32_t baselineMs;
+    bool pauseActive;
+    uint32_t pauseStartMs;
+    float pauseMinTemp;
 };
 
 struct ThermalZoneConfig {
@@ -110,12 +141,52 @@ public:
     void setPumpManual(bool on);
     void setBoilerManual(BoilerRadioTrigger& boiler, bool on);
 
+    // Smart Bio-Schedule & Natural Anchors
+    const BioScheduleConfig& getScheduleConfig() const { return _scheduleConfig; }
+    void setScheduleConfig(const BioScheduleConfig& cfg);
+    void setScheduleEnabled(bool enabled);
+    bool isScheduleEnabled() const { return _scheduleConfig.enabled; }
+    void setPreHeatEnabled(bool enabled);
+    bool isPreHeatEnabled() const { return _scheduleConfig.preHeatEnabled; }
+    void setWindowDetectionEnabled(bool enabled);
+    bool isWindowDetectionEnabled() const { return _scheduleConfig.windowDetectionEnabled; }
+
+    BioAnchorId getActiveAnchor() const { return _activeAnchor; }
+    BioAnchorId getNextAnchor() const { return _nextAnchor; }
+    uint32_t getMinutesToNextAnchor() const { return _minsToNextAnchor; }
+    const char* getAnchorName(BioAnchorId id) const;
+    const char* getActiveAnchorName() const { return getAnchorName(_activeAnchor); }
+    bool isPreHeatActive() const { return _preHeatActive; }
+
+    // Open Window Detection State
+    bool isWindowPauseActive(size_t index) const;
+    uint32_t getWindowPauseRemainingSec(size_t index) const;
+
+    // Effective Target (considers BioSchedule & Pre-Heat)
+    float getEffectiveTargetTemp(size_t index) const;
+
+    // Schedule JSON Serialization
+    String getScheduleJson() const;
+
+    // Schedule Persistence
+    void loadSchedulePreferences();
+    void saveSchedulePreferences();
+
     // Helpers
     const char* getStateStr(ZoneState state) const;
 
 private:
     ThermalZoneConfig _configs[MAX_THERMAL_ZONES];
     ThermalZoneStatus _statuses[MAX_THERMAL_ZONES];
+
+    // Bio-Schedule & Climate State
+    BioScheduleConfig _scheduleConfig;
+    BioAnchorId _activeAnchor;
+    BioAnchorId _nextAnchor;
+    uint32_t _minsToNextAnchor;
+    bool _preHeatActive;
+    WindowDetectionState _windowStates[MAX_THERMAL_ZONES];
+    uint32_t _lastScheduleEvalMs;
 
     bool _autoMode;
     bool _boilerDemand;
@@ -143,6 +214,8 @@ private:
     void applyRelay(uint8_t pin, bool active);
     void updatePumpState(bool anyZoneReadyForBoiler, uint32_t now);
     void checkAntiSeizeSchedule(uint32_t now);
+    void evaluateSchedule(uint32_t now);
+    void evaluateWindowDetection(size_t index, float currentTemp, uint32_t now);
 };
 
 extern ThermalZoneManager thermalZones;

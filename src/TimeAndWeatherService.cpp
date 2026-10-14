@@ -15,7 +15,8 @@ TimeAndWeatherService::TimeAndWeatherService()
       _outdoorHumidity(-999.0f),
       _weatherValid(false),
       _lastWeatherSuccessMs(0),
-      _ntpAnnounced(false) {}
+      _ntpAnnounced(false),
+      _weatherAnnounced(false) {}
 
 void TimeAndWeatherService::begin() {
     Serial.println(F("[Time] Configuring NTP synchronization (Timezone: Europe/Bucharest)..."));
@@ -73,6 +74,35 @@ int TimeAndWeatherService::getDay() const {
     return ti.tm_mday;
 }
 
+int TimeAndWeatherService::getHour() const {
+    if (!isTimeSynced()) return 0;
+    time_t now = time(nullptr);
+    struct tm ti;
+    localtime_r(&now, &ti);
+    return ti.tm_hour;
+}
+
+int TimeAndWeatherService::getMinute() const {
+    if (!isTimeSynced()) return 0;
+    time_t now = time(nullptr);
+    struct tm ti;
+    localtime_r(&now, &ti);
+    return ti.tm_min;
+}
+
+int TimeAndWeatherService::getDayOfWeekIndex() const {
+    if (!isTimeSynced()) return 1; // default Monday
+    time_t now = time(nullptr);
+    struct tm ti;
+    localtime_r(&now, &ti);
+    return ti.tm_wday; // 0 = Sunday, 1 = Monday ... 6 = Saturday
+}
+
+bool TimeAndWeatherService::isWeekend() const {
+    int w = getDayOfWeekIndex();
+    return (w == 0 || w == 6);
+}
+
 String TimeAndWeatherService::getDayOfWeek() const {
     if (!isTimeSynced()) return "Unknown";
     static const char* days[] = {"Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"};
@@ -127,40 +157,50 @@ void TimeAndWeatherService::fetchWeather() {
         }
     }
 
-    String url = "http://api.open-meteo.com/v1/forecast?latitude=" + lat +
-                 "&longitude=" + lon +
-                 "&current=temperature_2m,relative_humidity_2m";
-
-    HTTPClient http;
-    http.setTimeout(5000);
-    if (!http.begin(url)) {
+    WiFiClient client;
+    client.setTimeout(4);
+    if (!client.connect("api.open-meteo.com", 80)) {
         return;
     }
 
-    int httpCode = http.GET();
-    if (httpCode == 200) {
-        String payload = http.getString();
+    client.print(String("GET /v1/forecast?latitude=") + lat +
+                 "&longitude=" + lon +
+                 "&current=temperature_2m,relative_humidity_2m HTTP/1.1\r\n" +
+                 "Host: api.open-meteo.com\r\n" +
+                 "User-Agent: ESP32-SmartHeating\r\n" +
+                 "Connection: close\r\n\r\n");
+
+    while (client.connected()) {
+        String line = client.readStringUntil('\n');
+        if (line == "\r" || line.length() == 0) break;
+    }
+
+    String payload = client.readString();
+    client.stop();
+
+    if (payload.length() > 0) {
         JsonDocument doc;
         DeserializationError err = deserializeJson(doc, payload);
-        if (!err) {
-            if (doc.containsKey("current")) {
-                JsonObject current = doc["current"];
-                if (current.containsKey("temperature_2m")) {
-                    _outdoorTemp = current["temperature_2m"].as<float>();
-                }
-                if (current.containsKey("relative_humidity_2m")) {
-                    _outdoorHumidity = current["relative_humidity_2m"].as<float>();
-                }
-                _weatherValid = true;
-                _lastWeatherSuccessMs = millis();
+        if (!err && doc.containsKey("current")) {
+            JsonObject current = doc["current"];
+            if (current.containsKey("temperature_2m")) {
+                _outdoorTemp = current["temperature_2m"].as<float>();
+            }
+            if (current.containsKey("relative_humidity_2m")) {
+                _outdoorHumidity = current["relative_humidity_2m"].as<float>();
+            }
+            _weatherValid = true;
+            _lastWeatherSuccessMs = millis();
+            if (!_weatherAnnounced) {
+                _weatherAnnounced = true;
                 netConsole.printf("[INIT]   * Outdoor Weather:  Synchronized: %.1f \xC2\xB0""C, %.1f %% RH (Open-Meteo API)\n",
                                   _outdoorTemp, _outdoorHumidity);
+            } else {
+                Serial.printf("[Weather] Outdoor Weather synced: %.1f C, %.1f %% RH\n",
+                              _outdoorTemp, _outdoorHumidity);
             }
         }
-    } else {
-        Serial.printf("[Weather] Warning: HTTP %d while fetching Open-Meteo\n", httpCode);
     }
-    http.end();
 }
 
 void TimeAndWeatherService::update() {

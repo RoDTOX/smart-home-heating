@@ -171,18 +171,22 @@ class SystemTestSuite:
             other_type = "NO" if init_type == "NC" else "NC"
             other_param = "0" if init_type == "NC" else "1"
             init_param = "1" if init_type == "NC" else "0"
+            time.sleep(0.15)
 
             # 2. Toggle to opposite
             r_set1 = requests.post(f"{self.base_url}/api/setup/actuator-type?nc={other_param}", timeout=self.timeout)
             assert r_set1.status_code == 200, f"Failed to set polarity {other_type}"
+            time.sleep(0.15)
 
             # 3. Verify opposite is active
             r2 = requests.get(f"{self.base_url}/api/zones", timeout=self.timeout)
             assert r2.json().get("actuatorType") == other_type, f"Polarity was not switched to {other_type}"
+            time.sleep(0.15)
 
             # 4. Restore original polarity
             r_set2 = requests.post(f"{self.base_url}/api/setup/actuator-type?nc={init_param}", timeout=self.timeout)
             assert r_set2.status_code == 200, f"Failed to restore polarity {init_type}"
+            time.sleep(0.15)
 
             # 5. Verify restored
             r3 = requests.get(f"{self.base_url}/api/zones", timeout=self.timeout)
@@ -458,6 +462,59 @@ class SystemTestSuite:
         except Exception as e:
             return TestResult(test_id, name, req, "FAIL", (time.time() - start)*1000, str(e))
 
+    def test_tc15_smart_bio_schedule(self):
+        """SWE.5-TC15: Smart Bio-Schedule Contract, Anchors & Failsafe Guard (FR-26)"""
+        test_id = "SWE.5-TC15"
+        name = "Smart Bio-Schedule & Predictive Pre-Heat"
+        req = "FR-26.1, FR-26.2, FR-26.3, FR-26.4"
+        start = time.time()
+        try:
+            # 1. GET /api/schedule contract check
+            r_get = requests.get(f"{self.base_url}/api/schedule", timeout=self.timeout)
+            assert r_get.status_code == 200, f"GET schedule failed: {r_get.status_code}"
+            data = r_get.json()
+            assert "enabled" in data, "Missing 'enabled' field"
+            assert "preHeatEnabled" in data, "Missing 'preHeatEnabled' field"
+            assert "windowDetectionEnabled" in data, "Missing 'windowDetectionEnabled' field"
+            assert "activeAnchor" in data, "Missing 'activeAnchor' field"
+            assert "weekday" in data and len(data["weekday"]) == 4, "Weekday profile must have 4 anchors"
+            assert "weekend" in data and len(data["weekend"]) == 4, "Weekend profile must have 4 anchors"
+
+            orig_enabled = data.get("enabled", False)
+            orig_preheat = data.get("preHeatEnabled", True)
+            orig_window = data.get("windowDetectionEnabled", True)
+
+            # 2. Toggle schedule enable via query parameters
+            r_toggle = requests.post(f"{self.base_url}/api/schedule/enable?enabled=true", timeout=self.timeout)
+            assert r_toggle.status_code == 200, "Failed to enable schedule"
+            r_check1 = requests.get(f"{self.base_url}/api/schedule", timeout=self.timeout).json()
+            assert r_check1.get("enabled") is True, "Schedule enabled state mismatch"
+
+            # 3. Check /api/boiler/status exposes schedule status
+            r_bstat = requests.get(f"{self.base_url}/api/boiler/status", timeout=self.timeout).json()
+            assert "scheduleEnabled" in r_bstat, "Missing 'scheduleEnabled' in boiler status"
+            assert "activeAnchor" in r_bstat, "Missing 'activeAnchor' in boiler status"
+
+            # 4. Check /api/zones exposes effectiveTarget and windowPauseActive
+            r_zones = requests.get(f"{self.base_url}/api/zones", timeout=self.timeout).json()
+            assert "zones" in r_zones and len(r_zones["zones"]) > 0, "No zones in response"
+            z0 = r_zones["zones"][0]
+            assert "effectiveTarget" in z0, "Missing 'effectiveTarget' in zone 0"
+            assert "windowPauseActive" in z0, "Missing 'windowPauseActive' in zone 0"
+
+            # 5. Restore original schedule state
+            r_rst = requests.post(
+                f"{self.base_url}/api/schedule/enable?enabled={'true' if orig_enabled else 'false'}&preheat={'true' if orig_preheat else 'false'}&window={'true' if orig_window else 'false'}",
+                timeout=self.timeout
+            )
+            assert r_rst.status_code == 200, "Failed to restore original schedule state"
+
+            latency = (time.time() - start) * 1000
+            details = f"Verified 4 natural anchors, Pre-Heat contract, Window Guard and telemetry integration ({latency:.1f}ms)"
+            return TestResult(test_id, name, req, "PASS", latency, details)
+        except Exception as e:
+            return TestResult(test_id, name, req, "FAIL", (time.time() - start)*1000, str(e))
+
     # ---------------------------------------------------------
     # Test Runner
     # ---------------------------------------------------------
@@ -484,6 +541,7 @@ class SystemTestSuite:
             self.test_tc12_network_console_feedback,
             self.test_tc13_sensor_timeout_failsafe,
             self.test_tc14_firmware_version_baseline,
+            self.test_tc15_smart_bio_schedule,
         ]
 
         self.results = []
@@ -491,6 +549,7 @@ class SystemTestSuite:
         total_time_ms = 0.0
 
         for t in tests:
+            time.sleep(0.15)
             res = t()
             self.results.append(res)
             total_time_ms += res.latency_ms

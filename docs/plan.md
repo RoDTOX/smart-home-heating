@@ -247,6 +247,50 @@ Acest document este planul de referință pentru implementarea controlerului aut
         - Atașat callback-ul `Update.onProgress([](size_t, size_t) { esp_task_wdt_reset(); });` înainte de `httpUpdater.setup()`, resetând periodic Task Watchdog Timer-ul pe fiecare pachet HTTP de firmware scris în flash și eliminând complet riscul de watchdog reboot la actualizări Web OTA.
         - Validat live pe hardware: firmware v1.2.0 (Build Oct 12 2026 20:47:28) încărcat pe ESP32 (`192.168.1.20`), verificată interfața `/console` și confirmată trecerea tuturor celor 14 teste ASPICE SWE.5 cu **100% PASS**.
 
+- [x] **26. Backend Orar Termic Inteligent (Smart Bio-Schedule), Fereastră Deschisă & Pre-Heat Anticipativ** (Finalizat & Validat Live pe Hardware 13.10.2026).
+      *Rezultat:*
+        - *Smart Bio-Schedule (4 Ancore Naturale):* Implementat motor de programare bazat pe ritmul circadian și 4 stări de viață naturale: `Sleep` (somn: noapte odihnitoare 20.0–21.0°C), `Wake` (trezire: confort dimineața 22.0–22.5°C), `Away` (plecat: mod Eco cât casa e goală 19.5–20.0°C), `Home` (seară: confort în familie 21.5–23.0°C). Profiluri configurabile distincte pentru Luni–Vineri (Weekday) și Sâmbătă–Duminică (Weekend).
+        - *Detecție Fereastră Deschisă (Open Window Smart Pause Guard):* Monitorizare viteză de scădere temperatură prin istoric de eșantioane circulare. La detectarea unei căderi bruște (>1.2°C în sub 5 minute), valva zonei este forțată în starea ÎNCHIS timp de 30 minute pentru prevenirea risipei inutile de gaz. Anunțat în consolă și marcat în telemetrie (`PAUSED (Open Window)`).
+        - *Pre-Heat Anticipativ cu Inerție Termică:* Calcul dinamic al avansului necesar pornirii prealabile a încălzirii în funcție de diferența de temperatură și factorul meteorologic exterior $k_{weather} = 1.0 + \max(0.0, (15.0 - T_{ext}) \times 0.04)$, activând pre-încălzirea șapei cu 30–120 minute înainte de ancorele de confort (`Wake` și `Home`).
+        - *Persistență NVS Anti-Uzură Flash:* Structură binară salvată în namespace-ul `"sched"`, protejată prin comparație binară `memcmp()` (scrieri doar la modificări reale de parametri).
+        - *REST API & Comenzi Consolă:* Endpoint-uri `/api/schedule` (GET/POST) și `/api/schedule/enable` (POST); comenzi interactive `SCHEDULE`, `SCHEDULE ON/OFF`, `SCHEDULE PREHEAT ON/OFF`, `SCHEDULE WINDOW ON/OFF` în Network Console și integrare completă în raportul `STATUS` (Secțiunea `[D. SMART BIO-SCHEDULE & PRE-HEAT]`).
+        - *CLI & Suită de Testare:* Adăugat subcomanda `schedule` în `tools/esp_cli.py` și testul automat `SWE.5-TC15` în `tools/test_system.py`. Validat live pe hardware: **15/15 PASS (100.0%)** în 15.65 secunde. Zero spam de vreme pe consola virtuală.
+
+- [x] **26.1. Arhitectură Web GZIP Build-Time, Optimizare Masivă Flash (-176 KB) & Latență Consolă <50ms** (Finalizat 13.10.2026).
+      *Rezultat:*
+        - *Modelul Smart Aquarium aplicat cu succes:* Paginile web au fost extrase din C++ în fișiere dedicate în directorul `web/` (`index.html`, `setup.html`, `console.html`).
+        - *Compilare cu GZIP Automat:* Creat scriptul `tools/build_web.py` integrat în `platformio.ini` (`extra_scripts = pre:tools/build_web.py`), care comprimă cu `gzip -9` toate paginile în antete PROGMEM (`dashboard_html_gz.h`, `setup_html_gz.h`, `console_html_gz.h`). Întregul pachet web ocupă doar **15.5 KB** în flash.
+        - *Eliberare 176 KB Flash & Zero Spike Heap:* Binarul a scăzut de la 1,304,000 bytes la **1,127,833 bytes (1.10 MB, 57.4% flash)**, creând un spațiu liber de peste 178 KB sub plafonul strict de sector. Eliminat peste 250 de linii de concatenare C++ din `main.cpp` și `NetworkConsole.cpp`. Free Heap stabil la **132 KB**.
+        - *Consolă Web Ultra-Rapidă & Delimitatori:* Comenzile trimise prin Web Console returnează datele direct în corpul răspunsului POST (<50ms). Adăugați delimitatori vizuali `.cmd-start` cu cyan glow, `.cmd-end` și `.t-sep`.
+        - *Conformitate ASPICE SWE.5:* Toate cele 15 teste din `tools/test_system.py` au trecut cu **100.0% PASS**. Flash OTA confirmat cu succes.
+
+- [x] **26.2. Eliminare Latență Consolă (TCP Anti-Collision, Non-Blocking UART), Shell Interactiv REPL CLI & Specificație REST API** (Finalizat 14.10.2026).
+      *Rezultat:*
+        - *Root-Cause Latență 3s Rezolvat:* Identificat timeout-ul de 3.0s ca fiind generat de retransmisia Windows TCP SYN cauzată de coliziunea cererilor de polling `setInterval` cu `sendCmd` pe serverul single-threaded al ESP32. Rezolvat prin introducerea `AbortController` și `scheduleNextPoll()` adaptiv în `web/console.html`, plus eliminarea forțării `Connection: close` care declanșa reseturi de socket (WinError 10054).
+        - *UART Serial Non-Blocking & Scriere Batch:* Implementat `Serial.availableForWrite()` în `NetworkConsole::rawWrite` și `Serial.setTxBufferSize(4096)` în `main.cpp`. CPU-ul ESP32 nu mai este blocat de transmisia la 115200 baud la rularea comenzilor lungi (`STATUS`). Scriere batch și `memcpy` rapid în ring buffer.
+        - *Utilitar CLI Interactiv REPL (`tools/esp_cli.py`):* Rularea fără parametri (`python tools/esp_cli.py`) lansează o consolă interactivă dedicată în terminal (`smart-heating> `) cu răspuns instantaneu (<150ms) peste REST JSON: status, zone, senzori, on/off cazan, reglaj temperatură, diagnoză DTC, self-test, stream Telnet direct via port 23 (`monitor`).
+        - *Specificație Completă REST API (`docs/api_reference.md`):* Redactat contractul oficial REST/JSON detaliind toate cele 22 de rute, parametri, structuri de răspuns și bune practici pentru dezvoltarea interfeței Kiosk de pe tableta Samsung Galaxy Tab A9.
+        - *Validare SWE.5:* 15/15 teste PASS (100.0%) în 20.68 secunde pe firmware-ul compilat și încărcat prin OTA.
+
+- [ ] **27. Telemetrie Hidraulică Avansată Tur-Retur Distribuitor ($\Delta T$), Modelare Șapă & Prevenire Overshoot:**
+      - *Hardware Sonde Manifold:* Monitorizare temperatură cu 2 sonde digitale de contact (DS18B20 OneWire waterproof sau NTC) prinse cu colier și pastă termică direct pe bara de Tur și bara de Retur din caseta distribuitorului (zero cabluri prin casă, montaj în 5 minute).
+      - *Calcul Live $\Delta T = T_{tur} - T_{retur}$:* Determinarea ratei reale de absorbție a căldurii de către șapă.
+      - *Prevenire Supraîncălzire (Anti-Overshoot inteligent):* Când returul începe să crească și $\Delta T$ scade sub un prag (semn că șapa este saturată termic), taie flacăra centralei din timp și lasă căldura reziduală din beton să ducă aerul exact la setpoint fără overshoot (fără depășire de temperatură).
+      - *Diagnoză & Protecție Failsafe (`DTC-301: Hydraulic Circulation Lock / No-Flow`):* Dacă $T_{tur}$ crește brusc (>55°C) fără ca $T_{retur}$ să reacționeze (pompă blocată, aer în distribuitor, robineți închiși), sistemul taie instantaneu flacăra radio și emite alertă de protecție.
+      - *Optimizare Randament Condensare:* Monitorizare permanentă pentru ca $T_{retur}$ să rămână sub 45°C pentru condensare maximă a vaporilor de apă din gaz.
+      - *Configurare Specific Șapă în NVS:* Parametri pentru tip finisaj (`Gresie` vs `Parchet laminat/stratificat`) și temperatura agentului setată în centrală.
+
+- [ ] **28. Extindere Ecosistem Senzori & Scalabilitate Radio (BLE vs. Zigbee Sonoff SNZB-02D pentru Case Mari):**
+      - *Segmentare Senzori după Tip Locuință:*
+        * Apartamente (1 nivel): Păstrare senzori BLE LCD (28 lei) citiți nativ de ESP32 direct din aer (zero gateway, zero costuri extra).
+        * Case mari / Parter + Etaj: Suport senzori Zigbee 3.0 cu afișaj mare (Sonoff SNZB-02D la 68 lei) profitând de rețeaua mesh pe 230V prin prize/becuri (prin mini-modul serial pe placă sau trecere viitoare pe ESP32-C6).
+      - *Evaluare Senzori în Șapă de Beton:* Documentat clar că merită strict la construcții noi de la zero dacă dezvoltatorul a tras tuburi corugate pentru limitare parchet (max 28°C); la apartamente gata finisate (retrofit) este imposibil și nejustificat economic, fiind înlocuit mult mai elegant de analiza $\Delta T$ pe distribuitor.
+
+- [ ] **29. Kiosk Dashboard Dedicat pentru Tableta Samsung Galaxy Tab A9 (Panou de Perete 24/7):**
+      - *Hardware Dedicat:* Samsung Galaxy Tab A9 8.7" PLS LCD (fără risc de burn-in, refresh rate 60Hz optim pentru consum redus sub 2W și funcționare rece).
+      - *Configurare Kiosk:* Activare One UI *Protect Battery* (limitare încărcare 80–85% pentru alimentare sigură 24/7), Fully Kiosk Browser cu trezire la mișcare (Motion Wake).
+      - *Interfață PWA Tactilă:* Panou de control curat pentru familie (stare cele 3 zone, temperaturi curente/țintă, comutator rapid moduri `Sleep`/`Away`/`Home`, vreme exterioară și telemetrie hidraulică în timp real).
+
 ---
 
 ## 🔮 Viitor / Nice to Have: Migrare Home Server pe ThinkPad L590 (Înlocuire Galaxy A6)

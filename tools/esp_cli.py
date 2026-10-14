@@ -50,6 +50,8 @@ def cmd_status(args):
             print(f"Actuator Type:      {zdata.get('actuatorType', 'NC')} ({'Normally Closed' if zdata.get('actuatorType') == 'NC' else 'Normally Open'})")
             print(f"Circulation Pump:   {'RUNNING [ON]' if zdata.get('pumpActive') else 'IDLE [OFF]'} (Relay 4: {'ENABLED' if zdata.get('pumpEnabled') else 'DISABLED'})")
             print(f"Frost Guard:        {'ACTIVE (<12°C)' if zdata.get('frostGuardActive') else 'STANDBY'}")
+            if sdata.get('scheduleEnabled'):
+                print(f"Bio-Schedule:       ACTIVE ({sdata.get('activeAnchor')}) | Pre-Heat: {'ACTIVE' if sdata.get('preHeatActive') else 'STANDBY'}")
             tout = sdata.get('sensorTimeoutSec', 600)
             print(f"Sensor Timeout:     {tout}s ({tout // 60} min)")
             print(f"Free Heap RAM:      {sdata.get('freeHeap', 0) // 1024} KB")
@@ -59,12 +61,13 @@ def cmd_status(args):
             print("Thermal Zones (Underfloor Loops):")
             for z in zdata.get("zones", []):
                 cur_t = z.get('currentTemp')
-                tgt_t = z.get('targetTemp', 0.0)
+                tgt_t = z.get('effectiveTarget', z.get('targetTemp', 0.0))
                 temp_str = f"{cur_t:.1f}°C" if z.get('sensorValid') else "--.-°C"
                 relay_str = "ON" if z.get('relayEngaged') else "OFF"
                 fault_tag = " [SENSOR FAULT]" if z.get('sensorFault') else ""
                 frost_tag = " [FROST GUARD]" if z.get('frostActive') else ""
-                print(f"  [Zone {z.get('id')}] {z.get('name'):<22}: {temp_str} / {tgt_t:.1f}°C | State: {z.get('state'):<20} | Relay: {relay_str}{fault_tag}{frost_tag}")
+                win_tag = f" [WINDOW PAUSE {z.get('windowPauseRemainingSec')}s]" if z.get('windowPauseActive') else ""
+                print(f"  [Zone {z.get('id')}] {z.get('name'):<22}: {temp_str} / {tgt_t:.1f}°C | State: {z.get('state'):<20} | Relay: {relay_str}{fault_tag}{frost_tag}{win_tag}")
             print("--------------------------------------------------")
             print("Room Sensors (Xiaomi BLE Direct):")
             for s in sdata.get("sensors", []):
@@ -316,6 +319,69 @@ def cmd_timeout(args):
         except Exception as e:
             print(f"[-] Error: {e}")
 
+def cmd_schedule(args):
+    """View or configure Smart Bio-Schedule & natural anchors."""
+    if args.action in ("on", "off"):
+        val = "true" if args.action == "on" else "false"
+        url = f"http://{args.ip}:{args.port}/api/schedule/enable?enabled={val}"
+        try:
+            r = requests.post(url, timeout=3)
+            print(f"[+] Bio-Schedule toggle ({args.action}): HTTP {r.status_code}")
+        except Exception as e:
+            print(f"[-] Error: {e}")
+    elif args.action in ("preheat-on", "preheat-off"):
+        val = "true" if args.action == "preheat-on" else "false"
+        url = f"http://{args.ip}:{args.port}/api/schedule/enable?preheat={val}"
+        try:
+            r = requests.post(url, timeout=3)
+            print(f"[+] Predictive Pre-Heat toggle ({args.action}): HTTP {r.status_code}")
+        except Exception as e:
+            print(f"[-] Error: {e}")
+    elif args.action in ("window-on", "window-off"):
+        val = "true" if args.action == "window-on" else "false"
+        url = f"http://{args.ip}:{args.port}/api/schedule/enable?window={val}"
+        try:
+            r = requests.post(url, timeout=3)
+            print(f"[+] Open Window Detection toggle ({args.action}): HTTP {r.status_code}")
+        except Exception as e:
+            print(f"[-] Error: {e}")
+    else:
+        try:
+            r = requests.get(f"http://{args.ip}:{args.port}/api/schedule", timeout=3)
+            d = r.json()
+            print("==================================================")
+            print("  Smart Bio-Schedule & Natural Anchors")
+            print("==================================================")
+            print(f"Schedule Engine:     {'ENABLED' if d.get('enabled') else 'DISABLED'}")
+            print(f"Active Anchor:       {d.get('activeAnchor', 'NONE')}")
+            print(f"Next Anchor:         {d.get('nextAnchor', 'NONE')} in {d.get('minsToNextAnchor', 0)} min")
+            print(f"Predictive Pre-Heat: {'ACTIVE (Pre-Warming)' if d.get('preHeatActive') else ('ENABLED' if d.get('preHeatEnabled') else 'DISABLED')}")
+            print(f"Open Window Guard:   {'ARMED (>1.2°C drop in 5m)' if d.get('windowDetectionEnabled') else 'DISABLED'}")
+            print("--------------------------------------------------")
+            print("Weekday Profile (Mon-Fri):")
+            wd = d.get("weekday", {})
+            if isinstance(wd, dict):
+                for name, anc in wd.items():
+                    t_str = " | ".join(f"Z{idx+1}: {t:.1f}°C" for idx, t in enumerate(anc.get("targets", [])))
+                    print(f"  - {name.upper():<6} @ {anc.get('hour', 0):02d}:{anc.get('minute', 0):02d} -> {t_str}")
+            elif isinstance(wd, list):
+                for anc in wd:
+                    t_str = " | ".join(f"Z{idx+1}: {t:.1f}°C" for idx, t in enumerate(anc.get("targets", [])))
+                    print(f"  - {anc.get('name', 'ANCHOR'):<6} @ {anc.get('hour', 0):02d}:{anc.get('minute', 0):02d} -> {t_str}")
+            print("Weekend Profile (Sat-Sun):")
+            we = d.get("weekend", {})
+            if isinstance(we, dict):
+                for name, anc in we.items():
+                    t_str = " | ".join(f"Z{idx+1}: {t:.1f}°C" for idx, t in enumerate(anc.get("targets", [])))
+                    print(f"  - {name.upper():<6} @ {anc.get('hour', 0):02d}:{anc.get('minute', 0):02d} -> {t_str}")
+            elif isinstance(we, list):
+                for anc in we:
+                    t_str = " | ".join(f"Z{idx+1}: {t:.1f}°C" for idx, t in enumerate(anc.get("targets", [])))
+                    print(f"  - {anc.get('name', 'ANCHOR'):<6} @ {anc.get('hour', 0):02d}:{anc.get('minute', 0):02d} -> {t_str}")
+            print("==================================================")
+        except Exception as e:
+            print(f"[-] Error: {e}")
+
 def cmd_exec(args):
     """Executes any arbitrary command via the 2-way Network Console API."""
     url = f"http://{args.ip}:{args.port}/api/console/send?cmd={args.cmd}"
@@ -361,13 +427,123 @@ def cmd_monitor(args):
     except Exception as e:
         print(f"\n[-] Socket error: {e}")
 
+def cmd_interactive_shell(args):
+    """Interactive REPL shell for instant command execution, live testing, and telemetry."""
+    print("==================================================")
+    print("  ESP32 Smart Heating - Interactive Command Shell")
+    print(f"  Target: http://{args.ip}:{args.port} | Telnet: {args.ip}:{args.telnet_port}")
+    print("  Type 'help' for available commands, 'exit' to quit.")
+    print("==================================================")
+    
+    # Run initial status
+    cmd_status(args)
+    
+    while True:
+        try:
+            line = input("\nsmart-heating> ").strip()
+            if not line:
+                continue
+            parts = line.split()
+            cmd = parts[0].lower()
+            
+            if cmd in ("exit", "quit", "q"):
+                print("Exiting interactive shell.")
+                break
+            elif cmd in ("help", "?"):
+                print("\nInteractive Shell Commands:")
+                print("  status                 - Live telemetry status report")
+                print("  sensors / ble          - List discovered BLE room thermometers")
+                print("  on [--force]           - Turn gas boiler ON via RF 433MHz")
+                print("  off [--force]          - Turn gas boiler OFF via RF 433MHz")
+                print("  mode <auto|manual>     - Set controller operating mode")
+                print("  set <zone_id> <temp>   - Set zone target temperature (e.g. set 1 22.5)")
+                print("  diag                   - Diagnostic trouble codes & health score")
+                print("  selftest               - Run diagnostic self-test suite")
+                print("  clear                  - Clear active diagnostic trouble codes (DTCs)")
+                print("  schedule [action]      - Bio-Schedule (actions: on, off, preheat-on, window-on)")
+                print("  passport               - Device identity, hardware serial, MAC")
+                print("  time                   - System time, NTP & outdoor weather")
+                print("  pump [on|off]          - GPA circulation pump relay toggle")
+                print("  actuator [nc|no]       - Thermal actuator electrical polarity")
+                print("  exercise               - 20s anti-seize exercise cycle (pump & valves)")
+                print("  test                   - Run automated ASPICE verification suite")
+                print("  monitor                - Stream live logs over Telnet TCP:23")
+                print("  exec <cmd>             - Execute raw Virtual Terminal command (e.g. exec HELP)")
+                print("  exit / quit            - Exit shell")
+            elif cmd == "status":
+                cmd_status(args)
+            elif cmd in ("ble", "sensors"):
+                cmd_ble(args)
+            elif cmd == "diag":
+                args.action = parts[1].lower() if len(parts) > 1 else None
+                cmd_diag(args)
+            elif cmd == "selftest":
+                cmd_selftest(args)
+            elif cmd == "clear":
+                args.action = "clear"
+                cmd_diag(args)
+            elif cmd in ("on", "off"):
+                args.force = "--force" in parts
+                cmd_boiler(args, cmd)
+            elif cmd == "mode" and len(parts) > 1:
+                args.mode = parts[1].lower()
+                cmd_mode(args)
+            elif cmd == "set" and len(parts) >= 3:
+                try:
+                    args.zone = int(parts[1])
+                    args.temp = float(parts[2])
+                    cmd_setpoint(args)
+                except ValueError:
+                    print("[-] Usage: set <zone_id> <temperature> (e.g. set 1 22.5)")
+            elif cmd == "schedule":
+                args.action = parts[1].lower() if len(parts) > 1 else None
+                cmd_schedule(args)
+            elif cmd == "passport":
+                cmd_passport(args)
+            elif cmd == "time":
+                cmd_time(args)
+            elif cmd == "pump":
+                args.action = parts[1].lower() if len(parts) > 1 else None
+                cmd_pump(args)
+            elif cmd == "actuator":
+                args.type = parts[1].lower() if len(parts) > 1 else None
+                cmd_actuator(args)
+            elif cmd == "exercise":
+                cmd_exercise(args)
+            elif cmd == "test":
+                from test_system import SystemTestSuite
+                suite = SystemTestSuite(ip=args.ip, port=args.port)
+                suite.run_all()
+            elif cmd == "monitor":
+                print("[*] Streaming live Telnet logs (Ctrl+C to return to shell)...")
+                try:
+                    cmd_monitor(args)
+                except KeyboardInterrupt:
+                    print("\n[*] Stopped log stream.")
+            elif cmd == "exec":
+                if len(parts) > 1:
+                    args.cmd = " ".join(parts[1:])
+                    cmd_exec(args)
+                else:
+                    print("[-] Usage: exec <command> (e.g. exec HELP)")
+            else:
+                # Direct passthrough for ESP32 console commands (e.g. HELP, STATUS, AUTO, MANUAL, SET 1 22)
+                args.cmd = line
+                cmd_exec(args)
+        except KeyboardInterrupt:
+            print("\nExiting interactive shell.")
+            break
+        except Exception as e:
+            print(f"[-] Error: {e}")
+
 def main():
-    parser = argparse.ArgumentParser(description="ESP32 Smart Heating Fast CLI")
+    parser = argparse.ArgumentParser(description="ESP32 Smart Heating Fast CLI & Interactive Shell")
     parser.add_argument("--ip", default=DEFAULT_IP, help=f"ESP32 IP address (default: {DEFAULT_IP})")
     parser.add_argument("--port", type=int, default=DEFAULT_PORT_HTTP, help="HTTP Port (default: 80)")
     parser.add_argument("--telnet-port", type=int, default=DEFAULT_PORT_TELNET, help="Telnet Port (default: 23)")
     sub = parser.add_subparsers(dest="command")
 
+    sub.add_parser("shell", help="Start interactive REPL console (default when run without arguments)")
     sub.add_parser("status", help="Get comprehensive system status report")
     sub.add_parser("ble", help="List BLE room thermometers registry")
     sub.add_parser("sensors", help="Alias for ble command")
@@ -401,6 +577,9 @@ def main():
     p_exec = sub.add_parser("exec", help="Execute arbitrary command string via Network Console")
     p_exec.add_argument("cmd", help="Command string (e.g. STATUS, HELP, ON, OFF)")
 
+    p_sched = sub.add_parser("schedule", help="View or configure Smart Bio-Schedule")
+    p_sched.add_argument("action", nargs="?", choices=["on", "off", "preheat-on", "preheat-off", "window-on", "window-off"], help="Action to perform")
+
     p_test = sub.add_parser("test", help="Run automated ASPICE SWE.5 verification test suite against ESP32")
     p_test.add_argument("--report", default="docs/system_test_report.md", help="Path to write markdown test report")
 
@@ -408,7 +587,9 @@ def main():
 
     args = parser.parse_args()
 
-    if args.command == "status":
+    if not args.command or args.command == "shell":
+        cmd_interactive_shell(args)
+    elif args.command == "status":
         cmd_status(args)
     elif args.command in ("ble", "sensors"):
         cmd_ble(args)
@@ -436,6 +617,8 @@ def main():
         cmd_mode(args)
     elif args.command == "set":
         cmd_setpoint(args)
+    elif args.command == "schedule":
+        cmd_schedule(args)
     elif args.command == "exec":
         cmd_exec(args)
     elif args.command == "test":

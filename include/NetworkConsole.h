@@ -31,6 +31,7 @@ public:
     void broadcast(const char* str);
     void executeCommand(const String& cmd);
     void clear();
+    String getLogsSince(uint32_t since);
 
 private:
     WiFiServer _telnetServer;
@@ -46,6 +47,7 @@ private:
     bool _atLineStart;
 
     void appendToRing(char c);
+    void appendToRing(const uint8_t *data, size_t size);
     void printTimestamp();
     void rawWrite(const uint8_t *buffer, size_t size);
     void setupWebRoutes();

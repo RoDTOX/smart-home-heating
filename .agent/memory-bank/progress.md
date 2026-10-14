@@ -3,6 +3,26 @@
 ## Status
 All core functional subsystems (heating hysteresis engine, boiler RF trigger, native BLE passive scanner, 2-way console, web OTA, diagnostic engine with DTCs, service mode, digital passport, NTP & weather sync, headless API-first architecture, hydronic safety controls, anti-spam burner interlocks, and automated PC system test suite) are fully implemented, compiled, uploaded, and verified live on ESP32 (`192.168.1.20`) with 100% ASPICE SWE.5 pass rate.
 
+## Completed Work (2026-10-13 - Task 26)
+- **Smart Bio-Schedule cu 4 Ancore Naturale de Viață:**
+  - Înlocuită paradigma clasică a orarelor de 168 celule cu un model adaptiv bazat pe 4 stări organice de confort: `Sleep` (20.0–21.0°C), `Wake` (22.0–22.5°C), `Away` (19.5–20.0°C), `Home` (21.5–23.0°C).
+  - Profiluri separate configurabile pentru Luni–Vineri (Weekday) și Sâmbătă–Duminică (Weekend). Evaluare la fiecare 30 secunde conform ceasului de sistem NTP.
+- **Detecție Fereastră Deschisă (Open Window Smart Pause Guard):**
+  - Implementat istoric circular de eșantioane de temperatură (10 eșantioane la 30s).
+  - La detectarea unei scăderi bruște de >1.2°C în <5 min, valva zonei este forțată automat în starea ÎNCHIS timp de 30 minute, prevenind risipa inutilă de gaz în timpul aerisirii. Anunțat în Network Console și în telemetria `STATUS`.
+- **Pre-Heat Anticipativ cu Inerție Termică & Factor Meteo:**
+  - Calcul dinamic al avansului de pornire (30–120 min) pe baza inerției șapei de beton și a temperaturii exterioare curente de la Open-Meteo ($k_{weather} = 1.0 + \max(0.0, (15.0 - T_{ext}) \times 0.04)$), asigurând temperatura optimă exact la ora sosirii sau trezirii.
+- **Persistență NVS Anti-Uzură Flash:**
+  - Structură de 136 octeți salvată în namespace-ul `"sched"`, protejată prin `memcmp()` pentru a scrie flash-ul strict la modificări reale.
+- **REST API, CLI & Secțiune Dedicată în STATUS:**
+  - Endpoint-uri `/api/schedule` (GET/POST) și `/api/schedule/enable` (POST); comenzi interactive în consolă (`SCHEDULE`, `SCHEDULE ON/OFF`, `SCHEDULE PREHEAT ON/OFF`, `SCHEDULE WINDOW ON/OFF`).
+  - Secțiunea `[D. SMART BIO-SCHEDULE & PRE-HEAT]` adăugată în `STATUS`. Subcomanda `schedule` adăugată în `esp_cli.py`.
+- **Eliminare Zgomot Meteo & Minificare Flash OTA:**
+  - Eliminat spam-ul periodic din `netConsole` generat de actualizările meteo la 15 minute (redirecționate pe UART Serial).
+  - Minificat CSS-ul paginilor web (`main.cpp`, `NetworkConsole.cpp`, `WebSetupPage.h`), aducând binarul la **1.24 MB** (1,305,280 bytes).
+- **Validare Live pe Hardware (ASPICE SWE.5):**
+  - Binar flashuit cu succes prin Web OTA (`192.168.1.20`), adăugat testul automat `SWE.5-TC15`, rezultând **15/15 PASS (100.0%)** în 15.65 secunde.
+
 ## Completed Work (2026-10-12 - Task 25)
 - **Eliminare Word Wrap pe Mobil & Scroll Orizontal Fluid (`NetworkConsole`):**
   - Înlocuită formatarea fragilă cu `white-space: pre-wrap; word-break: break-all;` prin formatare rigidă monospace (`white-space: pre; word-break: normal;`) cu suport nativ de accelerare tactilă pentru scroll orizontal și vertical (`overflow-x: auto; overflow-y: auto; -webkit-overflow-scrolling: touch;`).
