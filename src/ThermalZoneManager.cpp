@@ -35,68 +35,9 @@ ThermalZoneManager::ThermalZoneManager()
       _lastBoilerOnTime(0),
       _lastEvaluationMs(0) {
 
-    // Default BioSchedule Config
+    _scheduleConfig = getFactoryDefaultSchedule();
     _scheduleConfig.enabled = false;
-    _scheduleConfig.preHeatEnabled = true;
-    _scheduleConfig.windowDetectionEnabled = true;
-
-    // Weekday defaults (Luni - Vineri)
-    // Sleep (22:30): 20.0C, 21.0C, 20.0C
-    _scheduleConfig.weekday[BIO_ANCHOR_SLEEP].hour = 22;
-    _scheduleConfig.weekday[BIO_ANCHOR_SLEEP].minute = 30;
-    _scheduleConfig.weekday[BIO_ANCHOR_SLEEP].targets[0] = 20.0f;
-    _scheduleConfig.weekday[BIO_ANCHOR_SLEEP].targets[1] = 21.0f;
-    _scheduleConfig.weekday[BIO_ANCHOR_SLEEP].targets[2] = 20.0f;
-
-    // Wake (06:30): 22.0C, 22.5C, 22.0C
-    _scheduleConfig.weekday[BIO_ANCHOR_WAKE].hour = 6;
-    _scheduleConfig.weekday[BIO_ANCHOR_WAKE].minute = 30;
-    _scheduleConfig.weekday[BIO_ANCHOR_WAKE].targets[0] = 22.0f;
-    _scheduleConfig.weekday[BIO_ANCHOR_WAKE].targets[1] = 22.5f;
-    _scheduleConfig.weekday[BIO_ANCHOR_WAKE].targets[2] = 22.0f;
-
-    // Away (08:30): 19.5C, 20.0C, 19.5C
-    _scheduleConfig.weekday[BIO_ANCHOR_AWAY].hour = 8;
-    _scheduleConfig.weekday[BIO_ANCHOR_AWAY].minute = 30;
-    _scheduleConfig.weekday[BIO_ANCHOR_AWAY].targets[0] = 19.5f;
-    _scheduleConfig.weekday[BIO_ANCHOR_AWAY].targets[1] = 20.0f;
-    _scheduleConfig.weekday[BIO_ANCHOR_AWAY].targets[2] = 19.5f;
-
-    // Home (17:00): 22.5C, 23.0C, 21.5C
-    _scheduleConfig.weekday[BIO_ANCHOR_HOME].hour = 17;
-    _scheduleConfig.weekday[BIO_ANCHOR_HOME].minute = 0;
-    _scheduleConfig.weekday[BIO_ANCHOR_HOME].targets[0] = 22.5f;
-    _scheduleConfig.weekday[BIO_ANCHOR_HOME].targets[1] = 23.0f;
-    _scheduleConfig.weekday[BIO_ANCHOR_HOME].targets[2] = 21.5f;
-
-    // Weekend defaults (Sambata - Duminica)
-    // Sleep (23:00)
-    _scheduleConfig.weekend[BIO_ANCHOR_SLEEP].hour = 23;
-    _scheduleConfig.weekend[BIO_ANCHOR_SLEEP].minute = 0;
-    _scheduleConfig.weekend[BIO_ANCHOR_SLEEP].targets[0] = 20.5f;
-    _scheduleConfig.weekend[BIO_ANCHOR_SLEEP].targets[1] = 21.5f;
-    _scheduleConfig.weekend[BIO_ANCHOR_SLEEP].targets[2] = 20.5f;
-
-    // Wake (08:30)
-    _scheduleConfig.weekend[BIO_ANCHOR_WAKE].hour = 8;
-    _scheduleConfig.weekend[BIO_ANCHOR_WAKE].minute = 30;
-    _scheduleConfig.weekend[BIO_ANCHOR_WAKE].targets[0] = 22.5f;
-    _scheduleConfig.weekend[BIO_ANCHOR_WAKE].targets[1] = 23.0f;
-    _scheduleConfig.weekend[BIO_ANCHOR_WAKE].targets[2] = 22.0f;
-
-    // Away (12:00)
-    _scheduleConfig.weekend[BIO_ANCHOR_AWAY].hour = 12;
-    _scheduleConfig.weekend[BIO_ANCHOR_AWAY].minute = 0;
-    _scheduleConfig.weekend[BIO_ANCHOR_AWAY].targets[0] = 22.0f;
-    _scheduleConfig.weekend[BIO_ANCHOR_AWAY].targets[1] = 22.5f;
-    _scheduleConfig.weekend[BIO_ANCHOR_AWAY].targets[2] = 21.5f;
-
-    // Home (16:00)
-    _scheduleConfig.weekend[BIO_ANCHOR_HOME].hour = 16;
-    _scheduleConfig.weekend[BIO_ANCHOR_HOME].minute = 0;
-    _scheduleConfig.weekend[BIO_ANCHOR_HOME].targets[0] = 22.5f;
-    _scheduleConfig.weekend[BIO_ANCHOR_HOME].targets[1] = 23.0f;
-    _scheduleConfig.weekend[BIO_ANCHOR_HOME].targets[2] = 21.5f;
+    strncpy(_activePresetId, "default", sizeof(_activePresetId));
 
     for (size_t i = 0; i < MAX_THERMAL_ZONES; i++) {
         _windowStates[i].baselineTemp = -999.0f;
@@ -223,6 +164,13 @@ void ThermalZoneManager::loadSchedulePreferences() {
             Serial.println(F("[Thermal] Smart Bio-Schedule loaded from NVS."));
         }
     }
+    if (prefs.isKey("act_preset")) {
+        String act = prefs.getString("act_preset", "default");
+        strncpy(_activePresetId, act.c_str(), sizeof(_activePresetId) - 1);
+        _activePresetId[sizeof(_activePresetId) - 1] = '\0';
+    } else {
+        strncpy(_activePresetId, "default", sizeof(_activePresetId));
+    }
     prefs.end();
 }
 
@@ -238,6 +186,10 @@ void ThermalZoneManager::saveSchedulePreferences() {
     if (len != sizeof(currentSaved) || memcmp(&currentSaved, &_scheduleConfig, sizeof(_scheduleConfig)) != 0) {
         prefs.putBytes("cfg", &_scheduleConfig, sizeof(_scheduleConfig));
         Serial.println(F("[Thermal] Smart Bio-Schedule persisted to NVS."));
+    }
+    String oldPreset = prefs.getString("act_preset", "");
+    if (oldPreset != _activePresetId) {
+        prefs.putString("act_preset", _activePresetId);
     }
     prefs.end();
 }
@@ -504,6 +456,283 @@ const char* ThermalZoneManager::getAnchorName(BioAnchorId id) const {
     }
 }
 
+BioScheduleConfig ThermalZoneManager::getFactoryDefaultSchedule() {
+    BioScheduleConfig cfg;
+    cfg.enabled = true;
+    cfg.preHeatEnabled = true;
+    cfg.windowDetectionEnabled = true;
+
+    // Weekday defaults (Luni - Vineri)
+    // Sleep (22:30): 20.0C, 21.0C, 20.0C
+    cfg.weekday[BIO_ANCHOR_SLEEP].hour = 22;
+    cfg.weekday[BIO_ANCHOR_SLEEP].minute = 30;
+    cfg.weekday[BIO_ANCHOR_SLEEP].targets[0] = 20.0f;
+    cfg.weekday[BIO_ANCHOR_SLEEP].targets[1] = 21.0f;
+    cfg.weekday[BIO_ANCHOR_SLEEP].targets[2] = 20.0f;
+
+    // Wake (06:30): 22.0C, 22.5C, 22.0C
+    cfg.weekday[BIO_ANCHOR_WAKE].hour = 6;
+    cfg.weekday[BIO_ANCHOR_WAKE].minute = 30;
+    cfg.weekday[BIO_ANCHOR_WAKE].targets[0] = 22.0f;
+    cfg.weekday[BIO_ANCHOR_WAKE].targets[1] = 22.5f;
+    cfg.weekday[BIO_ANCHOR_WAKE].targets[2] = 22.0f;
+
+    // Away (08:30): 19.5C, 20.0C, 19.5C
+    cfg.weekday[BIO_ANCHOR_AWAY].hour = 8;
+    cfg.weekday[BIO_ANCHOR_AWAY].minute = 30;
+    cfg.weekday[BIO_ANCHOR_AWAY].targets[0] = 19.5f;
+    cfg.weekday[BIO_ANCHOR_AWAY].targets[1] = 20.0f;
+    cfg.weekday[BIO_ANCHOR_AWAY].targets[2] = 19.5f;
+
+    // Home (17:00): 22.5C, 23.0C, 21.5C
+    cfg.weekday[BIO_ANCHOR_HOME].hour = 17;
+    cfg.weekday[BIO_ANCHOR_HOME].minute = 0;
+    cfg.weekday[BIO_ANCHOR_HOME].targets[0] = 22.5f;
+    cfg.weekday[BIO_ANCHOR_HOME].targets[1] = 23.0f;
+    cfg.weekday[BIO_ANCHOR_HOME].targets[2] = 21.5f;
+
+    // Weekend defaults (Sambata - Duminica)
+    // Sleep (23:00)
+    cfg.weekend[BIO_ANCHOR_SLEEP].hour = 23;
+    cfg.weekend[BIO_ANCHOR_SLEEP].minute = 0;
+    cfg.weekend[BIO_ANCHOR_SLEEP].targets[0] = 20.5f;
+    cfg.weekend[BIO_ANCHOR_SLEEP].targets[1] = 21.5f;
+    cfg.weekend[BIO_ANCHOR_SLEEP].targets[2] = 20.5f;
+
+    // Wake (08:30)
+    cfg.weekend[BIO_ANCHOR_WAKE].hour = 8;
+    cfg.weekend[BIO_ANCHOR_WAKE].minute = 30;
+    cfg.weekend[BIO_ANCHOR_WAKE].targets[0] = 22.5f;
+    cfg.weekend[BIO_ANCHOR_WAKE].targets[1] = 23.0f;
+    cfg.weekend[BIO_ANCHOR_WAKE].targets[2] = 22.0f;
+
+    // Away (12:00)
+    cfg.weekend[BIO_ANCHOR_AWAY].hour = 12;
+    cfg.weekend[BIO_ANCHOR_AWAY].minute = 0;
+    cfg.weekend[BIO_ANCHOR_AWAY].targets[0] = 22.0f;
+    cfg.weekend[BIO_ANCHOR_AWAY].targets[1] = 22.5f;
+    cfg.weekend[BIO_ANCHOR_AWAY].targets[2] = 21.5f;
+
+    // Home (16:00)
+    cfg.weekend[BIO_ANCHOR_HOME].hour = 16;
+    cfg.weekend[BIO_ANCHOR_HOME].minute = 0;
+    cfg.weekend[BIO_ANCHOR_HOME].targets[0] = 22.5f;
+    cfg.weekend[BIO_ANCHOR_HOME].targets[1] = 23.0f;
+    cfg.weekend[BIO_ANCHOR_HOME].targets[2] = 21.5f;
+
+    return cfg;
+}
+
+BioScheduleConfig ThermalZoneManager::getFactoryEcoSchedule() {
+    BioScheduleConfig cfg = getFactoryDefaultSchedule();
+    for (int a = 0; a < BIO_ANCHORS_COUNT; a++) {
+        cfg.weekday[a].targets[0] = 18.0f;
+        cfg.weekday[a].targets[1] = 18.5f;
+        cfg.weekday[a].targets[2] = 18.0f;
+        cfg.weekend[a].targets[0] = 18.0f;
+        cfg.weekend[a].targets[1] = 18.5f;
+        cfg.weekend[a].targets[2] = 18.0f;
+    }
+    cfg.weekday[BIO_ANCHOR_WAKE].targets[0] = 19.0f;
+    cfg.weekday[BIO_ANCHOR_WAKE].targets[1] = 19.5f;
+    cfg.weekday[BIO_ANCHOR_WAKE].targets[2] = 19.0f;
+    cfg.weekday[BIO_ANCHOR_HOME].targets[0] = 19.0f;
+    cfg.weekday[BIO_ANCHOR_HOME].targets[1] = 19.5f;
+    cfg.weekday[BIO_ANCHOR_HOME].targets[2] = 19.0f;
+
+    cfg.weekend[BIO_ANCHOR_WAKE].targets[0] = 19.0f;
+    cfg.weekend[BIO_ANCHOR_WAKE].targets[1] = 19.5f;
+    cfg.weekend[BIO_ANCHOR_WAKE].targets[2] = 19.0f;
+    cfg.weekend[BIO_ANCHOR_HOME].targets[0] = 19.0f;
+    cfg.weekend[BIO_ANCHOR_HOME].targets[1] = 19.5f;
+    cfg.weekend[BIO_ANCHOR_HOME].targets[2] = 19.0f;
+    return cfg;
+}
+
+BioScheduleConfig ThermalZoneManager::getFactoryWfhSchedule() {
+    BioScheduleConfig cfg = getFactoryDefaultSchedule();
+    for (int a = 0; a < BIO_ANCHORS_COUNT; a++) {
+        cfg.weekday[a].targets[0] = 22.5f;
+        cfg.weekday[a].targets[1] = 23.0f;
+        cfg.weekday[a].targets[2] = 22.0f;
+        cfg.weekend[a].targets[0] = 22.5f;
+        cfg.weekend[a].targets[1] = 23.0f;
+        cfg.weekend[a].targets[2] = 22.0f;
+    }
+    cfg.weekday[BIO_ANCHOR_SLEEP].targets[0] = 20.5f;
+    cfg.weekday[BIO_ANCHOR_SLEEP].targets[1] = 21.5f;
+    cfg.weekday[BIO_ANCHOR_SLEEP].targets[2] = 20.5f;
+    cfg.weekend[BIO_ANCHOR_SLEEP].targets[0] = 20.5f;
+    cfg.weekend[BIO_ANCHOR_SLEEP].targets[1] = 21.5f;
+    cfg.weekend[BIO_ANCHOR_SLEEP].targets[2] = 20.5f;
+    return cfg;
+}
+
+BioAnchorId ThermalZoneManager::parseAnchorId(const char* name) {
+    if (!name) return BIO_ANCHORS_COUNT;
+    if (strcasecmp(name, "sleep") == 0 || strcmp(name, "0") == 0) return BIO_ANCHOR_SLEEP;
+    if (strcasecmp(name, "wake") == 0  || strcmp(name, "1") == 0) return BIO_ANCHOR_WAKE;
+    if (strcasecmp(name, "away") == 0  || strcmp(name, "2") == 0) return BIO_ANCHOR_AWAY;
+    if (strcasecmp(name, "home") == 0  || strcmp(name, "3") == 0) return BIO_ANCHOR_HOME;
+    return BIO_ANCHORS_COUNT;
+}
+
+bool ThermalZoneManager::updateAnchor(bool weekend, BioAnchorId anchor, uint8_t hour, uint8_t minute, const float targets[MAX_THERMAL_ZONES]) {
+    if (anchor >= BIO_ANCHORS_COUNT || hour > 23 || minute > 59) return false;
+    BioAnchorConfig* profile = weekend ? _scheduleConfig.weekend : _scheduleConfig.weekday;
+    profile[anchor].hour = hour;
+    profile[anchor].minute = minute;
+    if (targets) {
+        for (size_t i = 0; i < MAX_THERMAL_ZONES; i++) {
+            if (targets[i] >= 5.0f && targets[i] <= 35.0f) {
+                profile[anchor].targets[i] = targets[i];
+            }
+        }
+    }
+    strncpy(_activePresetId, "custom", sizeof(_activePresetId) - 1);
+    _activePresetId[sizeof(_activePresetId) - 1] = '\0';
+    saveSchedulePreferences();
+    evaluateSchedule(millis());
+    netConsole.printf("[Thermal] Updated anchor %s (%s): %02u:%02u [%.1f, %.1f, %.1f]\n",
+                      getAnchorName(anchor), weekend ? "Weekend" : "Weekday",
+                      hour, minute, profile[anchor].targets[0], profile[anchor].targets[1], profile[anchor].targets[2]);
+    return true;
+}
+
+bool ThermalZoneManager::setAnchorTime(bool weekend, BioAnchorId anchor, uint8_t hour, uint8_t minute) {
+    return updateAnchor(weekend, anchor, hour, minute, nullptr);
+}
+
+bool ThermalZoneManager::setAnchorTargets(bool weekend, BioAnchorId anchor, const float targets[MAX_THERMAL_ZONES]) {
+    if (anchor >= BIO_ANCHORS_COUNT) return false;
+    BioAnchorConfig* profile = weekend ? _scheduleConfig.weekend : _scheduleConfig.weekday;
+    return updateAnchor(weekend, anchor, profile[anchor].hour, profile[anchor].minute, targets);
+}
+
+bool ThermalZoneManager::setAnchorTarget(bool weekend, BioAnchorId anchor, size_t zoneIndex, float target) {
+    if (anchor >= BIO_ANCHORS_COUNT || zoneIndex >= MAX_THERMAL_ZONES || target < 5.0f || target > 35.0f) return false;
+    BioAnchorConfig* profile = weekend ? _scheduleConfig.weekend : _scheduleConfig.weekday;
+    profile[anchor].targets[zoneIndex] = target;
+    strncpy(_activePresetId, "custom", sizeof(_activePresetId) - 1);
+    _activePresetId[sizeof(_activePresetId) - 1] = '\0';
+    saveSchedulePreferences();
+    evaluateSchedule(millis());
+    netConsole.printf("[Thermal] Anchor %s (%s) Zone %u set to %.1f C\n",
+                      getAnchorName(anchor), weekend ? "Weekend" : "Weekday", (unsigned int)(zoneIndex + 1), target);
+    return true;
+}
+
+String ThermalZoneManager::getPresetsJson() const {
+    String json = "{";
+    json += "\"status\":\"ok\",";
+    json += "\"activePreset\":\"" + String(_activePresetId) + "\",";
+    json += "\"presets\":[";
+    json += "{\"id\":\"default\",\"name\":\"Standard / Confort\",\"type\":\"factory\"},";
+    json += "{\"id\":\"eco\",\"name\":\"Vacanță / Eco\",\"type\":\"factory\"},";
+    json += "{\"id\":\"wfh\",\"name\":\"Home Office\",\"type\":\"factory\"}";
+
+    Preferences prefs;
+    if (prefs.begin("presets", true)) {
+        const char* slots[] = {"custom1", "custom2"};
+        for (int i = 0; i < 2; i++) {
+            char keyCfg[16];
+            char keyName[16];
+            snprintf(keyCfg, sizeof(keyCfg), "%s_cfg", slots[i]);
+            snprintf(keyName, sizeof(keyName), "%s_name", slots[i]);
+            bool saved = prefs.isKey(keyCfg);
+            String name = saved ? prefs.getString(keyName, slots[i]) : String("Slot Liber (") + slots[i] + ")";
+            json += ",{\"id\":\"" + String(slots[i]) + "\",\"name\":\"" + name + "\",\"type\":\"user\",\"saved\":" + (saved ? "true" : "false") + "}";
+        }
+        prefs.end();
+    } else {
+        json += ",{\"id\":\"custom1\",\"name\":\"Slot Liber (custom1)\",\"type\":\"user\",\"saved\":false}";
+        json += ",{\"id\":\"custom2\",\"name\":\"Slot Liber (custom2)\",\"type\":\"user\",\"saved\":false}";
+    }
+    json += "]}";
+    return json;
+}
+
+bool ThermalZoneManager::applyPreset(const char* presetId) {
+    if (!presetId || strlen(presetId) == 0) return false;
+    BioScheduleConfig targetCfg;
+    bool found = false;
+
+    if (strcasecmp(presetId, "default") == 0) {
+        targetCfg = getFactoryDefaultSchedule();
+        found = true;
+    } else if (strcasecmp(presetId, "eco") == 0) {
+        targetCfg = getFactoryEcoSchedule();
+        found = true;
+    } else if (strcasecmp(presetId, "wfh") == 0) {
+        targetCfg = getFactoryWfhSchedule();
+        found = true;
+    } else {
+        Preferences prefs;
+        if (prefs.begin("presets", true)) {
+            char keyCfg[16];
+            snprintf(keyCfg, sizeof(keyCfg), "%s_cfg", presetId);
+            if (prefs.isKey(keyCfg)) {
+                size_t len = prefs.getBytes(keyCfg, &targetCfg, sizeof(targetCfg));
+                if (len == sizeof(targetCfg)) {
+                    found = true;
+                }
+            }
+            prefs.end();
+        }
+    }
+
+    if (!found) return false;
+
+    bool currentEn = _scheduleConfig.enabled;
+    _scheduleConfig = targetCfg;
+    _scheduleConfig.enabled = currentEn;
+    strncpy(_activePresetId, presetId, sizeof(_activePresetId) - 1);
+    _activePresetId[sizeof(_activePresetId) - 1] = '\0';
+    saveSchedulePreferences();
+    evaluateSchedule(millis());
+    netConsole.printf("[Thermal] Applied Bio-Schedule preset: '%s'\n", presetId);
+    return true;
+}
+
+bool ThermalZoneManager::savePreset(const char* presetId, const char* name) {
+    if (!presetId || strlen(presetId) == 0) return false;
+    if (strcasecmp(presetId, "default") == 0 || strcasecmp(presetId, "eco") == 0 || strcasecmp(presetId, "wfh") == 0) {
+        return false;
+    }
+    Preferences prefs;
+    if (!prefs.begin("presets", false)) return false;
+
+    char keyCfg[16];
+    char keyName[16];
+    snprintf(keyCfg, sizeof(keyCfg), "%s_cfg", presetId);
+    snprintf(keyName, sizeof(keyName), "%s_name", presetId);
+
+    prefs.putBytes(keyCfg, &_scheduleConfig, sizeof(_scheduleConfig));
+    if (name && strlen(name) > 0) {
+        prefs.putString(keyName, name);
+    } else {
+        prefs.putString(keyName, presetId);
+    }
+    prefs.end();
+
+    strncpy(_activePresetId, presetId, sizeof(_activePresetId) - 1);
+    _activePresetId[sizeof(_activePresetId) - 1] = '\0';
+    saveSchedulePreferences();
+    netConsole.printf("[Thermal] Saved active Bio-Schedule to preset '%s' (%s)\n", presetId, name ? name : presetId);
+    return true;
+}
+
+void ThermalZoneManager::resetScheduleToDefault() {
+    bool en = _scheduleConfig.enabled;
+    _scheduleConfig = getFactoryDefaultSchedule();
+    _scheduleConfig.enabled = en;
+    strncpy(_activePresetId, "default", sizeof(_activePresetId) - 1);
+    _activePresetId[sizeof(_activePresetId) - 1] = '\0';
+    saveSchedulePreferences();
+    evaluateSchedule(millis());
+    netConsole.println(F("[Thermal] Bio-Schedule reset to factory DEFAULT preset."));
+}
+
 void ThermalZoneManager::setScheduleConfig(const BioScheduleConfig& cfg) {
     _scheduleConfig = cfg;
     saveSchedulePreferences();
@@ -695,9 +924,11 @@ uint32_t ThermalZoneManager::getWindowPauseRemainingSec(size_t index) const {
 
 String ThermalZoneManager::getScheduleJson() const {
     String json = "{";
+    json += "\"status\":\"ok\",";
     json += "\"enabled\":" + String(_scheduleConfig.enabled ? "true" : "false") + ",";
     json += "\"preHeatEnabled\":" + String(_scheduleConfig.preHeatEnabled ? "true" : "false") + ",";
     json += "\"windowDetectionEnabled\":" + String(_scheduleConfig.windowDetectionEnabled ? "true" : "false") + ",";
+    json += "\"activePreset\":\"" + String(_activePresetId) + "\",";
     json += "\"activeAnchor\":\"" + String(getActiveAnchorName()) + "\",";
     json += "\"nextAnchor\":\"" + String(getAnchorName(_nextAnchor)) + "\",";
     json += "\"minsToNextAnchor\":" + String(_minsToNextAnchor) + ",";

@@ -3,6 +3,35 @@
 Jurnalul modificărilor, deciziilor tehnice și verificărilor efectuate pentru proiectul de încălzire inteligentă.
 Corelat cu planul activ: [`docs/plan.md`](file:///c:/Users/BSeceleanu/.github_repos/smart-heating/docs/plan.md).
 
+## [14.10.2026] - Bio-Schedule Customizabil & Motor de Preset-uri NVS (Backend REST API & CLI)
+
+### Personalizare Ancore Circadiene & Preset-uri de Fabrică / Utilizator
+- **Ancore Circadiene Complet Customizabile:**
+  - Ora (`HH:MM`) și setpoint-urile pe fiecare zonă (`z1`, `z2`, `z3`) pentru fiecare ancoră (`Sleep`, `Wake`, `Away`, `Home`) sunt complet configurabile individual sau global.
+  - Nou endpoint: `POST /api/schedule/anchor` cu suport pentru parametri JSON sau query/form și persistență imediată în NVS cu protecție flash-wear.
+- **Motor de Preset-uri (Factory & User Slots):**
+  - Preset-uri din fabrică (read-only): `default` (Standard / Confort), `eco` (Vacanță / 18.0°C), `wfh` (Home Office / 22.5°C).
+  - Sloturi libere în NVS: `custom1`, `custom2` (salvare orar activ cu etichetă prietenoasă în namespace-ul `"presets"`).
+  - Endpoint-uri REST dedicate:
+    * `GET /api/schedule/presets`: Catalogul complet de preset-uri și starea de salvare a sloturilor.
+    * `POST /api/schedule/preset/apply?id=...`: Aplicare instantanee a oricărui preset (factory sau user).
+    * `POST /api/schedule/preset/save?id=custom1&name=...`: Salvare orar curent într-un slot de memorie.
+    * `POST /api/schedule/reset`: Revenire imediată la setările de fabrică (`default`).
+- **Comenzi CLI & Network Console:**
+  - `SCHEDULE RESET`: Resetare imediată la valorile din fabrică.
+  - `SCHEDULE PRESET <id>`: Activare preset direct din terminal.
+  - CLI extins: `esp_cli.py schedule preset list`, `esp_cli.py schedule preset apply <id>`, `esp_cli.py schedule preset save <id> [name]`.
+- **Decuplare UI:**
+  - Modificările vizuale pe `web/index.html` și `web/setup.html` au fost amânate deliberat pentru următorul pas, conform cerinței utilizatorului.
+- **Suită de Testare Atomică & Matrice de Trasabilitate Bidirecțională (ASPICE SWE.5):**
+  - Desfăcut cele 17 teste monolitice în **63 de teste atomice independente**, fiecare având o singură responsabilitate de verificare (schema payload, prag memorie heap, polaritate, timpi de interblocare hidraulică, idempotență RF, gardă 60s, rată de spam DTC-201, calibrare setpoint-uri, sincronizare NTP, ancore orar și preset-uri).
+  - Implementat în [`tools/test_system.py`](file:///c:/Users/BSeceleanu/.github_repos/smart-heating/tools/test_system.py) un motor automat de calcul al trasabilității bidirecționale între cerințele SWE.1 (`FR-1` .. `FR-28`, `NFR-1.1`, `NFR-1.5`, `NFR-2.2`, `NFR-3.2`) și testele SWE.5.
+  - Raportul generat în [`docs/system_test_report.md`](file:///c:/Users/BSeceleanu/.github_repos/smart-heating/docs/system_test_report.md) include:
+    * **Indicatori de Trasabilitate (KPIs):** 33/33 cerințe definite, 33/33 acoperite (100.0%), **0 cerințe neacoperite**, 63 teste atomice executate, redundanță medie de 2.6x teste/cerință.
+    * **Matrice de Trasabilitate:** Tabel complet cu maparea fiecărei cerințe la testele atomice asociate, număr de teste, status verificare (`PASS`/`FAIL`) și verdict acoperire (`🟢 COVERED` / `🔴 UNCOVERED`).
+    * **Registru Detaliat:** Tabel cu toate cele 63 de verificări atomice, latență milimetrică și aserțiuni verificate live.
+  - Rezultat live pe hardware (`192.168.1.20`): **63/63 PASS (100.0%)**, acoperire 100.0% a cerințelor de sistem.
+
 ## [13.10.2026] - Arhitectură Web GZIP Build-Time, Optimizare Flash (-176 KB) & Latență Consolă <50ms
 
 ### Optimizare Memorie Flash & Arhitectură Web (Modelul Smart Aquarium)

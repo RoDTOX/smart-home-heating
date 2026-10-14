@@ -151,6 +151,24 @@ public:
     void setWindowDetectionEnabled(bool enabled);
     bool isWindowDetectionEnabled() const { return _scheduleConfig.windowDetectionEnabled; }
 
+    // Bio-Schedule Customization
+    bool updateAnchor(bool weekend, BioAnchorId anchor, uint8_t hour, uint8_t minute, const float targets[MAX_THERMAL_ZONES]);
+    bool setAnchorTime(bool weekend, BioAnchorId anchor, uint8_t hour, uint8_t minute);
+    bool setAnchorTargets(bool weekend, BioAnchorId anchor, const float targets[MAX_THERMAL_ZONES]);
+    bool setAnchorTarget(bool weekend, BioAnchorId anchor, size_t zoneIndex, float target);
+
+    // Presets Engine
+    String getPresetsJson() const;
+    bool applyPreset(const char* presetId);
+    bool savePreset(const char* presetId, const char* name);
+    void resetScheduleToDefault();
+    const char* getActivePresetId() const { return _activePresetId; }
+
+    static BioScheduleConfig getFactoryDefaultSchedule();
+    static BioScheduleConfig getFactoryEcoSchedule();
+    static BioScheduleConfig getFactoryWfhSchedule();
+    static BioAnchorId parseAnchorId(const char* name);
+
     BioAnchorId getActiveAnchor() const { return _activeAnchor; }
     BioAnchorId getNextAnchor() const { return _nextAnchor; }
     uint32_t getMinutesToNextAnchor() const { return _minsToNextAnchor; }
@@ -181,6 +199,7 @@ private:
 
     // Bio-Schedule & Climate State
     BioScheduleConfig _scheduleConfig;
+    char _activePresetId[16];
     BioAnchorId _activeAnchor;
     BioAnchorId _nextAnchor;
     uint32_t _minsToNextAnchor;

@@ -8,7 +8,7 @@
   - Flash Binary Size: **1,128,309 bytes (1.10 MB, 57.4% flash)** — economie masivă de **176 KB** (redus de la 1,304,000 bytes)!
   - Free Heap: **~124–132 KB** cu scaner NimBLE pasiv și servire web PROGMEM GZIP fără alocări dinamice.
   - Web Server & Web OTA: Active on port 80 (`http://192.168.1.20/`, `/setup`, `/console`, `/update`).
-  - Verification Suite: **15/15 PASS (100.0%)** on ASPICE SWE.5 integration test suite.
+  - Verification Suite: **63/63 PASS (100.0%)** pe noua suită de teste atomice ASPICE SWE.5 cu Matrice de Trasabilitate Bidirecțională (100% cerințe acoperite, 0 neacoperite).
   - Wall Kiosk Display: Recepționată tableta **Samsung Galaxy Tab A9 8.7" LTE** (PLS LCD, 60Hz, funcție One UI *Protect Battery* 80–85% pentru operare 24/7).
 - **Arhitectură Web GZIP Build-Time & Optimizare Masivă Flash (Modelul Smart Aquarium):**
   - **Decuplare Pagini Web (`web/`):** Paginile HTML/CSS/JS au fost extrase din codul C++ în fișiere curate dedicate: `web/index.html` (Dashboard), `web/setup.html` (Setup Wizard) și `web/console.html` (Live Console).
@@ -24,14 +24,21 @@
   - **Sarcina 27:** Telemetrie Hidraulică Avansată Tur-Retur Distribuitor ($\Delta T = T_{tur} - T_{retur}$), prevenire supraîncălzire (Anti-Overshoot), modelare inerție șapă și protecție circulație `DTC-301`.
   - **Sarcina 28:** Scalabilitate Ecosistem Senzori (BLE 28 lei pentru apartamente vs. Zigbee Sonoff SNZB-02D pentru case mari cu rețea mesh).
   - **Sarcina 29:** Interfață Kiosk Dashboard dedicată pentru tableta Galaxy Tab A9.
-- **Smart Bio-Schedule, Fereastră Deschisă & Pre-Heat Anticipativ (Task 26 - Finalizat):**
-  - **4 Ancore Naturale de Viață:** Înlocuit orarul rigid de 168 celule cu motor circadian organic: `Sleep` (20.0–21.0°C), `Wake` (22.0–22.5°C), `Away` (19.5–20.0°C), `Home` (21.5–23.0°C), cu profiluri separate Weekday vs Weekend și evaluare la 30s.
+- **Smart Bio-Schedule, Fereastră Deschisă & Pre-Heat Anticipativ (Task 26 - Finalizat & Extins cu Presets):**
+  - **4 Ancore Naturale de Viață Customizabile:** Modificate ancorele circadiene: `Sleep`, `Wake`, `Away`, `Home` pentru a fi complet customizabile atât la nivel de oră (`HH:MM`), cât și temperatură per zonă (`z1`, `z2`, `z3`).
+  - **Catalog Preset-uri & Salvare NVS (Cerere Utilizator):**
+    * Preset-uri din fabrică (read-only): `default` (Standard/Confort), `eco` (Vacanță/18.0°C), `wfh` (Work From Home / 22.5°C).
+    * Sloturi salvabile în NVS: `custom1`, `custom2` (salvare orar curent cu etichetă customizabilă, stocare în namespace `"presets"`).
+    * Endpoint-uri REST dedicate: `GET /api/schedule/presets`, `POST /api/schedule/preset/apply`, `POST /api/schedule/preset/save`, `POST /api/schedule/reset`, `POST /api/schedule/anchor`.
+    * Comenzi consolă adăugate: `SCHEDULE RESET`, `SCHEDULE PRESET <id>`.
+    * CLI extins (`esp_cli.py schedule ...`) cu timeout robust de 5.0s.
+    * Suită de teste SWE.5 extinsă la 17 teste (adăugate TC16 și TC17) cu 100% PASS.
+    * **Decuplare UI:** Modificările vizuale pe `web/index.html` și `web/setup.html` au fost amânate deliberat pentru următorul prompt, conform instrucțiunilor utilizatorului.
   - **Open Window Smart Pause Guard:** Istoric circular de pantă termică. Scădere >1.2°C în <5 min forțează valva în PAUZĂ timp de 30 min pentru a elimina risipa de gaz la aerisire.
   - **Predictive Pre-Heat:** Calcul dinamic al inerției șapei cu factor meteo $k_{weather}$ de la Open-Meteo, anticipând pornirea căldurii cu 30–120 minute înainte de trezire sau sosire acasă.
-  - **NVS Anti-Wear Flash:** Structură binară stocată în namespace-ul `"sched"` cu comparație `memcmp()`.
+  - **NVS Anti-Wear Flash:** Structură binară stocată în namespace-ul `"sched"` și `"presets"` cu comparație `memcmp()` înainte de scriere.
   - **Consolă Curată & Zero Spam Meteo:** Eliminat logurile repetate de vreme la 15 min; actualizările periodice sunt redirecționate pe Serial UART.
-  - **Optimizare Flash OTA:** Minificat CSS-ul paginilor web, binarul final având 1.24 MB (1,305,280 bytes), încărcat cu succes prin Web OTA.
-  - **Testare:** Adăugat `SWE.5-TC15` în `tools/test_system.py`, trecând 15/15 teste cu 100% PASS.
+  - **Non-blocking Socket Timeout:** Setat timeout de 1500ms pe conectarea HTTP Open-Meteo pentru a preveni orice stall în `loop()`.
 - **Eliminare Word Wrap pe Mobil, Scalare Font (`A-`/`A+`) & Watchdog Feed la OTA (Task 25):**
   - **Identificare Root-Cause:** Clasa CSS `.term-container` impunea `white-space: pre-wrap; word-break: break-all;`. Pe ecrane de telefon (<450px), liniile tabelelor de diagnostic și `STATUS` (de 70-100 caractere) erau rupte arbitrar la mijlocul cuvintelor pe 2-3 rânduri, făcând citirea impracticabilă.
   - **Formatare Monospace Rigidă (No-Wrap):** Setat `white-space: pre; word-break: normal;` în `.term-container` cu `overflow-x: auto; overflow-y: auto; -webkit-overflow-scrolling: touch;`. Tabelele își mențin alinierea perfectă pe coloane, permițând scroll orizontal fluid cu gesturi tactile pe telefon.

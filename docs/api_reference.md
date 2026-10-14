@@ -37,6 +37,11 @@ The `smart-heating` ESP32 controller operates on an **API-First, Headless Archit
 | **Bio-Schedule** | `/api/schedule` | `GET` | 4 Circadian anchors (`Sleep`, `Wake`, `Away`, `Home`) & profiles |
 | | `/api/schedule` | `POST` | Update circadian anchor times & target temperatures |
 | | `/api/schedule/enable` | `POST` | Toggle Bio-Schedule, Predictive Pre-Heat, and Window Guard |
+| | `/api/schedule/anchor` | `POST` | Update individual anchor time and target temperatures |
+| | `/api/schedule/presets` | `GET` | List factory presets (`default`, `eco`, `wfh`) and saved user presets |
+| | `/api/schedule/preset/apply` | `POST` | Apply schedule preset by ID (`default`, `eco`, `wfh`, `custom1`, `custom2`) |
+| | `/api/schedule/preset/save` | `POST` | Save current schedule to NVS preset slot (`custom1`, `custom2`) |
+| | `/api/schedule/reset` | `POST` | Reset all anchors and setpoints to factory default preset |
 | **BLE Sensors** | `/api/ble/sensors` | `GET` | List all Xiaomi BLE thermometers decoded via NimBLE passive scan |
 | **Diagnostics** | `/api/diag/status` | `GET` | Overall Health Score (0-100%), Service Mode, Active DTC list |
 | | `/api/diag/selftest` | `GET` | Trigger comprehensive on-board test of all 6 hardware subsystems |
@@ -222,14 +227,16 @@ Adjusts target temperature for a specific zone with immediate NVS flash persiste
 ### 3.3. Smart Bio-Schedule & Circadian Anchors
 
 #### `GET /api/schedule`
-Retrieves configured natural lifestyle anchors and profiles.
+Retrieves configured natural lifestyle anchors, per-zone setpoints, active circadian phase, and currently active preset.
 
 - **Response `200 OK`:**
 ```json
 {
+  "status": "ok",
   "enabled": true,
   "preHeatEnabled": true,
   "windowDetectionEnabled": true,
+  "activePreset": "default",
   "activeAnchor": "SLEEP",
   "nextAnchor": "WAKE",
   "minutesToNext": 360,
@@ -237,22 +244,39 @@ Retrieves configured natural lifestyle anchors and profiles.
   "isWeekend": false,
   "profile": "Weekday",
   "weekday": [
-    { "name": "WAKE",  "time": "06:30", "temp": 22.0 },
-    { "name": "AWAY",  "time": "08:30", "temp": 19.5 },
-    { "name": "HOME",  "time": "17:00", "temp": 21.5 },
-    { "name": "SLEEP", "time": "23:00", "temp": 20.0 }
+    { "name": "WAKE",  "time": "06:30", "temp": 22.0, "z1": 22.0, "z2": 22.0, "z3": 21.0 },
+    { "name": "AWAY",  "time": "08:30", "temp": 19.5, "z1": 19.5, "z2": 19.5, "z3": 19.0 },
+    { "name": "HOME",  "time": "17:00", "temp": 21.5, "z1": 21.5, "z2": 21.5, "z3": 20.5 },
+    { "name": "SLEEP", "time": "23:00", "temp": 20.0, "z1": 20.0, "z2": 20.0, "z3": 19.5 }
   ],
   "weekend": [
-    { "name": "WAKE",  "time": "08:00", "temp": 22.5 },
-    { "name": "AWAY",  "time": "11:00", "temp": 20.5 },
-    { "name": "HOME",  "time": "15:00", "temp": 22.0 },
-    { "name": "SLEEP", "time": "23:30", "temp": 20.5 }
+    { "name": "WAKE",  "time": "08:00", "temp": 22.5, "z1": 22.5, "z2": 22.5, "z3": 21.5 },
+    { "name": "AWAY",  "time": "11:00", "temp": 20.5, "z1": 20.5, "z2": 20.5, "z3": 20.0 },
+    { "name": "HOME",  "time": "15:00", "temp": 22.0, "z1": 22.0, "z2": 22.0, "z3": 21.0 },
+    { "name": "SLEEP", "time": "23:30", "temp": 20.5, "z1": 20.5, "z2": 20.5, "z3": 20.0 }
   ]
 }
 ```
 
+#### `POST /api/schedule`
+Updates bio-schedule toggles or applies full configuration. Supports JSON body or URL-encoded form parameters.
+
+- **Query / Form Parameters:**
+  - `enabled`: `true` | `false`
+  - `preheat`: `true` | `false` (optional)
+  - `window`: `true` | `false` (optional)
+- **Response `200 OK`:**
+```json
+{
+  "status": "ok",
+  "enabled": true,
+  "preHeatEnabled": true,
+  "windowDetectionEnabled": true
+}
+```
+
 #### `POST /api/schedule/enable`
-Enables or disables scheduling subsystems.
+Quick toggle for scheduling subsystems.
 
 - **Query Parameters:**
   - `enabled`: `true` | `false`
@@ -265,6 +289,98 @@ Enables or disables scheduling subsystems.
   "enabled": true,
   "preHeatEnabled": true,
   "windowDetectionEnabled": true
+}
+```
+
+#### `POST /api/schedule/anchor`
+Customizes a single anchor time and/or per-zone target temperatures. Supports JSON body or query/form parameters. Persists immediately to NVS with flash-wear protection.
+
+- **Query / Form Parameters:**
+  - `profile`: `weekday` | `weekend` (required)
+  - `anchor`: `wake` | `away` | `home` | `sleep` (required)
+  - `time`: `HH:MM` (e.g. `06:45`, optional)
+  - `temp`: Float target temperature (applied to all zones, optional)
+  - `z1`: Zone 1 target temperature (°C, optional)
+  - `z2`: Zone 2 target temperature (°C, optional)
+  - `z3`: Zone 3 target temperature (°C, optional)
+- **Example JSON Body:**
+```json
+{
+  "profile": "weekday",
+  "anchor": "wake",
+  "time": "06:15",
+  "z1": 22.5,
+  "z2": 22.0,
+  "z3": 21.0
+}
+```
+- **Response `200 OK`:**
+```json
+{
+  "status": "ok",
+  "profile": "weekday",
+  "anchor": "wake",
+  "time": "06:15",
+  "z1": 22.5,
+  "z2": 22.0,
+  "z3": 21.0
+}
+```
+
+#### `GET /api/schedule/presets`
+Returns all available presets (factory defaults + saved user presets in NVS) and indicates the currently active preset.
+
+- **Response `200 OK`:**
+```json
+{
+  "status": "ok",
+  "activePreset": "default",
+  "presets": [
+    { "id": "default", "name": "Default (Balanced)", "type": "factory", "active": true },
+    { "id": "eco", "name": "Eco / Away (18.0°C)", "type": "factory", "active": false },
+    { "id": "wfh", "name": "Work From Home (22.5°C)", "type": "factory", "active": false },
+    { "id": "custom1", "name": "My Custom Schedule", "type": "user", "active": false, "saved": true },
+    { "id": "custom2", "name": "Custom Slot 2", "type": "user", "active": false, "saved": false }
+  ]
+}
+```
+
+#### `POST /api/schedule/preset/apply`
+Applies a preset to the active bio-schedule. Can apply factory presets (`default`, `eco`, `wfh`) or user-saved presets (`custom1`, `custom2`).
+
+- **Query / Form Parameters:**
+  - `id`: Preset identifier (`default`, `eco`, `wfh`, `custom1`, `custom2`)
+- **Response `200 OK`:**
+```json
+{
+  "status": "ok",
+  "activePreset": "eco"
+}
+```
+
+#### `POST /api/schedule/preset/save`
+Captures the current active schedule configuration into an NVS user preset slot (`custom1` or `custom2`) with a custom friendly label.
+
+- **Query / Form Parameters:**
+  - `id`: Preset slot identifier (`custom1` | `custom2`, required)
+  - `name`: Human-readable label (max 31 chars, e.g. `Winter Vacation`, optional)
+- **Response `200 OK`:**
+```json
+{
+  "status": "ok",
+  "id": "custom1",
+  "name": "Winter Vacation"
+}
+```
+
+#### `POST /api/schedule/reset`
+Resets all weekday and weekend circadian anchor times and zone setpoints back to factory defaults (`default`). Restores active preset tag to `"default"`.
+
+- **Response `200 OK`:**
+```json
+{
+  "status": "ok",
+  "message": "Schedule reset to factory default"
 }
 ```
 

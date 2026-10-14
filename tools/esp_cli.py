@@ -17,6 +17,7 @@ if hasattr(sys.stdout, 'reconfigure'):
 DEFAULT_IP = os.environ.get("ESP_HEATING_IP", "192.168.1.20")
 DEFAULT_PORT_HTTP = 80
 DEFAULT_PORT_TELNET = 23
+DEFAULT_TIMEOUT = 5.0
 
 def get_link_quality(rssi):
     if rssi >= -72: return "EXCELLENT"
@@ -28,8 +29,8 @@ def cmd_status(args):
     url_status = f"http://{args.ip}:{args.port}/api/boiler/status"
     url_zones = f"http://{args.ip}:{args.port}/api/zones"
     try:
-        r_stat = requests.get(url_status, timeout=3)
-        r_zon = requests.get(url_zones, timeout=3)
+        r_stat = requests.get(url_status, timeout=DEFAULT_TIMEOUT)
+        r_zon = requests.get(url_zones, timeout=DEFAULT_TIMEOUT)
         
         if r_stat.status_code == 200 and r_zon.status_code == 200:
             sdata = r_stat.json()
@@ -83,7 +84,7 @@ def cmd_status(args):
 def cmd_ble(args):
     url = f"http://{args.ip}:{args.port}/api/ble/sensors"
     try:
-        r = requests.get(url, timeout=3)
+        r = requests.get(url, timeout=DEFAULT_TIMEOUT)
         if r.status_code == 200:
             data = r.json()
             print("==================================================")
@@ -113,7 +114,7 @@ def cmd_ble(args):
 def cmd_diag(args):
     url = f"http://{args.ip}:{args.port}/api/diag/status"
     try:
-        r = requests.get(url, timeout=3)
+        r = requests.get(url, timeout=DEFAULT_TIMEOUT)
         if r.status_code == 200:
             d = r.json()
             score = d.get('healthScore', 100)
@@ -145,7 +146,7 @@ def cmd_selftest(args):
 def cmd_passport(args):
     url = f"http://{args.ip}:{args.port}/api/setup/passport"
     try:
-        r = requests.get(url, timeout=3)
+        r = requests.get(url, timeout=DEFAULT_TIMEOUT)
         if r.status_code == 200:
             d = r.json()
             print("==================================================")
@@ -168,7 +169,7 @@ def cmd_passport(args):
 def cmd_time(args):
     url = f"http://{args.ip}:{args.port}/api/setup/time"
     try:
-        r = requests.get(url, timeout=3)
+        r = requests.get(url, timeout=DEFAULT_TIMEOUT)
         if r.status_code == 200:
             d = r.json()
             print("==================================================")
@@ -196,7 +197,7 @@ def cmd_boiler(args, action):
     if getattr(args, 'force', False):
         url += "?force=true"
     try:
-        r = requests.post(url, timeout=3)
+        r = requests.post(url, timeout=DEFAULT_TIMEOUT)
         if r.status_code == 200:
             d = r.json()
             if d.get("idempotent"):
@@ -222,7 +223,7 @@ def cmd_boiler(args, action):
 def cmd_mode(args):
     url = f"http://{args.ip}:{args.port}/api/mode?mode={args.mode.lower()}"
     try:
-        r = requests.post(url, timeout=3)
+        r = requests.post(url, timeout=DEFAULT_TIMEOUT)
         print(f"[+] Mode switch response: {r.status_code} {r.text}")
     except Exception as e:
         print(f"[-] Error: {e}")
@@ -230,7 +231,7 @@ def cmd_mode(args):
 def cmd_setpoint(args):
     url = f"http://{args.ip}:{args.port}/api/zones/setpoint?id={args.zone}&target={args.temp}"
     try:
-        r = requests.post(url, timeout=3)
+        r = requests.post(url, timeout=DEFAULT_TIMEOUT)
         print(f"[+] Setpoint Zone {args.zone} -> {args.temp}°C response: {r.status_code} {r.text}")
     except Exception as e:
         print(f"[-] Error: {e}")
@@ -247,13 +248,13 @@ def cmd_pump(args):
             print(f"[-] Unknown pump action: {args.action}")
             return
         try:
-            r = requests.post(url, timeout=3)
+            r = requests.post(url, timeout=DEFAULT_TIMEOUT)
             print(f"[+] Pump control response: {r.status_code} {r.text}")
         except Exception as e:
             print(f"[-] Error: {e}")
     else:
         try:
-            r = requests.get(f"http://{args.ip}:{args.port}/api/setup/pump", timeout=3)
+            r = requests.get(f"http://{args.ip}:{args.port}/api/setup/pump", timeout=DEFAULT_TIMEOUT)
             d = r.json()
             print("==================================================")
             print("  Circulation Pump Configuration (Relay 4)")
@@ -270,13 +271,13 @@ def cmd_actuator(args):
         t = args.type.lower()
         url = f"http://{args.ip}:{args.port}/api/setup/actuator-type?type={t}"
         try:
-            r = requests.post(url, timeout=3)
+            r = requests.post(url, timeout=DEFAULT_TIMEOUT)
             print(f"[+] Actuator type response: {r.status_code} {r.text}")
         except Exception as e:
             print(f"[-] Error: {e}")
     else:
         try:
-            r = requests.get(f"http://{args.ip}:{args.port}/api/setup/actuator-type", timeout=3)
+            r = requests.get(f"http://{args.ip}:{args.port}/api/setup/actuator-type", timeout=DEFAULT_TIMEOUT)
             d = r.json()
             at = d.get('actuatorType', 'NC')
             desc = 'Normally Closed (Energize 230V to Open)' if at == 'NC' else 'Normally Open (De-energize 230V to Open)'
@@ -302,13 +303,13 @@ def cmd_timeout(args):
     if args.sec is not None:
         url = f"http://{args.ip}:{args.port}/api/setup/sensor-timeout?timeoutSec={args.sec}"
         try:
-            r = requests.post(url, timeout=3)
+            r = requests.post(url, timeout=DEFAULT_TIMEOUT)
             print(f"[+] Sensor timeout response: {r.status_code} {r.text}")
         except Exception as e:
             print(f"[-] Error: {e}")
     else:
         try:
-            r = requests.get(f"http://{args.ip}:{args.port}/api/setup/sensor-timeout", timeout=3)
+            r = requests.get(f"http://{args.ip}:{args.port}/api/setup/sensor-timeout", timeout=DEFAULT_TIMEOUT)
             d = r.json()
             tout = d.get('sensorTimeoutSec', 600)
             print("==================================================")
@@ -321,38 +322,113 @@ def cmd_timeout(args):
 
 def cmd_schedule(args):
     """View or configure Smart Bio-Schedule & natural anchors."""
-    if args.action in ("on", "off"):
-        val = "true" if args.action == "on" else "false"
+    action = args.action
+    if isinstance(action, list):
+        action = " ".join(action) if len(action) > 0 else ""
+    elif action is None:
+        action = ""
+    action_lower = action.lower().strip()
+
+    if action_lower in ("on", "off"):
+        val = "true" if action_lower == "on" else "false"
         url = f"http://{args.ip}:{args.port}/api/schedule/enable?enabled={val}"
         try:
-            r = requests.post(url, timeout=3)
-            print(f"[+] Bio-Schedule toggle ({args.action}): HTTP {r.status_code}")
+            r = requests.post(url, timeout=DEFAULT_TIMEOUT)
+            print(f"[+] Bio-Schedule toggle ({action_lower}): HTTP {r.status_code}")
         except Exception as e:
             print(f"[-] Error: {e}")
-    elif args.action in ("preheat-on", "preheat-off"):
-        val = "true" if args.action == "preheat-on" else "false"
+    elif action_lower in ("preheat-on", "preheat-off"):
+        val = "true" if action_lower == "preheat-on" else "false"
         url = f"http://{args.ip}:{args.port}/api/schedule/enable?preheat={val}"
         try:
-            r = requests.post(url, timeout=3)
-            print(f"[+] Predictive Pre-Heat toggle ({args.action}): HTTP {r.status_code}")
+            r = requests.post(url, timeout=DEFAULT_TIMEOUT)
+            print(f"[+] Predictive Pre-Heat toggle ({action_lower}): HTTP {r.status_code}")
         except Exception as e:
             print(f"[-] Error: {e}")
-    elif args.action in ("window-on", "window-off"):
-        val = "true" if args.action == "window-on" else "false"
+    elif action_lower in ("window-on", "window-off"):
+        val = "true" if action_lower == "window-on" else "false"
         url = f"http://{args.ip}:{args.port}/api/schedule/enable?window={val}"
         try:
-            r = requests.post(url, timeout=3)
-            print(f"[+] Open Window Detection toggle ({args.action}): HTTP {r.status_code}")
+            r = requests.post(url, timeout=DEFAULT_TIMEOUT)
+            print(f"[+] Open Window Detection toggle ({action_lower}): HTTP {r.status_code}")
         except Exception as e:
             print(f"[-] Error: {e}")
+    elif action_lower == "reset":
+        try:
+            r = requests.post(f"http://{args.ip}:{args.port}/api/schedule/reset", timeout=DEFAULT_TIMEOUT)
+            print(f"[+] Bio-Schedule reset to factory DEFAULT preset: HTTP {r.status_code}")
+        except Exception as e:
+            print(f"[-] Error: {e}")
+    elif action_lower.startswith("preset"):
+        parts = action_lower.split()
+        subcmd = parts[1] if len(parts) > 1 else "list"
+        if subcmd == "list":
+            try:
+                r = requests.get(f"http://{args.ip}:{args.port}/api/schedule/presets", timeout=DEFAULT_TIMEOUT)
+                d = r.json()
+                print("==================================================")
+                print("  Bio-Schedule Presets Engine")
+                print("==================================================")
+                print(f"Active Preset: {d.get('activePreset', 'N/A').upper()}")
+                print("Available Presets:")
+                for p in d.get("presets", []):
+                    saved_tag = " (Saved)" if p.get("saved") else ""
+                    print(f"  - {p['id']:<10} : {p['name']} [{p['type'].upper()}]{saved_tag}")
+                print("==================================================")
+            except Exception as e:
+                print(f"[-] Error: {e}")
+        elif subcmd == "apply" and len(parts) > 2:
+            pid = parts[2]
+            try:
+                r = requests.post(f"http://{args.ip}:{args.port}/api/schedule/preset/apply?id={pid}", timeout=DEFAULT_TIMEOUT)
+                if r.status_code == 200:
+                    print(f"[+] Applied Bio-Schedule preset '{pid}' successfully.")
+                else:
+                    print(f"[-] Failed to apply preset '{pid}': HTTP {r.status_code} {r.text}")
+            except Exception as e:
+                print(f"[-] Error: {e}")
+        elif subcmd == "save" and len(parts) > 2:
+            pid = parts[2]
+            orig_parts = action.split()
+            pname = " ".join(orig_parts[3:]) if len(orig_parts) > 3 else pid
+            try:
+                r = requests.post(f"http://{args.ip}:{args.port}/api/schedule/preset/save?id={pid}&name={pname}", timeout=DEFAULT_TIMEOUT)
+                if r.status_code == 200:
+                    print(f"[+] Saved active schedule to preset '{pid}' ({pname}) successfully.")
+                else:
+                    print(f"[-] Failed to save preset: HTTP {r.status_code} {r.text}")
+            except Exception as e:
+                print(f"[-] Error: {e}")
+        else:
+            print("[-] Usage: schedule preset <list | apply <id> | save <id> [name]>")
+    elif action_lower.startswith("set"):
+        parts = action_lower.split()
+        if len(parts) >= 4:
+            # schedule set <weekday|weekend> <anchor> <HH:MM> [z1] [z2] [z3]
+            prof, anc, tm = parts[1], parts[2], parts[3]
+            url = f"http://{args.ip}:{args.port}/api/schedule/anchor?profile={prof}&anchor={anc}&time={tm}"
+            if len(parts) > 4: url += f"&z1={parts[4]}"
+            if len(parts) > 5: url += f"&z2={parts[5]}"
+            if len(parts) > 6: url += f"&z3={parts[6]}"
+            try:
+                r = requests.post(url, timeout=DEFAULT_TIMEOUT)
+                if r.status_code == 200:
+                    print(f"[+] Updated anchor {anc.upper()} ({prof}) at {tm}: HTTP 200 OK")
+                else:
+                    print(f"[-] Failed to update anchor: HTTP {r.status_code} {r.text}")
+            except Exception as e:
+                print(f"[-] Error: {e}")
+        else:
+            print("[-] Usage: schedule set <weekday|weekend> <anchor> <HH:MM> [z1] [z2] [z3]")
     else:
         try:
-            r = requests.get(f"http://{args.ip}:{args.port}/api/schedule", timeout=3)
+            r = requests.get(f"http://{args.ip}:{args.port}/api/schedule", timeout=DEFAULT_TIMEOUT)
             d = r.json()
             print("==================================================")
             print("  Smart Bio-Schedule & Natural Anchors")
             print("==================================================")
             print(f"Schedule Engine:     {'ENABLED' if d.get('enabled') else 'DISABLED'}")
+            print(f"Active Preset:       {d.get('activePreset', 'default').upper()}")
             print(f"Active Anchor:       {d.get('activeAnchor', 'NONE')}")
             print(f"Next Anchor:         {d.get('nextAnchor', 'NONE')} in {d.get('minsToNextAnchor', 0)} min")
             print(f"Predictive Pre-Heat: {'ACTIVE (Pre-Warming)' if d.get('preHeatActive') else ('ENABLED' if d.get('preHeatEnabled') else 'DISABLED')}")
@@ -386,10 +462,10 @@ def cmd_exec(args):
     """Executes any arbitrary command via the 2-way Network Console API."""
     url = f"http://{args.ip}:{args.port}/api/console/send?cmd={args.cmd}"
     try:
-        r = requests.post(url, timeout=3)
+        r = requests.post(url, timeout=DEFAULT_TIMEOUT)
         print(f"[+] Command '{args.cmd}' sent: {r.status_code} {r.text}")
         time.sleep(0.3)
-        r_log = requests.get(f"http://{args.ip}:{args.port}/api/console/logs", timeout=3)
+        r_log = requests.get(f"http://{args.ip}:{args.port}/api/console/logs", timeout=DEFAULT_TIMEOUT)
         r_log.encoding = 'utf-8'
         lines = r_log.text.strip().split("\n")
         print("[+] Output:")
@@ -496,7 +572,7 @@ def cmd_interactive_shell(args):
                 except ValueError:
                     print("[-] Usage: set <zone_id> <temperature> (e.g. set 1 22.5)")
             elif cmd == "schedule":
-                args.action = parts[1].lower() if len(parts) > 1 else None
+                args.action = parts[1:] if len(parts) > 1 else None
                 cmd_schedule(args)
             elif cmd == "passport":
                 cmd_passport(args)
@@ -578,7 +654,7 @@ def main():
     p_exec.add_argument("cmd", help="Command string (e.g. STATUS, HELP, ON, OFF)")
 
     p_sched = sub.add_parser("schedule", help="View or configure Smart Bio-Schedule")
-    p_sched.add_argument("action", nargs="?", choices=["on", "off", "preheat-on", "preheat-off", "window-on", "window-off"], help="Action to perform")
+    p_sched.add_argument("action", nargs="*", help="Action to perform (on, off, reset, preset list/apply/save, set)")
 
     p_test = sub.add_parser("test", help="Run automated ASPICE SWE.5 verification test suite against ESP32")
     p_test.add_argument("--report", default="docs/system_test_report.md", help="Path to write markdown test report")

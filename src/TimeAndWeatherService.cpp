@@ -157,28 +157,19 @@ void TimeAndWeatherService::fetchWeather() {
         }
     }
 
-    WiFiClient client;
-    client.setTimeout(4);
-    if (!client.connect("api.open-meteo.com", 80)) {
+    String url = "http://api.open-meteo.com/v1/forecast?latitude=" + lat +
+                 "&longitude=" + lon +
+                 "&current=temperature_2m,relative_humidity_2m";
+
+    HTTPClient http;
+    http.setTimeout(1500);
+    if (!http.begin(url)) {
         return;
     }
 
-    client.print(String("GET /v1/forecast?latitude=") + lat +
-                 "&longitude=" + lon +
-                 "&current=temperature_2m,relative_humidity_2m HTTP/1.1\r\n" +
-                 "Host: api.open-meteo.com\r\n" +
-                 "User-Agent: ESP32-SmartHeating\r\n" +
-                 "Connection: close\r\n\r\n");
-
-    while (client.connected()) {
-        String line = client.readStringUntil('\n');
-        if (line == "\r" || line.length() == 0) break;
-    }
-
-    String payload = client.readString();
-    client.stop();
-
-    if (payload.length() > 0) {
+    int httpCode = http.GET();
+    if (httpCode == 200) {
+        String payload = http.getString();
         JsonDocument doc;
         DeserializationError err = deserializeJson(doc, payload);
         if (!err && doc.containsKey("current")) {
@@ -201,6 +192,7 @@ void TimeAndWeatherService::fetchWeather() {
             }
         }
     }
+    http.end();
 }
 
 void TimeAndWeatherService::update() {
@@ -217,13 +209,13 @@ void TimeAndWeatherService::update() {
         netConsole.printf("[INIT]   * Real-Time Clock:  Synchronized: %s (Europe/Bucharest via NTP)\n", timeBuf);
     }
 
-    // Poll Open-Meteo once connected to Wi-Fi (15m interval when valid, 60s backoff if pending/failed)
+    // Poll Open-Meteo once connected to Wi-Fi (15m interval when valid, 5m backoff if pending/failed)
     if (WiFi.status() == WL_CONNECTED) {
         // Allow network and NTP to settle for 5 seconds after boot before first weather query
         if (_lastWeatherPollMs == 0 && now < 5000) {
             return;
         }
-        uint32_t interval = _weatherValid ? _weatherPollIntervalMs : 60000UL;
+        uint32_t interval = _weatherValid ? _weatherPollIntervalMs : 300000UL;
         if (_lastWeatherPollMs == 0 || (now - _lastWeatherPollMs >= interval)) {
             _lastWeatherPollMs = now;
             fetchWeather();

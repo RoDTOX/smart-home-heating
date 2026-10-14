@@ -272,6 +272,23 @@ Acest document este planul de referință pentru implementarea controlerului aut
         - *Specificație Completă REST API (`docs/api_reference.md`):* Redactat contractul oficial REST/JSON detaliind toate cele 22 de rute, parametri, structuri de răspuns și bune practici pentru dezvoltarea interfeței Kiosk de pe tableta Samsung Galaxy Tab A9.
         - *Validare SWE.5:* 15/15 teste PASS (100.0%) în 20.68 secunde pe firmware-ul compilat și încărcat prin OTA.
 
+- [x] **26.3. Personalizare Ancore Bio-Schedule, Motor de Preset-uri NVS, Comenzi Consolă & Suită de 63 Teste Atomice cu Matrice de Trasabilitate (ASPICE SWE.5)** (Finalizat & Validat Live pe Hardware 14.10.2026).
+      *Rezultat:*
+        - *Ancore Circadiene Complet Customizabile:* Ora (`HH:MM`) și temperaturile per zonă (`z1`, `z2`, `z3`) sunt complet configurabile individual sau global prin endpoint-ul `POST /api/schedule/anchor` și comanda de consolă `SCHEDULE SET <prof> <anc> <HH:MM> [targets]`.
+        - *Motor de Preset-uri (Factory & User Slots):*
+          * Preset-uri de fabrică (read-only): `default` (standard confort), `eco` (18.0°C), `wfh` (work from home 22.5°C).
+          * Sloturi NVS pentru utilizator: `custom1`, `custom2` (salvare orar curent cu denumire prietenoasă în namespace-ul `"presets"` cu protecție flash-wear `memcmp`).
+          * Endpoint-uri REST dedicate: `GET /api/schedule/presets`, `POST /api/schedule/preset/apply`, `POST /api/schedule/preset/save`, `POST /api/schedule/reset`.
+        - *Comenzi de Consolă Telnet & Web:*
+          * Manual `HELP` structurat pe 3 secțiuni funcționale (Heating, Bio-Schedule, Diagnostics).
+          * Adăugate comenzile: `PRESETS`, `PRESET <id>`, `SCHEDULE SAVE <slot> [name]`, `SCHEDULE SET ...`, `SCHEDULE RESET`.
+          * Raportul `STATUS` afișează preset-ul activ în secțiunea `[D. SMART BIO-SCHEDULE & PRE-HEAT]`.
+        - *Suită de Testare Atomică & Trasabilitate (ASPICE SWE.5):*
+          * Desfăcut cele 17 teste monolitice în **63 de teste atomice independente**, eliminând aserțiunile combinate și izolând fiecare verificare hidraulică, de memorie, radio și NVS.
+          * Implementat calculul automat al Matricei de Trasabilitate Bidirecțională între toate cele 33 de cerințe SWE.1 (`FR-1` .. `FR-28`, `NFR-1.1`, `NFR-1.5`, `NFR-2.2`, `NFR-3.2`) și testele atomice SWE.5.
+          * Raport complet generat în [`docs/system_test_report.md`](file:///c:/Users/BSeceleanu/.github_repos/smart-heating/docs/system_test_report.md): **33/33 cerințe acoperite (100.0%)**, **0 cerințe neacoperite**, **63/63 teste PASS (100.0%)** pe hardware live (`192.168.1.20`).
+        - *Decuplare UI:* Fișierele `web/index.html` și `web/setup.html` au rămas neatinse, modificările grafice fiind programate pentru pasul următor.
+
 - [ ] **27. Telemetrie Hidraulică Avansată Tur-Retur Distribuitor ($\Delta T$), Modelare Șapă & Prevenire Overshoot:**
       - *Hardware Sonde Manifold:* Monitorizare temperatură cu 2 sonde digitale de contact (DS18B20 OneWire waterproof sau NTC) prinse cu colier și pastă termică direct pe bara de Tur și bara de Retur din caseta distribuitorului (zero cabluri prin casă, montaj în 5 minute).
       - *Calcul Live $\Delta T = T_{tur} - T_{retur}$:* Determinarea ratei reale de absorbție a căldurii de către șapă.
