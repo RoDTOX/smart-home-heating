@@ -63,7 +63,7 @@ with open(BIN_PATH, "rb") as f:
             break
         s.sendall(chunk)
         sent += len(chunk)
-        time.sleep(0.001)  # Gentle pacing gives SPI flash time to write without lwIP stall
+        time.sleep(0.003)  # Gentle pacing gives SPI flash time to write without lwIP stall
         now = time.time()
         if now - last_report >= 2.0:
             pct = (sent / bin_size) * 100
@@ -76,7 +76,7 @@ t_upload = time.time() - t0
 print(f"Upload finished in {t_upload:.2f}s. Waiting for board response...")
 
 try:
-    s.settimeout(45.0)
+    s.settimeout(15.0)
     resp = b""
     while True:
         data = s.recv(1024)

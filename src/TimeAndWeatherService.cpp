@@ -2,6 +2,7 @@
 #include "NetworkConsole.h"
 #include "DevicePassport.h"
 #include <HTTPClient.h>
+#include <WiFi.h>
 #include <ArduinoJson.h>
 #include <time.h>
 
@@ -161,9 +162,10 @@ void TimeAndWeatherService::fetchWeather() {
                  "&longitude=" + lon +
                  "&current=temperature_2m,relative_humidity_2m";
 
+    WiFiClient client;
     HTTPClient http;
     http.setTimeout(1500);
-    if (!http.begin(url)) {
+    if (!http.begin(client, url)) {
         return;
     }
 

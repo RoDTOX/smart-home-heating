@@ -53,11 +53,18 @@ def build():
         if os.path.exists(dst) and os.path.getmtime(dst) >= os.path.getmtime(src):
             continue
 
-        with open(src, "rb") as f:
-            raw = f.read()
+        with open(src, "r", encoding="utf-8") as f:
+            text = f.read()
+
+        import re
+        # Strip HTML comments
+        text = re.sub(r'<!--(?!\s*slide)[^>]*?-->', '', text)
+        lines_clean = [l.strip() for l in text.splitlines() if l.strip()]
+        minified_bytes = "\n".join(lines_clean).encode("utf-8")
 
         # mtime=0 keeps the output deterministic between builds
-        data = gzip.compress(raw, compresslevel=9, mtime=0)
+        data = gzip.compress(minified_bytes, compresslevel=9, mtime=0)
+        raw = minified_bytes
 
         lines = []
         for i in range(0, len(data), 20):

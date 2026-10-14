@@ -1,29 +1,21 @@
 # Active Context: Smart Home Heating System
 
-## Current State (Updated 2026-10-13)
+## Current State (Updated 2026-10-14)
 - **Target Hardware Deployed & Operational:**
   - Board: **ESP32-Relay X4 V1.1** featuring module **DOIT WiFi MODEL ESP32-32E N4** (ESP32-D0WD-V3, 240MHz Dual-Core, 4MB Flash, MAC: `20:50:0d:1a:72:14`).
   - IP Address: **`192.168.1.20`** (on `SBC_WiFi`).
-  - Firmware Version: **v1.2.0 (Build: Oct 13 2026 23:40:28)**.
-  - Flash Binary Size: **1,128,309 bytes (1.10 MB, 57.4% flash)** — economie masivă de **176 KB** (redus de la 1,304,000 bytes)!
-  - Free Heap: **~124–132 KB** cu scaner NimBLE pasiv și servire web PROGMEM GZIP fără alocări dinamice.
-  - Web Server & Web OTA: Active on port 80 (`http://192.168.1.20/`, `/setup`, `/console`, `/update`).
-  - Verification Suite: **63/63 PASS (100.0%)** pe noua suită de teste atomice ASPICE SWE.5 cu Matrice de Trasabilitate Bidirecțională (100% cerințe acoperite, 0 neacoperite).
-  - Wall Kiosk Display: Recepționată tableta **Samsung Galaxy Tab A9 8.7" LTE** (PLS LCD, 60Hz, funcție One UI *Protect Battery* 80–85% pentru operare 24/7).
-- **Arhitectură Web GZIP Build-Time & Optimizare Masivă Flash (Modelul Smart Aquarium):**
-  - **Decuplare Pagini Web (`web/`):** Paginile HTML/CSS/JS au fost extrase din codul C++ în fișiere curate dedicate: `web/index.html` (Dashboard), `web/setup.html` (Setup Wizard) și `web/console.html` (Live Console).
-  - **Pre-Build Script Automat (`tools/build_web.py`):** Integrat în `platformio.ini` (`extra_scripts = pre:tools/build_web.py`), comprimă automat paginile cu `gzip -9` în headere PROGMEM (`dashboard_html_gz.h`, `setup_html_gz.h`, `console_html_gz.h`).
-  - **Economie Flash & Eliminare Fragilizare Heap:** Întregul pachet web ocupă doar **15.5 KB** în flash (Dashboard: 3.7 KB, Setup: 7.3 KB, Console: 4.4 KB). Eliminat complet peste 250 de linii de concatenare C++ `String html += ...` din `main.cpp` și `NetworkConsole.cpp`, eliberând 176 KB de flash și menținând heap-ul la 132 KB fără spike-uri de memorie la încărcarea paginilor.
-  - **Consolă Web Ultra-Rapidă & Eliminare Latență 3s:**
-    * Eliminat coliziunea TCP SYN pe WebServer single-threaded prin `AbortController` și `scheduleNextPoll()` în `web/console.html`.
-    * Eliminat bottleneck-ul caracter-cu-caracter din `NetworkConsole.cpp` prin scriere pe chunk-uri de linie și `memcpy` batch în ring buffer.
-    * Mărit buffer-ul hardware UART `Serial.setTxBufferSize(4096)` în `main.cpp` pentru prevenirea blocării CPU la 115200 baud.
-    * Latența comenzilor a scăzut spectaculos: `AUTO` ~200ms, `HELP` ~300ms, `STATUS` sub 1.2s (față de 3+ secunde).
-    * Încadrat clar ieșirea cu delimitatori de comandă (`.cmd-start` cu cyan glow, `.cmd-end` și `.t-sep`).
-- **Plan Următor (Sarcini Aprobate):**
-  - **Sarcina 27:** Telemetrie Hidraulică Avansată Tur-Retur Distribuitor ($\Delta T = T_{tur} - T_{retur}$), prevenire supraîncălzire (Anti-Overshoot), modelare inerție șapă și protecție circulație `DTC-301`.
-  - **Sarcina 28:** Scalabilitate Ecosistem Senzori (BLE 28 lei pentru apartamente vs. Zigbee Sonoff SNZB-02D pentru case mari cu rețea mesh).
-  - **Sarcina 29:** Interfață Kiosk Dashboard dedicată pentru tableta Galaxy Tab A9.
+  - Firmware Version: **v1.2.0 (Build: Oct 14 2026 12:55:23)**.
+  - Flash Binary Size: **1,186,112 bytes (1.15 MB, 60.0% flash)** — optimizare masivă cu **133.8 KB de flash eliberați** (eliminat stack-ul mbedtls SSL nefolosit via `WiFiClient`, dezactivat tabele text NimBLE și minificat resursele web la build-time). Spațiu de rezervă confortabil de **121.7 KB sub limita maximă a partiției OTA** (1.25 MB).
+  - Free Heap: **~118–130 KB** stabil cu scaner NimBLE pasiv și servire web PROGMEM GZIP fără alocări dinamice.
+  - Web Server & Web OTA: Active on port 80 (`http://192.168.1.20/`, `/setup`, `/console`, `/update`, `/manifest.json`, `/sw.js`, `/icon.svg`, `/icon-192.png`).
+  - Verification Suite: **63/63 PASS (100.0%)** pe suita completă de teste atomice ASPICE SWE.5 cu Matrice de Trasabilitate Bidirecțională (33/33 cerințe acoperite 100.0%, 0 neacoperite).
+  - Wall Kiosk Display: Tableta **Samsung Galaxy Tab A9 8.7" LTE** (PLS LCD, 60Hz, funcție One UI *Protect Battery* 80–85% pentru operare 24/7) configurată cu aplicația web PWA instalabilă direct din browserul Chrome.
+- **Interfață Grafică PWA Kiosk & Bio-Schedule Dashboard (web/index.html):**
+  - **PWA Nativ cu Suport WebAPK:** Manifest complet cu `display: standalone`, `theme_color: #080c14`, pictograme rasterizate PNG (192x192) și vectoriale SVG. Service Worker non-blocant (`/sw.js`) cu cache passthrough pentru API-uri.
+  - **Buton Instalare & Asistență Kiosk:** Buton tactil `📲 Instalează App` integrat cu `beforeinstallprompt` și dialog modal detaliat pentru adăugarea ca scurtătură/aplicație nativă pe tablete Android/Chrome via `chrome://flags` secure origins.
+  - **Layout Kiosk Responsive pe 2 Coloane:**
+    * Col 1: Cazan Gaz (indicator erou flacără ON/OFF, comutator AUTOMATIC / MANUAL, comenzi), Smart Bio-Schedule (comutatoare master, Pre-Heat anticipativ, Geam deschis), Card Ancoră Circadiană activă (`🌙 Sleep`, `🌅 Wake`, `🚶 Away`, `🏡 Home`), Selector rapid Preset-uri chips (`standard`, `eco`, `wfh`, `custom1`, `custom2`), Modal salvare preset NVS și Editor ancore L-V vs Weekend.
+    * Col 2: Card Zone Termice Pardoseală (Dormitor, Copil, Baie mare cu steppere `+`/`-`, ținte bio, stare valve NC), Card Telemetrie Senzori Xiaomi BLE cu badge-uri dBm (`EXCELENT`, `BUN`, `MARGINAL`, `SLAB`), Card Diagnoză Sistem (Heap RAM, Uptime, Wi-Fi RSSI, Flash OTA liber) și linkuri de navigare rapidă către Telnet Console și Setup Passport.
 - **Smart Bio-Schedule, Fereastră Deschisă & Pre-Heat Anticipativ (Task 26 - Finalizat & Extins cu Presets):**
   - **4 Ancore Naturale de Viață Customizabile:** Modificate ancorele circadiene: `Sleep`, `Wake`, `Away`, `Home` pentru a fi complet customizabile atât la nivel de oră (`HH:MM`), cât și temperatură per zonă (`z1`, `z2`, `z3`).
   - **Catalog Preset-uri & Salvare NVS (Cerere Utilizator):**

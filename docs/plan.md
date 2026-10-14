@@ -303,10 +303,25 @@ Acest document este planul de referință pentru implementarea controlerului aut
         * Case mari / Parter + Etaj: Suport senzori Zigbee 3.0 cu afișaj mare (Sonoff SNZB-02D la 68 lei) profitând de rețeaua mesh pe 230V prin prize/becuri (prin mini-modul serial pe placă sau trecere viitoare pe ESP32-C6).
       - *Evaluare Senzori în Șapă de Beton:* Documentat clar că merită strict la construcții noi de la zero dacă dezvoltatorul a tras tuburi corugate pentru limitare parchet (max 28°C); la apartamente gata finisate (retrofit) este imposibil și nejustificat economic, fiind înlocuit mult mai elegant de analiza $\Delta T$ pe distribuitor.
 
-- [ ] **29. Kiosk Dashboard Dedicat pentru Tableta Samsung Galaxy Tab A9 (Panou de Perete 24/7):**
-      - *Hardware Dedicat:* Samsung Galaxy Tab A9 8.7" PLS LCD (fără risc de burn-in, refresh rate 60Hz optim pentru consum redus sub 2W și funcționare rece).
-      - *Configurare Kiosk:* Activare One UI *Protect Battery* (limitare încărcare 80–85% pentru alimentare sigură 24/7), Fully Kiosk Browser cu trezire la mișcare (Motion Wake).
-      - *Interfață PWA Tactilă:* Panou de control curat pentru familie (stare cele 3 zone, temperaturi curente/țintă, comutator rapid moduri `Sleep`/`Away`/`Home`, vreme exterioară și telemetrie hidraulică în timp real).
+- [x] **29. Kiosk Dashboard Dedicat PWA pentru Tableta Samsung Galaxy Tab A9 (Panou de Perete 24/7):** (Finalizat & Validat Live pe Hardware 14.10.2026).
+      *Rezultat:*
+        - *Arhitectură PWA (Progressive Web App) Instalabilă:*
+          * Endpoint-uri native servite direct din flash PROGMEM de ESP32 (`/manifest.json`, `/sw.js`, `/icon.svg`, `/icon-192.png`).
+          * Web App Manifest complet cu mod `display: standalone`, temă întunecată (`#080c14`) și pictograme rasterizate PNG (192x192) + vectoriale SVG compatibile cu motorul WebAPK Android Chrome.
+          * Service Worker funcțional (`/sw.js`) cu handler de cache passthrough non-blocant.
+          * Buton tactil dedicat `📲 Instalează App` integrat cu evenimentul `beforeinstallprompt`, detectare mod standalone și modal interactiv de asistență pentru tablete Kiosk pe rețele LAN HTTP (`chrome://flags` secure origins).
+        - *Design Grafic Premium Responsive (2 Coloane Kiosk Galaxy Tab A9 & Mobil):*
+          * Coloana 1: Erou Cazan Gaz (indicator flacără ON/OFF cu glow verde/roșu, comutator AUTOMATIC / MANUAL, comenzi rapide), Card Smart Bio-Schedule (comutatoare master Orar, Pre-Heat anticipativ, Geam deschis), Card Ancoră Circadiană activă (`🌙 Sleep`, `🌅 Wake`, `🚶 Away`, `🏡 Home`), Selector rapid Preset-uri chips (`default`, `eco`, `wfh`, `custom1`, `custom2`), Modal salvare preset-uri utilizator în NVS, Editor vizual de ancore cu tab-uri Luni-Vineri vs Weekend și steppere temperaturi.
+          * Coloana 2: Card Zone Termice Pardoseală (Dormitor, Copil, Baie mare cu steppere `+`/`-`, ținte bio, stare valve electrotermice NC), Card Telemetrie Senzori Xiaomi BLE cu badge-uri dBm (`EXCELENT`, `BUN`, `MARGINAL`, `SLAB`), Card Diagnoză Sistem (Heap RAM, Uptime, Wi-Fi RSSI, Flash OTA liber) și linkuri de navigare rapidă către Telnet Console și Setup Passport.
+        - *Optimizare Extremă a Memoriei Flash (-133.8 KB Economisiți):*
+          * Înlocuit `HTTPClient::begin(url)` cu `HTTPClient::begin(WiFiClient&, url)` în `TimeAndWeatherService.cpp`, eliminând complet legătura linkerului cu stiva greoaie mbedtls SSL client/server (neutilizată pe HTTP local/Open-Meteo).
+          * Adăugat `-D CONFIG_NIMBLE_CPP_ENABLE_RETURN_CODE_TEXT=0` și `-D CONFIG_NIMBLE_CPP_ENABLE_WARNINGS=0` în `platformio.ini`.
+          * Minificare automată a codului HTML/CSS/JS la build-time în `tools/build_web.py` (eliminare comentarii și spații redundante) comprimând dashboard-ul la doar 10,988 bytes GZIP.
+          * Dimensiunea binarului firmware a scăzut spectaculos de la 1,320 KB la **1,186 KB** (oferind o marjă confortabilă de **121.7 KB sub limita maximă a partiției OTA** de 1.25 MB).
+        - *Validare Live pe Hardware & ASPICE SWE.5:*
+          * Flash OTA executat cu succes în 41 secunde (`tools/ota_upload.py`), restart curat în 7 secunde.
+          * Toate endpoint-urile PWA verificate live cu cod `200 OK`.
+          * Suită completă de regresie rulată pe hardware live: **63/63 teste PASS (100.0%)**, **33/33 cerințe acoperite (100.0%)** în 39.80 secunde.
 
 ---
 

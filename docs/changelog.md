@@ -3,6 +3,41 @@
 Jurnalul modificărilor, deciziilor tehnice și verificărilor efectuate pentru proiectul de încălzire inteligentă.
 Corelat cu planul activ: [`docs/plan.md`](file:///c:/Users/BSeceleanu/.github_repos/smart-heating/docs/plan.md).
 
+## [14.10.2026] - Interfață Grafică PWA Kiosk (Samsung Galaxy Tab A9), Optimizare Flash (-133 KB) & Validare SWE.5
+
+### Dashboard PWA Kiosk & Bio-Schedule Complet (web/index.html)
+- **Arhitectură PWA (Progressive Web App) Nativă pe ESP32:**
+  - Servire direct din flash PROGMEM fără consum dinamic de heap a resurselor PWA:
+    * `GET /manifest.json`: Web App Manifest cu `display: standalone`, `theme_color: #080c14`, pictograme PNG (192x192) și SVG vectoriale.
+    * `GET /sw.js`: Service Worker non-blocant cu cache passthrough pentru cererile API REST.
+    * `GET /icon.svg`: Pictogramă vectorială flacără radiantă & fundal rotunjit dark mode.
+    * `GET /icon-192.png`: Pictogramă rasterizată comprimată (1,442 bytes, 16 culori indexate) necesară pentru generarea automată a pachetului WebAPK pe Android Google Chrome.
+  - Suport complet pentru instalare aplicație pe tableta Kiosk (Samsung Galaxy Tab A9) și smartphone:
+    * Buton dedicat `📲 Instalează App` integrat cu evenimentul `beforeinstallprompt`.
+    * Modal interactiv de asistență cu instrucțiuni pas-cu-pas pentru instalare pe ecranul de pornire și activare PWA pe adrese IP locale HTTP (`chrome://flags` -> *Insecure origins treated as secure*).
+    * Auto-ascundere a butonului când aplicația rulează deja în mod standalone (fără bara de adrese a browserului).
+- **Design Grafic Premium Responsive (2 Coloane Kiosk & Mobil):**
+  - **Coloana 1: Cazan Gaz & Smart Bio-Schedule:**
+    * Card Cazan Gaz cu erou vizual dinamic (flacără activă cu glow verde/roșu), selector mod `AUTOMATIC` vs `MANUAL`, butoane de comandă rapidă și stare pompă recirculare GPA.
+    * Card Smart Bio-Schedule cu comutatoare master (Activare Orar, Pre-Heat anticipativ, Geam Deschis).
+    * Card Ancoră Circadiană activă cu emojiuri dinamice (`🌙 Sleep`, `🌅 Wake`, `🚶 Away`, `🏡 Home`), descriere scop și ținte programate.
+    * Selector rapid de Preset-uri chips (`🏭 Standard`, `🍃 Eco 18°`, `💼 WFH 22.5°`, `💾 Slot 1`, `💾 Slot 2`).
+    * Modal salvare preset activ în sloturile NVS utilizator (`custom1`, `custom2`).
+    * Editor vizual de ancore circadiene cu tab-uri Luni-Vineri vs Weekend, reglaj timp și steppere temperatură per zonă.
+  - **Coloana 2: Zone Termice & Telemetrie BLE:**
+    * Card Zone Termice Pardoseală (Living & Bucătărie, Camera Copilului, Baie mare) cu steppere tactile `+`/`-`, badge-uri de stare (Încălzire activă, Standby, Geam deschis), identificator senzor și stare releu electrotermic NC.
+    * Card Telemetrie Senzori Xiaomi BLE cu badge-uri de calitate a semnalului radio (`EXCELENT`, `BUN`, `MARGINAL`, `SLAB`), nivel baterie și umiditate.
+    * Card Diagnoză Sistem (Heap RAM, Uptime, Wi-Fi RSSI, Flash OTA disponibil) și navigare rapidă către Telnet Console și Setup Wizard.
+- **Optimizare Extremă a Memoriei Flash (-133.8 KB Economisiți):**
+  - Decuplat `HTTPClient` de `WiFiClientSecure` în `TimeAndWeatherService.cpp` prin pasarea explicită a instanței `WiFiClient` către `http.begin(client, url)`. Linkerul nu mai trage în binar stiva greoaie `mbedtls` SSL server/client (economisind peste 115 KB).
+  - Adăugat `-D CONFIG_NIMBLE_CPP_ENABLE_RETURN_CODE_TEXT=0` și `-D CONFIG_NIMBLE_CPP_ENABLE_WARNINGS=0` în `platformio.ini`.
+  - Minificare automată a resurselor HTML/CSS/JS la build-time în `tools/build_web.py` (eliminare comentarii și spații redundante) comprimând dashboard-ul la doar 10,988 bytes GZIP.
+  - Binarul de firmware a scăzut de la 1,320 KB la **1,186 KB (1.15 MB, 60.0% flash)**, asigurând un spațiu de rezervă de **121.7 KB sub limita maximă a partiției OTA** (1.25 MB).
+- **Validare Live pe Hardware (192.168.1.20) & ASPICE SWE.5:**
+  - Flash OTA executat cu succes în 41 secunde (`tools/ota_upload.py`), restart curat în 7 secunde.
+  - Verificare live pe toate rutele PWA (`/`, `/manifest.json`, `/sw.js`, `/icon.svg`, `/icon-192.png`) cu cod `200 OK`.
+  - Suita de 63 teste atomice executată cu 100% succes (**63/63 PASS**, acoperire 33/33 cerințe de sistem) în 39.80 secunde.
+
 ## [14.10.2026] - Bio-Schedule Customizabil & Motor de Preset-uri NVS (Backend REST API & CLI)
 
 ### Personalizare Ancore Circadiene & Preset-uri de Fabrică / Utilizator
