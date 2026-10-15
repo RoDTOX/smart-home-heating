@@ -579,6 +579,34 @@
       border-top: 1px dashed rgba(255, 255, 255, 0.06);
     }
     .toggle-link { color: var(--primary); cursor: pointer; text-decoration: none; font-weight: 700; }
+    .zone-toggle-btn {
+      background: #1e293b;
+      border: 1px solid #475569;
+      color: #94a3b8;
+      padding: 3px 10px;
+      border-radius: 6px;
+      font-size: 0.72rem;
+      font-weight: 700;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .zone-toggle-btn:hover {
+      background: #334155;
+      color: #f8fafc;
+    }
+    .zone-toggle-btn.btn-activate {
+      background: rgba(16, 185, 129, 0.15);
+      border-color: rgba(16, 185, 129, 0.4);
+      color: #34d399;
+    }
+    .zone-toggle-btn.btn-activate:hover {
+      background: rgba(16, 185, 129, 0.25);
+    }
+    .zone-card.zone-disabled {
+      opacity: 0.78;
+      background: rgba(15, 23, 42, 0.65);
+      border-color: rgba(255, 255, 255, 0.05);
+    }
 
     /* Sensor Grid */
     .sensor-grid { display: flex; flex-direction: column; gap: 6px; }
@@ -1128,8 +1156,9 @@
         </div>
 
         <!-- Deferred / Pending Command Banner -->
-        <div id="boiler-pending-banner" style="display:none;margin-top:8px;padding:8px 12px;background:rgba(245,158,11,0.15);border:1px solid rgba(245,158,11,0.45);border-radius:10px;font-size:0.75rem;color:#fcd34d;text-align:center;">
-          <span id="boiler-pending-msg">⏳ Oprire programată: flacăra se va stinge automat după protecție.</span>
+        <div id="boiler-pending-banner" style="display:none;margin-top:8px;padding:8px 12px;background:rgba(245,158,11,0.15);border:1px solid rgba(245,158,11,0.45);border-radius:10px;font-size:0.75rem;color:#fcd34d;align-items:center;justify-content:space-between;gap:8px;">
+          <span id="boiler-pending-msg" style="flex:1;">⏳ Oprire programată: flacăra se va stinge automat după protecție.</span>
+          <button id="btn-cancel-pending" class="btn-small" style="flex:0 0 auto;padding:4px 10px;font-size:0.72rem;background:#ef4444;color:#fff;border-color:#dc2626;cursor:pointer;" onclick="cancelPendingBoilerAction()">✕ Anulează</button>
         </div>
 
         <div style="display:flex;justify-content:space-between;font-size:0.75rem;color:var(--text-muted);padding:8px 2px 2px;">
@@ -1812,17 +1841,29 @@
   <!-- MODAL SAVE CUSTOM PRESET -->
   <div class="modal-backdrop" id="modal-save-preset">
     <div class="modal-box">
-      <div class="modal-title">&#128190; Salvează Orarul Curent în Slot NVS</div>
-      <label for="save-slot-id" style="font-size:0.75rem;color:#94a3b8;display:block;margin-bottom:4px;">Alege Slotul de Memorie:</label>
-      <select id="save-slot-id" aria-label="Alege Slotul de Memorie" title="Alege Slotul de Memorie" class="modal-input" style="padding:8px;">
-        <option value="custom1">Slot Utilizator 1 (custom1)</option>
-        <option value="custom2">Slot Utilizator 2 (custom2)</option>
+      <div class="modal-title">&#128190; Salvează Orarul Curent în Preset / Slot NVS</div>
+      <label for="save-slot-id" style="font-size:0.75rem;color:#94a3b8;display:block;margin-bottom:4px;">Alege Presetul sau Slotul de Memorie:</label>
+      <select id="save-slot-id" aria-label="Alege Presetul sau Slotul de Memorie" title="Alege Presetul sau Slotul de Memorie" class="modal-input" style="padding:8px;" onchange="onSaveSlotChange()">
+        <optgroup label="Preset-uri Predefinite (Personalizabile)">
+          <option value="default">Standard / Confort (default)</option>
+          <option value="eco">Vacanță / Eco (eco)</option>
+          <option value="wfh">Home Office (wfh)</option>
+        </optgroup>
+        <optgroup label="Sloturi Utilizator Libere">
+          <option value="custom1">Slot Utilizator 1 (custom1)</option>
+          <option value="custom2">Slot Utilizator 2 (custom2)</option>
+          <option value="custom3">Slot Utilizator 3 (custom3)</option>
+          <option value="custom4">Slot Utilizator 4 (custom4)</option>
+        </optgroup>
       </select>
       <label for="save-slot-name" style="font-size:0.75rem;color:#94a3b8;display:block;margin-bottom:4px;">Denumire Prietenoasă:</label>
-      <input type="text" id="save-slot-name" aria-label="Denumire Prietenoasă Slot" title="Denumire Prietenoasă Slot" class="modal-input" placeholder="ex: Confort Iarna sau WFH" maxlength="31">
-      <div class="modal-btns">
-        <button class="btn-small" onclick="closeSavePresetModal()" style="background:#334155;">Anulează</button>
-        <button class="btn-small" onclick="confirmSavePreset()" style="background:#0369a1;color:#fff;">Salvează în Flash NVS</button>
+      <input type="text" id="save-slot-name" aria-label="Denumire Prietenoasă Preset" title="Denumire Prietenoasă Preset" class="modal-input" placeholder="ex: Confort Iarna sau WFH" maxlength="31">
+      <div class="modal-btns" style="display:flex;justify-content:space-between;align-items:center;">
+        <button id="btn-reset-preset-slot" class="btn-small" onclick="resetSelectedPresetSlot()" style="background:rgba(239,68,68,0.2);color:#fca5a5;border-color:rgba(239,68,68,0.4);display:none;">↺ Reset Fabrică</button>
+        <div style="display:flex;gap:8px;margin-left:auto;">
+          <button class="btn-small" onclick="closeSavePresetModal()" style="background:#334155;">Anulează</button>
+          <button class="btn-small" onclick="confirmSavePreset()" style="background:#0369a1;color:#fff;">Salvează în NVS</button>
+        </div>
       </div>
     </div>
   </div>
@@ -1850,7 +1891,10 @@
   </div>
 
   <script>
-    const base = window.location.pathname.endsWith('/') ? window.location.pathname : window.location.pathname + '/';
+    const urlTarget = new URLSearchParams(window.location.search).get('target');
+    const isLocalDev = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' || window.location.protocol === 'file:';
+    const defaultHost = isLocalDev ? 'http://192.168.1.20/' : (window.location.pathname.endsWith('/') ? window.location.pathname : window.location.pathname + '/');
+    const base = urlTarget ? (urlTarget.endsWith('/') ? urlTarget : urlTarget + '/') : defaultHost;
     let deferredPrompt = null;
     let scheduleData = null;
     let presetsData = null;
@@ -2012,12 +2056,13 @@
       if (now - lastBoilerTriggerMs < 350) return;
       lastBoilerTriggerMs = now;
 
-      // Duplicate state protection: If already in requested state, do NOT fire requests or banners!
-      if (action === 'off' && currentBoilerState === 'OFF') {
+      // Duplicate state protection: If already in requested state, do NOT fire requests or banners,
+      // UNLESS there is a pending opposite action that needs to be cancelled!
+      if (action === 'off' && currentBoilerState === 'OFF' && boilerPendingAction !== 'ON') {
         showToast('ℹ️ Centrala este deja oprită (Standby).', 3000);
         return;
       }
-      if (action === 'on' && currentBoilerState === 'ON') {
+      if (action === 'on' && currentBoilerState === 'ON' && boilerPendingAction !== 'OFF') {
         showToast('ℹ️ Centrala este deja pornită (Activă).', 3000);
         return;
       }
@@ -2035,7 +2080,7 @@
         }
         if (banner && msg) {
           msg.innerText = `⏳ Oprire programată: flacăra se va stinge automat în ${boilerCooldownRemaining}s (anti-short-cycling guard).`;
-          banner.style.display = 'block';
+          banner.style.display = 'flex';
         }
       }
 
@@ -2047,7 +2092,7 @@
             boilerCooldownRemaining = data.waitSec || boilerCooldownRemaining || 60;
             if (banner && msg) {
               msg.innerText = (data.message || `Comandă ${boilerPendingAction} programată în ${boilerCooldownRemaining}s.`);
-              banner.style.display = 'block';
+              banner.style.display = 'flex';
             }
           } else if (data && data.status === 'ok') {
             if (data.pendingCancelled) {
@@ -2062,6 +2107,20 @@
           console.error(e);
           refresh();
         });
+    }
+
+    // Direct Cancellation of Deferred / Pending Boiler Command
+    function cancelPendingBoilerAction() {
+      fetch(base + 'api/boiler/cancel', { method: 'POST' })
+        .then(r => r.json())
+        .then(data => {
+          boilerPendingAction = 'NONE';
+          const banner = document.getElementById('boiler-pending-banner');
+          if (banner) banner.style.display = 'none';
+          showToast('✅ Comanda programată a fost anulată.', 3000);
+          refresh();
+        })
+        .catch(() => refresh());
     }
 
     // Set Operating Mode
@@ -2128,17 +2187,61 @@
 
     // Modal Custom Preset
     function openSavePresetModal() {
+      const cur = (presetsData && presetsData.activePreset) || (scheduleData && scheduleData.activePreset) || 'default';
+      const sel = document.getElementById('save-slot-id');
+      if (sel) {
+        sel.value = cur;
+      }
+      onSaveSlotChange();
       document.getElementById('modal-save-preset').style.display = 'flex';
     }
+
+    function onSaveSlotChange() {
+      const sel = document.getElementById('save-slot-id');
+      const slot = sel ? sel.value : 'default';
+      const nameInp = document.getElementById('save-slot-name');
+      const resetBtn = document.getElementById('btn-reset-preset-slot');
+      
+      let existing = null;
+      if (presetsData && presetsData.presets) {
+        existing = presetsData.presets.find(p => p.id === slot);
+      }
+      if (existing) {
+        if (nameInp) nameInp.value = existing.name || '';
+        if (resetBtn) {
+          resetBtn.style.display = (existing.saved) ? 'inline-flex' : 'none';
+        }
+      } else {
+        if (nameInp) nameInp.value = '';
+        if (resetBtn) resetBtn.style.display = 'none';
+      }
+    }
+
+    function resetSelectedPresetSlot() {
+      const slot = document.getElementById('save-slot-id').value;
+      if (!confirm(`Sigur dorești să resetezi presetul '${slot}' la valorile din fabrică?`)) return;
+      fetch(base + 'api/schedule/preset/reset?id=' + slot, { method: 'POST' })
+        .then(() => {
+          closeSavePresetModal();
+          showToast(`↺ Presetul '${slot}' a fost resetat la setările din fabrică.`, 3000);
+          loadScheduleAndPresets();
+          refresh();
+        });
+    }
+
     function closeSavePresetModal() {
       document.getElementById('modal-save-preset').style.display = 'none';
     }
+
     function confirmSavePreset() {
       const slot = document.getElementById('save-slot-id').value;
-      const name = encodeURIComponent(document.getElementById('save-slot-name').value.trim() || 'Custom');
+      const nameVal = document.getElementById('save-slot-name').value.trim();
+      const name = encodeURIComponent(nameVal || slot);
       fetch(base + `api/schedule/preset/save?id=${slot}&name=${name}`, { method: 'POST' })
-        .then(() => {
+        .then(r => r.json())
+        .then(data => {
           closeSavePresetModal();
+          showToast(`💾 Presetul '${slot}' a fost salvat în memoria Flash NVS!`, 3000);
           loadScheduleAndPresets();
           refresh();
         });
@@ -2792,7 +2895,7 @@
             }
             if (banner && msg) {
               msg.innerText = `⏳ Oprire programată: flacăra se va stinge automat în ${boilerCooldownRemaining}s (anti-short-cycling guard).`;
-              banner.style.display = 'block';
+              banner.style.display = 'flex';
             }
           } else if (boilerPendingAction === 'ON') {
             if (bb) {
@@ -2801,7 +2904,7 @@
             }
             if (banner && msg) {
               msg.innerText = `⏳ Pornire programată: cazanul va porni automat în ${boilerCooldownRemaining}s.`;
-              banner.style.display = 'block';
+              banner.style.display = 'flex';
             }
           } else {
             if (banner) banner.style.display = 'none';
@@ -2997,6 +3100,7 @@
         
         let label = p.name || p.id;
         if (p.id.startsWith('custom') && !p.saved) label += ' (Liber)';
+        else if (p.saved && p.type === 'factory') label += ' ✎';
 
         html += `<div class="preset-chip ${isAct ? 'active' : ''}" id="chip-${p.id}" onclick="applyPreset('${p.id}')">${icon} ${label}</div>`;
       });
@@ -3138,64 +3242,79 @@
       let html = '';
       let activeCount = 0;
 
-      zones.forEach((z, i) => {
+      zones.forEach(z => {
         let badgeClass = 'badge-idle';
         let st = z.state || 'Standby';
         let isHeating = st.includes('Heating') || z.relayEngaged;
 
         if (z.windowPauseActive) {
           badgeClass = 'badge-paused';
-          st = 'Geam Deschis (30m)';
+          st = '🪟 Geam Deschis (30m)';
         } else if (isHeating) {
           badgeClass = 'badge-heating';
-          st = 'Încălzire Activă';
+          st = '🔴 Încălzire Activă';
           activeCount++;
         } else if (st.includes('Warming')) {
           badgeClass = 'badge-warming';
-          st = 'Așteptare Actuator';
+          st = '⏳ Așteptare Actuator';
           activeCount++;
         } else if (z.frostActive) {
           badgeClass = 'badge-frost';
-          st = 'Protecție Îngheț';
+          st = '❄️ Protecție Îngheț';
           activeCount++;
         } else if (!z.enabled) {
           badgeClass = 'badge-disabled';
-          st = 'Dezactivat';
+          st = '⚪ Zonă Oprită';
         } else if (z.sensorFault) {
           badgeClass = 'badge-fault';
-          st = 'Eroare Senzor';
+          st = '⚠️ Eroare Senzor';
         } else {
           badgeClass = 'badge-idle';
-          st = 'Idle (Temp OK)';
+          st = '🟢 Temp OK (Repaus)';
         }
 
-        let tempStr = (z.sensorValid && z.currentTemp !== undefined)
+        let tempStr = (z.sensorValid && z.currentTemp !== undefined && z.currentTemp > -100)
           ? (z.currentTemp.toFixed(1) + '&deg;C')
           : '<span style="color:#94a3b8;">--.-&deg;C</span>';
 
         // Target resolution: in Beginner level, always use static targetTemp; otherwise effectiveTarget if schedule enabled
         const curTarget = (scheduleEnabled && currentUiLevel !== 'beginner' && z.effectiveTarget !== undefined) ? z.effectiveTarget : z.targetTemp;
 
+        let circuitStatusHtml = '';
+        if (!z.enabled) {
+          circuitStatusHtml = '<span style="color:#94a3b8;">Robinet șapă: <b>OPRIT (Termostat inactiv)</b></span>';
+        } else if (z.windowPauseActive) {
+          circuitStatusHtml = '<span style="color:#fb7185;">Robinet șapă: <b>PAUZĂ (Geam deschis)</b></span>';
+        } else if (isHeating) {
+          circuitStatusHtml = '<span style="color:#34d399;">Robinet șapă: <b>DESCHIS (Circulă apă caldă)</b></span>';
+        } else if (st.includes('Warming')) {
+          circuitStatusHtml = '<span style="color:#fcd34d;">Robinet șapă: <b>DESCHIDERE (Dilatare ceară ~2m)</b></span>';
+        } else {
+          circuitStatusHtml = '<span style="color:#94a3b8;">Robinet șapă: <b>ÎNCHIS (Repaus / Temp atinsă)</b></span>';
+        }
+
         html += `
-          <div class='zone-card ${isHeating ? 'heating' : ''}'>
+          <div class='zone-card ${isHeating ? 'heating' : ''} ${!z.enabled ? 'zone-disabled' : ''}'>
             <div class='zone-header'>
               <span class='zone-name'>${z.name}</span>
               <span class='zone-badge ${badgeClass}'>${st}</span>
             </div>
             <div class='zone-body'>
               <div>
-                <span class='zone-temp'>${tempStr}</span>
+                <span class='zone-temp' style='${!z.enabled ? "color:#94a3b8;" : ""}'>${tempStr}</span>
                 <div style='font-size:0.74rem;color:#94a3b8;margin-top:2px;'>Senzor: ${z.sensor || z.sensorMac || 'None'}</div>
               </div>
               <div class='zone-ctrl'>
-                <button class='temp-btn' aria-label='Scade temperatura ${z.name}' onclick='adjTarget(${i}, -0.5)'>-</button>
-                <span class='setpoint-val' id='sp-${i}' data-val='${curTarget.toFixed(1)}'>${curTarget.toFixed(1)}&deg;C</span>
-                <button class='temp-btn' aria-label='Crește temperatura ${z.name}' onclick='adjTarget(${i}, 0.5)'>+</button>
+                <button class='temp-btn' aria-label='Scade temperatura ${z.name}' onclick='adjTarget(${z.id}, -0.5)'>-</button>
+                <span class='setpoint-val' id='sp-${z.id}' data-val='${curTarget.toFixed(1)}'>${curTarget.toFixed(1)}&deg;C</span>
+                <button class='temp-btn' aria-label='Crește temperatura ${z.name}' onclick='adjTarget(${z.id}, 0.5)'>+</button>
               </div>
             </div>
             <div class='zone-footer'>
-              <span>Releu GPIO${z.relayPin}: <b>${z.relayEngaged ? 'ACTIV (Valvă Deschisă)' : 'INACTIV (Închisă)'}</b></span>
-              <span class='toggle-link' onclick='toggleZone(${i})'>${z.enabled ? 'Dezactivează' : 'Activează'}</span>
+              <span title='Releu GPIO${z.relayPin}'>${circuitStatusHtml}</span>
+              <button class='zone-toggle-btn ${z.enabled ? '' : 'btn-activate'}' onclick='toggleZone(${z.id})'>
+                ${z.enabled ? '⛔ Oprește camera' : '▶️ Pornește camera'}
+              </button>
             </div>
           </div>
         `;

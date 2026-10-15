@@ -402,6 +402,13 @@ void handleApiOff() {
   }
 }
 
+void handleApiBoilerCancelPending() {
+  server.sendHeader("Access-Control-Allow-Origin", "*");
+  boilerRadio.cancelPendingAction();
+  String resp = String("{\"status\":\"ok\",\"pendingCancelled\":true,\"boiler\":\"") + (boilerRadio.isLastCommandOn() ? "ON" : "OFF") + "\"}";
+  server.send(200, "application/json", resp);
+}
+
 void handleApiZones() {
   String json = "{";
   json +=
@@ -1132,14 +1139,29 @@ void handleApiSchedulePresetApply() {
 void handleApiSchedulePresetSave() {
   server.sendHeader("Access-Control-Allow-Origin", "*");
   if (!server.hasArg("id")) {
-    server.send(400, "application/json", F("{\"status\":\"error\",\"message\":\"Missing 'id' parameter (e.g. custom1, custom2).\"}"));
+    server.send(400, "application/json", F("{\"status\":\"error\",\"message\":\"Missing 'id' parameter (e.g. default, eco, wfh, custom1..custom4).\"}"));
     return;
   }
   String id = server.arg("id");
   String name = server.hasArg("name") ? server.arg("name") : id;
   bool ok = thermalZones.savePreset(id.c_str(), name.c_str());
   if (!ok) {
-    server.send(400, "application/json", F("{\"status\":\"error\",\"message\":\"Cannot overwrite factory preset or invalid id.\"}"));
+    server.send(400, "application/json", F("{\"status\":\"error\",\"message\":\"Invalid preset slot id. Valid slots: default, eco, wfh, custom1..custom4.\"}"));
+    return;
+  }
+  server.send(200, "application/json", thermalZones.getPresetsJson());
+}
+
+void handleApiSchedulePresetReset() {
+  server.sendHeader("Access-Control-Allow-Origin", "*");
+  if (!server.hasArg("id")) {
+    server.send(400, "application/json", F("{\"status\":\"error\",\"message\":\"Missing 'id' parameter.\"}"));
+    return;
+  }
+  String id = server.arg("id");
+  bool ok = thermalZones.resetPreset(id.c_str());
+  if (!ok) {
+    server.send(400, "application/json", F("{\"status\":\"error\",\"message\":\"Failed to reset preset.\"}"));
     return;
   }
   server.send(200, "application/json", thermalZones.getPresetsJson());
@@ -1460,7 +1482,9 @@ void handleSerialCommand(String cmd) {
 
       // Row 4: Loop Status & Sensor Battery
       char loopStatStr[36];
-      if (st.state == ZONE_WARMUP) {
+      if (!cfg.enabled) {
+        snprintf(loopStatStr, sizeof(loopStatStr), "DISABLED (Zone Off)");
+      } else if (st.state == ZONE_WARMUP) {
         snprintf(loopStatStr, sizeof(loopStatStr), "WARMUP (%us/300s)", thermalZones.getBootWarmupElapsedSec());
       } else if (st.state == ZONE_WINDOW_PAUSE) {
         snprintf(loopStatStr, sizeof(loopStatStr), "WINDOW PAUSE (%us left)", thermalZones.getWindowPauseRemainingSec(i));
@@ -1854,6 +1878,7 @@ void setup() {
   server.on("/api/setup/time", HTTP_GET, handleApiSetupTime);
   server.on("/api/boiler/on", HTTP_POST, handleApiOn);
   server.on("/api/boiler/off", HTTP_POST, handleApiOff);
+  server.on("/api/boiler/cancel", HTTP_POST, handleApiBoilerCancelPending);
   server.on("/api/boiler/status", HTTP_GET, handleApiStatus);
   server.on("/api/zones", HTTP_GET, handleApiZones);
   server.on("/api/zones/setpoint", HTTP_POST, handleApiZoneSetpoint);
@@ -1876,6 +1901,7 @@ void setup() {
   server.on("/api/schedule/presets", HTTP_GET, handleApiSchedulePresets);
   server.on("/api/schedule/preset/apply", HTTP_POST, handleApiSchedulePresetApply);
   server.on("/api/schedule/preset/save", HTTP_POST, handleApiSchedulePresetSave);
+  server.on("/api/schedule/preset/reset", HTTP_POST, handleApiSchedulePresetReset);
   server.on("/api/schedule/reset", HTTP_POST, handleApiScheduleReset);
 
   // Initialize Hardware Task Watchdog Timer (90 seconds timeout)

@@ -362,6 +362,28 @@ Acest document este planul de referință pentru implementarea controlerului aut
         * **Remediere Audit DevTools & Lighthouse (WCAG AA + Network):** Contrast cromatic ridicat (>5.8:1), etichetare accesibilă switch-uri/inputuri (`aria-label`), landmark semantic `<main class="container" role="main">`, ergonomie mobilă `@media (max-width: 520px)` și toleranță latență reverse proxy Nginx (`AbortController` 4000ms).
       - *Validat:* 68/68 PASS (100.0%) pe ASPICE SWE.5 (`tools/test_system.py`) și 10/10 PASS (100.0%) pe CDP browser test (`tools/browser_live_test.py`).
 
+- [ ] **34. Decuplare Arhitecturală & Optimizare Workflow (Anti-Bloat & Headless C++ First):**
+      - **Problemă Identificată (15.10.2026):** Modificarea continuă a unui fișier HTML uriaș (3300+ linii), recompilarea gzip C++ în `dashboard_html_gz.h`, flash OTA wireless pe ESP32 și reboot la fiecare mică schimbare de stil sau buton este ineficientă, riscantă pentru memoria flash și generează bloatware.
+      - **Noua Disciplină de Lucru (Ponytail Engineering):**
+        * **Backend C++ Headless:** ESP32 răspunde exclusiv de siguranța fizică a cazanului (interblocări, TWDT, supraveghere senzori), bucla termică deterministă și servirea rapidă a API-ului REST/JSON (`/api/...`). Modificările de C++ se testează prin consolă (`/console`, Telnet, `tools/esp_cli.py`) sau suita automată `test_system.py`.
+        * **Frontend Decuplat Local (Dev Server):** Prototiparea și ajustarea UI-ului se fac 100% pe mașina locală (ex: rulare prin server static local sau fișier web local conectat prin CORS la `http://192.168.1.20/`). Iterare instantanee cu F5 în browser (fără recompilare C++, fără flash OTA).
+        * **Bundling Final pe Flash:** Doar după ce o interfață este complet aprobată și stabilă, se rulează `tools/build_web.py` și se include în binarul de producție.
+        * **Zi de Observație Live (Test Dinamic de Comportament):** Menținerea stabilității firmware-ului v1.2.0 pentru a colecta date reale de comportament dinamic (temperatură, histerezis, timpi de răspuns).
+
+- [ ] **35. Roadmap Comercial & Inteligență Termică (Confort, Calibrare & Cloud):**
+      - **35.1. Trend Temperaturi (Săgeți Dinamice & Istoric 3h):**
+        * Calcul pantă $\Delta T / \Delta t$ per senzor/zonă: afișare săgeată orientată (`↗ Încălzire`, `↘ Răcire`, `→ Stabil`) și buffer in-memory de 3 ore pentru analiza vitezei de pierdere termică.
+      - **35.2. Factorul Umiditate (% RH) & Confort Bioclimatic:**
+        * Integrarea umidității de la senzorii Xiaomi în calculul temperaturii resimțite (indice Humidex / ecuația Steadman). Corelarea umidității scăzute (<40%) cu senzația falsă de frig la repaus.
+      - **35.3. Wizard Onboarding Configurare Client:**
+        * Interfață ghidată pas-cu-pas: tip locuință (apartament / casă, etaj, calitatea izolației), volum încăperi (înălțime, suprafață), destinație cameră (dormitor, birou, living, baie, garaj, atelier, frecvență utilizare), recomandare automată a profilului termic de pornire.
+      - **35.4. Meniu & Algoritm Transparent de Calibrare (Săptămâna 1):**
+        * În primele 7 zile, sistemul colectează inerția șapei per cameră și emite recomandări proactive: repoziționare senzor (dacă e influențat de curenți/soare), reglare temperatură tur cazan, optimizare timp de aerisire.
+      - **35.5. Modul Research Cloud (Grafana pe Google Cloud):**
+        * Export securizat de telemetrie (valori senzori, timpi flacără, vreme exterioară, setpoint-uri) către instanță Grafana Cloud / InfluxDB pentru analiză aprofundată și sugestii de optimizare asistată de AI.
+      - **35.6. Vizualizare 3D / Schiță Digital Twin a Locuinței:**
+        * Generare schiță 2D/3D a apartamentului din video/foto/schiță cu poziționarea spațială a senzorilor și buclelor de încălzire pentru clienți.
+
 ---
 
 ## 🔮 Viitor / Nice to Have: Migrare Home Server pe ThinkPad L590 (Înlocuire Galaxy A6)

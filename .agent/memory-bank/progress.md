@@ -1,9 +1,18 @@
 # Progress: Smart Home Heating System
 
 ## Status
-All core functional subsystems (heating hysteresis engine, boiler RF trigger, native BLE passive scanner, 2-way console, web OTA, diagnostic engine with DTCs, service mode, digital passport, NTP & weather sync, headless API-first architecture, hydronic safety controls, anti-spam burner interlocks, Bio-Schedule with presets engine, and atomic PC system test suite with bidirectional traceability matrix) are fully implemented, compiled, uploaded, and verified live on ESP32 (`192.168.1.20`) with 100% ASPICE SWE.5 pass rate (63/63 PASS, 33/33 requirements covered, 0 uncovered).
+All core functional subsystems (heating hysteresis engine, boiler RF trigger, native BLE passive scanner, 2-way console, web OTA, diagnostic engine with DTCs, service mode, digital passport, NTP & weather sync, headless API-first architecture, hydronic safety controls, anti-spam burner interlocks, Bio-Schedule with presets engine & full factory/user customization, deferred action cooldown cancel, and atomic PC system test suite with bidirectional traceability matrix) are fully implemented, compiled, uploaded, and verified live on ESP32 (`192.168.1.20`) with 100% ASPICE SWE.5 pass rate (68/68 PASS, 33/33 requirements covered, 0 uncovered).
 
-## Completed Work (2026-10-14 - Sarcina 30 Schemă Tesla Service Mode & Sarcina 31 Diagramă Stări FSM)
+## Completed Work (2026-10-14 - Personalizare Preseturi Fabrică & Sloturi Utilizator, Anulare Cooldown Cazan)
+- **Personalizare Preseturi Predefinite & Extindere Sloturi:**
+  - Deblocată posibilitatea de a salva modificări peste preseturile din fabrică (`default`, `eco`, `wfh`) direct în NVS fără erori. La aplicare, se verifică prioritar configurația salvată în NVS, revenind transparent la valorile din fabrică dacă nu există personalizări.
+  - Adăugată metoda `resetPreset(presetId)` și ruta `POST /api/schedule/preset/reset?id=<id>` pentru revenirea oricărui preset la valorile din fabrică.
+  - Numărul de sloturi libere de utilizator extins la 4 (`custom1` .. `custom4`).
+  - Suita de teste ASPICE SWE.5 redirecționată pe slotul dedicat `custom4` cu auto-reset, protejând 100% presetul `custom1` (`Bogdan`).
+- **Anulare Cooldown / Comandă Amânată Cazan (Re-armare):**
+  - Eliminat bug-ul din `web/index.html` unde starea `currentBoilerState === 'ON'` bloca clicurile utilizatorului pe „Pornește Centrala” dacă era programată o oprire amânată (`boilerPendingAction === 'OFF'`).
+  - Adăugat buton dedicat `[✕ Anulează]` în bannerul `#boiler-pending-banner` apelând `/api/boiler/cancel`.
+  - Cazanul poate fi re-armat instantaneu la răzgândire, iar starea revine la ardere activă fără oprire forțată.
 - **Schemă Termodinamică & Hidraulică Interactivă (Sarcina 30):**
   - Adăugată vedere completă vectorială SVG în stilul Tesla Supermanifold:
     * Trasee animate pentru circuitul Tur (portocaliu cald) și Retur (albastru rece) cu flux de particule via `@keyframes teslaPipeFlow`.

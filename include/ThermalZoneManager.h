@@ -161,6 +161,7 @@ public:
     String getPresetsJson() const;
     bool applyPreset(const char* presetId);
     bool savePreset(const char* presetId, const char* name);
+    bool resetPreset(const char* presetId);
     void resetScheduleToDefault();
     const char* getActivePresetId() const { return _activePresetId; }
 

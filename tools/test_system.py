@@ -1297,22 +1297,25 @@ class SystemTestSuite:
             return TestResult(test_id, name, req, "FAIL", (time.time() - start)*1000, str(e))
 
     def test_tc18_3_preset_save_custom_slot(self):
-        """SWE.5-TC18.3: Custom User Slot Save ('custom1') (FR-26.2)"""
+        """SWE.5-TC18.3: Custom User Slot Save ('custom4') (FR-26.2)"""
         test_id = "SWE.5-TC18.3"
-        name = "Custom User Slot Save ('custom1')"
+        name = "Custom User Slot Save ('custom4')"
         req = "FR-26.2"
         start = time.time()
         try:
-            r = requests.post(f"{self.base_url}/api/schedule/preset/save?id=custom1&name=SWE5Test", timeout=self.timeout)
+            r = requests.post(f"{self.base_url}/api/schedule/preset/save?id=custom4&name=SWE5Test", timeout=self.timeout)
             latency = (time.time() - start) * 1000
             assert r.status_code == 200, f"Failed to save preset: {r.status_code}"
             data = r.json()
-            custom1 = next((p for p in data.get("presets", []) if p["id"] == "custom1"), None)
-            assert custom1 and custom1.get("saved") is True, "custom1 slot was not saved"
-            assert custom1.get("name") == "SWE5Test", f"Expected name 'SWE5Test', got {custom1.get('name')}"
-            details = "Saved active schedule into NVS slot 'custom1' as 'SWE5Test'"
+            custom4 = next((p for p in data.get("presets", []) if p["id"] == "custom4"), None)
+            assert custom4 and custom4.get("saved") is True, "custom4 slot was not saved"
+            assert custom4.get("name") == "SWE5Test", f"Expected name 'SWE5Test', got {custom4.get('name')}"
+            # Reset test slot to leave NVS clean
+            requests.post(f"{self.base_url}/api/schedule/preset/reset?id=custom4", timeout=self.timeout)
+            details = "Saved active schedule into NVS slot 'custom4' as 'SWE5Test' & cleanly reset"
             return TestResult(test_id, name, req, "PASS", latency, details)
         except Exception as e:
+            requests.post(f"{self.base_url}/api/schedule/preset/reset?id=custom4", timeout=self.timeout)
             return TestResult(test_id, name, req, "FAIL", (time.time() - start)*1000, str(e))
 
     def test_tc18_4_preset_restore_default(self):
@@ -1418,18 +1421,18 @@ class SystemTestSuite:
             return TestResult(test_id, name, req, "FAIL", (time.time() - start)*1000, str(e))
 
     def test_tc19_5_factory_preset_overwrite_protection(self):
-        """SWE.5-TC19.5: Factory Preset Overwrite Protection (HTTP 400) (FR-26.2)"""
+        """SWE.5-TC19.5: Invalid Preset Slot Rejection (HTTP 400) (FR-26.2)"""
         test_id = "SWE.5-TC19.5"
-        name = "Factory Preset Overwrite Protection"
+        name = "Invalid Preset Slot Rejection"
         req = "FR-26.2"
         start = time.time()
         try:
-            r = requests.post(f"{self.base_url}/api/schedule/preset/save?id=default&name=Hacked", timeout=self.timeout)
+            r = requests.post(f"{self.base_url}/api/schedule/preset/save?id=invalid_slot_hack&name=Hacked", timeout=self.timeout)
             latency = (time.time() - start) * 1000
-            assert r.status_code == 400, f"Expected HTTP 400 when attempting to overwrite factory preset, got {r.status_code}"
+            assert r.status_code == 400, f"Expected HTTP 400 when attempting to save invalid slot id, got {r.status_code}"
             data = r.json()
-            assert "Cannot overwrite factory preset" in data.get("message", ""), f"Unexpected message: {data}"
-            details = f"HTTP 400 protected factory preset 'default': {data.get('message')}"
+            assert "Invalid preset slot id" in data.get("message", ""), f"Unexpected message: {data}"
+            details = f"HTTP 400 safely rejected invalid slot: {data.get('message')}"
             return TestResult(test_id, name, req, "PASS", latency, details)
         except Exception as e:
             return TestResult(test_id, name, req, "FAIL", (time.time() - start)*1000, str(e))

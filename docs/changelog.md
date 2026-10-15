@@ -3,6 +3,66 @@
 Jurnalul modificărilor, deciziilor tehnice și verificărilor efectuate pentru proiectul de încălzire inteligentă.
 Corelat cu planul activ: [`docs/plan.md`](file:///c:/Users/BSeceleanu/.github_repos/smart-heating/docs/plan.md).
 
+## [14.10.2026] - Clarificare Terminologie Zone, Corectare Indexare ID-uri Zone & Decuplare Telemetrie Senzori
+
+### 1. Decuplare Rezoluție Senzori BLE de Starea Circuitului de Încălzire
+- **Eliminare Eronată TIMEOUT când o cameră este oprită:**
+  - În `ThermalZoneManager::update()`, verificarea `if (!_configs[i].enabled) continue;` era executată înainte de scanarea senzorilor BLE. Când utilizatorul oprea o cameră (termostat dezactivat), citirea temperaturii era ignorată complet, `currentTemp` rămânea `0.0°C` iar `sensorValid` rămânea `false`. Din acest motiv, consola raporta fals `TIMEOUT (Failsafe OFF)`, iar cardul UI afișa `--.-°C`, chiar dacă senzorul fizic Xiaomi (`Kids Room` `A4:C1:38:84:A1:E8`) transmitea pachete la fiecare 60s cu 23.0°C.
+  - S-a mutat rezoluția senzorului și actualizarea `_statuses[i].currentTemp` / `sensorValid` la începutul buclei, înaintea verificării `enabled`. Temperatura camerei este acum monitorizată permanent, indiferent dacă circuitul de încălzire este pornit sau oprit manual.
+  - S-a adăugat tranziție automată din starea `ZONE_DISABLED` în `ZONE_IDLE` la reactivarea camerei în `setZoneEnabled()` și în bucla principală `update()`.
+
+### 2. Corectare Bug Decalaj Indexare Zone în UI (Off-by-One)
+- **Eliminare Comutare Greșită a Camerelor:**
+  - În `web/index.html`, funcția `renderZones` genera handler-ele `onclick='toggleZone(${i})'` și `onclick='adjTarget(${i}, ...)'` folosind indexul vectorial bazat pe 0 (`i = 0, 1, 2`), în timp ce backend-ul ESP32 (`/api/zones/toggle?id=...`) folosește ID-ul bazat pe 1 (`id >= 1 -> idx = id - 1`).
+  - Din această cauză, când utilizatorul apăsa pe Zona 3 (Matrimonial, `i=2`), frontend-ul apela `toggleZone(2)`, ceea ce backend-ul traducea ca `2 - 1 = 1` (Camera Copilului)! Astfel, Camera Copilului fusese dezactivată din greșeală fără intenția utilizatorului.
+  - S-a corectat apelul prin transmiterea explicită a ID-ului real: `toggleZone(${z.id})`, `adjTarget(${z.id}, ...)` și `id='sp-${z.id}'`.
+
+### 3. Redesign Terminologie UI Carduri Zone Termice
+- **Eliminare Jargon Confuz și Contradictoriu:**
+  - Formulat anterior ca `Releu GPIO25: INACTIV (Închisă)    Dezactivează`, textul genera o confuzie majoră (închidere releu vs ventil NC vs termostat cameră).
+  - Noul design separă clar cele 3 concepte:
+    1. **Stare Termostat (Insignă Header):** `🟢 Temp OK (Repaus)` / `⚪ Zonă Oprită` / `🔴 Încălzire Activă` / `🟡 Așteptare Actuator`.
+    2. **Stare Fizică Circuit Șapă (Footer):** `Robinet șapă: ÎNCHIS (Repaus / Temp atinsă)` vs `DESCHIS (Circulă apă caldă)` vs `OPRIT (Termostat inactiv)`.
+    3. **Buton Clar de Acțiune:** Înlocuit link-ul text ambiguu cu un buton stilizat: `[⛔ Oprește camera]` (când e activă) / `[▶️ Pornește camera]` (când e oprită).
+    4. **Afișare Permanentă Temperatură:** Cardul afișează permanent temperatura reală a senzorului (ex. `23.0°C`) chiar dacă termostatul camerei este oprit manual.
+
+### 4. Verificare & Conformitate
+- **PlatformIO Build:** 1,210,741 bytes (61.6% flash), Free Heap > 115 KB.
+- **OTA Flash:** v1.2.0 (Build: Oct 14 2026 23:06:40) online pe `192.168.1.20`.
+- **ASPICE SWE.5 Suite:** 68/68 teste atomice PASS (100.0%) în 22.62s.
+- **E2E Live Browser Suite:** 10/10 PASS (100.0%) pe Chrome CDP cu screenshot-uri e2e validate.
+- **Preset Bogdan (`custom1`):** Verificat și confirmat intact în NVS.
+
+## [14.10.2026] - Personalizare Completă Preseturi (Fabrică + Utilizator) & Control Anulare Cooldown Cazan
+
+### 1. Motor Preseturi & Personalizare
+- **Deblocare Personalizare Preseturi Predefinite:**
+  - Preset-urile din fabrică (`default` / Standard Confort, `eco` / Vacanță, `wfh` / Home Office) pot fi acum modificate și salvate direct în NVS fără a mai fi blocate cu eroare.
+  - La aplicare (`applyPreset`), controller-ul verifică prioritar existența unei configurații personalizate salvate în NVS (`<presetId>_cfg`); dacă nu există o personalizare, revine transparent la configurația circadiană din fabrică.
+  - Adăugată metoda `resetPreset(presetId)` și endpoint-ul `POST /api/schedule/preset/reset?id=<id>`, permițând oricând revenirea unui preset la valorile originale de fabrică.
+- **Extindere Sloturi Utilizator & Protecție Preset `Bogdan` (`custom1`):**
+  - Numărul de sloturi libere de utilizator a fost extins la 4 (`custom1` .. `custom4`).
+  - Suita de teste integrate ASPICE SWE.5 (`tools/test_system.py`) a fost redirecționată pe slotul de test dedicat `custom4` cu auto-curățare imediată (`reset`), protejând 100% presetul personal al utilizatorului salvat pe `custom1` (`Bogdan`).
+  - Catalogul JSON expune acum toate cele 7 sloturi cu flag-ul `saved: true/false`, iar UI-ul marchează cu `✎` preseturile din fabrică care au fost ajustate de utilizator.
+- **Modal Salvare Preset Îmbunătățit:**
+  - Dropdown-ul preselectează automat presetul activ curent și completează numele acestuia.
+  - Buton nou dedicat `[↺ Reset Fabrică]` afișat contextual doar pentru preseturile care conțin modificări salvate în NVS.
+
+### 2. Control Cazan: Răzgândire & Anulare Comandă Amânată (Pending Cooldown)
+- **Eliminare Blocaj Răzgândire în Frontend:**
+  - Funcția `triggerBoiler` din `web/index.html` filtra eronat cererea dacă `currentBoilerState === 'ON'`, ignorând faptul că era activată o comandă amânată de oprire (`boilerPendingAction === 'OFF'`).
+  - Filtrul a fost corectat pentru a permite trimiterea cererii opuse: utilizatorul poate apăsa din nou pe „Pornește Centrala”, anulând instantaneu oprirea programată și păstrând cazanul activ.
+- **Buton Dedicat de Anulare `[✕ Anulează]`:**
+  - În bannerul galben de comandă amânată (`#boiler-pending-banner`) a fost adăugat butonul `[✕ Anulează]`, apelând noul endpoint `POST /api/boiler/cancel`.
+  - Starea flăcării, insigna și bannerul revin instantaneu la starea normală activă fără a mai aștepta expirarea numărătorii inverse a protecției anti-short-cycling.
+
+### 3. Verificare & Conformitate
+- **PlatformIO Build:** 1,210,313 bytes (61.6% flash), Free Heap > 115 KB.
+- **Firmware Flashat OTA:** v1.2.0 (Build: Oct 14 2026 22:27:23) activ pe `192.168.1.20`.
+- **Suita ASPICE SWE.5:** 68/68 teste atomice PASS (100.0%) în 23.26s.
+- **E2E Live Browser Tests (Chrome CDP):** 10/10 PASS (100.0%).
+- **Verificare Hardware Live:** Confirmat că `custom1` conține `'Bogdan'` (`saved: true`) și că revenirea / anularea acțiunii amânate funcționează deterministic.
+
 ## [14.10.2026] - Remediere Audit Chrome DevTools & Lighthouse (FSM Admin, Tesla Mode & Panou Principal)
 
 ### 1. Subpagina Fir Logic & Stări (FSM Admin)

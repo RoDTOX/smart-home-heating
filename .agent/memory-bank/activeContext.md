@@ -1,16 +1,24 @@
 # Active Context: Smart Home Heating System
 
 ## Current State (Updated 2026-10-14)
+- **Clarificare Terminologie Zone, Corectare Indexare ID-uri & Decuplare Telemetrie Senzori (Finalizat 14.10.2026):**
+  - **Decuplare Scanare Senzori:** `ThermalZoneManager::update()` rezolvă acum pachetele de telemetrie BLE înaintea verificării `enabled`. Temperatura fizică a camerei este monitorizată permanent, eliminând falsul `TIMEOUT (Failsafe OFF)` din consolă și afișajul `--.-°C` când un circuit este oprit manual.
+  - **Fix Bug Indexare UI (Off-by-One):** `renderZones` transmite acum ID-ul explicit `z.id` (1, 2, 3) către `toggleZone` și `adjTarget`, eliminând decalajul cauzat de indexul 0-based care comuta camera greșită (Zona 3 oprea Zona 2 / Camera Copilului).
+  - **Redesign Terminologie Carduri:** Eliminat jargonul confuz `Releu GPIOxx: INACTIV (Închisă) Dezactivează`. Noul design prezintă starea termostatului (`🟢 Temp OK (Repaus)` / `⚪ Zonă Oprită`), starea fizică a șapei (`Robinet șapă: ÎNCHIS (Repaus / Temp atinsă)` vs `DESCHIS (Circulă apă caldă)`), și butoane clare de acțiune `[⛔ Oprește camera]` / `[▶️ Pornește camera]`.
 - **Target Hardware Deployed & Operational:**
   - Board: **ESP32-Relay X4 V1.1** featuring module **DOIT WiFi MODEL ESP32-32E N4** (ESP32-D0WD-V3, 240MHz Dual-Core, 4MB Flash, MAC: `20:50:0d:1a:72:14`).
   - IP Address: **`192.168.1.20`** (on `SBC_WiFi`).
-  - Firmware Version: **v1.2.0 (Build: Oct 14 2026 21:20:44)**.
-  - Flash Binary Size: **1,207,329 bytes (1.20 MB, 61.4% flash)** — binar compact cu spațiu liber de **103.4 KB sub limita maximă a partiției OTA** (1.25 MB).
-  - Free Heap: **~122 KB** stabil cu scaner NimBLE pasiv și servire web PROGMEM GZIP fără alocări dinamice.
-  - Web Server & Web OTA: Active on port 80 (`http://192.168.1.20/`, `/setup`, `/console`, `/update`, `/manifest.json`, `/sw.js`, `/icon.svg`, `/icon-192.png`, `/icon-512.png`).
+  - Firmware Version: **v1.2.0 (Build: Oct 14 2026 23:06:40)**.
+  - Flash Binary Size: **1,210,741 bytes (1.21 MB, 61.6% flash)** — sub limita maximă a partiției OTA (1.25 MB).
+  - Free Heap: **~120 KB** stabil.
+  - Web Server & Web OTA: Active on port 80.
   - ASPICE SWE.5 Host Verification: **68/68 PASS (100.0%)** pe suita completă de teste atomice ASPICE SWE.5 cu Matrice de Trasabilitate Bidirecțională (33/33 cerințe acoperite 100.0%, 0 defecte).
-  - Browser E2E Live Test Suite (Task 32): **10/10 PASS (100.0%)** pe browserul Google Chrome nativ via CDP (TS-01 la TS-07: geometrie 2 coloane, 3 nivele de control, anti-spam toast, schemă Tesla Supermanifold, acțiuni service, diagramă stări FSM).
-  - Wall Kiosk Display: Tableta **Samsung Galaxy Tab A9 8.7" LTE** configurată cu aplicația web PWA instalabilă direct din browserul Chrome / Samsung Internet.
+  - Browser E2E Live Test Suite (Task 32): **10/10 PASS (100.0%)** pe browserul Google Chrome nativ via CDP.
+  - Wall Kiosk Display: Tableta **Samsung Galaxy Tab A9 8.7" LTE** configurată cu aplicația web PWA.
+- **Personalizare Completă Preseturi & Control Răzgândire Cazan (Finalizat 14.10.2026):**
+  - **Personalizare Preseturi:** Deblocat salvarea și editarea preseturilor din fabrică (`default`, `eco`, `wfh`) direct în NVS fără a mai arunca eroare. Adăugat suport pentru 4 sloturi libere de utilizator (`custom1` .. `custom4`), cu `resetPreset(presetId)` pe backend și buton contextual `[↺ Reset Fabrică]` în UI.
+  - **Protecție Slot `custom1` (`Bogdan`):** Suita de teste a fost mutată pe slotul de test dedicat `custom4` cu auto-reset, protejând 100% presetul utilizatorului salvat pe `custom1` (`Bogdan`).
+  - **Răzgândire Cooldown & Anulare Comandă Amânată:** Rezolvat bug-ul din `web/index.html` unde `triggerBoiler` bloca comanda dacă starea era deja `ON`. Utilizatorul poate apăsa din nou pe „Pornește Centrala” pentru a anula instantaneu oprirea programată sau poate folosi noul buton `[✕ Anulează]` din bannerul `#boiler-pending-banner` (apelând `/api/boiler/cancel`).
 - **Remediere Audit Chrome DevTools & Lighthouse (FSM Admin, Tesla Mode & Panou Principal) (Finalizat 14.10.2026):**
   - **FSM Admin Overlap Fix:** Decalat nodul `S3` la `y=24..60` și `S4` la `y=76..164` în SVG (16px separare curată, 0 coliziune). În CSS: `.fsm-grid` cu `gap: 1.5rem` (1.25rem mobil), `.fsm-node` cu `overflow: hidden; z-index: 1;` și `z-index: 10;` pe hover/active.
   - **Accesibilitate & Contrast WCAG AA/AAA:** Ridicat textele muted de la `#6a707a` / `#475161` la `#cbd5e1` și `#f1f5f9` (contrast > 9:1 pe `#0a0f1d`), opacitate carduri inactive crescută la 0.65.
