@@ -45,6 +45,7 @@ ThermalZoneManager::ThermalZoneManager()
         _windowStates[i].pauseActive = false;
         _windowStates[i].pauseStartMs = 0;
         _windowStates[i].pauseMinTemp = 999.0f;
+        _windowStates[i].dropInsightLogged = false;
     }
 
     // Default Zone 1
@@ -496,25 +497,25 @@ BioScheduleConfig ThermalZoneManager::getFactoryDefaultSchedule() {
     cfg.weekday[BIO_ANCHOR_SLEEP].targets[1] = 22.0f;
     cfg.weekday[BIO_ANCHOR_SLEEP].targets[2] = 22.0f;
 
-    // Wake (07:00): 23.0C, 22.5C, 22.5C
-    cfg.weekday[BIO_ANCHOR_WAKE].hour = 7;
+    // Wake (06:00): 23.0C, 22.0C, 22.0C
+    cfg.weekday[BIO_ANCHOR_WAKE].hour = 6;
     cfg.weekday[BIO_ANCHOR_WAKE].minute = 0;
     cfg.weekday[BIO_ANCHOR_WAKE].targets[0] = 23.0f;
-    cfg.weekday[BIO_ANCHOR_WAKE].targets[1] = 22.5f;
-    cfg.weekday[BIO_ANCHOR_WAKE].targets[2] = 22.5f;
+    cfg.weekday[BIO_ANCHOR_WAKE].targets[1] = 22.0f;
+    cfg.weekday[BIO_ANCHOR_WAKE].targets[2] = 22.0f;
 
-    // Away (07:00): 21.0C, 21.0C, 21.0C
+    // Away / Plecat (07:30): 21.0C, 21.0C, 21.0C
     cfg.weekday[BIO_ANCHOR_AWAY].hour = 7;
-    cfg.weekday[BIO_ANCHOR_AWAY].minute = 0;
+    cfg.weekday[BIO_ANCHOR_AWAY].minute = 30;
     cfg.weekday[BIO_ANCHOR_AWAY].targets[0] = 21.0f;
     cfg.weekday[BIO_ANCHOR_AWAY].targets[1] = 21.0f;
     cfg.weekday[BIO_ANCHOR_AWAY].targets[2] = 21.0f;
 
-    // Home (17:00): 23.0C, 22.5C, 22.5C
+    // Home / Acasa (17:00): 23.0C, 23.0C, 22.5C
     cfg.weekday[BIO_ANCHOR_HOME].hour = 17;
     cfg.weekday[BIO_ANCHOR_HOME].minute = 0;
     cfg.weekday[BIO_ANCHOR_HOME].targets[0] = 23.0f;
-    cfg.weekday[BIO_ANCHOR_HOME].targets[1] = 22.5f;
+    cfg.weekday[BIO_ANCHOR_HOME].targets[1] = 23.0f;
     cfg.weekday[BIO_ANCHOR_HOME].targets[2] = 22.5f;
 
     // Weekend defaults (Sambata - Duminica: Standard / Confort)
@@ -525,26 +526,26 @@ BioScheduleConfig ThermalZoneManager::getFactoryDefaultSchedule() {
     cfg.weekend[BIO_ANCHOR_SLEEP].targets[1] = 22.0f;
     cfg.weekend[BIO_ANCHOR_SLEEP].targets[2] = 22.0f;
 
-    // Wake (07:00): 23.0C, 22.5C, 22.5C
+    // Wake (07:30): 23.0C, 22.0C, 22.0C
     cfg.weekend[BIO_ANCHOR_WAKE].hour = 7;
-    cfg.weekend[BIO_ANCHOR_WAKE].minute = 0;
+    cfg.weekend[BIO_ANCHOR_WAKE].minute = 30;
     cfg.weekend[BIO_ANCHOR_WAKE].targets[0] = 23.0f;
-    cfg.weekend[BIO_ANCHOR_WAKE].targets[1] = 22.5f;
-    cfg.weekend[BIO_ANCHOR_WAKE].targets[2] = 22.5f;
+    cfg.weekend[BIO_ANCHOR_WAKE].targets[1] = 22.0f;
+    cfg.weekend[BIO_ANCHOR_WAKE].targets[2] = 22.0f;
 
-    // Away (12:00): 21.0C, 21.0C, 21.0C
-    cfg.weekend[BIO_ANCHOR_AWAY].hour = 12;
-    cfg.weekend[BIO_ANCHOR_AWAY].minute = 0;
+    // Away / Plecat (07:30): 21.0C, 21.0C, 21.0C
+    cfg.weekend[BIO_ANCHOR_AWAY].hour = 7;
+    cfg.weekend[BIO_ANCHOR_AWAY].minute = 30;
     cfg.weekend[BIO_ANCHOR_AWAY].targets[0] = 21.0f;
     cfg.weekend[BIO_ANCHOR_AWAY].targets[1] = 21.0f;
     cfg.weekend[BIO_ANCHOR_AWAY].targets[2] = 21.0f;
 
-    // Home (16:00): 23.0C, 22.5C, 22.5C
+    // Home / Acasa (16:00): 23.0C, 23.0C, 23.0C
     cfg.weekend[BIO_ANCHOR_HOME].hour = 16;
     cfg.weekend[BIO_ANCHOR_HOME].minute = 0;
     cfg.weekend[BIO_ANCHOR_HOME].targets[0] = 23.0f;
-    cfg.weekend[BIO_ANCHOR_HOME].targets[1] = 22.5f;
-    cfg.weekend[BIO_ANCHOR_HOME].targets[2] = 22.5f;
+    cfg.weekend[BIO_ANCHOR_HOME].targets[1] = 23.0f;
+    cfg.weekend[BIO_ANCHOR_HOME].targets[2] = 23.0f;
 
     return cfg;
 }
@@ -582,62 +583,62 @@ BioScheduleConfig ThermalZoneManager::getFactoryWfhSchedule() {
     cfg.windowDetectionEnabled = true;
 
     // Weekday defaults (Luni - Vineri: Home Office)
-    // Sleep (22:30): 21.0C, 22.0C, 22.0C
-    cfg.weekday[BIO_ANCHOR_SLEEP].hour = 22;
-    cfg.weekday[BIO_ANCHOR_SLEEP].minute = 30;
+    // Sleep (20:00): 21.0C, 22.0C, 22.0C
+    cfg.weekday[BIO_ANCHOR_SLEEP].hour = 20;
+    cfg.weekday[BIO_ANCHOR_SLEEP].minute = 0;
     cfg.weekday[BIO_ANCHOR_SLEEP].targets[0] = 21.0f;
     cfg.weekday[BIO_ANCHOR_SLEEP].targets[1] = 22.0f;
     cfg.weekday[BIO_ANCHOR_SLEEP].targets[2] = 22.0f;
 
-    // Wake (06:30): 23.0C, 22.5C, 22.5C
+    // Wake (06:00): 23.0C, 22.0C, 22.0C
     cfg.weekday[BIO_ANCHOR_WAKE].hour = 6;
-    cfg.weekday[BIO_ANCHOR_WAKE].minute = 30;
+    cfg.weekday[BIO_ANCHOR_WAKE].minute = 0;
     cfg.weekday[BIO_ANCHOR_WAKE].targets[0] = 23.0f;
-    cfg.weekday[BIO_ANCHOR_WAKE].targets[1] = 22.5f;
-    cfg.weekday[BIO_ANCHOR_WAKE].targets[2] = 22.5f;
+    cfg.weekday[BIO_ANCHOR_WAKE].targets[1] = 22.0f;
+    cfg.weekday[BIO_ANCHOR_WAKE].targets[2] = 22.0f;
 
-    // Home Office Day (08:30): 22.5C, 23.0C, 21.0C
-    cfg.weekday[BIO_ANCHOR_AWAY].hour = 8;
+    // Home Office Day (07:30): 23.0C, 23.0C, 21.0C
+    cfg.weekday[BIO_ANCHOR_AWAY].hour = 7;
     cfg.weekday[BIO_ANCHOR_AWAY].minute = 30;
-    cfg.weekday[BIO_ANCHOR_AWAY].targets[0] = 22.5f;
+    cfg.weekday[BIO_ANCHOR_AWAY].targets[0] = 23.0f;
     cfg.weekday[BIO_ANCHOR_AWAY].targets[1] = 23.0f;
     cfg.weekday[BIO_ANCHOR_AWAY].targets[2] = 21.0f;
 
-    // Home (17:00): 23.0C, 22.5C, 22.5C
+    // Home (17:00): 23.0C, 23.0C, 22.5C
     cfg.weekday[BIO_ANCHOR_HOME].hour = 17;
     cfg.weekday[BIO_ANCHOR_HOME].minute = 0;
     cfg.weekday[BIO_ANCHOR_HOME].targets[0] = 23.0f;
-    cfg.weekday[BIO_ANCHOR_HOME].targets[1] = 22.5f;
+    cfg.weekday[BIO_ANCHOR_HOME].targets[1] = 23.0f;
     cfg.weekday[BIO_ANCHOR_HOME].targets[2] = 22.5f;
 
     // Weekend defaults (Sambata - Duminica: Home Office)
-    // Sleep (23:00): 21.0C, 22.0C, 21.5C
-    cfg.weekend[BIO_ANCHOR_SLEEP].hour = 23;
+    // Sleep (21:00): 21.0C, 22.0C, 22.0C
+    cfg.weekend[BIO_ANCHOR_SLEEP].hour = 21;
     cfg.weekend[BIO_ANCHOR_SLEEP].minute = 0;
     cfg.weekend[BIO_ANCHOR_SLEEP].targets[0] = 21.0f;
     cfg.weekend[BIO_ANCHOR_SLEEP].targets[1] = 22.0f;
-    cfg.weekend[BIO_ANCHOR_SLEEP].targets[2] = 21.5f;
+    cfg.weekend[BIO_ANCHOR_SLEEP].targets[2] = 22.0f;
 
-    // Wake (08:30): 23.0C, 22.5C, 22.5C
-    cfg.weekend[BIO_ANCHOR_WAKE].hour = 8;
+    // Wake (07:30): 23.0C, 22.0C, 22.0C
+    cfg.weekend[BIO_ANCHOR_WAKE].hour = 7;
     cfg.weekend[BIO_ANCHOR_WAKE].minute = 30;
     cfg.weekend[BIO_ANCHOR_WAKE].targets[0] = 23.0f;
-    cfg.weekend[BIO_ANCHOR_WAKE].targets[1] = 22.5f;
-    cfg.weekend[BIO_ANCHOR_WAKE].targets[2] = 22.5f;
+    cfg.weekend[BIO_ANCHOR_WAKE].targets[1] = 22.0f;
+    cfg.weekend[BIO_ANCHOR_WAKE].targets[2] = 22.0f;
 
-    // Home Office Day (12:00): 23.0C, 21.5C, 21.5C
+    // Home Office Day (12:00): 21.0C, 21.0C, 21.0C
     cfg.weekend[BIO_ANCHOR_AWAY].hour = 12;
     cfg.weekend[BIO_ANCHOR_AWAY].minute = 0;
-    cfg.weekend[BIO_ANCHOR_AWAY].targets[0] = 23.0f;
-    cfg.weekend[BIO_ANCHOR_AWAY].targets[1] = 21.5f;
-    cfg.weekend[BIO_ANCHOR_AWAY].targets[2] = 21.5f;
+    cfg.weekend[BIO_ANCHOR_AWAY].targets[0] = 21.0f;
+    cfg.weekend[BIO_ANCHOR_AWAY].targets[1] = 21.0f;
+    cfg.weekend[BIO_ANCHOR_AWAY].targets[2] = 21.0f;
 
-    // Home (16:00): 23.0C, 22.5C, 22.5C
+    // Home (16:00): 23.0C, 23.0C, 23.0C
     cfg.weekend[BIO_ANCHOR_HOME].hour = 16;
     cfg.weekend[BIO_ANCHOR_HOME].minute = 0;
     cfg.weekend[BIO_ANCHOR_HOME].targets[0] = 23.0f;
-    cfg.weekend[BIO_ANCHOR_HOME].targets[1] = 22.5f;
-    cfg.weekend[BIO_ANCHOR_HOME].targets[2] = 22.5f;
+    cfg.weekend[BIO_ANCHOR_HOME].targets[1] = 23.0f;
+    cfg.weekend[BIO_ANCHOR_HOME].targets[2] = 23.0f;
 
     return cfg;
 }
@@ -1073,15 +1074,24 @@ void ThermalZoneManager::evaluateWindowDetection(size_t index, float currentTemp
         if (_windowStates[index].baselineMs == 0 || (now - _windowStates[index].baselineMs > 300000UL)) {
             _windowStates[index].baselineTemp = currentTemp;
             _windowStates[index].baselineMs = now;
+            _windowStates[index].dropInsightLogged = false;
         } else if (currentTemp > _windowStates[index].baselineTemp) {
             _windowStates[index].baselineTemp = currentTemp;
             _windowStates[index].baselineMs = now;
+            _windowStates[index].dropInsightLogged = false;
         } else if ((_windowStates[index].baselineTemp - currentTemp) >= 1.2f) {
             _windowStates[index].pauseActive = true;
             _windowStates[index].pauseStartMs = now;
             _windowStates[index].pauseMinTemp = currentTemp;
             netConsole.printf("[Thermal][WINDOW] Open window detected on Zone %u (%s): temp dropped %.1f \xC2\xB0""C in %us! Suspending heating for 30m.\n",
                               _configs[index].id, _configs[index].name,
+                              _windowStates[index].baselineTemp - currentTemp,
+                              (now - _windowStates[index].baselineMs) / 1000);
+        } else if ((_windowStates[index].baselineTemp - currentTemp) >= 0.35f && !_windowStates[index].dropInsightLogged) {
+            _windowStates[index].dropInsightLogged = true;
+            netConsole.printf("[Thermal][INSIGHT] Rapid cooling detected on Zone %u (%s): %.2f C -> %.2f C (-%.2f C in %us, possible aeration)\n",
+                              _configs[index].id, _configs[index].name,
+                              _windowStates[index].baselineTemp, currentTemp,
                               _windowStates[index].baselineTemp - currentTemp,
                               (now - _windowStates[index].baselineMs) / 1000);
         }
@@ -1360,22 +1370,24 @@ void ThermalZoneManager::update(BoilerRadioTrigger& boiler) {
                     if (!_statuses[i].demand) {
                         if (_statuses[i].currentTemp <= (target - _configs[i].hysteresis)) {
                             _statuses[i].demand = true;
-                            netConsole.printf("[Thermal] Zone %u (%s) heat demand: %.1f C <= %.1f C (target: %.1f C%s)\n",
+                            netConsole.printf("[Thermal] Zone %u (%s) heat demand: current %.2f C <= start threshold %.2f C (target: %.1f C, hyst: +/-%.2f C%s)\n",
                                 _configs[i].id, _configs[i].name,
                                 _statuses[i].currentTemp,
                                 target - _configs[i].hysteresis,
                                 target,
+                                _configs[i].hysteresis,
                                 _scheduleConfig.enabled ? (_preHeatActive ? ", PRE-HEAT" : ", BIO") : "");
                         }
                     } else {
                         if (_statuses[i].currentTemp >= (target + _configs[i].hysteresis)) {
                             _statuses[i].demand = false;
                             _statuses[i].state = ZONE_IDLE;
-                            netConsole.printf("[Thermal] Zone %u (%s) target reached: %.1f C >= %.1f C (target: %.1f C%s)\n",
+                            netConsole.printf("[Thermal] Zone %u (%s) target reached: current %.2f C >= stop threshold %.2f C (target: %.1f C, hyst: +/-%.2f C%s)\n",
                                 _configs[i].id, _configs[i].name,
                                 _statuses[i].currentTemp,
                                 target + _configs[i].hysteresis,
                                 target,
+                                _configs[i].hysteresis,
                                 _scheduleConfig.enabled ? (_preHeatActive ? ", PRE-HEAT" : ", BIO") : "");
                         }
                     }
@@ -1520,8 +1532,14 @@ void ThermalZoneManager::update(BoilerRadioTrigger& boiler) {
             _boilerDemand = false;
             _lastBoilerOffTime = now;
             if (boiler.isLastCommandOn()) {
-                boiler.sendBoilerOff();
-                netConsole.println(F("[Thermal] BOILER STOP commanded via RF 433MHz!"));
+                if (boiler.canTransmit(false)) {
+                    if (boiler.sendBoilerOff()) {
+                        netConsole.println(F("[Thermal] BOILER STOP commanded via RF 433MHz!"));
+                    }
+                } else if (boiler.getPendingAction() != PENDING_OFF) {
+                    boiler.setPendingAction(PENDING_OFF);
+                    netConsole.println(F("[Thermal] BOILER STOP queued (Anti-short-cycling guard active)..."));
+                }
             } else if (boiler.getPendingAction() == PENDING_ON) {
                 boiler.cancelPendingAction();
             }

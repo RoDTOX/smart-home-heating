@@ -47,6 +47,7 @@ struct WindowDetectionState {
     bool pauseActive;
     uint32_t pauseStartMs;
     float pauseMinTemp;
+    bool dropInsightLogged;
 };
 
 struct ThermalZoneConfig {

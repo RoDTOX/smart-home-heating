@@ -135,6 +135,21 @@ void NetworkConsole::executeCommand(const String& cmd) {
     cleanCmd.trim();
     if (cleanCmd.length() == 0) return;
 
+    String upper = cleanCmd;
+    upper.toUpperCase();
+
+    // 1. Instant buffer wipe without re-polluting with banner headers
+    if (upper == "CLEAR" || upper == "CLS") {
+        clear();
+        return;
+    }
+
+    // 2. Direct log injection for test suites and system telemetry (no command framing)
+    if (upper.startsWith("LOG ") || upper.startsWith("MSG ") || upper.startsWith("ECHO ")) {
+        this->println(cleanCmd.substring(cleanCmd.indexOf(' ') + 1));
+        return;
+    }
+
     this->println();
     this->println(CMD_SEP);
     this->printf("[CMD] > %s\n", cleanCmd.c_str());
@@ -153,7 +168,9 @@ void NetworkConsole::executeCommand(const String& cmd) {
 void NetworkConsole::clear() {
     _head = 0;
     _count = 0;
+    _totalBytes = 0;
     _atLineStart = true;
+    memset(_logRing, 0, sizeof(_logRing));
     Serial.print("\033[2J\033[H");
     if (_telnetClient && _telnetClient.connected()) {
         _telnetClient.print("\033[2J\033[H");

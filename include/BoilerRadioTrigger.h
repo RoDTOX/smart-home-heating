@@ -40,6 +40,15 @@ public:
     void recordSpamAttempt();
     uint32_t getSpamAttemptCount() const { return _spamAttemptCount; }
 
+    // FR-18 Boiler Runtime Tracking
+    uint32_t getRuntimeTotalSec() const;
+    uint32_t getRuntimeTodaySec() const;
+    uint32_t getRuntimeYesterdaySec() const { return _runtimeYesterdaySec; }
+    uint32_t getRuntimeThisMonthSec() const;
+    uint32_t getRuntimeLastMonthSec() const { return _runtimeLastMonthSec; }
+    uint32_t getCurrentFlameDurationSec() const;
+    void updateRuntimeDayMonth(uint8_t day, uint8_t month);
+
     void saveStateToPreferences();
     void loadStateFromPreferences();
 
@@ -54,6 +63,17 @@ private:
     // Spam & abuse tracking (FR-17.5)
     uint32_t _spamAttemptCount;
     uint32_t _lastSpamAttemptMs;
+
+    // Runtime tracking (FR-18)
+    uint32_t _runtimeTotalSec;
+    uint32_t _runtimeTodaySec;
+    uint32_t _runtimeYesterdaySec;
+    uint32_t _runtimeThisMonthSec;
+    uint32_t _runtimeLastMonthSec;
+    uint32_t _flameStartTimeMs;
+    uint8_t  _lastDay;
+    uint8_t  _lastMonth;
+    uint32_t _lastNvsSaveMs;
 
     void transmitBurst(const uint16_t* durationsTable);
 };

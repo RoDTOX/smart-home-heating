@@ -102,13 +102,23 @@ BoilerRadioTrigger boilerRadio;
 BoilerRadioTrigger::BoilerRadioTrigger()
     : _dataPin(5), _lastCommandOn(false), _hasTransmittedOnce(false),
       _lastTxTime(0), _lastStateChangeTime(0), _pendingAction(PENDING_NONE),
-      _spamAttemptCount(0), _lastSpamAttemptMs(0) {
+      _spamAttemptCount(0), _lastSpamAttemptMs(0),
+      _runtimeTotalSec(0), _runtimeTodaySec(0), _runtimeYesterdaySec(0),
+      _runtimeThisMonthSec(0), _runtimeLastMonthSec(0),
+      _flameStartTimeMs(0), _lastDay(0), _lastMonth(0), _lastNvsSaveMs(0) {
 }
 
 void BoilerRadioTrigger::loadStateFromPreferences() {
     Preferences prefs;
     if (prefs.begin("boiler", true)) {
         _lastCommandOn = prefs.getBool("last_cmd", false);
+        _runtimeTotalSec = prefs.getUInt("rt_tot", 0);
+        _runtimeTodaySec = prefs.getUInt("rt_today", 0);
+        _runtimeYesterdaySec = prefs.getUInt("rt_yest", 0);
+        _runtimeThisMonthSec = prefs.getUInt("rt_mon", 0);
+        _runtimeLastMonthSec = prefs.getUInt("rt_lmon", 0);
+        _lastDay = prefs.getUChar("last_day", 0);
+        _lastMonth = prefs.getUChar("last_mon", 0);
         prefs.end();
     }
 }
@@ -120,7 +130,29 @@ void BoilerRadioTrigger::saveStateToPreferences() {
         if (oldVal != _lastCommandOn || !prefs.isKey("last_cmd")) {
             prefs.putBool("last_cmd", _lastCommandOn);
         }
+        if (prefs.getUInt("rt_tot", 0) != _runtimeTotalSec) {
+            prefs.putUInt("rt_tot", _runtimeTotalSec);
+        }
+        if (prefs.getUInt("rt_today", 0) != _runtimeTodaySec) {
+            prefs.putUInt("rt_today", _runtimeTodaySec);
+        }
+        if (prefs.getUInt("rt_yest", 0) != _runtimeYesterdaySec) {
+            prefs.putUInt("rt_yest", _runtimeYesterdaySec);
+        }
+        if (prefs.getUInt("rt_mon", 0) != _runtimeThisMonthSec) {
+            prefs.putUInt("rt_mon", _runtimeThisMonthSec);
+        }
+        if (prefs.getUInt("rt_lmon", 0) != _runtimeLastMonthSec) {
+            prefs.putUInt("rt_lmon", _runtimeLastMonthSec);
+        }
+        if (prefs.getUChar("last_day", 0) != _lastDay) {
+            prefs.putUChar("last_day", _lastDay);
+        }
+        if (prefs.getUChar("last_mon", 0) != _lastMonth) {
+            prefs.putUChar("last_mon", _lastMonth);
+        }
         prefs.end();
+        _lastNvsSaveMs = millis();
     }
 }
 
@@ -182,6 +214,16 @@ void BoilerRadioTrigger::update() {
         _lastTxTime = now;
         netConsole.printf("[RF 433MHz][HEARTBEAT] 15m safety refresh burst emitted (%s).\n",
                           _lastCommandOn ? "ON" : "OFF");
+    }
+
+    // 3. Periodic runtime accumulation & NVS checkpointing while flame is ON
+    if (_lastCommandOn && _flameStartTimeMs > 0 && (now - _lastNvsSaveMs >= 900000UL)) {
+        uint32_t burnSec = (now - _flameStartTimeMs) / 1000;
+        _runtimeTotalSec += burnSec;
+        _runtimeTodaySec += burnSec;
+        _runtimeThisMonthSec += burnSec;
+        _flameStartTimeMs = now;
+        saveStateToPreferences();
     }
 }
 
@@ -265,6 +307,7 @@ bool BoilerRadioTrigger::sendBoilerOn(bool force) {
                       _dataPin, force ? " [FORCED]" : "");
     transmitBurst(rf_on_durations);
     _lastCommandOn = true;
+    _flameStartTimeMs = millis();
     _hasTransmittedOnce = true;
     _lastTxTime = millis();
     _lastStateChangeTime = _lastTxTime;
@@ -295,6 +338,16 @@ bool BoilerRadioTrigger::sendBoilerOff(bool force) {
     netConsole.printf("[RF 433MHz] Transmitting boiler STOP [OFF] command on GPIO%d%s...\n",
                       _dataPin, force ? " [FORCED]" : "");
     transmitBurst(rf_off_durations);
+
+    if (_lastCommandOn && _flameStartTimeMs > 0) {
+        uint32_t burnSec = (millis() - _flameStartTimeMs) / 1000;
+        _runtimeTotalSec += burnSec;
+        _runtimeTodaySec += burnSec;
+        _runtimeThisMonthSec += burnSec;
+        _flameStartTimeMs = 0;
+        netConsole.printf("[Boiler][Runtime] Burn session finished (%u s). Today total: %u s (%u min).\n",
+                          burnSec, _runtimeTodaySec, _runtimeTodaySec / 60);
+    }
     _lastCommandOn = false;
     _hasTransmittedOnce = true;
     _lastTxTime = millis();
@@ -325,5 +378,49 @@ void BoilerRadioTrigger::transmitBurst(const uint16_t* durationsTable) {
 
     // 3. Postamble silence (final step is 65ms LOW)
     delay(65);
+}
+
+uint32_t BoilerRadioTrigger::getCurrentFlameDurationSec() const {
+    if (!_lastCommandOn || _flameStartTimeMs == 0) return 0;
+    return (millis() - _flameStartTimeMs) / 1000;
+}
+
+uint32_t BoilerRadioTrigger::getRuntimeTotalSec() const {
+    return _runtimeTotalSec + getCurrentFlameDurationSec();
+}
+
+uint32_t BoilerRadioTrigger::getRuntimeTodaySec() const {
+    return _runtimeTodaySec + getCurrentFlameDurationSec();
+}
+
+uint32_t BoilerRadioTrigger::getRuntimeThisMonthSec() const {
+    return _runtimeThisMonthSec + getCurrentFlameDurationSec();
+}
+
+void BoilerRadioTrigger::updateRuntimeDayMonth(uint8_t day, uint8_t month) {
+    if (day == 0 || month == 0) return;
+    if (_lastDay == 0) {
+        _lastDay = day;
+        _lastMonth = month;
+        return;
+    }
+    bool changed = false;
+    if (day != _lastDay) {
+        _runtimeYesterdaySec = _runtimeTodaySec;
+        _runtimeTodaySec = 0;
+        _lastDay = day;
+        changed = true;
+        netConsole.printf("[Boiler][Runtime] Rollover to new day %u. Yesterday runtime: %u s.\n", day, _runtimeYesterdaySec);
+    }
+    if (month != _lastMonth) {
+        _runtimeLastMonthSec = _runtimeThisMonthSec;
+        _runtimeThisMonthSec = 0;
+        _lastMonth = month;
+        changed = true;
+        netConsole.printf("[Boiler][Runtime] Rollover to new month %u. Last month runtime: %u s.\n", month, _runtimeLastMonthSec);
+    }
+    if (changed) {
+        saveStateToPreferences();
+    }
 }
 

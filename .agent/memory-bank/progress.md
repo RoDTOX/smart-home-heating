@@ -3,6 +3,46 @@
 ## Status
 All core functional subsystems (heating hysteresis engine, boiler RF trigger, native BLE passive scanner, 2-way console, web OTA, diagnostic engine with DTCs, service mode, digital passport, NTP & weather sync, headless API-first architecture, hydronic safety controls, anti-spam burner interlocks, Bio-Schedule with presets engine & full factory/user customization, deferred action cooldown cancel, and atomic PC system test suite with bidirectional traceability matrix) are fully implemented, compiled, uploaded, and verified live on ESP32 (`192.168.1.20`) with 100% ASPICE SWE.5 pass rate (68/68 PASS, 33/33 requirements covered, 0 uncovered).
 
+## Completed Work (2026-10-15 - Fix Spam Buclă Oprire Cazan, Unificare Carduri Zone/Senzori, Notificări Teste & Fix Consolă CLEAR)
+- **Notificare Start & Finalizare Suită de Teste pe Consola Virtuală ESP32:**
+  - În `tools/test_system.py`, s-a adăugat `notify_esp_console()` care transmite automat bannere de informare pe `/api/console/send`: `[TEST-SUITE] ⚠️ ASPICE SWE.5 AUTOMATED TEST SUITE STARTED` la start și `[TEST-SUITE] 🏁 ASPICE SWE.5 AUTOMATED TEST SUITE FINALIZAT (68/68 PASS)` la final, asigurând operatorul că modificările de parametri din loguri sunt emise de testele automate și că starea a fost restaurată la normal.
+  - În `web/console.html`, eticheta `[TEST-SUITE]` beneficiază de stil dedicat `.t-tst` (badge galben/chihlimbar luminos).
+- **Remediere Comandă CLEAR / CLS pe Consola Virtuală:**
+  - În `src/NetworkConsole.cpp`, metoda `clear()` resetează acum complet `_totalBytes = 0`, `_head = 0`, `_count = 0` și golește ring buffer-ul cu `memset`. Comanda `CLEAR` / `CLS` este interceptată în `executeCommand()` pentru a nu mai re-inunda bufferul cu delimitatori de sfârșit.
+  - În `web/console.html`, tastarea `CLEAR` sau acționarea butonului `CLEAR` curăță instantaneu DOM-ul (`term.innerHTML = ''`), resetează `lastSeq = 0` și instruiește serverul să șteargă bufferul circular.
+- **Eliminare Spam Buclă Oprire Cazan (Fix DTC-201):**
+  - În `ThermalZoneManager::update()`, s-a adăugat verificarea `boiler.canTransmit(false)`. Dacă garda anti-short-cycling (60s) este activă, se programează `PENDING_OFF` o singură dată în coada RF cu log-ul `[Thermal] BOILER STOP queued (Anti-short-cycling guard active)...`. În secundele următoare nu se mai apelează `sendBoilerOff()`, prevenind declanșarea erorii `DTC-201` și eliminând complet inundarea consolei. La expirarea gărzii, `BoilerRadioTrigger::update()` execută automat și silențios pachetul RF de oprire.
+- **Unificare Coloana 2 & Eliminare Card Duplicat:**
+  - Eliminat cardul redundant de sus `Zone Termice (Pardoseală)`. Integrat totul într-un singur card compact `#card-zones-sensors`.
+  - Temperatură reală evidențiată cu font bold și grafic sparkline vectorial.
+  - Setpoint subordonat (slave) cu steppere slim compacte și etichetă discretă `țintă`.
+  - Mini-badge de status hidraulic cu tooltip informativ complet la hover.
+  - Buton discret de oprire/pornire cameră (`⏻`) cu tooltip dedicat.
+- **Editor Matriceal Circadian Integrat Direct (Fără Popup Modal, 100% Separat L-V vs S-D):**
+  - Tabel matricial 4 ancore &times; 3 zone integrat direct în `#box-advanced-editor`.
+  - Tab-urile `[L–V (Săptămână)]` și `[S–D (Weekend)]` permit setarea de temperaturi complet independente (ex. Acasă Z3 la 22.5°C pe L–V vs 23.0°C pe S–D), cu buton util `📋 Copiază L-V → S-D` doar la cerere.
+  - Auto-salvare non-blocantă cu debounce de 700ms direct în memoria Flash NVS a controllerului.
+- **Validare ASPICE SWE.5 & Calitate:**
+  - Compilare PlatformIO curată (RAM 19.9%, Flash 62.2%, 100% SUCCESS).
+  - Suita de teste automată `tools/test_system.py` cu 68/68 PASS (100.0%) în 24.38s pe toate cele 33 de cerințe.
+
+## Completed Work (2026-10-15 - Sincronizare Live Orar Circadian, Preseturi Calibrate din Fabrică & Tracking Runtime Cazan)
+- **Sincronizare Automată în Timp Real Orar Circadian (Zero Refresh Manual):**
+  - Cardul erou circadian (`renderActiveAnchorHero`) și bannerul numărătorii inverse (`updateNextAnchorCountdown`) se actualizează acum instantaneu la fiecare 3.5s din `/api/status` fără a mai necesita reîncărcarea paginii cu F5.
+- **Calibrare Preseturi din Fabrică (L-V & S-D):**
+  - Valorile implicite din `ThermalZoneManager.cpp` au fost aliniate 100% cu orele și temperaturile reale din cele 4 capturi ale utilizatorului (`Standard / Confort` și `Home Office`).
+- **Redesign Panou Preseturi & Editor Matriceal:**
+  - Ascunse sloturile libere nepopulate. Adăugată bară dedicată de acțiuni: `➕ Adaugă Slot`, `💾 Salvează`, `↺ Anulează (Discard)`, `✏️ Redenumește`, `🗑️ Șterge`.
+  - Butonul de matrice a fost reproiectat într-un stil compact și discret, iar modalul matriceal conține coloane paralele `Oră L–V` și `Oră S–D` cu buton de clonare rapidă `📋 Copiază L-V în S-D`.
+- **Jurnalizare & Insight-uri Termice în Consolă:**
+  - Formatat log-ul de pornire cazan cu 2 zecimale exacte (`current 22.21 C <= start threshold 22.20 C`) eliminând confuzia de rotunjire `22.2 <= 22.2`.
+  - Adăugat log automat în consolă la detecția unei răciri bruște: `[Thermal][INSIGHT] Rapid cooling detected on Zone X: ... possible aeration`.
+- **Tracking Timp Funcționare Cazan (Runtime) & Estimare Factură Gaz:**
+  - Contor hardware de flacără în `BoilerRadioTrigger` salvat în NVS cu wear-leveling (astăzi, ieri, total). Card dedicat în UI cu estimare consum gaz bazată pe factura reală de iarnă (dialog `⚙️ Factură / Cost`).
+- **Validare ASPICE SWE.5 & Calitate:**
+  - Compilare PlatformIO curată (RAM 19.9%, Flash 62.1%, 100% SUCCESS).
+  - Suita de teste automată `tools/test_system.py` cu 68/68 PASS (100.0%) în 23.82s pe toate cerințele.
+
 ## Completed Work (2026-10-15 - Igienizare Memorie Heap C++, Curățare Frontend & Decuplare Dev Server)
 - **Igienizare Memorie Heap C++ (Zero Fragmentare pe ESP32):**
   - Implementat pre-alocare de buffer `json.reserve(...)` / `out.reserve(...)` în toate serializatoarele mari REST API din `main.cpp`, `ThermalZoneManager.cpp`, `DiagnosticEngine.cpp`, `TimeAndWeatherService.cpp`, `DevicePassport.cpp`.

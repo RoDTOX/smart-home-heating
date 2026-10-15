@@ -51,6 +51,7 @@ Pentru a asigura tranziția de la un sistem home-made la un **produs comercial s
 * **Expert UI/UX (Design & Visuals):** Interfață modernă, estetică premium (stil Tesla HVAC / Apple Home), micro-animații fluide, mod noapte/zi, lizibilitate Kiosk de la 2 metri.
 * **Expert User Tester & End-User Tester:** Testare dinamică în condiții reale de viață (temperaturi resimțite de familie, feedback copii/soție, testare la limită).
 * **Process ISO/CEE & Safety/Cybersecurity Expert:** Conformitate marcaj CE (compatibilitate electromagnetică EMC, directiva joasă tensiune LVD), standarde termostate (EN 60730), izolare socket-uri și securitate BLE/Wi-Fi.
+* **Documentation & Process Assurance Expert:** Păstrarea documentației tehnice „in-check” (cerințe funcționale FR/NFR, matrice de trasabilitate bidirecțională, arhitectură hibridă MD/HTML, disciplină anti-drift între codul C++, testele automate și specificații conform standardului ASPICE).
 * **Scaling Expert:** Arhitectură pregătită pentru saltul **10 $\rightarrow$ 100 $\rightarrow$ 1.000 $\rightarrow$ 10.000 utilizatori** (management de flotă, update-uri OTA sigure, agregare telemetrie în cloud Grafana/InfluxDB, multi-tenancy).
 * **Expert Sales & Expert Marketing:** Prezentare atractivă către clienți, Digital Twin 3D / scanare apartament, propunere de valoare centrată pe economie la factura de gaz și confort maxim.
 

@@ -539,7 +539,90 @@
       justify-content: space-between;
       align-items: center;
     }
-    .zone-temp { font-size: 1.45rem; font-weight: 800; color: var(--primary); letter-spacing: -0.5px; }
+    .zone-temp { font-size: 1.45rem; font-weight: 800; color: var(--primary); letter-spacing: -0.5px; display: inline-flex; align-items: center; }
+    .sparkline-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 2px 6px 2px 4px;
+      border-radius: 7px;
+      margin-left: 8px;
+      vertical-align: middle;
+      transition: all 0.2s ease;
+      user-select: none;
+      cursor: help;
+    }
+    .sparkline-badge.trend-up {
+      background: rgba(249, 115, 22, 0.12);
+      border: 1px solid rgba(249, 115, 22, 0.35);
+      color: #fb923c;
+    }
+    .sparkline-badge.trend-down {
+      background: rgba(56, 189, 248, 0.12);
+      border: 1px solid rgba(56, 189, 248, 0.35);
+      color: #38bdf8;
+    }
+    .sparkline-badge.trend-steady {
+      background: rgba(148, 163, 184, 0.10);
+      border: 1px solid rgba(148, 163, 184, 0.22);
+      color: #94a3b8;
+    }
+    .sparkline-badge.compact {
+      gap: 3px;
+      padding: 1px 4px 1px 3px;
+      margin-left: 6px;
+    }
+    .sparkline-svg {
+      display: block;
+      overflow: visible;
+      flex-shrink: 0;
+    }
+    .sparkline-meta {
+      display: flex;
+      flex-direction: column;
+      line-height: 1.05;
+      text-align: right;
+    }
+    .spark-delta {
+      font-size: 0.72rem;
+      font-weight: 800;
+      letter-spacing: -0.2px;
+      white-space: nowrap;
+    }
+    .spark-horizon {
+      font-size: 0.58rem;
+      font-weight: 700;
+      opacity: 0.75;
+      text-transform: uppercase;
+      white-space: nowrap;
+    }
+    .temp-trend {
+      display: inline-flex;
+      align-items: center;
+      gap: 3px;
+      font-size: 0.72rem;
+      font-weight: 800;
+      padding: 2px 6px;
+      border-radius: 6px;
+      margin-left: 6px;
+      letter-spacing: normal;
+      line-height: 1.2;
+    }
+    .temp-trend.trend-up {
+      color: #fb923c;
+      background: rgba(249, 115, 22, 0.15);
+      border: 1px solid rgba(249, 115, 22, 0.35);
+    }
+    .temp-trend.trend-down {
+      color: #38bdf8;
+      background: rgba(56, 189, 248, 0.15);
+      border: 1px solid rgba(56, 189, 248, 0.35);
+    }
+    .temp-trend.trend-steady {
+      color: #94a3b8;
+      background: rgba(148, 163, 184, 0.12);
+      border: 1px solid rgba(148, 163, 184, 0.22);
+    }
     .zone-ctrl { display: flex; align-items: center; gap: 6px; }
     .temp-btn {
       background: #1e293b;
@@ -605,17 +688,66 @@
       justify-content: space-between;
       align-items: center;
       background: #0f172a;
-      padding: 9px 12px;
+      padding: 10px 14px;
       border-radius: 10px;
       border: 1px solid rgba(255, 255, 255, 0.05);
       font-size: 0.82rem;
     }
-    .sensor-left { display: flex; flex-direction: column; gap: 2px; }
-    .sensor-name { font-weight: 700; color: #f1f5f9; }
+    .sensor-left {
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+      min-width: 140px;
+    }
+    .sensor-title-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .sensor-signal-dot {
+      width: 9px;
+      height: 9px;
+      border-radius: 50%;
+      flex-shrink: 0;
+      box-shadow: 0 0 6px currentColor;
+      cursor: help;
+    }
+    .sensor-signal-dot.badge-excellent { background: #34d399; color: rgba(52, 211, 153, 0.6); }
+    .sensor-signal-dot.badge-good { background: #38bdf8; color: rgba(56, 189, 248, 0.6); }
+    .sensor-signal-dot.badge-marginal { background: #fbbf24; color: rgba(251, 191, 36, 0.6); }
+    .sensor-signal-dot.badge-poor { background: #fb7185; color: rgba(251, 113, 133, 0.6); }
+    .sensor-name {
+      font-weight: 700;
+      color: #f1f5f9;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      cursor: pointer;
+      transition: color 0.15s;
+    }
+    .sensor-name:hover { color: var(--primary); }
+    .sensor-edit-icon { font-size: 0.68rem; opacity: 0.45; transition: opacity 0.15s; }
+    .sensor-name:hover .sensor-edit-icon { opacity: 1; }
     .sensor-mac { font-size: 0.68rem; color: #94a3b8; }
-    .sensor-right { display: flex; align-items: center; gap: 10px; }
+    .sensor-right {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      justify-content: flex-end;
+    }
+    .sensor-temp-col {
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      min-width: 155px;
+    }
     .sensor-temp { font-weight: 800; color: var(--primary); font-size: 1rem; }
-    .sensor-hum { color: #94a3b8; font-size: 0.75rem; }
+    .sensor-hum-col {
+      color: #94a3b8;
+      font-size: 0.75rem;
+      min-width: 82px;
+      text-align: right;
+    }
     .sensor-badge {
       font-size: 0.65rem;
       font-weight: 700;
@@ -628,6 +760,131 @@
     .badge-good { background: rgba(56, 189, 248, 0.15); color: #38bdf8; }
     .badge-marginal { background: rgba(245, 158, 11, 0.15); color: #fbbf24; }
     .badge-poor { background: rgba(244, 63, 94, 0.15); color: #fb7185; }
+
+    .zone-power-btn {
+      width: 22px;
+      height: 22px;
+      border-radius: 5px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.72rem;
+      cursor: pointer;
+      border: 1px solid #334155;
+      background: #1e293b;
+      color: #94a3b8;
+      transition: all 0.15s ease;
+      padding: 0;
+      line-height: 1;
+      margin-left: 2px;
+    }
+    .zone-power-btn.on {
+      color: #34d399;
+      border-color: rgba(52, 211, 153, 0.3);
+    }
+    .zone-power-btn.on:hover {
+      background: rgba(239, 68, 68, 0.2);
+      border-color: #ef4444;
+      color: #fca5a5;
+    }
+    .zone-power-btn.off {
+      color: #f87171;
+      background: rgba(239, 68, 68, 0.15);
+      border-color: rgba(239, 68, 68, 0.3);
+    }
+    .zone-power-btn.off:hover {
+      background: rgba(52, 211, 153, 0.2);
+      border-color: #10b981;
+      color: #34d399;
+    }
+    .zone-status-mini {
+      font-size: 0.67rem;
+      font-weight: 700;
+      padding: 2px 6px;
+      border-radius: 5px;
+      display: inline-flex;
+      align-items: center;
+      gap: 3px;
+      cursor: help;
+      white-space: nowrap;
+      border: 1px solid transparent;
+    }
+    .zone-status-mini.st-heating {
+      background: rgba(239, 68, 68, 0.15);
+      border-color: rgba(239, 68, 68, 0.3);
+      color: #f87171;
+    }
+    .zone-status-mini.st-idle {
+      background: rgba(52, 211, 153, 0.1);
+      border-color: rgba(52, 211, 153, 0.25);
+      color: #34d399;
+    }
+    .zone-status-mini.st-warming {
+      background: rgba(245, 158, 11, 0.15);
+      border-color: rgba(245, 158, 11, 0.3);
+      color: #fbbf24;
+    }
+    .zone-status-mini.st-paused {
+      background: rgba(251, 113, 133, 0.15);
+      border-color: rgba(251, 113, 133, 0.3);
+      color: #fb7185;
+    }
+    .zone-status-mini.st-frost {
+      background: rgba(56, 189, 248, 0.15);
+      border-color: rgba(56, 189, 248, 0.3);
+      color: #38bdf8;
+    }
+    .zone-status-mini.st-disabled {
+      background: #1e293b;
+      border-color: #334155;
+      color: #64748b;
+    }
+    .setpoint-slave-stepper {
+      display: inline-flex;
+      align-items: center;
+      gap: 3px;
+      background: #070c18;
+      border: 1px solid #1e293b;
+      border-radius: 6px;
+      padding: 1px 4px;
+    }
+    .setpoint-slave-label {
+      font-size: 0.62rem;
+      color: #64748b;
+      font-weight: 600;
+      margin-right: 2px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    .step-btn-slim {
+      width: 18px;
+      height: 18px;
+      background: #1e293b;
+      border: 1px solid #334155;
+      color: #94a3b8;
+      border-radius: 4px;
+      font-size: 0.76rem;
+      font-weight: 700;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0;
+      line-height: 1;
+      transition: all 0.1s;
+    }
+    .step-btn-slim:hover {
+      background: #334155;
+      color: #f1f5f9;
+      border-color: #0369a1;
+    }
+    .setpoint-val-slave {
+      font-size: 0.76rem;
+      font-weight: 600;
+      color: #cbd5e1;
+      min-width: 32px;
+      text-align: center;
+    }
 
     /* Meta Diagnostics */
     .meta-grid {
@@ -1011,23 +1268,50 @@
     .btn-matrix-row-save.saved { background: rgba(16, 185, 129, 0.2); border-color: #10b981; color: #34d399; }
     .btn-matrix-open {
       width: 100%;
-      background: linear-gradient(135deg, #0369a1, #075985);
-      border: 1px solid #38bdf8;
-      color: #fff;
-      font-weight: 800;
-      padding: 10px 14px;
-      border-radius: 10px;
-      font-size: 0.82rem;
+      background: #1e293b;
+      border: 1px solid #334155;
+      color: #94a3b8;
+      font-weight: 700;
+      padding: 6px 12px;
+      border-radius: 8px;
+      font-size: 0.76rem;
       cursor: pointer;
       display: flex;
       align-items: center;
       justify-content: center;
-      gap: 8px;
+      gap: 6px;
       margin-bottom: 8px;
       transition: all 0.2s;
-      box-shadow: 0 4px 12px rgba(2, 132, 199, 0.3);
     }
-    .btn-matrix-open:hover { filter: brightness(1.1); transform: translateY(-1px); }
+    .btn-matrix-open:hover {
+      background: #334155;
+      border-color: #475569;
+      color: #f1f5f9;
+    }
+    .btn-preset-action {
+      background: #1e293b;
+      border: 1px solid #334155;
+      color: #cbd5e1;
+      font-size: 0.72rem;
+      font-weight: 700;
+      padding: 4px 9px;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: all 0.15s ease;
+    }
+    .btn-preset-action:hover {
+      background: #334155;
+      color: #fff;
+      border-color: #475569;
+    }
+    .btn-preset-danger {
+      color: #f87171;
+    }
+    .btn-preset-danger:hover {
+      background: rgba(239, 68, 68, 0.2);
+      border-color: #ef4444;
+      color: #fca5a5;
+    }
     .next-anchor-box {
       margin-top: 8px;
       padding: 8px 12px;
@@ -1155,6 +1439,32 @@
           <span>Pompă Recirculare GPA: <b id="m-pump" style="color:#e2e8f0;">--</b></span>
           <span>Interblocare Anti-Spam: <b id="boiler-cooldown-tag" style="color:#34d399;">Gata (Ready)</b></span>
         </div>
+
+        <!-- Boiler Runtime & Gas Telemetry (FR-18) -->
+        <div id="box-boiler-runtime" style="margin-top:10px;padding:10px;background:#070c18;border-radius:10px;border:1px solid #1e293b;font-size:0.75rem;">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+            <span style="font-weight:800;color:#f8fafc;display:flex;align-items:center;gap:6px;">🔥 Timp Funcționare Flacără</span>
+            <span id="rt-session-badge" style="font-size:0.68rem;padding:2px 6px;border-radius:4px;background:#1e293b;color:#94a3b8;">Standby</span>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;text-align:center;">
+            <div style="background:#0f172a;padding:6px;border-radius:6px;border:1px solid rgba(255,255,255,0.04);">
+              <div style="font-size:0.68rem;color:#94a3b8;">Azi</div>
+              <div id="rt-today" style="font-weight:800;color:#38bdf8;">0m</div>
+            </div>
+            <div style="background:#0f172a;padding:6px;border-radius:6px;border:1px solid rgba(255,255,255,0.04);">
+              <div style="font-size:0.68rem;color:#94a3b8;">Ieri</div>
+              <div id="rt-yesterday" style="font-weight:800;color:#cbd5e1;">0m</div>
+            </div>
+            <div style="background:#0f172a;padding:6px;border-radius:6px;border:1px solid rgba(255,255,255,0.04);">
+              <div style="font-size:0.68rem;color:#94a3b8;">Total Instalare</div>
+              <div id="rt-total" style="font-weight:800;color:#34d399;">0h</div>
+            </div>
+          </div>
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-top:8px;padding-top:6px;border-top:1px solid rgba(255,255,255,0.05);color:#94a3b8;font-size:0.7rem;">
+            <span>Estimare Gaz Azi: <b id="rt-gas-est" style="color:#fcd34d;">~0.0 m³ (~0.0 lei)</b></span>
+            <button class="btn-preset-action" style="padding:2px 7px;font-size:0.67rem;" onclick="promptGasSettings()">⚙️ Factură / Cost</button>
+          </div>
+        </div>
       </div>
 
       <!-- SMART BIO-SCHEDULE & PRESETS CARD -->
@@ -1230,65 +1540,80 @@
             <div class="preset-chip active" onclick="applyPreset('default')">&#127981; Standard</div>
             <div class="preset-chip" onclick="applyPreset('eco')">&#127811; Eco (18&deg;)</div>
             <div class="preset-chip" onclick="applyPreset('wfh')">&#128188; WFH (22.5&deg;)</div>
-            <div class="preset-chip" onclick="applyPreset('custom1')" id="chip-custom1">&#128190; Slot 1</div>
-            <div class="preset-chip" onclick="applyPreset('custom2')" id="chip-custom2">&#128190; Slot 2</div>
           </div>
 
-          <div class="preset-actions" id="box-presets-actions" style="display:none;">
-            <button class="btn-small" onclick="openSavePresetModal()">&#128190; Salvează în Slot Custom</button>
-            <button class="btn-small" onclick="resetSchedule()">&#128260; Reset la Fabrică</button>
+          <div class="preset-actions-bar" id="box-presets-actions" style="display:flex;flex-wrap:wrap;gap:6px;margin-top:8px;">
+            <button class="btn-preset-action" id="btn-preset-add" onclick="addNewCustomPreset()">➕ Adaugă Slot</button>
+            <button class="btn-preset-action" id="btn-preset-save" onclick="saveCurrentPresetChanges()">💾 Salvează</button>
+            <button class="btn-preset-action" id="btn-preset-discard" onclick="discardPresetChanges()">↺ Anulează</button>
+            <button class="btn-preset-action" id="btn-preset-rename" onclick="renameCurrentPreset()">✏️ Redenumește</button>
+            <button class="btn-preset-action btn-preset-danger" id="btn-preset-delete" onclick="deleteCurrentPreset()">🗑️ Șterge</button>
           </div>
         </div>
 
-        <!-- Compact Schedule Editor / Matrix Trigger (visible ONLY in Advanced) -->
+        <!-- Direct Schedule Editor Table (visible ONLY in Advanced) -->
         <div class="editor-card" id="box-advanced-editor" style="display:none;">
-          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;flex-wrap:wrap;gap:6px;">
             <span style="font-size:0.78rem;font-weight:800;color:#cbd5e1;">CONFIGURARE ORAR CIRCADIAN:</span>
-            <div class="profile-tabs" style="margin-bottom:0;">
-              <button class="tab-btn active" id="tab-weekday" onclick="setEditorProfile('weekday')">L–V (Săptămână)</button>
-              <button class="tab-btn" id="tab-weekend" onclick="setEditorProfile('weekend')">S–D (Weekend)</button>
+            <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
+              <div class="profile-tabs" style="margin-bottom:0;">
+                <button class="tab-btn active" id="tab-weekday" onclick="setEditorProfile('weekday')">L–V (Săptămână)</button>
+                <button class="tab-btn" id="tab-weekend" onclick="setEditorProfile('weekend')">S–D (Weekend)</button>
+              </div>
+              <button class="btn-preset-action" onclick="copyWeekdayToWeekend()" title="Copiază orarul complet L-V în S-D (Weekend)" style="padding:4px 8px;font-size:0.7rem;">📋 Copiază L-V &rarr; S-D</button>
             </div>
           </div>
 
-          <button class="btn-matrix-open" onclick="openScheduleMatrixModal()">
-            <span>📅</span> Editează Orar & Ancore (Matrice 4×3)
-          </button>
-
-          <!-- Quick Anchor Badges Summary -->
-          <div id="anchors-quick-summary" style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:4px;">
-            <!-- Rendered by JS -->
+          <!-- Direct Inline Matrix Table for the active profile (L-V or S-D) -->
+          <div style="overflow-x:auto;">
+            <table class="matrix-table" style="width:100%;font-size:0.78rem;">
+              <thead>
+                <tr>
+                  <th style="padding:6px 8px;font-size:0.72rem;">Ancoră</th>
+                  <th style="padding:6px 8px;font-size:0.72rem;">Oră</th>
+                  <th style="padding:6px 8px;font-size:0.72rem;">Living (Z1)</th>
+                  <th style="padding:6px 8px;font-size:0.72rem;">Copil (Z2)</th>
+                  <th style="padding:6px 8px;font-size:0.72rem;">Matrimonial (Z3)</th>
+                </tr>
+              </thead>
+              <tbody id="anchors-table-tbody">
+                <!-- Rendered dynamically by JS for the active profile -->
+              </tbody>
+            </table>
           </div>
 
-          <!-- Hidden legacy container to prevent query errors -->
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-top:8px;font-size:0.7rem;color:#94a3b8;">
+            <span>* Modificările pe <b id="active-profile-label" style="color:#38bdf8;">L–V</b> sunt independente de Weekend și se salvează automat în Flash.</span>
+            <span id="matrix-save-indicator" style="color:#34d399;display:none;font-weight:700;">✓ Salvat în NVS</span>
+          </div>
+
+          <!-- Preserved legacy containers to prevent query errors -->
+          <div id="anchors-quick-summary" style="display:none;"></div>
           <div class="anchors-grid" id="anchors-editor-grid" style="display:none;"></div>
         </div>
 
       </div>
     </div>
 
-    <!-- COLUMN 2: THERMAL ZONES & BLE TELEMETRY -->
+    <!-- COLUMN 2: UNIFIED THERMAL ZONES & BLE SENSORS -->
     <div id="col-main-2" style="display:flex;flex-direction:column;gap:16px;">
       
-      <!-- ZONES CARD -->
-      <div class="card">
+      <!-- UNIFIED ZONES & SENSORS CARD -->
+      <div class="card" id="card-zones-sensors">
         <div class="sec-head">
-          <h2>&#129521; Zone Termice (Pardoseală)</h2>
-          <span class="sub-tag" id="tag-zones-demand">Cerere Totală: 0 Zone</span>
+          <h2>&#129521; Zone Termice &amp; Senzori BLE</h2>
+          <div style="display:flex;align-items:center;gap:8px;">
+            <span class="sub-tag" id="tag-zones-demand">Cerere: 0/3 Bucle Active</span>
+            <span class="sub-tag" style="color:#34d399;">&bull; NimBLE 90% Scan</span>
+          </div>
         </div>
-        <div id="zones-list">
-          <div style="text-align:center;color:#94a3b8;padding:20px;">Se încarcă circuitele de încălzire...</div>
-        </div>
-      </div>
 
-      <!-- BLE SENSORS CARD -->
-      <div class="card">
-        <div class="sec-head">
-          <h2>&#128225; Telemetrie Senzori Xiaomi BLE</h2>
-          <span class="sub-tag" style="color:#34d399;">&bull; NimBLE 90% Scan</span>
+        <div class="sensor-grid" id="zones-list">
+          <div class="sensor-row"><span style="color:#94a3b8;">Se încarcă circuitele de încălzire...</span></div>
         </div>
-        <div class="sensor-grid" id="sensors-list">
-          <div class="sensor-row"><span style="color:#94a3b8;">Se scanează spectrul Bluetooth...</span></div>
-        </div>
+
+        <!-- Hidden container for legacy selector compatibility -->
+        <div id="sensors-list" style="display:none;"></div>
 
         <!-- Meta Telemetry Grid -->
         <div class="meta-grid">
@@ -1779,54 +2104,7 @@
 
   </main>
 
-  <!-- MODAL SCHEDULE MATRIX (4 ANCORE x 3 ZONE) -->
-  <div class="modal-backdrop" id="modal-schedule-matrix" style="display:none;">
-    <div class="modal-box matrix-modal-box">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;border-bottom:1px solid #334155;padding-bottom:10px;">
-        <div style="display:flex;align-items:center;gap:8px;">
-          <span style="font-size:1.25rem;">📅</span>
-          <div>
-            <div class="modal-title" style="margin-bottom:2px;">Matrice Orar Circadian & Temperaturi Țintă</div>
-            <div style="font-size:0.72rem;color:#94a3b8;">4 Ancore Circadiene &times; 3 Zone Termice (Living, Copil, Matrimonial)</div>
-          </div>
-        </div>
-        <button class="modal-close-btn" aria-label="Închide matricea de orar" title="Închide matricea de orar" onclick="closeScheduleMatrixModal()">✕</button>
-      </div>
 
-      <!-- Profile switch inside modal -->
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
-        <div class="profile-tabs" style="margin-bottom:0;width:auto;">
-          <button class="tab-btn active" id="mtab-weekday" onclick="setEditorProfile('weekday')">L–V (Săptămână)</button>
-          <button class="tab-btn" id="mtab-weekend" onclick="setEditorProfile('weekend')">S–D (Weekend)</button>
-        </div>
-        <span id="matrix-save-indicator" style="font-size:0.74rem;color:#34d399;display:none;font-weight:700;">✓ Salvat în NVS</span>
-      </div>
-
-      <!-- Matrix Table Container -->
-      <div style="overflow-x:auto;">
-        <table class="matrix-table">
-          <thead>
-            <tr>
-              <th>Ancoră</th>
-              <th>Oră (24h)</th>
-              <th>Z1 Living</th>
-              <th>Z2 Copil</th>
-              <th>Z3 Matrimonial</th>
-              <th style="text-align:center;">Salvare</th>
-            </tr>
-          </thead>
-          <tbody id="matrix-tbody">
-            <!-- Populated by JS -->
-          </tbody>
-        </table>
-      </div>
-
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-top:14px;padding-top:10px;border-top:1px solid #334155;">
-        <span style="font-size:0.72rem;color:#94a3b8;">* Modificările se salvează direct în memoria Flash NVS a controllerului.</span>
-        <button class="btn-small" onclick="closeScheduleMatrixModal()" style="background:#0369a1;color:#fff;padding:8px 16px;">Închide</button>
-      </div>
-    </div>
-  </div>
 
   <!-- MODAL SAVE CUSTOM PRESET -->
   <div class="modal-backdrop" id="modal-save-preset">
@@ -1898,6 +2176,230 @@
       if (window.caches) {
         caches.keys().then(keys => keys.forEach(k => caches.delete(k))).catch(() => {});
       }
+    }
+
+    // Temperature History & Trend Engine (LocalStorage Cached, Max 3h Window)
+    const TEMP_HISTORY_KEY = 'smart_heating_temp_history_v1';
+    let tempHistoryCache = null;
+
+    function loadTempHistory() {
+      if (tempHistoryCache) return tempHistoryCache;
+      try {
+        const raw = localStorage.getItem(TEMP_HISTORY_KEY);
+        tempHistoryCache = raw ? JSON.parse(raw) : {};
+      } catch (e) {
+        tempHistoryCache = {};
+      }
+      return tempHistoryCache || {};
+    }
+
+    function saveTempHistory(hist) {
+      tempHistoryCache = hist;
+      try {
+        localStorage.setItem(TEMP_HISTORY_KEY, JSON.stringify(hist));
+      } catch (e) {}
+    }
+
+    // Canonical Sensor Key Resolver - unites zone and sensor sample histories into a single shared timeline!
+    function getCanonicalTempKey(target, optMac = null) {
+      if (optMac && optMac.length >= 10) return 'sensor_' + optMac.toUpperCase().replace(/[^A-Z0-9]/g, '');
+      if (typeof target === 'string') {
+        if (target.includes(':')) return 'sensor_' + target.toUpperCase().replace(/[^A-Z0-9]/g, '');
+        const clean = target.toLowerCase();
+        if (clean.includes('living')) return 'sensor_A4C138A4C1DD';
+        if (clean.includes('copil') || clean.includes('kids')) return 'sensor_A4C13884A1E8';
+        if (clean.includes('matrimonial') || clean.includes('bath') || clean.includes('baie')) return 'sensor_A4C138940F44';
+      }
+      return 'zone_' + target;
+    }
+
+    // Custom Sensor Nicknames / Renaming Engine
+    function getSensorDisplayName(s) {
+      try {
+        const customAliases = JSON.parse(localStorage.getItem('smart_heating_sensor_aliases_v1') || '{}');
+        if (customAliases[s.mac]) return customAliases[s.mac];
+      } catch (e) {}
+      if (s.mac === 'A4:C1:38:94:0F:44') return 'Dormitor Matrimonial';
+      return s.name || s.mac;
+    }
+
+    function promptRenameSensor(mac, currentName) {
+      const newName = prompt(`Redenumire senzor BLE (${mac}):`, currentName);
+      if (newName === null) return;
+      try {
+        const customAliases = JSON.parse(localStorage.getItem('smart_heating_sensor_aliases_v1') || '{}');
+        if (newName.trim() === '') {
+          delete customAliases[mac];
+        } else {
+          customAliases[mac] = newName.trim();
+        }
+        localStorage.setItem('smart_heating_sensor_aliases_v1', JSON.stringify(customAliases));
+      } catch (e) {}
+      refresh();
+    }
+
+    function recordTempSample(key, currentTemp) {
+      if (typeof currentTemp !== 'number' || isNaN(currentTemp) || currentTemp < -50 || currentTemp > 60) return;
+      const hist = loadTempHistory();
+      if (!hist[key]) hist[key] = [];
+      const now = Date.now();
+      const list = hist[key];
+
+      // Prune samples older than 3 hours (10,800,000 ms)
+      const cutoff = now - 10800000;
+      hist[key] = list.filter(item => item.time >= cutoff);
+
+      const last = hist[key].length > 0 ? hist[key][hist[key].length - 1] : null;
+      if (!last || (now - last.time >= 120000) || Math.abs(currentTemp - last.temp) >= 0.15) {
+        hist[key].push({ time: now, temp: currentTemp });
+        if (hist[key].length > 40) {
+          hist[key].splice(0, hist[key].length - 40);
+        }
+        saveTempHistory(hist);
+      }
+    }
+
+    function getTempSparkline(key, currentTemp, width = 64, height = 20, compact = false) {
+      if (typeof currentTemp !== 'number' || isNaN(currentTemp) || currentTemp < -50) {
+        return '';
+      }
+      recordTempSample(key, currentTemp);
+
+      const hist = loadTempHistory();
+      const list = hist[key] || [];
+      const now = Date.now();
+
+      // Find reference sample (ideally 15 to 60 minutes ago, fallback to oldest >= 3m or first sample)
+      let refSample = null;
+      for (let i = 0; i < list.length - 1; i++) {
+        const ageMin = (now - list[i].time) / 60000;
+        if (ageMin >= 15 && ageMin <= 60) {
+          refSample = list[i];
+          break;
+        }
+      }
+      if (!refSample) {
+        for (let i = 0; i < list.length - 1; i++) {
+          const ageMin = (now - list[i].time) / 60000;
+          if (ageMin >= 3) {
+            refSample = list[i];
+            break;
+          }
+        }
+      }
+      if (!refSample) {
+        refSample = list.length > 0 ? list[0] : { time: now, temp: currentTemp };
+      }
+
+      const delta = currentTemp - refSample.temp;
+      const ageMin = Math.round((now - refSample.time) / 60000);
+      const sign = delta > 0 ? '+' : '';
+      const deltaStr = sign + delta.toFixed(1) + '°';
+      const horizonStr = ageMin >= 60 ? (Math.round(ageMin / 60) + 'h') : (ageMin > 0 ? (ageMin + 'm') : '3h');
+
+      let trendClass = 'trend-steady';
+      let color = '#94a3b8';
+      let icon = '→';
+      let titleDesc = '';
+
+      if (delta >= 0.2) {
+        trendClass = 'trend-up';
+        color = '#fb923c';
+        icon = '↑';
+        titleDesc = `Trend încălzire: ${refSample.temp.toFixed(1)}°C ➔ ${currentTemp.toFixed(1)}°C (${deltaStr}C în ${ageMin} min) • ${list.length} eșantioane`;
+      } else if (delta <= -0.2) {
+        trendClass = 'trend-down';
+        color = '#38bdf8';
+        icon = '↓';
+        titleDesc = `Scădere termică: ${refSample.temp.toFixed(1)}°C ➔ ${currentTemp.toFixed(1)}°C (${deltaStr}C în ${ageMin} min, posibil aerisire) • ${list.length} eșantioane`;
+      } else {
+        trendClass = 'trend-steady';
+        color = '#94a3b8';
+        icon = '→';
+        if (list.length <= 1) {
+          titleDesc = `Inițializare istoric temperatură (${currentTemp.toFixed(1)}°C) • Se colectează date`;
+        } else {
+          titleDesc = `Temperatură stabilă: ${refSample.temp.toFixed(1)}°C ➔ ${currentTemp.toFixed(1)}°C (${deltaStr}C în ${ageMin} min) • ${list.length} eșantioane`;
+        }
+      }
+
+      // Compute SVG Coordinates
+      const padX = 2.5;
+      const padY = 2.5;
+      const usableW = width - 2 * padX;
+      const usableH = height - 2 * padY;
+
+      const temps = list.map(item => item.temp);
+      const rawMin = Math.min(...temps, currentTemp);
+      const rawMax = Math.max(...temps, currentTemp);
+      const minSpan = 1.0; // 1.0°C minimum scale: filters sensor noise so steady state looks calm and smooth, not jagged
+
+      let tLow, tHigh;
+      if ((rawMax - rawMin) < minSpan) {
+        const mid = (rawMin + rawMax) / 2;
+        tLow = mid - minSpan / 2;
+        tHigh = mid + minSpan / 2;
+      } else {
+        tLow = rawMin - 0.05;
+        tHigh = rawMax + 0.05;
+      }
+      const tRange = Math.max(0.001, tHigh - tLow);
+
+      const tMin = list.length > 0 ? list[0].time : now;
+      const tMax = list.length > 0 ? list[list.length - 1].time : now;
+      const elapsedMs = tMax - tMin;
+
+      let linePath = '';
+      let areaPath = '';
+      let xLast = width - padX;
+      let yLast = height / 2;
+
+      if (list.length <= 1 || elapsedMs < 180000) {
+        // Calm steady horizontal baseline
+        linePath = `M ${padX} ${(height / 2).toFixed(1)} L ${(width - padX).toFixed(1)} ${(height / 2).toFixed(1)}`;
+        yLast = height / 2;
+      } else {
+        const timeSpan = Math.max(180000, elapsedMs);
+        const points = list.map(item => {
+          const x = padX + ((item.time - tMin) / timeSpan) * usableW;
+          const normT = Math.max(0, Math.min(1, (item.temp - tLow) / tRange));
+          const y = (height - padY) - normT * usableH;
+          return [x.toFixed(1), y.toFixed(1)];
+        });
+
+        linePath = 'M ' + points.map(p => p.join(' ')).join(' L ');
+        const baseBottom = (height - padY).toFixed(1);
+        areaPath = linePath + ` L ${points[points.length - 1][0]} ${baseBottom} L ${points[0][0]} ${baseBottom} Z`;
+        xLast = points[points.length - 1][0];
+        yLast = points[points.length - 1][1];
+      }
+
+      const gradId = 'spk_' + key.replace(/[^a-zA-Z0-9_-]/g, '_');
+
+      return `
+        <span class="sparkline-badge ${trendClass} ${compact ? 'compact' : ''}" title="${titleDesc}">
+          <svg class="sparkline-svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" preserveAspectRatio="none">
+            <defs>
+              <linearGradient id="${gradId}" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stop-color="${color}" stop-opacity="0.38"/>
+                <stop offset="100%" stop-color="${color}" stop-opacity="0.0"/>
+              </linearGradient>
+            </defs>
+            ${areaPath ? `<path d="${areaPath}" fill="url(#${gradId})" />` : ''}
+            <path d="${linePath}" fill="none" stroke="${color}" stroke-width="${compact ? '1.4' : '1.8'}" stroke-linecap="round" stroke-linejoin="round" />
+            <circle cx="${xLast}" cy="${yLast}" r="${compact ? '1.8' : '2.2'}" fill="${color}" stroke="#0f172a" stroke-width="1.0" />
+          </svg>
+          <div class="sparkline-meta">
+            <span class="spark-delta">${icon} ${deltaStr}</span>
+            <span class="spark-horizon">${horizonStr}</span>
+          </div>
+        </span>
+      `.replace(/\s+/g, ' ').trim();
+    }
+
+    // Backwards-compatible alias for existing callers
+    function getTempTrend(key, currentTemp) {
+      return getTempSparkline(key, currentTemp, 64, 20, false);
     }
 
     // PWA Install Prompt Listener
@@ -2238,152 +2740,101 @@
     }
 
     // Schedule Editor Profile Tabs
+    // Schedule Editor Profile Tabs (Weekday vs Weekend Isolation)
     function setEditorProfile(prof) {
       currentProfile = prof;
       const twd = document.getElementById('tab-weekday');
       const twe = document.getElementById('tab-weekend');
-      const mtwd = document.getElementById('mtab-weekday');
-      const mtwe = document.getElementById('mtab-weekend');
       if (twd) twd.className = 'tab-btn ' + (prof === 'weekday' ? 'active' : '');
       if (twe) twe.className = 'tab-btn ' + (prof === 'weekend' ? 'active' : '');
-      if (mtwd) mtwd.className = 'tab-btn ' + (prof === 'weekday' ? 'active' : '');
-      if (mtwe) mtwe.className = 'tab-btn ' + (prof === 'weekend' ? 'active' : '');
+      const lbl = document.getElementById('active-profile-label');
+      if (lbl) lbl.innerText = (prof === 'weekday') ? 'L–V (Săptămână)' : 'S–D (Weekend)';
       renderScheduleEditor();
-      renderScheduleMatrix();
     }
 
-    // Schedule Matrix Modal Logic
-    let matrixAutoSaveTimer = null;
-    let isMatrixDirty = false;
-    let isMatrixModalOpen = false;
+    let anchorAutoSaveTimer = null;
 
-    function openScheduleMatrixModal() {
-      const m = document.getElementById('modal-schedule-matrix');
-      if (m) {
-        m.style.display = 'flex';
-        isMatrixModalOpen = true;
-        isMatrixDirty = false;
-        renderScheduleMatrix(true);
-      }
-    }
-
-    function closeScheduleMatrixModal() {
-      const m = document.getElementById('modal-schedule-matrix');
-      if (m) m.style.display = 'none';
-      isMatrixModalOpen = false;
-      isMatrixDirty = false;
-    }
-
-    function renderScheduleMatrix(force = false) {
-      if (isMatrixDirty && !force) return;
-      const tbody = document.getElementById('matrix-tbody');
-      if (!tbody || !scheduleData || !scheduleData[currentProfile]) return;
-
-      const profData = scheduleData[currentProfile];
-      const order = ['sleep', 'wake', 'away', 'home'];
-      const actPreset = (scheduleData.activePreset || 'default').toLowerCase();
-      let awayLabel = '🚶 Plecat (Away)';
-      if (actPreset === 'wfh') awayLabel = '💼 Home Office';
-      else if (actPreset === 'eco') awayLabel = '🍃 Zi Eco';
-
-      const labels = {
-        'sleep': '🌙 Somn (Sleep)',
-        'wake':  '🌅 Trezire (Wake)',
-        'away':  awayLabel,
-        'home':  '🏡 Acasă (Home)'
-      };
-
-      let html = '';
-      order.forEach(anc => {
-        const item = profData[anc] || { hour: 0, minute: 0, targets: [22.0, 22.0, 22.0] };
-        const timeStr = `${String(item.hour).padStart(2, '0')}:${String(item.minute).padStart(2, '0')}`;
-        const tg = item.targets || [22.0, 22.0, 22.0];
-
-        html += `
-          <tr>
-            <td style="font-weight:700;color:#f8fafc;">${labels[anc]}</td>
-            <td>
-              <input type="time" class="matrix-time-input" id="mtime-${anc}" value="${timeStr}" aria-label="Ora început ${labels[anc]}" title="Ora început ${labels[anc]}" onchange="scheduleMatrixAutoSave('${anc}')">
-            </td>
-            <td>
-              <div class="matrix-stepper">
-                <button class="matrix-step-btn" onclick="adjMatrixTarget('${anc}', 0, -0.5)">-</button>
-                <span class="matrix-step-val" id="msp-${anc}-0">${tg[0].toFixed(1)}&deg;</span>
-                <button class="matrix-step-btn" onclick="adjMatrixTarget('${anc}', 0, 0.5)">+</button>
-              </div>
-            </td>
-            <td>
-              <div class="matrix-stepper">
-                <button class="matrix-step-btn" onclick="adjMatrixTarget('${anc}', 1, -0.5)">-</button>
-                <span class="matrix-step-val" id="msp-${anc}-1">${tg[1].toFixed(1)}&deg;</span>
-                <button class="matrix-step-btn" onclick="adjMatrixTarget('${anc}', 1, 0.5)">+</button>
-              </div>
-            </td>
-            <td>
-              <div class="matrix-stepper">
-                <button class="matrix-step-btn" onclick="adjMatrixTarget('${anc}', 2, -0.5)">-</button>
-                <span class="matrix-step-val" id="msp-${anc}-2">${tg[2].toFixed(1)}&deg;</span>
-                <button class="matrix-step-btn" onclick="adjMatrixTarget('${anc}', 2, 0.5)">+</button>
-              </div>
-            </td>
-            <td style="text-align:center;">
-              <button class="btn-matrix-row-save" id="mbtn-${anc}" aria-label="Salvează rând ${labels[anc]}" title="Salvează rând ${labels[anc]}" onclick="saveMatrixRow('${anc}')">💾 Salvează</button>
-            </td>
-          </tr>
-        `;
-      });
-
-      tbody.innerHTML = html;
-    }
-
-    function adjMatrixTarget(anc, zIdx, delta) {
+    function adjAnchorTarget(anc, zIdx, delta) {
       if (!scheduleData || !scheduleData[currentProfile] || !scheduleData[currentProfile][anc]) return;
-      isMatrixDirty = true;
-      let targets = scheduleData[currentProfile][anc].targets;
-      if (!targets) targets = [22.0, 22.0, 22.0];
-      targets[zIdx] = parseFloat((targets[zIdx] + delta).toFixed(1));
-      const valEl = document.getElementById(`msp-${anc}-${zIdx}`);
-      if (valEl) valEl.innerHTML = `${targets[zIdx].toFixed(1)}&deg;`;
-      scheduleMatrixAutoSave(anc);
+      const tg = scheduleData[currentProfile][anc].targets || [22.0, 22.0, 22.0];
+      tg[zIdx] = parseFloat((tg[zIdx] + delta).toFixed(1));
+      
+      const valEl = document.getElementById(`asp-${anc}-${zIdx}`);
+      if (valEl) valEl.innerHTML = `${tg[zIdx].toFixed(1)}&deg;`;
+
+      scheduleAnchorAutoSave(anc);
     }
 
-    function scheduleMatrixAutoSave(anc) {
-      const btn = document.getElementById(`mbtn-${anc}`);
-      if (btn) btn.innerText = '⏳ Salvare...';
-      if (matrixAutoSaveTimer) clearTimeout(matrixAutoSaveTimer);
-      matrixAutoSaveTimer = setTimeout(() => {
-        saveMatrixRow(anc);
-      }, 800);
+    function onAnchorTimeChange(anc, newTime) {
+      if (!scheduleData || !scheduleData[currentProfile] || !scheduleData[currentProfile][anc]) return;
+      if (!newTime) return;
+      const parts = newTime.split(':');
+      if (parts.length === 2) {
+        scheduleData[currentProfile][anc].hour = parseInt(parts[0], 10);
+        scheduleData[currentProfile][anc].minute = parseInt(parts[1], 10);
+      }
+      scheduleAnchorAutoSave(anc);
     }
 
-    function saveMatrixRow(anc) {
-      isMatrixDirty = false;
-      const timeEl = document.getElementById(`mtime-${anc}`);
-      const timeVal = timeEl ? timeEl.value : '06:30';
-      const targets = (scheduleData && scheduleData[currentProfile] && scheduleData[currentProfile][anc])
-        ? scheduleData[currentProfile][anc].targets
-        : [22.0, 22.0, 22.0];
+    function scheduleAnchorAutoSave(anc) {
+      const ind = document.getElementById('matrix-save-indicator');
+      if (ind) {
+        ind.style.display = 'inline';
+        ind.innerText = '⏳ Salvare...';
+        ind.style.color = '#f59e0b';
+      }
+      if (anchorAutoSaveTimer) clearTimeout(anchorAutoSaveTimer);
+      anchorAutoSaveTimer = setTimeout(() => {
+        saveCurrentProfileAnchor(anc);
+      }, 700);
+    }
 
-      return saveAnchor(anc, timeVal, targets[0], targets[1], targets[2]).then(() => {
-        const btn = document.getElementById(`mbtn-${anc}`);
-        if (btn) {
-          btn.innerText = '✓ Salvat în NVS';
-          btn.classList.add('saved');
-          setTimeout(() => {
-            if (btn) {
-              btn.innerText = '💾 Salvează';
-              btn.classList.remove('saved');
-            }
-          }, 2500);
-        }
+    function saveCurrentProfileAnchor(anc) {
+      if (!scheduleData || !scheduleData[currentProfile] || !scheduleData[currentProfile][anc]) return;
+      const item = scheduleData[currentProfile][anc];
+      const timeVal = `${String(item.hour).padStart(2,'0')}:${String(item.minute).padStart(2,'0')}`;
+      const tg = item.targets || [22.0, 22.0, 22.0];
+
+      const prof = currentProfile;
+      const url = base + `api/schedule/anchor?profile=${prof}&anchor=${anc}&time=${encodeURIComponent(timeVal)}&z1=${tg[0]}&z2=${tg[1]}&z3=${tg[2]}`;
+      return fetch(url, { method: 'POST' }).then(() => {
         const ind = document.getElementById('matrix-save-indicator');
         if (ind) {
           ind.style.display = 'inline';
+          ind.innerText = `✓ Salvat în NVS (${prof === 'weekday' ? 'L-V' : 'S-D'})`;
+          ind.style.color = '#34d399';
           setTimeout(() => { if (ind) ind.style.display = 'none'; }, 2500);
         }
-        renderScheduleEditor();
+        loadScheduleAndPresets();
+        refresh();
       });
     }
+
+    function copyWeekdayToWeekend() {
+      if (!scheduleData || !scheduleData.weekday) return;
+      if (!confirm('Dorești să copiezi toate orele și temperaturile de pe L-V în orarul de S-D (Weekend)?')) return;
+      scheduleData.weekend = JSON.parse(JSON.stringify(scheduleData.weekday));
+      const order = ['sleep', 'wake', 'away', 'home'];
+      const promises = order.map(anc => {
+        const item = scheduleData.weekend[anc];
+        const timeVal = `${String(item.hour).padStart(2,'0')}:${String(item.minute).padStart(2,'0')}`;
+        const tg = item.targets || [22.0, 22.0, 22.0];
+        const url = base + `api/schedule/anchor?profile=weekend&anchor=${anc}&time=${encodeURIComponent(timeVal)}&z1=${tg[0]}&z2=${tg[1]}&z3=${tg[2]}`;
+        return fetch(url, { method: 'POST' });
+      });
+      Promise.all(promises).then(() => {
+        showToast('✓ Orarul L-V a fost copiat integral în S-D (Weekend)!', 3500);
+        loadScheduleAndPresets();
+        setEditorProfile('weekend');
+      });
+    }
+
+    // Legacy wrappers for backward compatibility
+    function saveAnchor(anc) { saveCurrentProfileAnchor(anc); }
+    function adjMatrixTarget(anc, zIdx, delta) { adjAnchorTarget(anc, zIdx, delta); }
+    function saveMatrixRow(anc) { saveCurrentProfileAnchor(anc); }
+    function openScheduleMatrixModal() { setEditorProfile(currentProfile || 'weekday'); }
+    function closeScheduleMatrixModal() {}
 
     // Adjust Anchor Setpoint in Editor (Legacy compatibility)
     function adjAnchorTarget(anc, zIdx, delta) {
@@ -2586,7 +3037,8 @@
       }
       const bypassTemp = document.getElementById('ts-bypass-temp');
       if (bypassTemp && sData && sData.sensors) {
-        const bSens = sData.sensors.find(s => (s.name && (s.name.includes('Bathroom') || s.name.includes('Baie'))));
+        const bSens = sData.sensors.find(s => (s.name && (s.name.includes('Bathroom') || s.name.includes('Baie')))) ||
+                      sData.sensors.find(s => s.mac === 'A4:C1:38:94:0F:44');
         if (bSens && bSens.temp !== undefined) {
           bypassTemp.textContent = `${bSens.temp.toFixed(1)}°C`;
         }
@@ -2935,6 +3387,21 @@
           // Pre-Heat banner
           const pBanner = document.getElementById('banner-preheat');
           if (pBanner) pBanner.style.display = sData.preHeatActive ? 'flex' : 'none';
+
+          // Live Anchor & Schedule sync (Updates hero card & countdown in real-time)
+          if (scheduleData) {
+            if (sData.activeAnchor) scheduleData.activeAnchor = sData.activeAnchor;
+            if (sData.activePreset) scheduleData.activePreset = sData.activePreset;
+            if (sData.nextAnchor) scheduleData.nextAnchor = sData.nextAnchor;
+            if (sData.minsToNextAnchor !== undefined) scheduleData.minsToNextAnchor = sData.minsToNextAnchor;
+            renderActiveAnchorHero(scheduleData.activeAnchor, scheduleData.activePreset);
+            updateNextAnchorCountdown();
+          }
+
+          // Render Boiler Runtime telemetry
+          if (sData.boilerRuntime) {
+            renderBoilerRuntimeStats(sData.boilerRuntime);
+          }
         }
 
         if (lastZData) {
@@ -3082,6 +3549,9 @@
       const cur = pData.activePreset || 'default';
       let html = '';
       pData.presets.forEach(p => {
+        // Filter out empty / unsaved custom slots (simplifies UI and removes clutter)
+        if (p.type === 'user' && !p.saved) return;
+
         const isAct = (p.id === cur);
         let icon = '🏭';
         if (p.id === 'eco') icon = '🍃';
@@ -3089,12 +3559,193 @@
         else if (p.id.startsWith('custom')) icon = '💾';
         
         let label = p.name || p.id;
-        if (p.id.startsWith('custom') && !p.saved) label += ' (Liber)';
-        else if (p.saved && p.type === 'factory') label += ' ✎';
+        if (p.saved && p.type === 'factory') label += ' ✎';
 
         html += `<div class="preset-chip ${isAct ? 'active' : ''}" id="chip-${p.id}" onclick="applyPreset('${p.id}')">${icon} ${label}</div>`;
       });
       box.innerHTML = html;
+      updatePresetActionButtons(cur, pData);
+    }
+
+    function updatePresetActionButtons(curId, pData) {
+      const btnDel = document.getElementById('btn-preset-delete');
+      const btnDiscard = document.getElementById('btn-preset-discard');
+      let curPreset = pData && pData.presets ? pData.presets.find(p => p.id === curId) : null;
+      if (btnDel) {
+        if (curPreset && curPreset.type === 'factory') {
+          btnDel.style.opacity = '0.4';
+          btnDel.title = 'Preseturile din fabrică nu pot fi șterse';
+        } else {
+          btnDel.style.opacity = '1';
+          btnDel.title = 'Șterge acest preset personalizat';
+        }
+      }
+      if (btnDiscard) {
+        if (curPreset && curPreset.type === 'factory' && !curPreset.saved) {
+          btnDiscard.style.opacity = '0.5';
+        } else {
+          btnDiscard.style.opacity = '1';
+        }
+      }
+    }
+
+    function addNewCustomPreset() {
+      if (!presetsData || !presetsData.presets) return;
+      const freeSlot = presetsData.presets.find(p => p.type === 'user' && !p.saved);
+      if (!freeSlot) {
+        alert('Toate cele 4 sloturi de preset personalizate sunt ocupate! Șterge un slot existent înainte de a adăuga altul.');
+        return;
+      }
+      const name = prompt('Nume pentru noul preset:', `Preset ${freeSlot.id.replace('custom','')}`);
+      if (!name || !name.trim()) return;
+
+      const slotId = freeSlot.id;
+      fetch(base + `api/schedule/preset/save?id=${slotId}&name=${encodeURIComponent(name.trim())}`, { method: 'POST' })
+        .then(() => fetch(base + `api/schedule/preset/apply?id=${slotId}`, { method: 'POST' }))
+        .then(() => {
+          showToast(`✅ Presetul '${name.trim()}' a fost creat și activat!`, 3500);
+          loadScheduleAndPresets();
+          refresh();
+        });
+    }
+
+    function saveCurrentPresetChanges() {
+      const curId = (presetsData && presetsData.activePreset) || (scheduleData && scheduleData.activePreset) || 'default';
+      let curPreset = presetsData && presetsData.presets ? presetsData.presets.find(p => p.id === curId) : null;
+      let curName = (curPreset && curPreset.name) ? curPreset.name : curId;
+
+      fetch(base + `api/schedule/preset/save?id=${curId}&name=${encodeURIComponent(curName)}`, { method: 'POST' })
+        .then(() => {
+          showToast(`💾 Presetul '${curName}' a fost salvat cu succes în memoria Flash NVS!`, 3500);
+          loadScheduleAndPresets();
+          refresh();
+        });
+    }
+
+    function discardPresetChanges() {
+      const curId = (presetsData && presetsData.activePreset) || (scheduleData && scheduleData.activePreset) || 'default';
+      let curPreset = presetsData && presetsData.presets ? presetsData.presets.find(p => p.id === curId) : null;
+      let curName = (curPreset && curPreset.name) ? curPreset.name : curId;
+
+      if (!confirm(`Dorești să anulezi modificările pentru '${curName}' și să revii la valorile salvate anterior?`)) return;
+
+      if (curPreset && curPreset.type === 'factory') {
+        fetch(base + `api/schedule/preset/reset?id=${curId}`, { method: 'POST' })
+          .then(() => {
+            showToast(`↺ Presetul din fabrică '${curName}' a fost restaurat la valorile implicite!`, 3500);
+            loadScheduleAndPresets();
+            refresh();
+          });
+      } else {
+        applyPreset(curId);
+        showToast(`↺ Modificările nesalvate au fost anulate.`, 3000);
+      }
+    }
+
+    function renameCurrentPreset() {
+      const curId = (presetsData && presetsData.activePreset) || (scheduleData && scheduleData.activePreset) || 'default';
+      let curPreset = presetsData && presetsData.presets ? presetsData.presets.find(p => p.id === curId) : null;
+      let oldName = (curPreset && curPreset.name) ? curPreset.name : curId;
+
+      const newName = prompt(`Introdu noul nume pentru presetul '${oldName}':`, oldName);
+      if (!newName || !newName.trim() || newName.trim() === oldName) return;
+
+      fetch(base + `api/schedule/preset/save?id=${curId}&name=${encodeURIComponent(newName.trim())}`, { method: 'POST' })
+        .then(() => {
+          showToast(`✏️ Presetul a fost redenumit în '${newName.trim()}'.`, 3500);
+          loadScheduleAndPresets();
+          refresh();
+        });
+    }
+
+    function deleteCurrentPreset() {
+      const curId = (presetsData && presetsData.activePreset) || (scheduleData && scheduleData.activePreset) || 'default';
+      let curPreset = presetsData && presetsData.presets ? presetsData.presets.find(p => p.id === curId) : null;
+
+      if (curPreset && curPreset.type === 'factory') {
+        showToast(`ℹ️ Presetul '${curPreset.name}' face parte din firmware-ul de bază și nu poate fi șters (folosește 'Anulează' pentru resetare).`, 4000);
+        return;
+      }
+
+      let curName = (curPreset && curPreset.name) ? curPreset.name : curId;
+      if (!confirm(`Sigur dorești să ștergi presetul '${curName}'? Slotul va deveni liber.`)) return;
+
+      fetch(base + `api/schedule/preset/reset?id=${curId}`, { method: 'POST' })
+        .then(() => fetch(base + 'api/schedule/preset/apply?id=default', { method: 'POST' }))
+        .then(() => {
+          showToast(`🗑️ Presetul '${curName}' a fost șters. S-a activat presetul Standard.`, 3500);
+          loadScheduleAndPresets();
+          refresh();
+        });
+    }
+
+    function formatDuration(sec) {
+      if (!sec || sec < 60) return `${sec || 0}s`;
+      const h = Math.floor(sec / 3600);
+      const m = Math.floor((sec % 3600) / 60);
+      if (h > 0) return `${h}h ${m}m`;
+      return `${m}m`;
+    }
+
+    function renderBoilerRuntimeStats(rt) {
+      if (!rt) return;
+      const todayEl = document.getElementById('rt-today');
+      const yestEl = document.getElementById('rt-yesterday');
+      const totalEl = document.getElementById('rt-total');
+      const badgeEl = document.getElementById('rt-session-badge');
+      const gasEl = document.getElementById('rt-gas-est');
+
+      if (todayEl) todayEl.innerText = formatDuration(rt.todaySec);
+      if (yestEl) yestEl.innerText = formatDuration(rt.yesterdaySec);
+      if (totalEl) totalEl.innerText = formatDuration(rt.totalSec);
+
+      if (badgeEl) {
+        if (rt.burningNow) {
+          badgeEl.innerText = `🔥 Activă acum (${formatDuration(rt.currentBurnSec)})`;
+          badgeEl.style.background = 'rgba(239, 68, 68, 0.2)';
+          badgeEl.style.color = '#f87171';
+        } else {
+          badgeEl.innerText = `💤 Standby`;
+          badgeEl.style.background = '#1e293b';
+          badgeEl.style.color = '#94a3b8';
+        }
+      }
+
+      const monthlyBill = parseFloat(localStorage.getItem('gas_winter_bill') || '600');
+      const monthlyHours = parseFloat(localStorage.getItem('gas_winter_hours') || '180');
+      const costPerHour = (monthlyHours > 0) ? (monthlyBill / monthlyHours) : 3.33;
+      const m3PerHour = costPerHour / 3.1;
+
+      const todayHours = (rt.todaySec || 0) / 3600;
+      const todayCost = (todayHours * costPerHour).toFixed(1);
+      const todayM3 = (todayHours * m3PerHour).toFixed(1);
+
+      if (gasEl) {
+        gasEl.innerText = `~${todayM3} m³ (~${todayCost} lei)`;
+      }
+    }
+
+    function promptGasSettings() {
+      const curBill = localStorage.getItem('gas_winter_bill') || '600';
+      const curHours = localStorage.getItem('gas_winter_hours') || '180';
+
+      const billInput = prompt('Introdu valoarea medie a unei facturi de gaze pe lună de iarnă (LEI):', curBill);
+      if (billInput === null) return;
+      const numBill = parseFloat(billInput);
+      if (!isNaN(numBill) && numBill > 0) {
+        localStorage.setItem('gas_winter_bill', numBill.toString());
+      }
+
+      const hoursInput = prompt('Ore estimate de funcționare flacără pe lună de iarnă (default 180h, adică ~6h/zi):', curHours);
+      if (hoursInput !== null) {
+        const numHours = parseFloat(hoursInput);
+        if (!isNaN(numHours) && numHours > 0) {
+          localStorage.setItem('gas_winter_hours', numHours.toString());
+        }
+      }
+
+      showToast('⚙️ Setările de estimare cost gaz au fost actualizate!', 3000);
+      refresh();
     }
 
     function updateNextAnchorCountdown() {
@@ -3144,8 +3795,8 @@
     }
 
     function renderScheduleEditor(activePreset) {
+      const tbody = document.getElementById('anchors-table-tbody');
       const grid = document.getElementById('anchors-editor-grid');
-      const summaryBox = document.getElementById('anchors-quick-summary');
       if (!scheduleData || !scheduleData[currentProfile]) return;
       activePreset = (activePreset || (scheduleData ? scheduleData.activePreset : '') || 'default').toLowerCase();
 
@@ -3163,25 +3814,8 @@
         'home':  '🏡 Acasă'
       };
 
-      // 1. Populate Quick Anchor Summary Chips
-      if (summaryBox) {
-        let sumHtml = '';
-        order.forEach(anc => {
-          const item = profData[anc] || { hour: 0, minute: 0, targets: [22.0, 22.0, 22.0] };
-          const timeStr = `${String(item.hour).padStart(2, '0')}:${String(item.minute).padStart(2, '0')}`;
-          const tg = item.targets || [22.0, 22.0, 22.0];
-          sumHtml += `
-            <div class="anchor-badge-chip">
-              <span style="color:#cbd5e1;font-weight:700;">${labels[anc]} (${timeStr})</span>
-              <b style="color:#38bdf8;">${tg[0].toFixed(1)} / ${tg[1].toFixed(1)} / ${tg[2].toFixed(1)}&deg;</b>
-            </div>
-          `;
-        });
-        summaryBox.innerHTML = sumHtml;
-      }
-
-      // 2. Populate legacy editor grid (preserved for headless test selectors)
-      if (grid) {
+      // 1. Populate Direct Inline Matrix Table for currentProfile (weekday or weekend)
+      if (tbody) {
         let html = '';
         order.forEach(anc => {
           const item = profData[anc] || { hour: 0, minute: 0, targets: [22.0, 22.0, 22.0] };
@@ -3189,40 +3823,43 @@
           const tg = item.targets || [22.0, 22.0, 22.0];
 
           html += `
-            <div class="anchor-edit-box">
-              <div class="anchor-edit-head">
-                <span>${labels[anc]}</span>
-                <input type="time" class="time-input" id="time-${anc}" value="${timeStr}" aria-label="Ora început ${labels[anc]}" title="Ora început ${labels[anc]}" onchange="saveAnchor('${anc}')">
-              </div>
-              <div class="target-stepper">
-                <span>Z1 (Living):</span>
-                <div class="step-ctrl">
-                  <button class="step-btn" onclick="adjAnchorTarget('${anc}', 0, -0.5)">-</button>
-                  <span class="step-val">${tg[0].toFixed(1)}&deg;</span>
-                  <button class="step-btn" onclick="adjAnchorTarget('${anc}', 0, 0.5)">+</button>
+            <tr>
+              <td style="font-weight:700;color:#f8fafc;white-space:nowrap;text-align:left;padding:8px 8px;">
+                ${labels[anc]}
+              </td>
+              <td style="padding:8px 6px;">
+                <input type="time" class="matrix-time-input" id="time-${anc}" value="${timeStr}" aria-label="Ora ${labels[anc]}" title="Ora ${labels[anc]}" onchange="onAnchorTimeChange('${anc}', this.value)">
+              </td>
+              <td style="padding:8px 6px;">
+                <div class="matrix-stepper">
+                  <button class="matrix-step-btn" aria-label="Scade Living" onclick="adjAnchorTarget('${anc}', 0, -0.5)">-</button>
+                  <span class="matrix-step-val" id="asp-${anc}-0">${tg[0].toFixed(1)}&deg;</span>
+                  <button class="matrix-step-btn" aria-label="Creste Living" onclick="adjAnchorTarget('${anc}', 0, 0.5)">+</button>
                 </div>
-              </div>
-              <div class="target-stepper">
-                <span>Z2 (Copil):</span>
-                <div class="step-ctrl">
-                  <button class="step-btn" onclick="adjAnchorTarget('${anc}', 1, -0.5)">-</button>
-                  <span class="step-val">${tg[1].toFixed(1)}&deg;</span>
-                  <button class="step-btn" onclick="adjAnchorTarget('${anc}', 1, 0.5)">+</button>
+              </td>
+              <td style="padding:8px 6px;">
+                <div class="matrix-stepper">
+                  <button class="matrix-step-btn" aria-label="Scade Copil" onclick="adjAnchorTarget('${anc}', 1, -0.5)">-</button>
+                  <span class="matrix-step-val" id="asp-${anc}-1">${tg[1].toFixed(1)}&deg;</span>
+                  <button class="matrix-step-btn" aria-label="Creste Copil" onclick="adjAnchorTarget('${anc}', 1, 0.5)">+</button>
                 </div>
-              </div>
-              <div class="target-stepper">
-                <span>Z3 (Matrimonial):</span>
-                <div class="step-ctrl">
-                  <button class="step-btn" onclick="adjAnchorTarget('${anc}', 2, -0.5)">-</button>
-                  <span class="step-val">${tg[2].toFixed(1)}&deg;</span>
-                  <button class="step-btn" onclick="adjAnchorTarget('${anc}', 2, 0.5)">+</button>
+              </td>
+              <td style="padding:8px 6px;">
+                <div class="matrix-stepper">
+                  <button class="matrix-step-btn" aria-label="Scade Matrimonial" onclick="adjAnchorTarget('${anc}', 2, -0.5)">-</button>
+                  <span class="matrix-step-val" id="asp-${anc}-2">${tg[2].toFixed(1)}&deg;</span>
+                  <button class="matrix-step-btn" aria-label="Creste Matrimonial" onclick="adjAnchorTarget('${anc}', 2, 0.5)">+</button>
                 </div>
-              </div>
-              <button class="btn-small" style="margin-top:8px;width:100%;padding:4px;" onclick="saveAnchor('${anc}')">&#128190; Salvează Ancoră</button>
-            </div>
+              </td>
+            </tr>
           `;
         });
-        grid.innerHTML = html;
+        tbody.innerHTML = html;
+      }
+
+      // 2. Keep grid container synchronized if accessed by legacy hooks
+      if (grid) {
+        grid.innerHTML = '';
       }
     }
 
@@ -3263,90 +3900,202 @@
           st = '🟢 Temp OK (Repaus)';
         }
 
+        const sensKey = getCanonicalTempKey(z.sensor || z.name, z.sensorMac);
+        const trendHtml = (z.sensorValid && z.currentTemp !== undefined && z.currentTemp > -100)
+          ? getTempSparkline(sensKey, z.currentTemp, 64, 20, false)
+          : '';
         let tempStr = (z.sensorValid && z.currentTemp !== undefined && z.currentTemp > -100)
-          ? (z.currentTemp.toFixed(1) + '&deg;C')
+          ? (z.currentTemp.toFixed(1) + '&deg;C' + trendHtml)
           : '<span style="color:#94a3b8;">--.-&deg;C</span>';
 
         // Target resolution: in Beginner level, always use static targetTemp; otherwise effectiveTarget if schedule enabled
         const curTarget = (scheduleEnabled && currentUiLevel !== 'beginner' && z.effectiveTarget !== undefined) ? z.effectiveTarget : z.targetTemp;
 
-        let circuitStatusHtml = '';
-        if (!z.enabled) {
-          circuitStatusHtml = '<span style="color:#94a3b8;">Robinet șapă: <b>OPRIT (Termostat inactiv)</b></span>';
-        } else if (z.windowPauseActive) {
-          circuitStatusHtml = '<span style="color:#fb7185;">Robinet șapă: <b>PAUZĂ (Geam deschis)</b></span>';
+    function renderZones(zones, scheduleEnabled = true) {
+      const c = document.getElementById('zones-list');
+      if (!c) return;
+      let html = '';
+      let activeCount = 0;
+
+      const allSensors = (lastSData && lastSData.sensors) ? lastSData.sensors : [];
+      const assignedMacs = new Set();
+
+      zones.forEach(z => {
+        let isHeating = (z.state && z.state.includes('Heating')) || z.relayEngaged;
+        let isWarming = z.state && z.state.includes('Warming');
+
+        // Status pill configuration
+        let miniStatusClass = 'st-idle';
+        let miniStatusIcon = '🟢';
+        let miniStatusText = 'Repaus';
+        let fullStatusTooltip = 'Temperatura țintă atinsă. Robinet șapă: ÎNCHIS (Repaus).';
+
+        if (z.windowPauseActive) {
+          miniStatusClass = 'st-paused';
+          miniStatusIcon = '🪟';
+          miniStatusText = 'Geam Deschis';
+          fullStatusTooltip = 'Geam deschis detectat (>1.2°C/5m). Valva zonei este forțată pe închis 30m.';
+        } else if (z.frostActive) {
+          miniStatusClass = 'st-frost';
+          miniStatusIcon = '❄️';
+          miniStatusText = 'Îngheț Urgență';
+          fullStatusTooltip = 'Protecție îngheț activă (<12°C). Cazanul și vana pornesc forțat.';
+          activeCount++;
+        } else if (!z.enabled) {
+          miniStatusClass = 'st-disabled';
+          miniStatusIcon = '⚪';
+          miniStatusText = 'Oprit';
+          fullStatusTooltip = 'Termostatul acestei camere este oprit manual de utilizator.';
+        } else if (z.sensorFault) {
+          miniStatusClass = 'st-paused';
+          miniStatusIcon = '⚠️';
+          miniStatusText = 'Eroare Senzor';
+          fullStatusTooltip = 'Senzorul BLE a depășit timpul limită de recepție (DTC-101).';
         } else if (isHeating) {
-          circuitStatusHtml = '<span style="color:#34d399;">Robinet șapă: <b>DESCHIS (Circulă apă caldă)</b></span>';
-        } else if (st.includes('Warming')) {
-          circuitStatusHtml = '<span style="color:#fcd34d;">Robinet șapă: <b>DESCHIDERE (Dilatare ceară ~2m)</b></span>';
-        } else {
-          circuitStatusHtml = '<span style="color:#94a3b8;">Robinet șapă: <b>ÎNCHIS (Repaus / Temp atinsă)</b></span>';
+          miniStatusClass = 'st-heating';
+          miniStatusIcon = '🔴';
+          miniStatusText = 'Încălzire';
+          fullStatusTooltip = `Cerere termică activă. Robinet șapă: DESCHIS (Circulă apă caldă). Releu GPIO${z.relayPin}.`;
+          activeCount++;
+        } else if (isWarming) {
+          miniStatusClass = 'st-warming';
+          miniStatusIcon = '⏳';
+          miniStatusText = 'Așteptare';
+          fullStatusTooltip = 'Dilatare termică ceară actuator electrotermic (~2 min).';
+          activeCount++;
         }
 
-        html += `
-          <div class='zone-card ${isHeating ? 'heating' : ''} ${!z.enabled ? 'zone-disabled' : ''}'>
-            <div class='zone-header'>
-              <span class='zone-name'>${z.name}</span>
-              <span class='zone-badge ${badgeClass}'>${st}</span>
-            </div>
-            <div class='zone-body'>
-              <div>
-                <span class='zone-temp' style='${!z.enabled ? "color:#94a3b8;" : ""}'>${tempStr}</span>
-                <div style='font-size:0.74rem;color:#94a3b8;margin-top:2px;'>Senzor: ${z.sensor || z.sensorMac || 'None'}</div>
-              </div>
-              <div class='zone-ctrl'>
-                <button class='temp-btn' aria-label='Scade temperatura ${z.name}' onclick='adjTarget(${z.id}, -0.5)'>-</button>
-                <span class='setpoint-val' id='sp-${z.id}' data-val='${curTarget.toFixed(1)}'>${curTarget.toFixed(1)}&deg;C</span>
-                <button class='temp-btn' aria-label='Crește temperatura ${z.name}' onclick='adjTarget(${z.id}, 0.5)'>+</button>
-              </div>
-            </div>
-            <div class='zone-footer'>
-              <span title='Releu GPIO${z.relayPin}'>${circuitStatusHtml}</span>
-              <button class='zone-toggle-btn ${z.enabled ? '' : 'btn-activate'}' onclick='toggleZone(${z.id})'>
-                ${z.enabled ? '⛔ Oprește camera' : '▶️ Pornește camera'}
-              </button>
-            </div>
-          </div>
-        `;
-      });
-      c.innerHTML = html;
-      document.getElementById('tag-zones-demand').innerText = `Cerere: ${activeCount}/${zones.length} Bucle Active`;
-    }
+        // Find associated physical sensor
+        const s = allSensors.find(item => item.mac === z.sensorMac) ||
+                  allSensors.find(item => item.name && z.name && item.name.toLowerCase().includes(z.name.toLowerCase()));
+        if (s && s.mac) assignedMacs.add(s.mac);
 
-    function renderSensors(sensors) {
-      const c = document.getElementById('sensors-list');
-      if (!c) return;
-      if (!sensors || sensors.length === 0) {
-        c.innerHTML = "<div class='sensor-row'><span style='color:#94a3b8;'>Se scanează pachetele BLE pasive...</span></div>";
-        return;
-      }
-      let html = '';
-      sensors.forEach(s => {
+        const rssi = s ? (s.rssi || -99) : -99;
         let badgeClass = 'badge-marginal';
-        let rssi = s.rssi || -99;
         let badgeText = 'MARGINAL';
         if (rssi >= -72) { badgeClass = 'badge-excellent'; badgeText = 'EXCELENT'; }
         else if (rssi >= -82) { badgeClass = 'badge-good'; badgeText = 'BUN'; }
         else if (rssi >= -88) { badgeClass = 'badge-marginal'; badgeText = 'MARGINAL'; }
         else { badgeClass = 'badge-poor'; badgeText = 'SLAB'; }
 
+        const dispName = s ? getSensorDisplayName(s) : z.name;
+        const sensMac = (s && s.mac) ? s.mac : (z.sensorMac || 'BLE-NC');
+        const sensKey = getCanonicalTempKey(z.sensor || z.name, sensMac);
+
+        // Real temperature (BOLD and primary)
+        const currentTemp = (z.sensorValid && z.currentTemp !== undefined && z.currentTemp > -100)
+          ? z.currentTemp
+          : ((s && s.temp !== undefined && s.temp > -100) ? s.temp : null);
+
+        const sparkHtml = (currentTemp !== null)
+          ? getTempSparkline(sensKey, currentTemp, 56, 18, true)
+          : '';
+        const tempStr = (currentTemp !== null)
+          ? `${currentTemp.toFixed(1)}&deg;C`
+          : `<span style="color:#64748b;">--.-&deg;C</span>`;
+
+        // Target setpoint resolution (SLAVE)
+        const curTarget = (scheduleEnabled && currentUiLevel !== 'beginner' && z.effectiveTarget !== undefined)
+          ? z.effectiveTarget
+          : z.targetTemp;
+
+        const humStr = (s && s.hum !== undefined) ? `${Math.round(s.hum)}%` : '--%';
+        const batStr = (s && s.bat !== undefined) ? `${s.bat}%` : '--%';
+        const ageStr = (s && s.ageSec !== undefined) ? `${s.ageSec}s în urmă` : '';
+
         html += `
           <div class='sensor-row'>
             <div class='sensor-left'>
-              <span class='sensor-name'>${s.name || s.mac}</span>
-              <span class='sensor-mac'>${s.mac} &bull; ${s.ageSec !== undefined ? s.ageSec + 's în urmă' : ''}</span>
+              <div class='sensor-title-row'>
+                <span class='sensor-signal-dot ${badgeClass}' title='Semnal BLE: ${badgeText} (${rssi} dBm)'></span>
+                <span class='sensor-name' onclick='promptRenameSensor("${sensMac}", "${dispName.replace(/"/g, '&quot;')}")' title='Clic pentru redenumire senzor'>
+                  ${dispName} <span class='sensor-edit-icon'>✏️</span>
+                </span>
+                <span class='zone-status-mini ${miniStatusClass}' title='${fullStatusTooltip}'>
+                  ${miniStatusIcon} ${miniStatusText}
+                </span>
+                <button class='zone-power-btn ${z.enabled ? 'on' : 'off'}' onclick='toggleZone(${z.id})' title='${z.enabled ? "Oprește termostatul camerei" : "Pornește termostatul camerei"}'>
+                  ⏻
+                </button>
+              </div>
+              <span class='sensor-mac'>${sensMac}${ageStr ? ' &bull; ' + ageStr : ''} &bull; ${humStr} &bull; 🔋 ${batStr}</span>
             </div>
             <div class='sensor-right'>
-              <div style='text-align:right;'>
-                <div class='sensor-temp'>${s.temp !== undefined ? s.temp.toFixed(1) : '--'}°C</div>
-                <div class='sensor-hum'>${s.hum !== undefined ? Math.round(s.hum) : '--'}% &bull; 🔋 ${s.bat !== undefined ? s.bat : '--'}%</div>
+              <div class='sensor-temp-col'>
+                <span class='sensor-temp' style='${!z.enabled ? "color:#64748b;" : ""}'>${tempStr}</span>
+                ${sparkHtml}
               </div>
-              <span class='sensor-badge ${badgeClass}'>${badgeText} (${rssi}dBm)</span>
+              <div class='setpoint-slave-stepper'>
+                <span class='setpoint-slave-label'>țintă</span>
+                <button class='step-btn-slim' aria-label='Scade temperatura ${z.name}' onclick='adjTarget(${z.id}, -0.5)'>-</button>
+                <span class='setpoint-val setpoint-val-slave' id='sp-${z.id}' data-val='${curTarget.toFixed(1)}'>${curTarget.toFixed(1)}&deg;</span>
+                <button class='step-btn-slim' aria-label='Crește temperatura ${z.name}' onclick='adjTarget(${z.id}, 0.5)'>+</button>
+              </div>
             </div>
           </div>
         `;
       });
+
+      // Append standalone / passive BLE sensors not mapped to a zone (e.g. Bathroom bypass)
+      allSensors.forEach(s => {
+        if (assignedMacs.has(s.mac)) return;
+        const rssi = s.rssi || -99;
+        let badgeClass = 'badge-marginal';
+        let badgeText = 'MARGINAL';
+        if (rssi >= -72) { badgeClass = 'badge-excellent'; badgeText = 'EXCELENT'; }
+        else if (rssi >= -82) { badgeClass = 'badge-good'; badgeText = 'BUN'; }
+        else if (rssi >= -88) { badgeClass = 'badge-marginal'; badgeText = 'MARGINAL'; }
+        else { badgeClass = 'badge-poor'; badgeText = 'SLAB'; }
+
+        const dispName = getSensorDisplayName(s);
+        const sensKey = getCanonicalTempKey(s.mac, s.mac);
+        const sparkHtml = (s.temp !== undefined && s.temp > -100)
+          ? getTempSparkline(sensKey, s.temp, 56, 18, true)
+          : '';
+        const tempStr = (s.temp !== undefined && s.temp > -100)
+          ? `${s.temp.toFixed(1)}&deg;C`
+          : `--.-&deg;C`;
+
+        const humStr = (s.hum !== undefined) ? `${Math.round(s.hum)}%` : '--%';
+        const batStr = (s.bat !== undefined) ? `${s.bat}%` : '--%';
+        const ageStr = (s.ageSec !== undefined) ? `${s.ageSec}s în urmă` : '';
+
+        html += `
+          <div class='sensor-row' style='opacity:0.85;'>
+            <div class='sensor-left'>
+              <div class='sensor-title-row'>
+                <span class='sensor-signal-dot ${badgeClass}' title='Semnal BLE: ${badgeText} (${rssi} dBm)'></span>
+                <span class='sensor-name' onclick='promptRenameSensor("${s.mac}", "${dispName.replace(/"/g, '&quot;')}")' title='Clic pentru redenumire senzor'>
+                  ${dispName} <span class='sensor-edit-icon'>✏️</span>
+                </span>
+                <span class='zone-status-mini st-idle' title='Senzor BLE pasiv / Circuit permanent bypass baie fără vană controlabilă.'>
+                  🚿 Pasiv
+                </span>
+              </div>
+              <span class='sensor-mac'>${s.mac}${ageStr ? ' &bull; ' + ageStr : ''} &bull; ${humStr} &bull; 🔋 ${batStr}</span>
+            </div>
+            <div class='sensor-right'>
+              <div class='sensor-temp-col'>
+                <span class='sensor-temp'>${tempStr}</span>
+                ${sparkHtml}
+              </div>
+              <span style='font-size:0.68rem;color:#64748b;min-width:65px;text-align:right;'>Bypass</span>
+            </div>
+          </div>
+        `;
+      });
+
       c.innerHTML = html;
+      const tagDemand = document.getElementById('tag-zones-demand');
+      if (tagDemand) {
+        tagDemand.innerText = `Cerere: ${activeCount}/${zones.length} Bucle Active`;
+      }
+    }
+
+    function renderSensors(sensors) {
+      if (lastZData && lastZData.zones) {
+        renderZones(lastZData.zones, scheduleData ? scheduleData.enabled : true);
+      }
     }
 
     requestAnimationFrame(() => {

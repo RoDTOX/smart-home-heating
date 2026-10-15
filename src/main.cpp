@@ -437,8 +437,19 @@ void handleApiZones() {
   json += "\"sensorTimeoutSec\":" + String(thermalZones.getSensorTimeoutSec()) + ",";
   json += "\"lastAntiSeizeEpoch\":" + String(thermalZones.getLastAntiSeizeEpoch()) + ",";
   json += "\"scheduleEnabled\":" + String(thermalZones.isScheduleEnabled() ? "true" : "false") + ",";
+  json += "\"activePreset\":\"" + String(thermalZones.getActivePresetId()) + "\",";
   json += "\"activeAnchor\":\"" + String(thermalZones.getActiveAnchorName()) + "\",";
+  json += "\"nextAnchor\":\"" + String(thermalZones.getAnchorName(thermalZones.getNextAnchor())) + "\",";
+  json += "\"minsToNextAnchor\":" + String(thermalZones.getMinutesToNextAnchor()) + ",";
   json += "\"preHeatActive\":" + String(thermalZones.isPreHeatActive() ? "true" : "false") + ",";
+  json += "\"boilerRuntime\":{";
+  json += "\"totalSec\":" + String(boilerRadio.getRuntimeTotalSec()) + ",";
+  json += "\"todaySec\":" + String(boilerRadio.getRuntimeTodaySec()) + ",";
+  json += "\"yesterdaySec\":" + String(boilerRadio.getRuntimeYesterdaySec()) + ",";
+  json += "\"thisMonthSec\":" + String(boilerRadio.getRuntimeThisMonthSec()) + ",";
+  json += "\"lastMonthSec\":" + String(boilerRadio.getRuntimeLastMonthSec()) + ",";
+  json += "\"currentBurnSec\":" + String(boilerRadio.getCurrentFlameDurationSec());
+  json += "},";
   json += "\"zones\":[";
 
   for (size_t i = 0; i < thermalZones.getZoneCount(); i++) {
@@ -885,10 +896,24 @@ void handleApiStatus() {
           String(thermalZones.getLastAntiSeizeEpoch()) + ",";
   json += "\"scheduleEnabled\":" +
           String(thermalZones.isScheduleEnabled() ? "true" : "false") + ",";
+  json += "\"activePreset\":\"" +
+          String(thermalZones.getActivePresetId()) + "\",";
   json += "\"activeAnchor\":\"" +
           String(thermalZones.getActiveAnchorName()) + "\",";
+  json += "\"nextAnchor\":\"" +
+          String(thermalZones.getAnchorName(thermalZones.getNextAnchor())) + "\",";
+  json += "\"minsToNextAnchor\":" +
+          String(thermalZones.getMinutesToNextAnchor()) + ",";
   json += "\"preHeatActive\":" +
           String(thermalZones.isPreHeatActive() ? "true" : "false") + ",";
+  json += "\"boilerRuntime\":{";
+  json += "\"totalSec\":" + String(boilerRadio.getRuntimeTotalSec()) + ",";
+  json += "\"todaySec\":" + String(boilerRadio.getRuntimeTodaySec()) + ",";
+  json += "\"yesterdaySec\":" + String(boilerRadio.getRuntimeYesterdaySec()) + ",";
+  json += "\"thisMonthSec\":" + String(boilerRadio.getRuntimeThisMonthSec()) + ",";
+  json += "\"lastMonthSec\":" + String(boilerRadio.getRuntimeLastMonthSec()) + ",";
+  json += "\"currentBurnSec\":" + String(boilerRadio.getCurrentFlameDurationSec());
+  json += "},";
   json += "\"sensors\":[";
   size_t count = bleScanner.getSensorCount();
   size_t written = 0;
@@ -1938,6 +1963,9 @@ void loop() {
   netConsole.update();
   bleScanner.update();
   timeAndWeather.update();
+  if (timeAndWeather.isTimeSynced()) {
+    boilerRadio.updateRuntimeDayMonth(timeAndWeather.getDay(), timeAndWeather.getMonth());
+  }
   diagEngine.update();
   boilerRadio.update();
   thermalZones.update(boilerRadio);

@@ -77,7 +77,7 @@ struct BleDeviceMapEntry {
 static const BleDeviceMapEntry KNOWN_BLE_DEVICES[] = {
     {"A4:C1:38:A4:C1:DD", "Living Room"},
     {"A4:C1:38:84:A1:E8", "Kids Room"},
-    {"A4:C1:38:94:0F:44", "Bathroom"}
+    {"A4:C1:38:94:0F:44", "Dormitor Matrimonial"}
 };
 static const size_t KNOWN_BLE_DEVICES_COUNT = sizeof(KNOWN_BLE_DEVICES) / sizeof(KNOWN_BLE_DEVICES[0]);
 

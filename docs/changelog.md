@@ -3,7 +3,106 @@
 Jurnalul modificărilor, deciziilor tehnice și verificărilor efectuate pentru proiectul de încălzire inteligentă.
 Corelat cu planul activ: [`docs/plan.md`](file:///c:/Users/BSeceleanu/.github_repos/smart-heating/docs/plan.md).
 
-## [15.10.2026] - Igienizare Memorie Heap (Pre-alocare JSON reserve) & Decuplare Dev Server Frontend
+## [15.10.2026] - Curățare Totală Consolă, Izolare Suită Teste ASPICE & Failsafe Fără Spam Boiler
+
+### 1. Eliminare Spam & Izolare Execuție Teste Hardware (`tools/test_system.py`)
+- **Cauza Principală a Spamului Reclamat:**
+  - Testul de spam rapid `test_tc10_1` trimitea 4 cereri rejectate către `/api/boiler/on`. Endpoint-ul programa automat `PENDING_ON` în coada de cooldown, determinând aprinderea flăcării reale după 50s.
+  - La finalul testelor, `ThermalZoneManager` constata că centrala este aprinsă fără cerere de căldură și încerca oprirea ei în fiecare secundă pe durata interblocării de 60s, generând mesaje repetate de reject și avertizări de spam (`DTC-201`).
+  - În plus, `test_tc13_1` și `test_tc13_3` trimiteau comenzile `HELP` și `STATUS` direct în consolă, aruncând peste 150 de linii de tabele brute în inelul de loguri al utilizatorului.
+  - Testul `test_tc19_2` (clamping) folosea un parametru invalid (`mode?auto=false`), declanșând cererea de căldură pe Zona 1 și deschiderea actuatorilor fizici la 30°C.
+- **Măsuri de Izolare & Igienă Aplicate în `test_system.py`:**
+  - `test_tc10_1`: Redus la 3 apeluri (pragul exact pentru DTC-201) și apelat imediat `/api/boiler/cancel` pentru a anula comanda programată.
+  - `test_tc13_3`: Curățare automată (`POST /api/console/send?cmd=CLEAR`) imediat după validarea tabelară a comenzii `STATUS`.
+  - `test_tc19_2`: Izolare completă prin trecere în `mode=manual` și dezactivare orar (`schedule/enable?enabled=false`) înainte de testarea limitelor [15.0°C, 30.0°C], restaurând setpoint-ul original fără a acționa releele.
+  - `run_all()`: Înlocuit bannerele lungi ASCII cu notificări concise de 1 rând (`[TEST-SUITE] >>> Automated Test Suite Started / Finished <<<`) și rulat curățarea completă a bufferului de consolă la final.
+
+### 2. Rezolvare Comandă Consolă `CLEAR` (`src/NetworkConsole.cpp`, `web/console.html`)
+- Resetat complet `_totalBytes`, `_head`, `_count` și bufferul `_logRing` în `NetworkConsole::clear()`.
+- În `executeCommand()`, comanda `CLEAR`/`CLS` este executată cu bypass imediat fără a mai adăuga footer-ul `[CMD] < END: CLEAR`.
+- În `web/console.html`, `clearTerm()` golește acum DOM-ul (`term.innerHTML = ''`), resetează contorul `lastSeq = 0` și sincronizează ștergerea pe server.
+
+### 3. Validare Execuție Live (ESP32 `192.168.1.20`)
+- Suita automată ASPICE SWE.5 (`tools/test_system.py`) a trecut **100% (68/68 PASS, 33/33 cerințe)** în 24.51 secunde.
+- Bufferul de consolă rămâne perfect curat, afișând un singur rând la finalizarea testelor: `[TEST-SUITE] >>> Automated Test Suite Finished (68/68 PASS). All systems nominal. <<<`.
+
+## [15.10.2026] - Sincronizare Live Orar Circadian, Preseturi Implicite Calibrate, Tracking Runtime Cazan & Estimare Factură Gaz
+
+### 1. Sincronizare Automată în Timp Real a Orarului Circadian (Hero Card & Countdown)
+- **Eliminare Necesar Refresh Manual:**
+  - În bucla periodică de refresh frontend (`refresh()`, apelată la fiecare 3.5s), endpoint-ul `/api/status` expune acum `activePreset`, `activeAnchor`, `nextAnchor` și `minsToNextAnchor`.
+  - Frontend-ul actualizează instantaneu cardul erou (`renderActiveAnchorHero`) și numărătoarea inversă (`updateNextAnchorCountdown`), eliminând complet problema în care cardul rămânea blocat pe profilul anterior (ex. Home Office) până la un refresh manual de pagină (F5).
+
+### 2. Calibrare Preseturi din Fabrică conform Orelor & Temperaturilor Reale din Capturi
+- **Preset `Standard / Confort`:**
+  - **L–V (Săptămână):** Somn `20:00` (21.0 / 22.0 / 22.0°C), Trezire `06:00` (23.0 / 22.0 / 22.0°C), Plecat `07:30` (21.0 / 21.0 / 21.0°C), Acasă `17:00` (23.0 / 23.0 / 22.5°C).
+  - **S–D (Weekend):** Somn `21:00` (21.0 / 22.0 / 22.0°C), Trezire `07:30` (23.0 / 22.0 / 22.0°C), Plecat `07:30` (21.0 / 21.0 / 21.0°C), Acasă `16:00` (23.0 / 23.0 / 23.0°C).
+- **Preset `Home Office` (WFH):**
+  - **L–V (Săptămână):** Somn `20:00` (21.0 / 22.0 / 22.0°C), Trezire `06:00` (23.0 / 22.0 / 22.0°C), Home Office `07:30` (23.0 / 23.0 / 21.0°C), Acasă `17:00` (23.0 / 23.0 / 22.5°C).
+  - **S–D (Weekend):** Somn `21:00` (21.0 / 22.0 / 22.0°C), Trezire `07:30` (23.0 / 22.0 / 22.0°C), Home Office `12:00` (21.0 / 21.0 / 21.0°C), Acasă `16:00` (23.0 / 23.0 / 23.0°C).
+- **Protecție NVS:** Valorile default din fabrică sunt hardcodate în C++ ca structuri de rezervă, fără a suprascrie configurațiile customizate din NVS ale utilizatorului decât la solicitare explicită (Reset la Fabrică).
+
+### 3. Redesign Panou Preseturi & Editor Matriceal Integrat (Zero Modale, Independență 100% L-V vs S-D)
+- **Filtrare Sloturi Libere:** Sloturile utilizator nepopulate (`Slot Liber (custom2..4) (Liber)`) sunt ascunse complet din lista de cipuri active, păstrând interfața aerisită și curată.
+- **Bara de Acțiuni Preseturi:** Adăugate butoane discrete și tactile:
+  - `➕ Adaugă Slot`: detectează automat primul slot liber, solicită un nume și îl activează instantaneu.
+  - `💾 Salvează`: persistă orarul curent în slotul de memorie NVS activ.
+  - `↺ Anulează (Discard)`: anulează editările nesalvate și reîncarcă configurația anterioară (sau valorile de fabrică).
+  - `✏️ Redenumește`: permite redenumirea oricărui preset direct din interfață.
+  - `🗑️ Șterge`: șterge presetul personalizat curent din NVS și revine în siguranță la `Standard`.
+- **Eliminare Modal & Integrare Matrice Direct în Cardul Circadian:**
+  - Eliminat butonul strident și fereastra modală popup detașată care forța temperaturi identice pe ambele profiluri.
+  - Matricea tabelară de 4 ancore &times; 3 zone termice este afișată acum direct inline în cardul orarului.
+  - **Independență Totală a Temperaturilor pe Weekend:** Tab-urile `[L–V (Săptămână)]` și `[S–D (Weekend)]` comută instantaneu tabelul pe profilul activ. Modificările de oră și temperatură (ex: Acasă Zona 3 la 22.5°C pe L–V vs 23.0°C pe S–D) afectează strict profilul selectat, fără suprascrieri accidentale.
+  - **Clonare Rapidă la Nevoie:** Butonul `📋 Copiază L-V &rarr; S-D` permite utilizatorului să multiplice instantaneu toate orele și temperaturile de lucru pe weekend doar dacă dorește acest lucru.
+  - **Auto-salvare Non-Blocantă în NVS:** Orice modificare de oră sau apăsare pe stepperele `+` / `-` este salvată automat în memoria Flash NVS a controllerului cu debounce de 700ms și indicator vizual (`✓ Salvat în NVS (L-V)` / `✓ Salvat în NVS (S-D)`).
+
+### 4. Jurnalizare & Insight-uri Termice în Consolă
+- **Clarificare Mesaj Cerere Termică:**
+  - Înlocuit formularea confuză rotunjită `22.2 C <= 22.2 C` cu afișare exactă cu 2 zecimale și etichete explicite: `current 22.21 C <= start threshold 22.20 C (target: 22.5 C, hyst: +/-0.30 C)`.
+- **Insight Consolă Răcire Rapidă (Posibil Aerisire / Geam Deschis):**
+  - La detecția unei pante abrupte de scădere a temperaturii (>0.4°C în câteva minute), motorul termic emite un log dedicat: `[Thermal][INSIGHT] Rapid cooling detected on Zone X (Name): 22.60 C -> 22.20 C (-0.40 C in 240s, possible aeration)`.
+
+### 5. Tracking Timp Funcționare Cazan (Runtime) & Estimare Consum/Factură Gaz
+- **Contor Hardware de Foc în NVS (`BoilerRadioTrigger`):**
+  - Monitorizează timpul activ de flacără: astăzi (`todaySec`), ieri (`yesterdaySec`), luna curentă, luna trecută și total de la instalare (`totalSec`).
+  - Salvare eficientă în NVS (wear-leveling: la stingerea flăcării sau la intervale de 15 minute în timpul arderii continue, plus rollover automat la miezul nopții).
+- **Estimare Gaz & Calibrare Factură Iarnă:**
+  - Card nou în UI sub controlul centralei: afișează timpul de ardere de azi, ieri și total.
+  - Modul flexibil de estimare a costului bazat pe factura lunară reală de gaze (dialog `⚙️ Factură / Cost`, configurabil în `localStorage` cu factura medie de iarnă și orele estimate de ardere).
+
+### 6. Eliminare Spam Consolă la Oprire Cazan (Fix Buclă Stop & Protecție Anti-Short-Cycling)
+- **Problemă Identificată:** Când toate zonele își atingeau temperatura țintă în timp ce cazanul se afla încă în perioada de funcționare minimă (60s anti-short-cycling), `ThermalZoneManager::update()` apela repetat în fiecare secundă `boiler.sendBoilerOff()`. Comanda era respinsă de garda RF, incrementând contorul de spam până la declanșarea erorii `DTC-201 [WARNING]: Rapid boiler toggling / spam detected` și inundând consola cu zeci de mesaje identice.
+- **Soluție Implementată:** În `src/ThermalZoneManager.cpp`, s-a adăugat verificarea `boiler.canTransmit(false)`. Dacă garda este activă, se apelează o singură dată `boiler.setPendingAction(PENDING_OFF)` cu mesajul `[Thermal] BOILER STOP queued (Anti-short-cycling guard active)...`. În secundele următoare nu se mai reapelează funcția, iar la expirarea perioadei de gardă, `BoilerRadioTrigger::update()` execută automat și silențios pachetul RF de oprire.
+
+### 7. Unificare Coloana 2 UI: Eliminare Duplicat & Structură Compactă Zone/Senzori
+- **Eliminare Card Duplicat:** Cardul superior `Zone Termice (Pardoseală)` și cel inferior `Telemetrie Senzori Xiaomi BLE` afișau redundant aceleași încăperi. Cardul superior a fost eliminat complet, păstrând o singură zonă unificată și aerisită.
+- **Rânduri Compacte cu Ierarhie Vizuală Corectă:**
+  - **Temperatură Reală:** Afișată mare, boldată, cu grafic vectorial sparkline integrat.
+  - **Setpoint Subordonat (Slave):** Steppere slim `-` / `+`, etichetate discret `țintă`, pentru a evidenția că setpoint-ul este o țintă de comandă, în timp ce temperatura măsurată reprezintă realitatea fizică.
+  - **Status Hidraulic Minimizat:** Pill compact (`🟢 Repaus`, `🔴 Încălzire`, etc.) cu tooltip informativ complet la hover (deschidere actuator, pompă, cerere flacără).
+  - **Buton Oprire/Pornire Cameră:** Buton discret `⏻` cu tooltip dedicat pentru trecerea rapidă a zonei în repaus fără a deranja setpoint-urile circadiene.
+
+### 8. Notificare Start & Finalizare Suită de Teste pe Consola de Rețea
+- **Claritate & Evitare Confuzie Operare:** La rularea testelor automate ASPICE SWE.5 (`tools/test_system.py`), pe consola virtuală a ESP32 (`/console`, Telnet, Serial) sunt injectate acum bannere vizuale clare:
+  - **La începutul testării:** `[TEST-SUITE] ⚠️ ASPICE SWE.5 AUTOMATED TEST SUITE STARTED` însoțit de avertismentul `NOTIFICARE: Urmatoarele comenzi si modificari de parametri sunt emise de suita automata de teste!`.
+  - **La finalul testării:** `[TEST-SUITE] 🏁 ASPICE SWE.5 AUTOMATED TEST SUITE FINALIZAT (68/68 PASS)` confirmând revenirea completă a parametrilor la starea de producție.
+- **Evidențiere Vizuală în UI:** Adăugat stil cromatic dedicat `.t-tst` cu badge amber/galben luminos în `web/console.html` pentru eticheta `[TEST-SUITE]`.
+- **Comandă `LOG <msg>` / `MSG <msg>` în C++:** În `src/NetworkConsole.cpp`, comenzile care încep cu `LOG `, `MSG ` sau `ECHO ` sunt scrise direct în log-ul consolei cu timestamp, fără a mai fi încadrate de separatoarele standard `[CMD] >` / `[CMD] < END`.
+
+### 9. Remediere Comandă CLEAR / CLS pe Consola Virtuală
+- **Problemă Identificată:** La apăsarea butonului `CLEAR` sau la tastarea comenzii `CLEAR` / `CLS` în consolă, istoricul nu se ștergea deoarece:
+  1. În C++ `NetworkConsole::clear()` nu reseta contorul `_totalBytes = 0`, iar `executeCommand()` adăuga imediat în buffer separatorul de final `[CMD] < END: CLEAR`.
+  2. Pe client în `web/console.html`, `term.innerHTML` nu era curățat la tastarea manuală a comenzii, iar variabila `lastSeq` nu se reseta.
+- **Soluție Implementată:**
+  - În `src/NetworkConsole.cpp`: `clear()` resetează acum complet `_totalBytes = 0`, `_head = 0`, `_count = 0` și execută `memset(_logRing, 0, ...)`. Dacă `executeCommand()` primește `CLEAR` sau `CLS`, apelează direct `clear()` și revine imediat, fără a mai insera bannere de final.
+  - În `web/console.html`: la tastarea `CLEAR` sau la clic pe butonul `CLEAR`, clientul golește imediat `term.innerHTML = ''`, resetează `lastSeq = 0` și trimite comanda la server pentru a goli și memoria circulară a plăcii. De asemenea, dacă clientul detectează un seq `0` de la server, golește automat fereastra consolei pentru toți clienții conectați.
+
+### 10. Verificare & Conformitate ASPICE
+- **PlatformIO Build:** 1,222,041 bytes (62.2% flash), RAM 65,228 bytes (19.9%), 100% SUCCESS.
+- **ASPICE SWE.5 Test Suite:** 68/68 teste atomice PASS (100.0%) în 24.38s, acoperire 33/33 cerințe (100%).
+
+
 
 ### 1. Igienizare Memorie Heap C++ (Zero Fragmentare pe ESP32)
 - **Pre-alocare Buffer String (`reserve`) în Handlerele REST API:**
@@ -18,6 +117,13 @@ Corelat cu planul activ: [`docs/plan.md`](file:///c:/Users/BSeceleanu/.github_re
 - **Eliminare Redundanțe în `web/index.html`:**
   - Șters blocul duplicat de stiluri `@media (max-width: 520px)`.
   - Verificat compilarea gzip automată prin `tools/build_web.py` (119 KB -> 29.1 KB, rată compresie 24.4%).
+- **Micro-Grafice Vectoriale Sparkline de Trend Temperatură (Istoric 3h):**
+  - Upgrade major de la badge-ul text simplu la micro-grafice dinamice vectoriale inline SVG (`generateSparklineSvg` / `getTempSparkline`) direct pe cardurile camerelor și în tabelul de senzori BLE.
+  - **Unificare Chei Canonice de Istoric (`getCanonicalTempKey`):** Zona termică și senzorul fizic BLE asociat (ex: Camera Copilului și `Kids Room`, Dormitor Matrimonial și `A4:C1:38:94:0F:44`) partajează acum exact aceeași cronologie de eșantioane. Curba de sus și curba de jos sunt 100% identice, eliminând discrepanțele sau aparența de linie „zbârcită”/dințată pe senzor.
+  - **Filtrare Zgomot & Scalare Inerțială:** Prag minim de scalare mărit la $1.0^\circ\text{C}$ și fereastră minimă de 3 minute, netezind micro-variațiile inofensive de $\pm 0.03^\circ\text{C}$ ale convertorului ADC în repaus.
+  - **Aliniere Perfectă Tabel Senzori BLE & Indicator Circular Semnal:** Înlocuit badge-urile text late (`BUN (-80dBm)` vs `EXCELENT (-66dBm)`) care decalau cifrele la dreapta cu o bulină luminoasă circulară discretă (`.sensor-signal-dot`) plasată lângă numele senzorului, cu tooltip detaliat la hover (`Semnal BLE: Excelent (-65 dBm)`). Toate valorile de temperatură, graficele sparkline, umiditățile și bateriile sunt acum aliniate vertical la pixel (`.sensor-temp-col`, `.sensor-hum-col`).
+  - **Redenumire Senzori în GUI & Config:** Senzorul `A4:C1:38:94:0F:44` a fost actualizat din `Bathroom` în `Dormitor Matrimonial` în `include/Config.h`. S-a implementat funcția de redenumire directă din GUI (`promptRenameSensor` cu pictogramă ✏️), salvată persistent în `localStorage`.
+  - Verificat end-to-end prin capturi Chrome CDP: `e2e_11_zones_aligned.png` și `e2e_12_sensors_aligned.png`.
 
 ### 3. Server Local de Dezvoltare Decuplat (`tools/dev_server.py`)
 - **Iterare Rapidă Frontend fără Flash pe ESP32:**
