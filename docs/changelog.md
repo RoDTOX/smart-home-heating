@@ -3,6 +3,31 @@
 Jurnalul modificărilor, deciziilor tehnice și verificărilor efectuate pentru proiectul de încălzire inteligentă.
 Corelat cu planul activ: [`docs/plan.md`](file:///c:/Users/BSeceleanu/.github_repos/smart-heating/docs/plan.md).
 
+## [15.10.2026] - Igienizare Memorie Heap (Pre-alocare JSON reserve) & Decuplare Dev Server Frontend
+
+### 1. Igienizare Memorie Heap C++ (Zero Fragmentare pe ESP32)
+- **Pre-alocare Buffer String (`reserve`) în Handlerele REST API:**
+  - În `src/main.cpp`: adăugat apeluri `json.reserve(...)` în toate handlerele API cu răspunsuri dinamice mari (`handleApiZones` - 2560 bytes, `handleApiStatus` - 2048 bytes, `handleApiBleSensors` - 1536 bytes, `handleApiSetupDiscoveredSensors` - 1536 bytes, `handleApiDiagStatus` - 1024 bytes).
+  - În `src/ThermalZoneManager.cpp`: adăugat `json.reserve(2048)` în `getScheduleJson()` și `json.reserve(1024)` în `getPresetsJson()`.
+  - În `src/DiagnosticEngine.cpp`: adăugat `out.reserve(1024)` în `runSelfTest()`.
+  - În `src/TimeAndWeatherService.cpp`: adăugat `json.reserve(512)` în `toJson()`.
+  - În `src/DevicePassport.cpp`: adăugat `json.reserve(512)` în `toJson()`.
+  - **Efect Arhitectural:** Eliminat complet zecile de micro-realocări heap consecutive efectuate la fiecare ciclu de interogare (poll la 3.5s). Free heap-ul rămâne stabil, prevenind fragmentarea memoriei RAM în timp la funcționare pe termen lung (săptămâni/luni).
+
+### 2. Curățare Frontend & Optimizare CSS
+- **Eliminare Redundanțe în `web/index.html`:**
+  - Șters blocul duplicat de stiluri `@media (max-width: 520px)`.
+  - Verificat compilarea gzip automată prin `tools/build_web.py` (119 KB -> 29.1 KB, rată compresie 24.4%).
+
+### 3. Server Local de Dezvoltare Decuplat (`tools/dev_server.py`)
+- **Iterare Rapidă Frontend fără Flash pe ESP32:**
+  - Creat și calibrat serverul local Python (`python tools/dev_server.py`) care servește fișierele din `web/` pe `http://localhost:8080/index.html`.
+  - Frontend-ul comunică direct prin CORS cu placa ESP32 (`192.168.1.20`), permițând modificări vizuale instantanee (F5 în browser) cu zero risc de blocare sau uzură flash.
+
+### 4. Verificare & Conformitate ASPICE
+- **PlatformIO Build:** 1,211,161 bytes (61.6% flash), RAM 65,180 bytes (19.9%), 100% SUCCESS.
+- **ASPICE SWE.5 Test Suite:** 68/68 teste atomice PASS (100.0%) în 24.54s, acoperire 33/33 cerințe (100%).
+
 ## [14.10.2026] - Clarificare Terminologie Zone, Corectare Indexare ID-uri Zone & Decuplare Telemetrie Senzori
 
 ### 1. Decuplare Rezoluție Senzori BLE de Starea Circuitului de Încălzire

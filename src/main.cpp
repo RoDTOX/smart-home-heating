@@ -410,7 +410,9 @@ void handleApiBoilerCancelPending() {
 }
 
 void handleApiZones() {
-  String json = "{";
+  String json;
+  json.reserve(2560);
+  json = "{";
   json +=
       "\"autoMode\":" + String(thermalZones.isAutoMode() ? "true" : "false") +
       ",";
@@ -575,7 +577,9 @@ void handleApiZoneSensor() {
 }
 
 void handleApiBleSensors() {
-  String json = "{";
+  String json;
+  json.reserve(1536);
+  json = "{";
   json += "\"scanning\":" + String(bleScanner.isScanning() ? "true" : "false") +
           ",";
   json += "\"count\":" + String(bleScanner.getSensorCount()) + ",";
@@ -629,7 +633,9 @@ void handleApiSetupPassport() {
 }
 
 void handleApiSetupDiscoveredSensors() {
-  String json = "{\"sensors\":[";
+  String json;
+  json.reserve(1536);
+  json = "{\"sensors\":[";
   size_t count = bleScanner.getSensorCount();
   size_t written = 0;
   for (size_t i = 0; i < count; i++) {
@@ -706,7 +712,9 @@ void handleApiSetupTime() {
 }
 
 void handleApiDiagStatus() {
-  String json = "{";
+  String json;
+  json.reserve(1024);
+  json = "{";
   json += "\"serviceMode\":" +
           String(diagEngine.isServiceMode() ? "true" : "false") + ",";
   json += "\"healthScore\":" + String(diagEngine.calculateHealthScore()) + ",";
@@ -821,7 +829,9 @@ void handleApiSetupSensorTimeout() {
 }
 
 void handleApiStatus() {
-  String json = "{";
+  String json;
+  json.reserve(2048);
+  json = "{";
   json += "\"firmwareVersion\":\"" + String(APP_VERSION) + "\",";
   json += "\"buildDate\":\"" + String(APP_BUILD_DATE " " APP_BUILD_TIME) + "\",";
   json += "\"gitCommit\":\"" + String(APP_GIT_COMMIT) + "\",";

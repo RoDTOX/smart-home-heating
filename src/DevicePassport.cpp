@@ -119,7 +119,9 @@ uint32_t DevicePassport::getInstallationAgeDays() const {
 }
 
 String DevicePassport::toJson() const {
-    String json = "{";
+    String json;
+    json.reserve(512);
+    json = "{";
     json += "\"serialNumber\":\"" + String(_serialNumber) + "\",";
     json += "\"isCommissioned\":" + String(_isCommissioned ? "true" : "false") + ",";
     json += "\"commissionTimestamp\":" + String(_commissionTimestamp) + ",";

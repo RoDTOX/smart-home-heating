@@ -35,6 +35,45 @@ Acest document este planul de referință pentru implementarea controlerului aut
 
 ---
 
+## 🏛️ Viziune Comercială, Scalabilitate (10 → 10.000 Useri) & Echipa Virtuală de Experți
+
+Pentru a asigura tranziția de la un sistem home-made la un **produs comercial scalabil de clasă industrială/automotive**, dezvoltarea este structurată pe roluri experte bine definite, conformitate de proces și decuplare arhitecturală strictă.
+
+### 👥 1. Matricea Echipei de Lucru Experte (Roluri & Responsabilități)
+* **CEO (Chief Executive Officer):** Direcție strategică, viziune de piață, prioritizare funcționalități și validare direcție comercială.
+* **CTO (Chief Technology Officer):** Arhitectură tehnică integrată, alegere stack tehnologic, audit performanță și scalabilitate.
+* **CFO (Chief Financial Officer):** Analiză costuri BOM per unitate (BOM < 45 EUR), strategie de preț pachet hardware + software, optimizare costuri cloud.
+* **Expert Plan Master:** Păstrarea riguroasă a foii de parcurs, trasabilitate cerințe $\leftrightarrow$ implementare, sincronizare continuă a documentației (`docs/plan.md`, `.agent/memory-bank/`).
+* **Expert System Engineer:** Inginerie de sistem la standarde automotive (ASPICE SYS.1–SYS.5), mapare subsisteme (E/E, RF, BLE, Wi-Fi, HVAC), alocare resurse și definire interfețe ICD (Interface Control Documents).
+* **Expert SW Dev (Embedded C++ / IoT):** Firmware determinist, fără memory leaks, non-blocking (FSM), conformitate cu reguli de siguranță (Watchdog TWDT, limite NVS, interblocări hardware).
+* **Expert HW & Instalator Electrician:** Siguranță instalație 230V, capacitate de rupere relee (curenți de anclanșare sarcini inductive), selecție actuatoare NC/NO, scheme hidraulice și bypass.
+* **Expert User Experience (UX):** Ergonomie, navigare intuitivă, simplificarea configurării pentru utilizatorul non-tehnic (zero efort de învățare).
+* **Expert UI/UX (Design & Visuals):** Interfață modernă, estetică premium (stil Tesla HVAC / Apple Home), micro-animații fluide, mod noapte/zi, lizibilitate Kiosk de la 2 metri.
+* **Expert User Tester & End-User Tester:** Testare dinamică în condiții reale de viață (temperaturi resimțite de familie, feedback copii/soție, testare la limită).
+* **Process ISO/CEE & Safety/Cybersecurity Expert:** Conformitate marcaj CE (compatibilitate electromagnetică EMC, directiva joasă tensiune LVD), standarde termostate (EN 60730), izolare socket-uri și securitate BLE/Wi-Fi.
+* **Scaling Expert:** Arhitectură pregătită pentru saltul **10 $\rightarrow$ 100 $\rightarrow$ 1.000 $\rightarrow$ 10.000 utilizatori** (management de flotă, update-uri OTA sigure, agregare telemetrie în cloud Grafana/InfluxDB, multi-tenancy).
+* **Expert Sales & Expert Marketing:** Prezentare atractivă către clienți, Digital Twin 3D / scanare apartament, propunere de valoare centrată pe economie la factura de gaz și confort maxim.
+
+> [!IMPORTANT]
+> **Diviziunea Muncii:**
+> * **Agentul AI (Copilot / Antigravity):** Duce tot greul tehnic de documentație, specificații tehnice, cod C++, teste automate, trasabilitate și diagrame logice.
+> * **Utilizatorul & Clientul:** Se concentrează exclusiv pe experiența de utilizare (UI/UX), utilitate practică, confortul real din casă și ușurința de instalare/onboarding.
+
+---
+
+### 🛡️ 2. Disciplina de Dezvoltare Decuplată (Zero-Risc & Viteza F5)
+1. **ESP32 (Backend C++ Headless):**
+   * Răspunde exclusiv de siguranță și expune API-ul REST JSON (`/api/...`).
+   * Testarea logicii noi se face rapid în consolă (`tools/esp_cli.py`, `/console` sau teste automate).
+2. **Frontend Decuplat Local (`tools/dev_server.py`):**
+   * Dezvoltarea interfeței se face 100% local (`python tools/dev_server.py` -> `http://localhost:8080`).
+   * Browserul local citește datele reale de la ESP32 (`192.168.1.20`) prin CORS.
+   * Modifici HTML/CSS -> Salvezi -> Dai F5 în 50ms.
+   * **Zero flash pe cip, zero riscuri de corupere flash, zero timp pierdut cu compilarea.**
+   * Doar la milestone-uri finale, când interfața este aprobată de client, se rulează `tools/build_web.py`.
+
+---
+
 ## ✅ Todo & Status Sarcini
 
 - [x] **1. Specificație placă relee & alocare pini GPIO** (Finalizat 06.10.2026, Migrat la ESP32 pe 07.10.2026).

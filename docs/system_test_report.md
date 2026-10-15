@@ -1,7 +1,7 @@
 # Raport Testare Automată Sistem & Matrice Trasabilitate (ASPICE SWE.5)
 
 > **Dispozitiv Țintă:** ESP32-WROOM-32E (`http://192.168.1.20:80`)  
-> **Dată Execuție:** 15.10.2026 10:21:02  
+> **Dată Execuție:** 15.10.2026 11:10:12  
 > **Rată de Trecere Teste:** **100.0%** (68/68 Teste Atomice Trecute)  
 > **Acoperire Cerințe (Coverage):** **100.0%** (33/33 Cerințe Acoperite)  
 > **Cerințe Neacoperite:** **0** *(Niciuna - Acoperire 100% Totală)*  
@@ -68,74 +68,74 @@ Fiecare cerință funcțională și non-funcțională din specificația de siste
 
 | ID Test | Nume Verificare Atomică | Cerințe Validate | Latență | Stare | Detalii & Aserțiuni Verificate |
 | :---: | :--- | :--- | :---: | :---: | :--- |
-| **SWE.5-TC01.1** | System Status Payload Schema | `FR-1, FR-8, NFR-1.1` | 354.8 ms | ✅ PASS | Boiler: OFF, Demand: False, AutoMode: True |
-| **SWE.5-TC01.2** | RAM Margin & Free Heap Budget (>100 KB) | `FR-24, NFR-2.2` | 246.0 ms | ✅ PASS | Free Heap: 115 KB free (Target >100 KB PASS) |
-| **SWE.5-TC01.3** | Decoupled Architecture: Zero Bloatware | `NFR-3.2` | 196.4 ms | ✅ PASS | Verified zero MQTT fields in REST payload; fully decoupled autonomous edge node |
-| **SWE.5-TC01.4** | Wi-Fi RSSI & Hardware Telemetry | `FR-24` | 238.7 ms | ✅ PASS | Wi-Fi RSSI: -65 dBm, Health Score: 100% |
-| **SWE.5-TC02.1** | Device Passport Serial Prefix | `FR-13` | 446.8 ms | ✅ PASS | Device Serial: SH-14721A0D5020 |
-| **SWE.5-TC02.2** | Device Passport MAC Address Format | `FR-13` | 309.5 ms | ✅ PASS | Hardware MAC: 20:50:0D:1A:72:14 |
-| **SWE.5-TC02.3** | Commissioning Status & NVS Date | `FR-13` | 351.4 ms | ✅ PASS | Commissioned: 2026-10-09 10:15:15, Installer Notes Available: False |
-| **SWE.5-TC02.4** | Setup Passport Metadata Contract | `FR-11, FR-13` | 199.3 ms | ✅ PASS | Customer: 'Seceleanu Bogdan', City: 'București (București)', Age: 6 days |
-| **SWE.5-TC03.1** | NimBLE Scanner Running Status | `FR-6, FR-28` | 235.4 ms | ✅ PASS | NimBLE Radio Scanner: ACTIVE (90% duty cycle) |
-| **SWE.5-TC03.2** | Xiaomi BTHome v2 Direct Ingestion | `FR-6, FR-11` | 444.4 ms | ✅ PASS | Directly decoded 3 Xiaomi LYWSD03MMC sensors via onboard Bluetooth |
-| **SWE.5-TC03.3** | BLE Link Quality Badges | `FR-20` | 189.2 ms | ✅ PASS | Categorized 3 Xiaomi sensors into link quality badges (EXCELLENT, GOOD, MARGINAL, POOR) |
-| **SWE.5-TC03.4** | Boot Warmup Grace Period Contract | `FR-22, FR-28` | 268.6 ms | ✅ PASS | Uptime: 40259s (Boot warmup grace period verified passed and operational) |
-| **SWE.5-TC04.1** | Self-Test Wi-Fi Subsystem | `FR-10, NFR-1.1` | 288.4 ms | ✅ PASS | Wi-Fi Subsystem: PASS verified over live selftest |
-| **SWE.5-TC04.2** | Self-Test System Memory (Heap) | `FR-10, NFR-2.2` | 162.0 ms | ✅ PASS | System Memory (Heap): PASS verified (>60 KB threshold) |
-| **SWE.5-TC04.3** | Self-Test Bluetooth BLE Stack | `FR-6, FR-10` | 186.8 ms | ✅ PASS | Bluetooth BLE Stack: PASS (Scanner ACTIVE) |
-| **SWE.5-TC04.4** | Self-Test Hydraulic Pump Subsystem | `FR-10, FR-14` | 277.6 ms | ✅ PASS | Hydraulic Pump Ctrl: PASS (Relay 4 GPA Controller) |
-| **SWE.5-TC04.5** | Self-Test Multi-Zone Heating Engine | `FR-1, FR-10` | 213.5 ms | ✅ PASS | Multi-Zone Engine: PASS (Automatic Hysteresis Loops) |
-| **SWE.5-TC04.6** | Self-Test Boiler RF 433 MHz Trigger | `FR-5, FR-10` | 208.1 ms | ✅ PASS | Boiler RF 433 MHz: PASS (OOK 409-step Transmitter) |
-| **SWE.5-TC04.7** | Self-Test System Health Score | `FR-10` | 229.5 ms | ✅ PASS | Overall Health Score: 100% [EXCELLENT] (All subsystems healthy) |
-| **SWE.5-TC05.1** | Hardware Task Watchdog (TWDT 90s) | `NFR-1.5` | 229.7 ms | ✅ PASS | TWDT 90s Active, Loop fed normally, Reset reason: Software Reboot (Firmware Update / Restart) |
-| **SWE.5-TC06.1** | Actuator Polarity Initial Query | `FR-15` | 236.5 ms | ✅ PASS | Initial Actuator Polarity: NC |
-| **SWE.5-TC06.2** | Actuator Polarity Dynamic Toggle | `FR-15` | 934.9 ms | ✅ PASS | Successfully toggled NC -> NO |
-| **SWE.5-TC06.3** | Actuator Polarity NVS Restoration | `FR-15` | 448.7 ms | ✅ PASS | Restored to Normally Closed (NC) in NVS |
-| **SWE.5-TC07.1** | Hydraulic GPA Pump Configuration | `FR-14` | 228.2 ms | ✅ PASS | GPA Pump Enabled: True, Active: False (Relay 4) |
-| **SWE.5-TC07.2** | Actuator Interlock Delay Contract (120s) | `FR-2, FR-14` | 205.4 ms | ✅ PASS | Verified 120s interlock delay rule active across 3 hydronic loops |
-| **SWE.5-TC07.3** | Pump Overrun Heat Dissipation (180s) | `FR-3, FR-14` | 248.7 ms | ✅ PASS | Verified 180s overrun rule; keeper zone state: False |
-| **SWE.5-TC07.4** | Emergency Frost Guard Standby (<12°C) | `FR-16` | 199.6 ms | ✅ PASS | Frost Guard Active: False (Trigger threshold: <12.0°C) |
-| **SWE.5-TC07.5** | Hydronic Anti-Seize UNIX Epoch Contract | `FR-14, FR-19` | 214.3 ms | ✅ PASS | Anti-Seize Last Epoch: 1791958044 (Weekly 20s summer exercise schedule) |
-| **SWE.5-TC08.1** | Boiler State Baseline Establishment | `FR-5` | 658.1 ms | ✅ PASS | Boiler baseline set to OFF (RF transmitter verified) |
-| **SWE.5-TC08.2** | Anti-Spam Idempotency No-Op Filter | `FR-17` | 233.1 ms | ✅ PASS | Repeated command handled as 0ms no-op; RF burst skipped |
-| **SWE.5-TC08.3** | Zero RF Burst Emission Verification | `FR-17` | 334.3 ms | ✅ PASS | RF transmission hardware driver bypassed without CPU blocking |
-| **SWE.5-TC09.1** | Boiler 60s Reversal Interlock Guard | `FR-4, FR-17` | 420.9 ms | ✅ PASS | Interlock ACTIVE: Rejected state reversal (wait: 2s remaining) |
-| **SWE.5-TC09.2** | Deterministic HTTP 429 & waitSec | `FR-17` | 218.9 ms | ✅ PASS | HTTP 429 verified: Anti-short-cycling guard active (2s remaining) |
-| **SWE.5-TC10.1** | Rapid Boiler Spam Injection Loop | `FR-17` | 1692.2 ms | ✅ PASS | Fired 4 rapid spam requests into boiler endpoint |
-| **SWE.5-TC10.2** | DTC-201 Logging & Health Degradation | `FR-10, FR-17` | 208.1 ms | ✅ PASS | DTC-201 raised: WARN_BOILER_SPAM_DETECTED, Health Score degraded to 90% |
-| **SWE.5-TC10.3** | DTC Clear & System Health Recovery | `FR-10, FR-17` | 510.2 ms | ✅ PASS | DTCs cleared; System Health Score 100% recovered |
-| **SWE.5-TC11.1** | Zone Setpoint Initial Query | `FR-1` | 215.2 ms | ✅ PASS | Zone 1 'Living & Bucatarie': Target 21.0°C, Current 23.5°C |
-| **SWE.5-TC11.2** | Zone Setpoint Dynamic Mutation | `FR-1` | 944.4 ms | ✅ PASS | Zone 1 setpoint changed: 21.0°C -> 21.5°C |
-| **SWE.5-TC11.3** | Zone Setpoint NVS Restoration | `FR-1` | 449.2 ms | ✅ PASS | Zone 1 setpoint restored to 22.0°C in NVS |
-| **SWE.5-TC11.4** | Operating Mode Contract (Auto vs Manual) | `FR-1` | 246.5 ms | ✅ PASS | Active Operating Mode: AUTOMATIC |
-| **SWE.5-TC12.1** | NTP Clock Sync & Bucharest POSIX | `FR-12` | 221.9 ms | ✅ PASS | NTP Synced: 2026-10-15 10:20:49 (Europe/Bucharest) |
-| **SWE.5-TC12.2** | Heating Season Calendar Detection | `FR-12` | 297.5 ms | ✅ PASS | Season: Autumn, Heating Season Active: True |
-| **SWE.5-TC12.3** | Outdoor Weather Telemetry (Open-Meteo) | `FR-9, FR-12` | 224.5 ms | ✅ PASS | Outdoor Weather: 6.7°C (Open-Meteo REST service) |
-| **SWE.5-TC13.1** | Console Remote HELP Execution | `FR-7` | 329.3 ms | ✅ PASS | Dispatched HELP command over REST console endpoint |
-| **SWE.5-TC13.2** | Console Log Buffer Tail Verification | `FR-7` | 359.4 ms | ✅ PASS | Verified live ring buffer tail contains structured command response |
-| **SWE.5-TC13.3** | Tabular Formatting & UTF-8 °C Presentation | `FR-23, FR-25, FR-27` | 1446.0 ms | ✅ PASS | Verified 2-column tabular blocks, UTF-8 °C symbols and zero column drifting |
-| **SWE.5-TC14.1** | Sensor Timeout Failsafe Query | `FR-18` | 216.3 ms | ✅ PASS | Configured sensor timeout: 600s |
-| **SWE.5-TC14.2** | Sensor Timeout Mutation to 750s | `FR-18` | 321.6 ms | ✅ PASS | Updated timeout to 750s in NVS |
-| **SWE.5-TC14.3** | Sensor Timeout Restoration | `FR-18` | 325.7 ms | ✅ PASS | Restored default timeout to 600s (10 min) in NVS |
-| **SWE.5-TC15.1** | Firmware SemVer Baseline (1.2.0) | `FR-21` | 167.5 ms | ✅ PASS | Firmware SemVer: v1.2.0 |
-| **SWE.5-TC15.2** | Build Timestamp & Git Hash Traceability | `FR-21` | 201.8 ms | ✅ PASS | Build: Oct 14 2026 23:06:40, Git Commit: 8065534 |
-| **SWE.5-TC15.3** | Hardware Reset Reason Telemetry | `FR-21` | 311.0 ms | ✅ PASS | Last Hardware Reset Reason: Software Reboot (Firmware Update / Restart) |
-| **SWE.5-TC16.1** | Bio-Schedule 4 Life Anchors Contract | `FR-26.1` | 264.7 ms | ✅ PASS | Verified 4 natural anchors (Sleep, Wake, Away, Home) across Weekday & Weekend profiles |
-| **SWE.5-TC16.2** | Predictive Pre-Heat Thermal Advance | `FR-26.1` | 223.8 ms | ✅ PASS | Pre-Heat Advance Enabled: True (Dynamic thermal inertia calculation) |
-| **SWE.5-TC16.3** | Open Window Smart Pause Guard | `FR-26.1` | 233.3 ms | ✅ PASS | Open Window Guard Enabled: True (>1.2°C / 5 min detection) |
-| **SWE.5-TC16.4** | Bio-Schedule Telemetry Integration | `FR-26.1` | 696.7 ms | ✅ PASS | Active Anchor: 'AWAY', Effective Target Exposed per Zone |
-| **SWE.5-TC17.1** | Dynamic Anchor Tuning Execution | `FR-26.1` | 328.8 ms | ✅ PASS | Updated Weekday Wake anchor to 06:45 with targets [22.1, 22.6, 21.9]°C |
-| **SWE.5-TC17.2** | Anchor Tuning NVS Persistence | `FR-26.1` | 231.1 ms | ✅ PASS | NVS binary structure matches updated parameters |
-| **SWE.5-TC17.3** | Bio-Schedule Factory Reset Restoration | `FR-26.1` | 343.7 ms | ✅ PASS | Schedule restored to factory circadian defaults |
-| **SWE.5-TC18.1** | Presets Catalog Discovery Contract | `FR-26.2` | 245.8 ms | ✅ PASS | Catalog verified: 7 slots discovered (default, eco, wfh, custom1, custom2) |
-| **SWE.5-TC18.2** | Preset Activation ('eco') | `FR-26.2` | 291.6 ms | ✅ PASS | Applied 'eco' preset (Sleep targets: [18.0, 18.5, 18.0]°C) |
-| **SWE.5-TC18.3** | Custom User Slot Save ('custom4') | `FR-26.2` | 533.8 ms | ✅ PASS | Saved active schedule into NVS slot 'custom4' as 'SWE5Test' & cleanly reset |
-| **SWE.5-TC18.4** | Default Preset Restoration ('default') | `FR-26.2` | 243.2 ms | ✅ PASS | Restored factory 'default' preset |
-| **SWE.5-TC19.1** | Invalid Anchor Rejection (HTTP 400) | `FR-8, FR-26.1` | 209.6 ms | ✅ PASS | HTTP 400 rejected invalid anchor name: Invalid anchor. Use sleep, wake, away, or home. |
-| **SWE.5-TC19.2** | Out-of-Bounds Temperature Clamping | `FR-1` | 1249.6 ms | ✅ PASS | Verified firmware hard-clamping to physical safety limits [15.0°C, 30.0°C] |
-| **SWE.5-TC19.3** | Invalid Zone Index Handling (HTTP 400) | `FR-1, FR-8` | 262.7 ms | ✅ PASS | HTTP 400 safely rejected zone index 99: Invalid zone index |
-| **SWE.5-TC19.4** | Invalid Preset Application Rejection | `FR-26.2` | 223.8 ms | ✅ PASS | HTTP 400 rejected non-existent preset: Preset not found or invalid. |
-| **SWE.5-TC19.5** | Invalid Preset Slot Rejection | `FR-26.2` | 235.8 ms | ✅ PASS | HTTP 400 safely rejected invalid slot: Invalid preset slot id. Valid slots: default, eco, wfh, custom1..custom4. |
+| **SWE.5-TC01.1** | System Status Payload Schema | `FR-1, FR-8, NFR-1.1` | 324.6 ms | ✅ PASS | Boiler: OFF, Demand: False, AutoMode: True |
+| **SWE.5-TC01.2** | RAM Margin & Free Heap Budget (>100 KB) | `FR-24, NFR-2.2` | 978.0 ms | ✅ PASS | Free Heap: 115 KB free (Target >100 KB PASS) |
+| **SWE.5-TC01.3** | Decoupled Architecture: Zero Bloatware | `NFR-3.2` | 614.1 ms | ✅ PASS | Verified zero MQTT fields in REST payload; fully decoupled autonomous edge node |
+| **SWE.5-TC01.4** | Wi-Fi RSSI & Hardware Telemetry | `FR-24` | 343.5 ms | ✅ PASS | Wi-Fi RSSI: -71 dBm, Health Score: 90% |
+| **SWE.5-TC02.1** | Device Passport Serial Prefix | `FR-13` | 199.4 ms | ✅ PASS | Device Serial: SH-14721A0D5020 |
+| **SWE.5-TC02.2** | Device Passport MAC Address Format | `FR-13` | 235.1 ms | ✅ PASS | Hardware MAC: 20:50:0D:1A:72:14 |
+| **SWE.5-TC02.3** | Commissioning Status & NVS Date | `FR-13` | 144.2 ms | ✅ PASS | Commissioned: 2026-10-09 10:15:15, Installer Notes Available: False |
+| **SWE.5-TC02.4** | Setup Passport Metadata Contract | `FR-11, FR-13` | 233.7 ms | ✅ PASS | Customer: 'Seceleanu Bogdan', City: 'București (București)', Age: 6 days |
+| **SWE.5-TC03.1** | NimBLE Scanner Running Status | `FR-6, FR-28` | 224.0 ms | ✅ PASS | NimBLE Radio Scanner: ACTIVE (90% duty cycle) |
+| **SWE.5-TC03.2** | Xiaomi BTHome v2 Direct Ingestion | `FR-6, FR-11` | 209.7 ms | ✅ PASS | Directly decoded 3 Xiaomi LYWSD03MMC sensors via onboard Bluetooth |
+| **SWE.5-TC03.3** | BLE Link Quality Badges | `FR-20` | 235.0 ms | ✅ PASS | Categorized 3 Xiaomi sensors into link quality badges (EXCELLENT, GOOD, MARGINAL, POOR) |
+| **SWE.5-TC03.4** | Boot Warmup Grace Period Contract | `FR-22, FR-28` | 322.7 ms | ✅ PASS | Uptime: 43209s (Boot warmup grace period verified passed and operational) |
+| **SWE.5-TC04.1** | Self-Test Wi-Fi Subsystem | `FR-10, NFR-1.1` | 337.8 ms | ✅ PASS | Wi-Fi Subsystem: PASS verified over live selftest |
+| **SWE.5-TC04.2** | Self-Test System Memory (Heap) | `FR-10, NFR-2.2` | 209.7 ms | ✅ PASS | System Memory (Heap): PASS verified (>60 KB threshold) |
+| **SWE.5-TC04.3** | Self-Test Bluetooth BLE Stack | `FR-6, FR-10` | 256.9 ms | ✅ PASS | Bluetooth BLE Stack: PASS (Scanner ACTIVE) |
+| **SWE.5-TC04.4** | Self-Test Hydraulic Pump Subsystem | `FR-10, FR-14` | 232.1 ms | ✅ PASS | Hydraulic Pump Ctrl: PASS (Relay 4 GPA Controller) |
+| **SWE.5-TC04.5** | Self-Test Multi-Zone Heating Engine | `FR-1, FR-10` | 202.0 ms | ✅ PASS | Multi-Zone Engine: PASS (Automatic Hysteresis Loops) |
+| **SWE.5-TC04.6** | Self-Test Boiler RF 433 MHz Trigger | `FR-5, FR-10` | 212.0 ms | ✅ PASS | Boiler RF 433 MHz: PASS (OOK 409-step Transmitter) |
+| **SWE.5-TC04.7** | Self-Test System Health Score | `FR-10` | 141.2 ms | ✅ PASS | Overall Health Score: 100% [EXCELLENT] (All subsystems healthy) |
+| **SWE.5-TC05.1** | Hardware Task Watchdog (TWDT 90s) | `NFR-1.5` | 208.8 ms | ✅ PASS | TWDT 90s Active, Loop fed normally, Reset reason: Software Reboot (Firmware Update / Restart) |
+| **SWE.5-TC06.1** | Actuator Polarity Initial Query | `FR-15` | 266.8 ms | ✅ PASS | Initial Actuator Polarity: NC |
+| **SWE.5-TC06.2** | Actuator Polarity Dynamic Toggle | `FR-15` | 641.3 ms | ✅ PASS | Successfully toggled NC -> NO |
+| **SWE.5-TC06.3** | Actuator Polarity NVS Restoration | `FR-15` | 503.7 ms | ✅ PASS | Restored to Normally Closed (NC) in NVS |
+| **SWE.5-TC07.1** | Hydraulic GPA Pump Configuration | `FR-14` | 238.4 ms | ✅ PASS | GPA Pump Enabled: True, Active: False (Relay 4) |
+| **SWE.5-TC07.2** | Actuator Interlock Delay Contract (120s) | `FR-2, FR-14` | 226.5 ms | ✅ PASS | Verified 120s interlock delay rule active across 3 hydronic loops |
+| **SWE.5-TC07.3** | Pump Overrun Heat Dissipation (180s) | `FR-3, FR-14` | 243.8 ms | ✅ PASS | Verified 180s overrun rule; keeper zone state: False |
+| **SWE.5-TC07.4** | Emergency Frost Guard Standby (<12°C) | `FR-16` | 179.0 ms | ✅ PASS | Frost Guard Active: False (Trigger threshold: <12.0°C) |
+| **SWE.5-TC07.5** | Hydronic Anti-Seize UNIX Epoch Contract | `FR-14, FR-19` | 219.6 ms | ✅ PASS | Anti-Seize Last Epoch: 1791958044 (Weekly 20s summer exercise schedule) |
+| **SWE.5-TC08.1** | Boiler State Baseline Establishment | `FR-5` | 648.4 ms | ✅ PASS | Boiler baseline set to OFF (RF transmitter verified) |
+| **SWE.5-TC08.2** | Anti-Spam Idempotency No-Op Filter | `FR-17` | 361.0 ms | ✅ PASS | Repeated command handled as 0ms no-op; RF burst skipped |
+| **SWE.5-TC08.3** | Zero RF Burst Emission Verification | `FR-17` | 195.1 ms | ✅ PASS | RF transmission hardware driver bypassed without CPU blocking |
+| **SWE.5-TC09.1** | Boiler 60s Reversal Interlock Guard | `FR-4, FR-17` | 565.9 ms | ✅ PASS | Interlock ACTIVE: Rejected state reversal (wait: 2s remaining) |
+| **SWE.5-TC09.2** | Deterministic HTTP 429 & waitSec | `FR-17` | 232.6 ms | ✅ PASS | HTTP 429 verified: Anti-short-cycling guard active (2s remaining) |
+| **SWE.5-TC10.1** | Rapid Boiler Spam Injection Loop | `FR-17` | 1664.0 ms | ✅ PASS | Fired 4 rapid spam requests into boiler endpoint |
+| **SWE.5-TC10.2** | DTC-201 Logging & Health Degradation | `FR-10, FR-17` | 228.1 ms | ✅ PASS | DTC-201 raised: WARN_BOILER_SPAM_DETECTED, Health Score degraded to 90% |
+| **SWE.5-TC10.3** | DTC Clear & System Health Recovery | `FR-10, FR-17` | 410.7 ms | ✅ PASS | DTCs cleared; System Health Score 100% recovered |
+| **SWE.5-TC11.1** | Zone Setpoint Initial Query | `FR-1` | 295.6 ms | ✅ PASS | Zone 1 'Living & Bucatarie': Target 22.5°C, Current 24.4°C |
+| **SWE.5-TC11.2** | Zone Setpoint Dynamic Mutation | `FR-1` | 665.1 ms | ✅ PASS | Zone 1 setpoint changed: 22.5°C -> 21.5°C |
+| **SWE.5-TC11.3** | Zone Setpoint NVS Restoration | `FR-1` | 530.0 ms | ✅ PASS | Zone 1 setpoint restored to 22.0°C in NVS |
+| **SWE.5-TC11.4** | Operating Mode Contract (Auto vs Manual) | `FR-1` | 323.0 ms | ✅ PASS | Active Operating Mode: AUTOMATIC |
+| **SWE.5-TC12.1** | NTP Clock Sync & Bucharest POSIX | `FR-12` | 309.5 ms | ✅ PASS | NTP Synced: 2026-10-15 11:09:58 (Europe/Bucharest) |
+| **SWE.5-TC12.2** | Heating Season Calendar Detection | `FR-12` | 173.6 ms | ✅ PASS | Season: Autumn, Heating Season Active: True |
+| **SWE.5-TC12.3** | Outdoor Weather Telemetry (Open-Meteo) | `FR-9, FR-12` | 197.8 ms | ✅ PASS | Outdoor Weather: 8.6°C (Open-Meteo REST service) |
+| **SWE.5-TC13.1** | Console Remote HELP Execution | `FR-7` | 320.6 ms | ✅ PASS | Dispatched HELP command over REST console endpoint |
+| **SWE.5-TC13.2** | Console Log Buffer Tail Verification | `FR-7` | 431.4 ms | ✅ PASS | Verified live ring buffer tail contains structured command response |
+| **SWE.5-TC13.3** | Tabular Formatting & UTF-8 °C Presentation | `FR-23, FR-25, FR-27` | 1455.3 ms | ✅ PASS | Verified 2-column tabular blocks, UTF-8 °C symbols and zero column drifting |
+| **SWE.5-TC14.1** | Sensor Timeout Failsafe Query | `FR-18` | 153.5 ms | ✅ PASS | Configured sensor timeout: 600s |
+| **SWE.5-TC14.2** | Sensor Timeout Mutation to 750s | `FR-18` | 198.5 ms | ✅ PASS | Updated timeout to 750s in NVS |
+| **SWE.5-TC14.3** | Sensor Timeout Restoration | `FR-18` | 226.6 ms | ✅ PASS | Restored default timeout to 600s (10 min) in NVS |
+| **SWE.5-TC15.1** | Firmware SemVer Baseline (1.2.0) | `FR-21` | 267.8 ms | ✅ PASS | Firmware SemVer: v1.2.0 |
+| **SWE.5-TC15.2** | Build Timestamp & Git Hash Traceability | `FR-21` | 201.3 ms | ✅ PASS | Build: Oct 14 2026 23:06:40, Git Commit: 8065534 |
+| **SWE.5-TC15.3** | Hardware Reset Reason Telemetry | `FR-21` | 309.3 ms | ✅ PASS | Last Hardware Reset Reason: Software Reboot (Firmware Update / Restart) |
+| **SWE.5-TC16.1** | Bio-Schedule 4 Life Anchors Contract | `FR-26.1` | 272.4 ms | ✅ PASS | Verified 4 natural anchors (Sleep, Wake, Away, Home) across Weekday & Weekend profiles |
+| **SWE.5-TC16.2** | Predictive Pre-Heat Thermal Advance | `FR-26.1` | 209.4 ms | ✅ PASS | Pre-Heat Advance Enabled: True (Dynamic thermal inertia calculation) |
+| **SWE.5-TC16.3** | Open Window Smart Pause Guard | `FR-26.1` | 316.9 ms | ✅ PASS | Open Window Guard Enabled: True (>1.2°C / 5 min detection) |
+| **SWE.5-TC16.4** | Bio-Schedule Telemetry Integration | `FR-26.1` | 443.4 ms | ✅ PASS | Active Anchor: 'AWAY', Effective Target Exposed per Zone |
+| **SWE.5-TC17.1** | Dynamic Anchor Tuning Execution | `FR-26.1` | 313.5 ms | ✅ PASS | Updated Weekday Wake anchor to 06:45 with targets [22.1, 22.6, 21.9]°C |
+| **SWE.5-TC17.2** | Anchor Tuning NVS Persistence | `FR-26.1` | 322.9 ms | ✅ PASS | NVS binary structure matches updated parameters |
+| **SWE.5-TC17.3** | Bio-Schedule Factory Reset Restoration | `FR-26.1` | 356.5 ms | ✅ PASS | Schedule restored to factory circadian defaults |
+| **SWE.5-TC18.1** | Presets Catalog Discovery Contract | `FR-26.2` | 207.5 ms | ✅ PASS | Catalog verified: 7 slots discovered (default, eco, wfh, custom1, custom2) |
+| **SWE.5-TC18.2** | Preset Activation ('eco') | `FR-26.2` | 221.9 ms | ✅ PASS | Applied 'eco' preset (Sleep targets: [18.0, 18.5, 18.0]°C) |
+| **SWE.5-TC18.3** | Custom User Slot Save ('custom4') | `FR-26.2` | 324.3 ms | ✅ PASS | Saved active schedule into NVS slot 'custom4' as 'SWE5Test' & cleanly reset |
+| **SWE.5-TC18.4** | Default Preset Restoration ('default') | `FR-26.2` | 209.1 ms | ✅ PASS | Restored factory 'default' preset |
+| **SWE.5-TC19.1** | Invalid Anchor Rejection (HTTP 400) | `FR-8, FR-26.1` | 224.0 ms | ✅ PASS | HTTP 400 rejected invalid anchor name: Invalid anchor. Use sleep, wake, away, or home. |
+| **SWE.5-TC19.2** | Out-of-Bounds Temperature Clamping | `FR-1` | 1576.4 ms | ✅ PASS | Verified firmware hard-clamping to physical safety limits [15.0°C, 30.0°C] |
+| **SWE.5-TC19.3** | Invalid Zone Index Handling (HTTP 400) | `FR-1, FR-8` | 319.0 ms | ✅ PASS | HTTP 400 safely rejected zone index 99: Invalid zone index |
+| **SWE.5-TC19.4** | Invalid Preset Application Rejection | `FR-26.2` | 241.0 ms | ✅ PASS | HTTP 400 rejected non-existent preset: Preset not found or invalid. |
+| **SWE.5-TC19.5** | Invalid Preset Slot Rejection | `FR-26.2` | 233.7 ms | ✅ PASS | HTTP 400 safely rejected invalid slot: Invalid preset slot id. Valid slots: default, eco, wfh, custom1..custom4. |
 
 ---
 

@@ -226,7 +226,9 @@ void TimeAndWeatherService::update() {
 }
 
 String TimeAndWeatherService::toJson() const {
-    String json = "{";
+    String json;
+    json.reserve(512);
+    json = "{";
     json += "\"timeSynced\":" + String(isTimeSynced() ? "true" : "false") + ",";
     json += "\"time\":\"" + getFormattedTime() + "\",";
     json += "\"date\":\"" + getFormattedDate() + "\",";

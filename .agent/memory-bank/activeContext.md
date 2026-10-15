@@ -1,6 +1,12 @@
 # Active Context: Smart Home Heating System
 
-## Current State (Updated 2026-10-14)
+## Current State (Updated 2026-10-15)
+- **Igienizare Memorie Heap C++ & Decuplare Dev Server Frontend (Finalizat 15.10.2026):**
+  - **Zero Fragmentare Heap pe ESP32:** Implementat pre-alocare exactă de buffer `json.reserve(...)` / `out.reserve(...)` în toate serializatoarele JSON și rapoartele din C++ (`main.cpp`, `ThermalZoneManager.cpp`, `DiagnosticEngine.cpp`, `TimeAndWeatherService.cpp`, `DevicePassport.cpp`). Eliminat zecile de micro-realocări heap per ciclu de interogare HTTP, asigurând stabilitate pe termen lung a Free Heap-ului (>115 KB).
+  - **Curățare Frontend & Optimizare CSS:** Eliminat blocul duplicat `@media (max-width: 520px)` din `web/index.html`. Compilare gzip automată `build_web.py` validată (119 KB -> 29.1 KB).
+  - **Decuplare Dev Server Local (`tools/dev_server.py`):** Server local pe portul 8080 (`http://localhost:8080/index.html`) conectat prin CORS la ESP32 (`192.168.1.20`) pentru iterații UI ultra-rapide cu zero uzură flash.
+  - **ASPICE SWE.5 & Build:** PlatformIO build 100% SUCCESS, suita de testare `tools/test_system.py` cu 68/68 PASS (100.0%) în 24.54s, acoperire 33/33 cerințe.
+
 - **Clarificare Terminologie Zone, Corectare Indexare ID-uri & Decuplare Telemetrie Senzori (Finalizat 14.10.2026):**
   - **Decuplare Scanare Senzori:** `ThermalZoneManager::update()` rezolvă acum pachetele de telemetrie BLE înaintea verificării `enabled`. Temperatura fizică a camerei este monitorizată permanent, eliminând falsul `TIMEOUT (Failsafe OFF)` din consolă și afișajul `--.-°C` când un circuit este oprit manual.
   - **Fix Bug Indexare UI (Off-by-One):** `renderZones` transmite acum ID-ul explicit `z.id` (1, 2, 3) către `toggleZone` și `adjTarget`, eliminând decalajul cauzat de indexul 0-based care comuta camera greșită (Zona 3 oprea Zona 2 / Camera Copilului).

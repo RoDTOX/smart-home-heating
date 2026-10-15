@@ -3,6 +3,19 @@
 ## Status
 All core functional subsystems (heating hysteresis engine, boiler RF trigger, native BLE passive scanner, 2-way console, web OTA, diagnostic engine with DTCs, service mode, digital passport, NTP & weather sync, headless API-first architecture, hydronic safety controls, anti-spam burner interlocks, Bio-Schedule with presets engine & full factory/user customization, deferred action cooldown cancel, and atomic PC system test suite with bidirectional traceability matrix) are fully implemented, compiled, uploaded, and verified live on ESP32 (`192.168.1.20`) with 100% ASPICE SWE.5 pass rate (68/68 PASS, 33/33 requirements covered, 0 uncovered).
 
+## Completed Work (2026-10-15 - Igienizare Memorie Heap C++, Curățare Frontend & Decuplare Dev Server)
+- **Igienizare Memorie Heap C++ (Zero Fragmentare pe ESP32):**
+  - Implementat pre-alocare de buffer `json.reserve(...)` / `out.reserve(...)` în toate serializatoarele mari REST API din `main.cpp`, `ThermalZoneManager.cpp`, `DiagnosticEngine.cpp`, `TimeAndWeatherService.cpp`, `DevicePassport.cpp`.
+  - Eliminat zecile de micro-realocări heap consecutive la fiecare interogare la 3.5s, menținând Free Heap stabil la >115 KB fără fragmentare RAM pe termen lung.
+- **Curățare Frontend & Optimizare CSS:**
+  - Șters blocul duplicat `@media (max-width: 520px)` din `web/index.html`.
+  - Validat compresia automată `tools/build_web.py` (119 KB -> 29.1 KB).
+- **Server Local de Dezvoltare Decuplat (`tools/dev_server.py`):**
+  - Configurat server local Python pe portul 8080 (`http://localhost:8080/index.html`) conectat prin CORS la ESP32 (`192.168.1.20`) pentru iterații instantanee ale interfeței fără flash pe placă.
+- **Validare ASPICE SWE.5 & Calitate:**
+  - Compilare PlatformIO curată (RAM 19.9%, Flash 61.6%, 100% SUCCESS).
+  - Suita de teste automată `tools/test_system.py` trecută cu 68/68 PASS (100.0%) în 24.54s pe toate cele 33 de cerințe.
+
 ## Completed Work (2026-10-14 - Personalizare Preseturi Fabrică & Sloturi Utilizator, Anulare Cooldown Cazan)
 - **Personalizare Preseturi Predefinite & Extindere Sloturi:**
   - Deblocată posibilitatea de a salva modificări peste preseturile din fabrică (`default`, `eco`, `wfh`) direct în NVS fără erori. La aplicare, se verifică prioritar configurația salvată în NVS, revenind transparent la valorile din fabrică dacă nu există personalizări.

@@ -213,7 +213,9 @@ uint8_t DiagnosticEngine::calculateHealthScore() const {
 }
 
 String DiagnosticEngine::runSelfTest() {
-  String out = "";
+  String out;
+  out.reserve(1024);
+  out = "";
   out += "==================================================\n";
   out += "  ESP32 Smart Heating - Full Self-Test Diagnostic \n";
   out += "==================================================\n";

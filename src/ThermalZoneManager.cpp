@@ -707,7 +707,9 @@ bool ThermalZoneManager::setAnchorTarget(bool weekend, BioAnchorId anchor, size_
 }
 
 String ThermalZoneManager::getPresetsJson() const {
-    String json = "{";
+    String json;
+    json.reserve(1024);
+    json = "{";
     json += "\"status\":\"ok\",";
     json += "\"activePreset\":\"" + String(_activePresetId) + "\",";
     json += "\"presets\":[";
@@ -1113,7 +1115,9 @@ uint32_t ThermalZoneManager::getWindowPauseRemainingSec(size_t index) const {
 }
 
 String ThermalZoneManager::getScheduleJson() const {
-    String json = "{";
+    String json;
+    json.reserve(2048);
+    json = "{";
     json += "\"status\":\"ok\",";
     json += "\"enabled\":" + String(_scheduleConfig.enabled ? "true" : "false") + ",";
     json += "\"preHeatEnabled\":" + String(_scheduleConfig.preHeatEnabled ? "true" : "false") + ",";
