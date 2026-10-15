@@ -174,6 +174,7 @@ void printHelp() {
       "\r\n--- Smart Heating Command Manual ---\r\n"
       "[Heating & Hydraulic Control]\r\n"
       "  ON / OFF              -> Start / Stop gas boiler burner flame via 433.92 MHz RF\r\n"
+      "  BOILER RESET RUNTIME  -> Reset flame runtime statistics counter to 0 in NVS\r\n"
       "  AUTO / MANUAL         -> Thermostat automatic control vs manual override\r\n"
       "  SET <z 1..3> <temp>   -> Set static target temperature for zone (e.g. SET 1 22.5)\r\n"
       "  PUMP <ON|OFF>         -> Secondary GPA circulation pump manual override\r\n"
@@ -407,6 +408,12 @@ void handleApiBoilerCancelPending() {
   boilerRadio.cancelPendingAction();
   String resp = String("{\"status\":\"ok\",\"pendingCancelled\":true,\"boiler\":\"") + (boilerRadio.isLastCommandOn() ? "ON" : "OFF") + "\"}";
   server.send(200, "application/json", resp);
+}
+
+void handleApiBoilerResetRuntime() {
+  server.sendHeader("Access-Control-Allow-Origin", "*");
+  boilerRadio.resetRuntime();
+  server.send(200, "application/json", F("{\"status\":\"ok\",\"message\":\"Boiler runtime counters reset to 0\"}"));
 }
 
 void handleApiZones() {
@@ -1846,6 +1853,9 @@ void handleSerialCommand(String cmd) {
       netConsole.println(F("    SCHEDULE RESET               -> Restore factory default preset"));
       netConsole.println(F("===================================================================================================="));
     }
+  } else if (upperCmd == "BOILER RESET RUNTIME" || upperCmd == "RESET RUNTIME") {
+    boilerRadio.resetRuntime();
+    netConsole.println(F("[Boiler][Runtime] Burn time counters reset to 0 in NVS."));
   } else if (upperCmd == "CLEAR" || upperCmd == "CLS") {
     netConsole.clear();
   } else if (upperCmd == "?" || upperCmd == "HELP") {
@@ -1914,6 +1924,7 @@ void setup() {
   server.on("/api/boiler/on", HTTP_POST, handleApiOn);
   server.on("/api/boiler/off", HTTP_POST, handleApiOff);
   server.on("/api/boiler/cancel", HTTP_POST, handleApiBoilerCancelPending);
+  server.on("/api/boiler/runtime/reset", HTTP_POST, handleApiBoilerResetRuntime);
   server.on("/api/boiler/status", HTTP_GET, handleApiStatus);
   server.on("/api/zones", HTTP_GET, handleApiZones);
   server.on("/api/zones/setpoint", HTTP_POST, handleApiZoneSetpoint);

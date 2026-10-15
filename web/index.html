@@ -3869,54 +3869,6 @@
       let html = '';
       let activeCount = 0;
 
-      zones.forEach(z => {
-        let badgeClass = 'badge-idle';
-        let st = z.state || 'Standby';
-        let isHeating = st.includes('Heating') || z.relayEngaged;
-
-        if (z.windowPauseActive) {
-          badgeClass = 'badge-paused';
-          st = '🪟 Geam Deschis (30m)';
-        } else if (isHeating) {
-          badgeClass = 'badge-heating';
-          st = '🔴 Încălzire Activă';
-          activeCount++;
-        } else if (st.includes('Warming')) {
-          badgeClass = 'badge-warming';
-          st = '⏳ Așteptare Actuator';
-          activeCount++;
-        } else if (z.frostActive) {
-          badgeClass = 'badge-frost';
-          st = '❄️ Protecție Îngheț';
-          activeCount++;
-        } else if (!z.enabled) {
-          badgeClass = 'badge-disabled';
-          st = '⚪ Zonă Oprită';
-        } else if (z.sensorFault) {
-          badgeClass = 'badge-fault';
-          st = '⚠️ Eroare Senzor';
-        } else {
-          badgeClass = 'badge-idle';
-          st = '🟢 Temp OK (Repaus)';
-        }
-
-        const sensKey = getCanonicalTempKey(z.sensor || z.name, z.sensorMac);
-        const trendHtml = (z.sensorValid && z.currentTemp !== undefined && z.currentTemp > -100)
-          ? getTempSparkline(sensKey, z.currentTemp, 64, 20, false)
-          : '';
-        let tempStr = (z.sensorValid && z.currentTemp !== undefined && z.currentTemp > -100)
-          ? (z.currentTemp.toFixed(1) + '&deg;C' + trendHtml)
-          : '<span style="color:#94a3b8;">--.-&deg;C</span>';
-
-        // Target resolution: in Beginner level, always use static targetTemp; otherwise effectiveTarget if schedule enabled
-        const curTarget = (scheduleEnabled && currentUiLevel !== 'beginner' && z.effectiveTarget !== undefined) ? z.effectiveTarget : z.targetTemp;
-
-    function renderZones(zones, scheduleEnabled = true) {
-      const c = document.getElementById('zones-list');
-      if (!c) return;
-      let html = '';
-      let activeCount = 0;
-
       const allSensors = (lastSData && lastSData.sensors) ? lastSData.sensors : [];
       const assignedMacs = new Set();
 

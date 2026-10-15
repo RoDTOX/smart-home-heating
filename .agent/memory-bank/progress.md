@@ -3,6 +3,21 @@
 ## Status
 All core functional subsystems (heating hysteresis engine, boiler RF trigger, native BLE passive scanner, 2-way console, web OTA, diagnostic engine with DTCs, service mode, digital passport, NTP & weather sync, headless API-first architecture, hydronic safety controls, anti-spam burner interlocks, Bio-Schedule with presets engine & full factory/user customization, deferred action cooldown cancel, and atomic PC system test suite with bidirectional traceability matrix) are fully implemented, compiled, uploaded, and verified live on ESP32 (`192.168.1.20`) with 100% ASPICE SWE.5 pass rate (68/68 PASS, 33/33 requirements covered, 0 uncovered).
 
+## Completed Work (2026-10-16 - Fix Frontend SyntaxError, Protecție Anti-Underflow Timp Funcționare Cazan & Comandă Reset Runtime)
+- **Rezolvare Frontend Local (`web/index.html`):**
+  - Eliminat fragmentul duplicat neterminat `renderZones()` (48 de linii) lăsat deasupra funcției principale, care bloca executarea scripturilor JS prin `SyntaxError: Unexpected end of input` la linia 4105. Validat cu `node --check` (0 erori) și reîncărcare în browser (toate cardurile și datele live se afișează corect).
+- **Protecție Anti-Underflow Matematică & Comandă Reset Timp Funcționare Cazan:**
+  - Identificat și eliminat bug-ul de sub-depășire (underflow) pe tipul `uint32_t` la calculul `(millis() - _flameStartTimeMs)` când apelurile forțate de oprire se suprapuneau peste interblocări, ce producea valoarea reziduală de $4.295.027\text{ secunde} \approx 1193\text{ ore}$ salvată în NVS.
+  - Adăugat verificări stricte `if (now >= _flameStartTimeMs)` și limită de siguranță `burnSec < 86400UL` în `update()`, `sendBoilerOff()` și `getCurrentFlameDurationSec()`.
+  - Implementat metoda `boilerRadio.resetRuntime()` pentru resetarea tuturor contoarelor de flacără din NVS la 0.
+  - Expus comanda de Network Console `BOILER RESET RUNTIME` (și `RESET RUNTIME`).
+  - Expus endpoint-ul REST `POST /api/boiler/runtime/reset`.
+- **Verificare & Validare Live pe Hardware (ESP32 `192.168.1.20`):**
+  - Compilare PlatformIO curată (RAM 19.9%, Flash 62.2%, 100% SUCCESS).
+  - Flash OTA pe ESP32 în 11.6s.
+  - Resetat contorul din NVS prin API la `totalSec: 0`, `todaySec: 0`.
+  - Suita automată ASPICE SWE.5 (`tools/test_system.py`) a trecut cu **100% PASS (68/68, 33/33 cerințe)**.
+
 ## Completed Work (2026-10-15 - Fix Spam Buclă Oprire Cazan, Unificare Carduri Zone/Senzori, Notificări Teste & Fix Consolă CLEAR)
 - **Notificare Start & Finalizare Suită de Teste pe Consola Virtuală ESP32:**
   - În `tools/test_system.py`, s-a adăugat `notify_esp_console()` care transmite automat bannere de informare pe `/api/console/send`: `[TEST-SUITE] ⚠️ ASPICE SWE.5 AUTOMATED TEST SUITE STARTED` la start și `[TEST-SUITE] 🏁 ASPICE SWE.5 AUTOMATED TEST SUITE FINALIZAT (68/68 PASS)` la final, asigurând operatorul că modificările de parametri din loguri sunt emise de testele automate și că starea a fost restaurată la normal.

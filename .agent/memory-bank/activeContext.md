@@ -1,5 +1,19 @@
 # Active Context: Smart Home Heating System
 
+- **Fix Frontend SyntaxError, Protecție Anti-Underflow Timp Funcționare Cazan & Comandă Reset Runtime (Finalizat 16.10.2026):**
+  - **Rezolvare Frontend Local (`web/index.html`):** Eliminat blocul duplicat neterminat `renderZones()` (48 de linii) lăsat chiar deasupra funcției principale, care arunca `SyntaxError: Unexpected end of input` în consola browserului la linia 4105 și bloca executarea scripturilor JS. Validat cu `node --check` (0 erori) și reîncărcat în browser cu succes (toate datele și temperaturile live se populează).
+  - **Eliminare & Protecție Underflow Matematic Cazan (1193h / 4.295.027s):**
+    * Identificată cauza anomaliei de 1193h: diferența de timestamp `(millis() - _flameStartTimeMs)` în `sendBoilerOff()` a produs o valoare negativă în timpul testelor de interblocare anti-short-cycling (`test_tc09_1`), făcând wrap-around la tipul `uint32_t` ($2^{32}\text{ ms} / 1000 \approx 4.294.967\text{ s} \approx 1193\text{ ore}$) și salvându-se în flash-ul NVS (`rt_tot`, `rt_today`, `rt_mon`).
+    * Adăugat verificări stricte `if (now >= _flameStartTimeMs)` și un sanity check `burnSec < 86400UL` în `update()`, `sendBoilerOff()` și `getCurrentFlameDurationSec()`.
+    * Implementat metoda `boilerRadio.resetRuntime()` pentru resetarea contoarelor din NVS la 0.
+    * Adăugată comanda în Network Console: `BOILER RESET RUNTIME` (și `RESET RUNTIME`).
+    * Adăugat endpoint REST: `POST /api/boiler/runtime/reset`.
+  - **Verificare Hardware & Teste Live:**
+    * Compilare curată `pio run` (SUCCESS, 35s, Flash: 62.2%, RAM: 19.9%).
+    * Flash OTA reușit pe ESP32 (`192.168.1.20`) în 11.6s.
+    * Apelat resetul prin API — contorul a revenit la `totalSec: 0`, `todaySec: 0`.
+    * Rulat suita automată ASPICE SWE.5 (`tools/test_system.py`) cu **100% PASS (68/68, 33/33 cerințe)**.
+
 - **Curățare Totală Consolă, Izolare Suită Teste ASPICE & Failsafe Fără Spam Boiler (Finalizat 15.10.2026):**
   - **Izolare Totală Suită Teste Hardware (`tools/test_system.py`):**
     - S-a eliminat spamul generat de testul `test_tc10_1` prin apelarea imediată a `/api/boiler/cancel` după cele 3 cereri de test pentru DTC-201, prevenind aprinderea amânată a flăcării reale (după 50s) care declanșa bucla de spam la oprire.

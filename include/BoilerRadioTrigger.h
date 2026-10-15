@@ -48,6 +48,7 @@ public:
     uint32_t getRuntimeLastMonthSec() const { return _runtimeLastMonthSec; }
     uint32_t getCurrentFlameDurationSec() const;
     void updateRuntimeDayMonth(uint8_t day, uint8_t month);
+    void resetRuntime();
 
     void saveStateToPreferences();
     void loadStateFromPreferences();

@@ -218,10 +218,14 @@ void BoilerRadioTrigger::update() {
 
     // 3. Periodic runtime accumulation & NVS checkpointing while flame is ON
     if (_lastCommandOn && _flameStartTimeMs > 0 && (now - _lastNvsSaveMs >= 900000UL)) {
-        uint32_t burnSec = (now - _flameStartTimeMs) / 1000;
-        _runtimeTotalSec += burnSec;
-        _runtimeTodaySec += burnSec;
-        _runtimeThisMonthSec += burnSec;
+        if (now >= _flameStartTimeMs) {
+            uint32_t burnSec = (now - _flameStartTimeMs) / 1000;
+            if (burnSec < 86400UL) {
+                _runtimeTotalSec += burnSec;
+                _runtimeTodaySec += burnSec;
+                _runtimeThisMonthSec += burnSec;
+            }
+        }
         _flameStartTimeMs = now;
         saveStateToPreferences();
     }
@@ -340,13 +344,20 @@ bool BoilerRadioTrigger::sendBoilerOff(bool force) {
     transmitBurst(rf_off_durations);
 
     if (_lastCommandOn && _flameStartTimeMs > 0) {
-        uint32_t burnSec = (millis() - _flameStartTimeMs) / 1000;
-        _runtimeTotalSec += burnSec;
-        _runtimeTodaySec += burnSec;
-        _runtimeThisMonthSec += burnSec;
+        uint32_t now = millis();
+        if (now >= _flameStartTimeMs) {
+            uint32_t burnSec = (now - _flameStartTimeMs) / 1000;
+            if (burnSec < 86400UL) {
+                _runtimeTotalSec += burnSec;
+                _runtimeTodaySec += burnSec;
+                _runtimeThisMonthSec += burnSec;
+                netConsole.printf("[Boiler][Runtime] Burn session finished (%u s). Today total: %u s (%u min).\n",
+                                  burnSec, _runtimeTodaySec, _runtimeTodaySec / 60);
+            } else {
+                netConsole.printf("[Boiler][Runtime] Ignored corrupt burnSec: %u s\n", burnSec);
+            }
+        }
         _flameStartTimeMs = 0;
-        netConsole.printf("[Boiler][Runtime] Burn session finished (%u s). Today total: %u s (%u min).\n",
-                          burnSec, _runtimeTodaySec, _runtimeTodaySec / 60);
     }
     _lastCommandOn = false;
     _hasTransmittedOnce = true;
@@ -382,7 +393,9 @@ void BoilerRadioTrigger::transmitBurst(const uint16_t* durationsTable) {
 
 uint32_t BoilerRadioTrigger::getCurrentFlameDurationSec() const {
     if (!_lastCommandOn || _flameStartTimeMs == 0) return 0;
-    return (millis() - _flameStartTimeMs) / 1000;
+    uint32_t now = millis();
+    if (now < _flameStartTimeMs) return 0;
+    return (now - _flameStartTimeMs) / 1000;
 }
 
 uint32_t BoilerRadioTrigger::getRuntimeTotalSec() const {
@@ -422,5 +435,16 @@ void BoilerRadioTrigger::updateRuntimeDayMonth(uint8_t day, uint8_t month) {
     if (changed) {
         saveStateToPreferences();
     }
+}
+
+void BoilerRadioTrigger::resetRuntime() {
+    _runtimeTotalSec = 0;
+    _runtimeTodaySec = 0;
+    _runtimeYesterdaySec = 0;
+    _runtimeThisMonthSec = 0;
+    _runtimeLastMonthSec = 0;
+    _flameStartTimeMs = _lastCommandOn ? millis() : 0;
+    saveStateToPreferences();
+    netConsole.println(F("[Boiler][Runtime] All burner runtime counters reset to 0."));
 }
 

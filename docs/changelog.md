@@ -3,6 +3,27 @@
 Jurnalul modificărilor, deciziilor tehnice și verificărilor efectuate pentru proiectul de încălzire inteligentă.
 Corelat cu planul activ: [`docs/plan.md`](file:///c:/Users/BSeceleanu/.github_repos/smart-heating/docs/plan.md).
 
+## [16.10.2026] - Fix Frontend SyntaxError, Protecție Anti-Underflow Timp Funcționare Cazan & Comandă Reset Runtime
+
+### 1. Rezolvare Frontend Local (`web/index.html`)
+- **Eliminare fragment duplicat:** S-a înlăturat un antet incomplet și duplicat `renderZones()` (48 de linii) lăsat deasupra funcției principale, care provoca `SyntaxError: Unexpected end of input` în consola browserului la linia 4105 și bloca popularea dinamică a zonelor.
+- **Validare JS:** Verificat fișierul cu `node --check` (0 erori) și reîncărcare în browser (toate zonele și temperaturile live se randează corect).
+
+### 2. Protecție Anti-Underflow & Reset Timp Funcționare Cazan (`src/BoilerRadioTrigger.cpp`, `include/BoilerRadioTrigger.h`, `src/main.cpp`)
+- **Cauza Afișajului 1193h (4.295.027s):**
+  - În timpul execuției testului anti-short-cycling (`test_tc09_1`), scăderea `(millis() - _flameStartTimeMs)` a fost evaluată pe valori temporale negative ($\approx -60\text{s}$), producând un underflow pe tipul `uint32_t` la $2^{32} \text{ ms} / 1000 \approx 4.294.967\text{ s} \approx 1193\text{ ore}$, persistat automat în flash-ul NVS (`rt_tot`, `rt_today`).
+- **Măsuri de Siguranță Implementate:**
+  - Adăugat verificări stricte de underflow `if (now >= _flameStartTimeMs)` în `update()`, `sendBoilerOff()` și `getCurrentFlameDurationSec()`.
+  - Adăugat sanity check de siguranță `burnSec < 86400UL` (ignoră orice salt fals peste 24h per sesiune).
+  - Implementat metoda `boilerRadio.resetRuntime()` pentru resetarea contoarelor din NVS la 0.
+  - Expus comanda de Network Console `BOILER RESET RUNTIME` (și `RESET RUNTIME`).
+  - Expus endpoint-ul REST `POST /api/boiler/runtime/reset`.
+- **Verificare & Validare Live:**
+  - Build PlatformIO trecut cu succes (RAM: 19.9%, Flash: 62.2%).
+  - Flash OTA efectuat pe placa ESP32 (`192.168.1.20`) în 11.6s.
+  - Resetat contorul prin API: `totalSec = 0`, `todaySec = 0`.
+  - Suita de teste atomice ASPICE SWE.5 (`tools/test_system.py`) a trecut cu **100% PASS (68/68, 33/33 cerințe)**.
+
 ## [15.10.2026] - Curățare Totală Consolă, Izolare Suită Teste ASPICE & Failsafe Fără Spam Boiler
 
 ### 1. Eliminare Spam & Izolare Execuție Teste Hardware (`tools/test_system.py`)
