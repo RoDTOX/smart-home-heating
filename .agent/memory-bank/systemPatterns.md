@@ -39,6 +39,8 @@
 - **Autonomous Edge Pattern:** Control decisions are made strictly on ESP32. Loss of Wi-Fi, MQTT, or Cloud never stops heating.
 - **Thermal Actuator Interlock Pattern:** NC wax actuators require 2–3 minutes to open. Boiler flame ignition is delayed until at least one actuator is physically open.
 - **Pump Overrun & Bypass Pattern:** Prevents boiler heat exchanger damage by keeping at least one zone valve open for 180s post flame shutdown.
-- **Anti-Short-Cycling Pattern:** Enforces minimum 3-minute burn time and minimum 5-minute cooldown before reigniting flame.
+- **Anti-Short-Cycling & Reversal Pattern:** Enforces minimum 60s burn time and minimum 60s cooldown before state reversals; transitions during active flame are safely queued as `PENDING_OFF` with live countdown telemetric feedback (`boilerCooldownSec`).
+- **Non-Destructive Host Automation Pattern:** Automated host test suites (`test_system.py`) capture live user operational state (`activePreset`, actuator polarity, zone setpoints) at launch and reliably restore it in the final cleanup phase.
+- **Embedded Reverse Proxy Dev Server Pattern:** `tools/dev_server.py` transparently proxies `/api/*` to the ESP32 hardware, enabling native live console streaming and rapid UI iteration on localhost without CORS or connection friction.
 - **Hybrid Sensor Fallback Pattern:** Zone listens to direct BLE; if no packet received within 90s, uses MQTT payload from Galaxy A6. If no telemetry received for > 30 minutes, zone trips sensor fault failsafe (`DTC-101`).
-- **NVS Persistence Pattern:** All configuration, calibration, sensor mappings, and passport metadata survive power cycles and reboots via ESP32 Preferences.
+- **NVS Persistence Pattern:** All configuration, calibration, sensor mappings, and passport metadata survive power cycles and reboots via ESP32 Preferences with strict wear-leveling (`if (oldVal != newVal)`).

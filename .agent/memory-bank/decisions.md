@@ -76,4 +76,39 @@
 - Benchmarked idle power consumption on Linux headless with lid closed: 4.5W–6.5W (virtually identical to a Raspberry Pi 4 with SSD, negligible electricity cost).
 - Logged as a "Nice to Have / Future" milestone in `docs/plan.md` without rushing migration while A6 remains functional.
 
+## 2026-10-15 — Boiler Anti-Short-Cycling Reversal Guard & Cooldown Countdown
+**Context**: Rapid user setpoint adjustments or oscillating hysteresis could trigger repeated boiler start/stop RF commands, violating manufacturer safety limits and increasing component wear.
+**Decision**:
+- Enforce strict 60s minimum burner flame duration and 60s cooldown pause guard.
+- When boiler is turned off during flame phase, schedule `PENDING_OFF` rather than dropping or blocking.
+- Expose `boilerCooldownSec` and `pendingAction` in `/api/zones` for live countdown badge in UI.
+**Consequences**: Hardware safety guaranteed; zero boiler spam; user sees precise real-time countdown.
+
+## 2026-10-16 — Underflow Protection & Non-Volatile Runtime Tracking
+**Context**: Negative timestamp delta during rapid reversal tests caused integer underflow in `(millis() - _flameStartTimeMs)`, wrapping `uint32_t` to ~4.29 billion seconds (~1193h) in NVS runtime counters.
+**Decision**:
+- Added timestamp sanity check `now >= _flameStartTimeMs` and upper bound clamp `burnSec < 86400UL`.
+- Added `resetRuntime()` method, `POST /api/boiler/runtime/reset` REST endpoint, and `BOILER RESET RUNTIME` network console command.
+**Consequences**: Rock-solid telemetry; user can calibrate runtime and billing counters anytime.
+
+## 2026-10-16 — ASPICE SWE.5 Non-Destructive State Isolation & Preset Preservation
+**Context**: Running the automated test suite `test_system.py` restored the factory 'default' preset (`Standard / Confort`) and factory circadian schedule via `SWE.5-TC17.3` and `SWE.5-TC18.4`, overwriting the user's active preset (`custom1` / `Bogdan`).
+**Decision**:
+- Capture live `user_initial_preset` at test suite launch (`run_all`).
+- Automatically restore `self.user_initial_preset` in the final defuse/cleanup phase.
+- Add explicit transactional transition logging in firmware: `[Schedule][PRESET] Preset switched: 'old' -> 'new'`.
+**Consequences**: 100% test pass rate achieved without altering or resetting real-world user operational states.
+
+## 2026-10-16 — High-Density Responsive Web Interface (Widescreen 16:9 + 720p Mobile/Tablet Optimization)
+**Context**: UI cards were cramped in 500px columns on widescreen displays, boiler action buttons took excessive space in automatic mode, and 3 separate header cards consumed vertical real estate on wall tablets.
+**Decision**:
+- Expanded `.container` `max-width` to 1560px with centered margin for 16:9 widescreen displays.
+- Raised 2-column breakpoint to 1140px; below 1140px, elements stack vertically in natural order via `display: contents;`.
+- Combined 3 top cards into a single unified top navigation header bar (`.top-nav-card`).
+- Boiler card compacted to a single 40px strip in AUTO mode (action buttons hidden; runtime counters moved to `#modal-gas-costs`).
+- Zone row power button moved to left between BLE indicator and name; intrusive green 'Repaus' badge removed; 'țintă' label removed.
+- Implemented reverse proxy in `tools/dev_server.py` and embedded `>_ Consolă Live` tab in UI.
+**Consequences**: Clean, modern, high-density dashboard optimal for 720p wall tablets and 16:9 widescreen monitors.
+
+
 
