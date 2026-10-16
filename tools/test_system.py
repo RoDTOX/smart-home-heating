@@ -1294,6 +1294,7 @@ class SystemTestSuite:
             latency = (time.time() - start) * 1000
             assert r.status_code == 200, f"Failed GET presets: {r.status_code}"
             data = r.json()
+            self.orig_active_preset = data.get("activePreset", "default")
             presets = {p["id"]: p for p in data.get("presets", [])}
             assert "default" in presets, "Missing 'default' preset"
             assert "eco" in presets, "Missing 'eco' preset"
@@ -1357,7 +1358,14 @@ class SystemTestSuite:
             assert r.status_code == 200, f"Failed to apply 'default': {r.status_code}"
             data = r.json()
             assert data.get("activePreset") == "default", f"Expected 'default', got {data.get('activePreset')}"
-            details = "Restored factory 'default' preset"
+            
+            # Non-destructive: Restore user's original active preset so test suite leaves system in original user state
+            orig = getattr(self, 'orig_active_preset', 'default')
+            if orig and orig != "default":
+                requests.post(f"{self.base_url}/api/schedule/preset/apply?id={orig}", timeout=self.timeout)
+                details = f"Verified 'default' preset apply and restored user preset '{orig}'"
+            else:
+                details = "Restored factory 'default' preset"
             return TestResult(test_id, name, req, "PASS", latency, details)
         except Exception as e:
             return TestResult(test_id, name, req, "FAIL", (time.time() - start)*1000, str(e))
@@ -1488,6 +1496,15 @@ class SystemTestSuite:
         print(f"  Architecture:   Atomic SWE.5 Verification & Live Hardware Traceability")
         print("--------------------------------------------------------------------------")
 
+        # Capture user's live active preset before ANY schedule or preset tests execute
+        self.user_initial_preset = "default"
+        try:
+            r_init = requests.get(f"{self.base_url}/api/schedule/presets", timeout=self.timeout)
+            if r_init.status_code == 200:
+                self.user_initial_preset = r_init.json().get("activePreset", "default")
+        except Exception:
+            pass
+
         tests = [
             # Group 1: System Telemetry & Health
             self.test_tc01_1_status_schema,
@@ -1600,6 +1617,11 @@ class SystemTestSuite:
             requests.post(f"{self.base_url}/api/boiler/off?force=true", timeout=self.timeout)
             requests.post(f"{self.base_url}/api/mode?mode=auto", timeout=self.timeout)
             requests.post(f"{self.base_url}/api/diag/clear", timeout=self.timeout)
+            
+            # Reliably restore user's live preset captured at suite launch
+            if hasattr(self, 'user_initial_preset') and self.user_initial_preset:
+                requests.post(f"{self.base_url}/api/schedule/preset/apply?id={self.user_initial_preset}", timeout=self.timeout)
+
             # Wipe test execution debris so user's active console stays pristine
             requests.post(f"{self.base_url}/api/console/send?cmd=CLEAR", timeout=self.timeout)
         except Exception:

@@ -1,18 +1,32 @@
 # Active Context: Smart Home Heating System
 
-- **Fix Frontend SyntaxError, Protecție Anti-Underflow Timp Funcționare Cazan & Comandă Reset Runtime (Finalizat 16.10.2026):**
-  - **Rezolvare Frontend Local (`web/index.html`):** Eliminat blocul duplicat neterminat `renderZones()` (48 de linii) lăsat chiar deasupra funcției principale, care arunca `SyntaxError: Unexpected end of input` în consola browserului la linia 4105 și bloca executarea scripturilor JS. Validat cu `node --check` (0 erori) și reîncărcat în browser cu succes (toate datele și temperaturile live se populează).
-  - **Eliminare & Protecție Underflow Matematic Cazan (1193h / 4.295.027s):**
-    * Identificată cauza anomaliei de 1193h: diferența de timestamp `(millis() - _flameStartTimeMs)` în `sendBoilerOff()` a produs o valoare negativă în timpul testelor de interblocare anti-short-cycling (`test_tc09_1`), făcând wrap-around la tipul `uint32_t` ($2^{32}\text{ ms} / 1000 \approx 4.294.967\text{ s} \approx 1193\text{ ore}$) și salvându-se în flash-ul NVS (`rt_tot`, `rt_today`, `rt_mon`).
-    * Adăugat verificări stricte `if (now >= _flameStartTimeMs)` și un sanity check `burnSec < 86400UL` în `update()`, `sendBoilerOff()` și `getCurrentFlameDurationSec()`.
-    * Implementat metoda `boilerRadio.resetRuntime()` pentru resetarea contoarelor din NVS la 0.
-    * Adăugată comanda în Network Console: `BOILER RESET RUNTIME` (și `RESET RUNTIME`).
-    * Adăugat endpoint REST: `POST /api/boiler/runtime/reset`.
-  - **Verificare Hardware & Teste Live:**
-    * Compilare curată `pio run` (SUCCESS, 35s, Flash: 62.2%, RAM: 19.9%).
-    * Flash OTA reușit pe ESP32 (`192.168.1.20`) în 11.6s.
-    * Apelat resetul prin API — contorul a revenit la `totalSec: 0`, `todaySec: 0`.
-    * Rulat suita automată ASPICE SWE.5 (`tools/test_system.py`) cu **100% PASS (68/68, 33/33 cerințe)**.
+- **Refactorizare Densitate Extremă UI 720p, Redesenare Card Centrală & Rezolvare Comutare Preset Utilizator (Finalizat 16.10.2026):**
+  - **Compactare Extremă Antet & Card Centrală pentru Ecrane 720p (`web/index.html`):**
+    * Brand compact (`Smart Heating`) pe un singur rând, eliminat subtitlul redundant.
+    * Scurtat denumirile tab-urilor (`Panou`, `Tesla Mode`, `FSM Logic`, `Consolă Live`) și ascuns textele ajutătoare de nivel și mod de vizualizare pentru a preveni wrap-ul pe ecrane de 720p / tablete.
+    * Cardul centralei (`#card-boiler`) compactat pe o singură bandă orizontală (~40px) cu starea flăcării, pompa GPA și modul `[⚙️ AUTO | ✋ MANUAL]`.
+    * Butoanele `Pornește Centrala` și `Oprește Centrala` sunt acum complet **ascunse** în mod `AUTOMATIC` și devin vizibile exclusiv pe modul `MANUAL`.
+    * Cele 3 contoare de funcționare (`Azi`, `Ieri`, `Total`) și estimarea de gaz au fost mutate din cardul principal într-un modal dedicat (`#modal-gas-costs`) accesibil prin linkul discret `🔥 Consum & Cost Gaz` din footerul cardului de zone.
+  - **Redesenare Ergonomică Rânduri Zone Termice:**
+    * Butonul de alimentare `⏻` mutat ergonomic în stânga, între indicatorul BLE și numele camerei (`[🟢 Dot] [⏻] [Nume Cameră ✏️]`).
+    * Eliminat chenarul verde intruziv "Repaus" când zona este inactivă. Badge-ul apare exclusiv când zona acționează (`♨️ Încălzire`, `⏳ Așteptare`, etc.).
+    * Eliminat eticheta `țintă`; butoanele de reglaj `[-] 21.0° [+]` sunt grupate direct lângă temperatura curentă și graficul sparkline.
+  - **Rezolvare Resetare Preset Activ pe "Standard / Confort":**
+    * Identificat că testele `SWE.5-TC17.3` (`/api/schedule/reset`) și `SWE.5-TC18.4` (`apply?id=default`) din `tools/test_system.py` resetau presetul activ la `default`.
+    * Adăugat în `tools/test_system.py` capturarea inițială `self.user_initial_preset` și restaurarea automată la finalul suitei.
+    * Adăugat în `src/ThermalZoneManager.cpp` log explicit de tranziție: `[Schedule][PRESET] Preset switched: 'old' -> 'new'`.
+    * Presetul utilizatorului `Bogdan` (`custom1`) este restaurat și confirmat activ.
+  - **Format Widescreen 16:9 & Aliniere Laterală (`web/index.html`):**
+    * Înlocuit `max-width: 1060px` cu un container expandabil până la `1560px` cu centrare automată (`margin: 0 auto; padding: 12px 16px 24px;`). Pe ecrane 16:9 conținutul acoperă armonios lățimea display-ului fără margini negre masive.
+    * Decuplat breakpoint 2 coloane la 1140px; sub 1140px totul curge într-o singură coloană intuitivă (Bara de sus -> Centrală -> Zone Termice -> Bio-Schedule).
+    * Eliminat complet textul static `NimBLE 90% Scan`.
+  - **Consolă Wi-Fi Live Integrată & Proxy Local (`tools/dev_server.py`, `web/index.html`):**
+    * `dev_server.py` pe portul 8080 servește ca reverse proxy transparent către ESP32 (`192.168.1.20`).
+    * Adăugat tab dedicat `>_ Consolă Live` direct în dashboard-ul principal cu streaming în timp real și comenzi directe.
+  - **Verificare & Calitate Cod:**
+    * Compilare PlatformIO `pio run` (SUCCESS, Flash: 62.4%, RAM: 19.9%).
+    * Suita automată ASPICE SWE.5 (`tools/test_system.py`) trecută cu **100% PASS (68/68, 33/33 cerințe)** cu păstrare garantată a presetului activ.
+    * Verificare vizuală completă prin subagent browser pe `http://localhost:8080/index.html`.
 
 - **Curățare Totală Consolă, Izolare Suită Teste ASPICE & Failsafe Fără Spam Boiler (Finalizat 15.10.2026):**
   - **Izolare Totală Suită Teste Hardware (`tools/test_system.py`):**

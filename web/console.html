@@ -56,7 +56,7 @@ body{font-family:sans-serif;background:#090d16;color:#f1f5f9;display:flex;flex-d
 </div>
 </div>
 <script>
-const base = window.location.pathname.replace(/\/console\/?$/, '');
+const base = window.location.protocol === 'file:' ? 'http://192.168.1.20' : window.location.pathname.replace(/\/console(\.html)?\/?$/, '');
 const navDash = document.getElementById('navDash');
 const navOta = document.getElementById('navOta');
 if (navDash) navDash.href = (base || '') + '/';

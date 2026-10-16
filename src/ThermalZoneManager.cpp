@@ -789,6 +789,10 @@ bool ThermalZoneManager::applyPreset(const char* presetId) {
     if (!found) return false;
 
     bool currentEn = _scheduleConfig.enabled;
+    char oldPreset[32];
+    strncpy(oldPreset, _activePresetId, sizeof(oldPreset) - 1);
+    oldPreset[sizeof(oldPreset) - 1] = '\0';
+
     _scheduleConfig = targetCfg;
     _scheduleConfig.enabled = currentEn;
     strncpy(_activePresetId, presetId, sizeof(_activePresetId) - 1);
@@ -813,7 +817,7 @@ bool ThermalZoneManager::applyPreset(const char* presetId) {
         saveToPreferences();
     }
 
-    netConsole.printf("[Thermal] Applied Bio-Schedule preset: '%s'\n", presetId);
+    netConsole.printf("[Schedule][PRESET] Preset switched: '%s' -> '%s'\n", oldPreset, presetId);
     return true;
 }
 

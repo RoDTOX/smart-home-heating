@@ -2,12 +2,14 @@
 """
 tools/dev_server.py
 Zero-Risk Local Frontend Development Server for Smart Heating.
-Serves web/ files locally and routes all REST API calls directly to the ESP32 (192.168.1.20).
-Enables instant (50ms) live UI changes without compiling or flashing the ESP32.
+Serves web/ files locally and proxies all REST & Console API calls directly to ESP32 (192.168.1.20).
+Enables instant live UI changes and full console integration on http://localhost:8080/
 """
 
 import http.server
 import socketserver
+import urllib.request
+import urllib.error
 import webbrowser
 import os
 import sys
@@ -18,6 +20,8 @@ if hasattr(sys.stderr, 'reconfigure'):
     sys.stderr.reconfigure(encoding='utf-8', errors='replace')
 
 PORT = 8080
+ESP32_HOST = os.environ.get("ESP_HEATING_IP", "192.168.1.20")
+ESP32_PORT = 80
 REPO_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 WEB_DIR = os.path.join(REPO_DIR, "web")
 
@@ -30,24 +34,86 @@ class LocalDevHandler(http.server.SimpleHTTPRequestHandler):
         self.send_header('Cache-Control', 'no-cache, no-store, must-revalidate')
         self.send_header('Pragma', 'no-cache')
         self.send_header('Expires', '0')
+        self.send_header('Access-Control-Allow-Origin', '*')
+        self.send_header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
+        self.send_header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Log-Seq')
+        self.send_header('Access-Control-Expose-Headers', 'X-Log-Seq, Content-Type')
         super().end_headers()
 
+    def do_OPTIONS(self):
+        self.send_response(200)
+        self.end_headers()
+
+    def _proxy_to_esp(self, method="GET", body=None):
+        target_url = f"http://{ESP32_HOST}:{ESP32_PORT}{self.path}"
+        headers = {}
+        for k, v in self.headers.items():
+            if k.lower() not in ['host', 'content-length', 'connection']:
+                headers[k] = v
+        headers['Connection'] = 'close'
+        if body:
+            headers['Content-Length'] = str(len(body))
+
+        req = urllib.request.Request(target_url, data=body, headers=headers, method=method)
+        try:
+            with urllib.request.urlopen(req, timeout=6.0) as resp:
+                resp_data = resp.read()
+                self.send_response(resp.status)
+                for header, val in resp.getheaders():
+                    if header.lower() not in ['transfer-encoding', 'content-length', 'connection']:
+                        self.send_header(header, val)
+                self.send_header('Content-Length', str(len(resp_data)))
+                self.end_headers()
+                self.wfile.write(resp_data)
+        except urllib.error.HTTPError as e:
+            err_data = e.read()
+            self.send_response(e.code)
+            for header, val in e.headers.items():
+                if header.lower() not in ['transfer-encoding', 'content-length', 'connection']:
+                    self.send_header(header, val)
+            self.send_header('Content-Length', str(len(err_data)))
+            self.end_headers()
+            self.wfile.write(err_data)
+        except Exception as ex:
+            err_msg = f'{{"error":"ESP32 Proxy Error","details":"{str(ex)}","target":"{target_url}"}}'.encode('utf-8')
+            self.send_response(502)
+            self.send_header('Content-Type', 'application/json')
+            self.send_header('Content-Length', str(len(err_msg)))
+            self.end_headers()
+            self.wfile.write(err_msg)
+
+    def do_GET(self):
+        if self.path.startswith('/api/') or self.path == '/api':
+            self._proxy_to_esp("GET")
+            return
+        if self.path == '/' or self.path == '':
+            self.path = '/index.html'
+        elif self.path == '/console' or self.path == '/console/':
+            self.path = '/console.html'
+        elif self.path == '/setup' or self.path == '/setup/':
+            self.path = '/setup.html'
+        super().do_GET()
+
+    def do_POST(self):
+        if self.path.startswith('/api/') or self.path == '/api':
+            content_length = int(self.headers.get('Content-Length', 0))
+            post_body = self.rfile.read(content_length) if content_length > 0 else None
+            self._proxy_to_esp("POST", post_body)
+            return
+        super().do_POST()
+
 def main():
-    print("=" * 60)
-    print("  SMART HEATING — LOCAL FRONTEND DEV SERVER")
-    print("=" * 60)
+    print("=" * 65)
+    print("  SMART HEATING — LOCAL FRONTEND DEV SERVER WITH REVERSE PROXY")
+    print("=" * 65)
     print(f"[*] Director local servit: {WEB_DIR}")
-    print(f"[*] Target Hardware ESP32: http://192.168.1.20/")
+    print(f"[*] Target Hardware ESP32: http://{ESP32_HOST}/")
     print(f"[*] Adresă locală:        http://localhost:{PORT}/index.html")
+    print(f"[*] Consolă locală:       http://localhost:{PORT}/console.html")
+    print(f"[*] Proxy activ:          /api/* -> http://{ESP32_HOST}/api/*")
     print(f"[*] Modifici HTML/CSS/JS -> Salvezi -> Dai F5 în browser!")
     print(f"[*] ZERO flash pe ESP32, ZERO risc de blocare, iterare instantanee.")
-    print("=" * 60)
-
-    url = f"http://localhost:{PORT}/index.html"
-    try:
-        webbrowser.open(url)
-    except Exception:
-        pass
+    print("=" * 65)
 
     socketserver.TCPServer.allow_reuse_address = True
     with socketserver.TCPServer(("", PORT), LocalDevHandler) as httpd:

@@ -3,6 +3,74 @@
 Jurnalul modificărilor, deciziilor tehnice și verificărilor efectuate pentru proiectul de încălzire inteligentă.
 Corelat cu planul activ: [`docs/plan.md`](file:///c:/Users/BSeceleanu/.github_repos/smart-heating/docs/plan.md).
 
+## [16.10.2026] - Refactorizare Densitate Extremă UI 720p, Redesenare Card Centrală & Rezolvare Comutare Preset Utilizator
+
+### 1. Compactare Extremă Antet & Card Centrală pentru Ecrane 720p (`web/index.html`)
+- **Bara de Navigare Superioară:**
+  - Compactat brandul la o singură linie (`Smart Heating`), ascuns subtitlul redundant.
+  - Scurtat denumirile tab-urilor de navigare (`Panou`, `Tesla Mode`, `FSM Logic`, `Consolă Live`) și pastilelor de telemetrie pentru a încăpea perfect pe ecrane de 720p fără wrap.
+  - Ascuns textul informativ ajutător (`view-mode-hint` și `lvl-hint-text`), economisind un rând întreg.
+- **Card Centrală Gaz pe o Singură Bandă Orizontală (~40px):**
+  - Starea flăcării (`OFF Standby` / `ON`), starea pompei GPA, garda de cooldown și comutatorul `[⚙️ AUTO | ✋ MANUAL]` sunt aliniate orizontal pe o singură linie.
+  - **Butoane Acțiune Condiționate:** Butoanele `Pornește Centrala` și `Oprește Centrala` sunt acum complet **ascunse** când sistemul este în mod `AUTOMATIC`. Ele apar automat doar când utilizatorul trece pe modul `MANUAL`.
+  - **Eliminare Contoare din Ecranul Principal:** Cele 3 casete de runtime (`Azi`, `Ieri`, `Total`) și estimarea de gaz au fost scoase din cardul de bază și mutate într-un modal dedicat.
+- **Modal Dedicat Consum & Factură Gaz (`#modal-gas-costs`):**
+  - Accesibil prin link-ul discret `🔥 Consum & Cost Gaz` din footer-ul cardului de zone.
+  - Păstrează toate ID-urile DOM originale (`rt-today`, `rt-yesterday`, `rt-total`, `rt-gas-est`) actualizate în fundal, dar eliberează complet spațiul vizual al dashboard-ului.
+
+### 2. Redesenare Ergonomică Rânduri Zone Termice (`web/index.html`)
+- **Repoziționare Buton Oprire/Pornire (`⏻`):** Mutat în partea stângă, amplasat ergonomic între led-ul de semnal BLE și numele camerei (`[🟢 Dot] [⏻] [Nume Cameră ✏️]`).
+- **Eliminare Chenar Verde "Repaus":** Când zona este inactivă (temperatura este atinsă), nu se mai afișează niciun badge intruziv, eliminând poluarea vizuală. Badge-urile apar exclusiv pentru stări active (`♨️ Încălzire`, `⏳ Așteptare`, `🪟 Geam Deschis`, `❄️ Îngheț Urgență`).
+- **Eliminare Text "țintă" & Grupare Stepper:** Textul `țintă` a fost eliminat; butoanele de reglaj stepper `[-] 21.0° [+]` sunt grupate compact direct lângă afișajul temperaturii reale și al graficului sparkline.
+
+### 3. Rezolvare Problemă Resetare Preset Activ pe "Standard / Confort"
+- **Cauza Identificată:** La fiecare rulare a suitei de teste `tools/test_system.py`, testele `SWE.5-TC17.3` (`POST /api/schedule/reset`) și `SWE.5-TC18.4` (`POST /api/schedule/preset/apply?id=default`) resetau orarul la valorile din fabrică și comutau presetul activ pe `default` ("Standard / Confort"), ștergând selecția utilizatorului (`Bogdan` / `custom1`).
+- **Soluție în Suita de Teste (`tools/test_system.py`):**
+  - La inițierea suitei (`run_all`), se salvează automat presetul curent al utilizatorului (`self.user_initial_preset`).
+  - La finalul tuturor testelor, se apelează automat `apply?id={self.user_initial_preset}`, garantând că mediul de producție rămâne exact în starea dorită de utilizator.
+- **Logging Tranzacțional în Firmware (`src/ThermalZoneManager.cpp`):**
+  - Adăugat log explicit în Virtual Console la comutarea presetului: `[Schedule][PRESET] Preset switched: 'old' -> 'new'`.
+  - Presetul `Bogdan` (`custom1`) a fost restaurat ca preset activ.
+
+### 4. Format Widescreen 16:9 & Aliniere Laterală (`web/index.html`)
+
+### 1. Format Widescreen 16:9 & Aliniere Laterală (`web/index.html`)
+- **Extindere container principal:** Înlocuit constrângerea îngustă `max-width: 1060px` cu un container adaptiv de până la `1560px` cu padding centrat (`margin: 0 auto; padding: 12px 16px 24px;`). Pe monitoarele 16:9 pagina ocupă acum armonios spațiul lateral fără margini negre masive.
+- **Breakpoint Widescreen decuplat:** Translatat split-ul pe 2 coloane de la `780px` la `1140px` (`minmax(460px, 1fr) minmax(520px, 1.25fr)`). Pe ecrane mobile, tablete și ferestre medii, elementele rămân strict într-o singură coloană verticală intuitivă.
+- **Reordonare verticală pe mobil:** Sub `1140px`, layout-ul folosește `display: contents;` cu ordonare firească:
+  1. Bara de navigare superioară unificată
+  2. Cardul Centralei Termice (`#card-boiler`)
+  3. Cardul Zonelor Termice & Senzori (`#card-zones-sensors`) — accesibil imediat sub centrală!
+  4. Cardul Smart Bio-Schedule (`#card-bio-schedule`)
+
+### 2. De-Cramping Zone Termice & Senzori BLE (`web/index.html`)
+- **Eliminare text static inutil:** Înlăturat complet eticheta blocată `NimBLE 90% Scan`.
+- **Spațiu orizontal generos:** Datorită lățimii coloanei de ~800px pe widescreen și a dispunerii verticale pe ecrane mai mici, liniile de zone (nume, status vană, buton pornire/oprire, temperatură live, grafic sparkline și butoane stepper) respiră aerisit, eliminând orice suprapunere de text.
+
+### 3. Refactorizare Densitate & Compactare Spațiu Vertical (`web/index.html`)
+- **Bara Superioară Unificată (`.top-nav-card`):** Comasate cele 3 carduri separate (Antet, Nivel de Control, Mod Vizualizare) într-un singur card subțire:
+  - Rândul 1: Logo brand + titlu compact + pastile telemetrie live (`Live`, `Weather`, `Time`, `Instalează App`).
+  - Rândul 2: Tab-uri vizualizare (`Panou Principal`, `Tesla Mode`, `FSM`, `>_ Consolă Live`) pe stânga și comutator nivel de control (`Simplu`, `Preseturi`, `Avansat`) pe dreapta. Economie de ~120px de spațiu vertical inutil.
+- **Card Centrală Gaz Compactat:** Titlul, pastila de stare (`OFF Standby` / `FLACĂRĂ ACTIVĂ`) și butoanele de mod (`AUTOMATIC` / `MANUAL`) sunt acum aliniate compact pe un singur rând; butoane de acțiune subțiri (36px), rând pompă/interblocare de 1 linie și telemetrie runtime slim.
+- **Card Smart Bio-Schedule Compactat:**
+  - Cele 3 comutatoare (`Orar Inteligent`, `Pre-Heat`, `Geam Deschis`) sunt grupate pe un singur rând orizontal flexibil.
+  - Cardul erou al ancorei active (`#anchor-hero-box`) a fost redus de la 110px la ~40px înălțime (emoji 32px, text compact și ținte aliniate pe dreapta).
+
+### 4. Activare Consolă Bidirecțională Live pe Localhost & Tab Integrat (`tools/dev_server.py`, `web/index.html`, `web/console.html`)
+- **Reverse Proxy în `dev_server.py`:** Serverul local Python devite un reverse proxy transparent pentru toate cererile `/api/*` către ESP32 (`192.168.1.20`), adăugând rutare pentru `/console` și `/index.html` cu suport CORS complet.
+- **Tab Dedicat Consolă în Dashboard:** Adăugat al 4-lea mod de vizualizare `>_ Consolă Live` (`#card-console-view`) direct în interfața principală:
+  - Streaming în timp real al logurilor din inelul de buffer al ESP32 cu colorizare sintactică avansată.
+  - Bară de butoane rapide (`STATUS`, `START BOILER`, `STOP BOILER`, `AUTO`, `MANUAL`, `DIAG`, `HELP`, `CLEAR`).
+  - Câmp de introducere comenzi pentru trimitere directă prin `POST /api/console/cmd`.
+  - Comutatoare de wrap text, auto-scroll și ajustare mărime font.
+- **Rezolvare URL Relativ Universal:** Scriptul din `web/index.html` și `web/console.html` rezolvă `base` relativ (`/`) când rulează pe localhost, direcționând toate cererile prin proxy fără erori de conexiune sau CORS.
+
+### 5. Verificare & Calitate Cod
+- **Gzip Header Rebuild:** `tools/build_web.py` a compilat `index.html` la 38.5 KB (25.0% gzip, economie maximă de memorie PROGMEM pe ESP32).
+- **Compilare PlatformIO:** `pio run` trecut cu succes (RAM: 19.9%, Flash: 62.4%).
+- **Validare SWE.5:** Suita automată de teste `tools/test_system.py` trecută cu **100% PASS (68/68 teste, 33/33 cerințe)**.
+- **Verificare Vizuală Subagent Browser:** Testat pe `http://localhost:8080/index.html` — layout widescreen 16:9 centrat, zone termice aerisite, bară compactă și tab-ul de consolă complet funcțional.
+
 ## [16.10.2026] - Fix Frontend SyntaxError, Protecție Anti-Underflow Timp Funcționare Cazan & Comandă Reset Runtime
 
 ### 1. Rezolvare Frontend Local (`web/index.html`)

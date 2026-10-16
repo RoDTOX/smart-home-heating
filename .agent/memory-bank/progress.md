@@ -3,6 +3,27 @@
 ## Status
 All core functional subsystems (heating hysteresis engine, boiler RF trigger, native BLE passive scanner, 2-way console, web OTA, diagnostic engine with DTCs, service mode, digital passport, NTP & weather sync, headless API-first architecture, hydronic safety controls, anti-spam burner interlocks, Bio-Schedule with presets engine & full factory/user customization, deferred action cooldown cancel, and atomic PC system test suite with bidirectional traceability matrix) are fully implemented, compiled, uploaded, and verified live on ESP32 (`192.168.1.20`) with 100% ASPICE SWE.5 pass rate (68/68 PASS, 33/33 requirements covered, 0 uncovered).
 
+## Completed Work (2026-10-16 - Refactorizare Densitate Înaltă UI, Format Widescreen 16:9, De-Cramping Zone Termice & Consolă Wi-Fi Live pe Localhost)
+- **Format Widescreen 16:9 & Aliniere Laterală (`web/index.html`):**
+  - Înlocuit constrângerea îngustă `max-width: 1060px` cu un container expandabil până la `1560px` cu centrare automată (`margin: 0 auto; padding: 12px 16px 24px;`). Pe monitoare 16:9 conținutul acoperă armonios spațiul lateral fără margini negre masive.
+  - Breakpoint decuplat la 1140px: pe ecrane sub 1140px, elementele sunt aranjate într-o singură coloană verticală intuitivă ca pe smartphone prin `display: contents;` (Bara sus -> Centrală -> Zone Termice & Senzori -> Bio-Schedule).
+- **De-Cramping Zone Termice & Senzori BLE:**
+  - Eliminat complet textul static `NimBLE 90% Scan`.
+  - Cu o lățime de coloană de ~800px pe widescreen și dispunere verticală pe ecrane mai mici, liniile de zone (nume, status vană, buton pornire/oprire, temperatură live, grafic sparkline și butoane stepper) respiră aerisit, fără nicio suprapunere de text.
+- **Compactare Spațiu Vertical (High-Density UI):**
+  - Bara superioară unificată (`.top-nav-card`): Comasate cele 3 carduri separate (Antet, Nivel de Control, Mod Vizualizare) într-un singur card subțire, economisind ~120px de spațiu vertical inutil.
+  - Card Centrală Gaz compactat: Titlul, starea flăcării și butoanele de mod (`AUTOMATIC` / `MANUAL`) sunt aliniate compact pe un singur rând; butoane de acțiune slim (36px).
+  - Card Smart Bio-Schedule compactat: Comutatoarele (`Orar Inteligent`, `Pre-Heat`, `Geam Deschis`) sunt grupate pe un singur rând; cardul erou al ancorei active a fost redus de la 110px la ~40px înălțime.
+- **Activare Consolă Bidirecțională Live pe Localhost & Tab Integrat (`tools/dev_server.py`, `web/index.html`, `web/console.html`):**
+  - Serverul `dev_server.py` pe portul 8080 acționează ca reverse proxy transparent pentru toate cererile `/api/*` către ESP32 (`192.168.1.20`), adăugând rutare pentru `/console` și `/index.html` cu suport CORS complet.
+  - Adăugat al 4-lea mod de vizualizare `>_ Consolă Live` (`#card-console-view`) direct în interfața principală: streaming live de loguri cu colorizare sintactică, butoane rapide (`STATUS`, `ON`, `OFF`, `AUTO`, `MANUAL`, `DIAG`, `HELP`, `CLEAR`) și câmp de comenzi pentru trimitere directă prin `POST /api/console/cmd`.
+  - Rezolvare URL relativ universal pe localhost (`base = '/'`).
+- **Validare ASPICE SWE.5 & Calitate:**
+  - `tools/build_web.py` a compilat `index.html` la 38.5 KB (25.0% gzip).
+  - Compilare PlatformIO curată (RAM 19.9%, Flash 62.4%, 100% SUCCESS).
+  - Suita de teste automată `tools/test_system.py` cu 68/68 PASS (100.0%) în 23.88s pe toate cele 33 de cerințe.
+  - Verificare vizuală completă prin subagent browser pe `http://localhost:8080/index.html` cu capturi de ecran salvate.
+
 ## Completed Work (2026-10-16 - Fix Frontend SyntaxError, Protecție Anti-Underflow Timp Funcționare Cazan & Comandă Reset Runtime)
 - **Rezolvare Frontend Local (`web/index.html`):**
   - Eliminat fragmentul duplicat neterminat `renderZones()` (48 de linii) lăsat deasupra funcției principale, care bloca executarea scripturilor JS prin `SyntaxError: Unexpected end of input` la linia 4105. Validat cu `node --check` (0 erori) și reîncărcare în browser (toate cardurile și datele live se afișează corect).
