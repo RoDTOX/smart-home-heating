@@ -1,0 +1,13 @@
+version: '3.8'
+
+services:
+  homeassistant:
+    container_name: homeassistant
+    image: homeassistant/home-assistant:stable
+    privileged: true
+    restart: unless-stopped
+    network_mode: host
+    environment:
+      - TZ=Europe/Bucharest
+    volumes:
+      - ./:/config

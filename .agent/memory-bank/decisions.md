@@ -108,7 +108,12 @@
 - Boiler card compacted to a single 40px strip in AUTO mode (action buttons hidden; runtime counters moved to `#modal-gas-costs`).
 - Zone row power button moved to left between BLE indicator and name; intrusive green 'Repaus' badge removed; 'țintă' label removed.
 - Implemented reverse proxy in `tools/dev_server.py` and embedded `>_ Consolă Live` tab in UI.
-**Consequences**: Clean, modern, high-density dashboard optimal for 720p wall tablets and 16:9 widescreen monitors.
+## 2026-10-18 — Test Integrity Invariant (ASPICE SWE.5) & Daily Zero-Gap Requirements Audit Protocol
+**Context**: Automated testing must serve as a rigorous detector of real implementation flaws and safety hazards. In addition, new firmware features or endpoints must never exist without formal requirements and test verification.
+**Decision**:
+- Enforce the Anti-Weakening Invariant: Weakening assertions to artificially pass tests is strictly prohibited. When tests fail, the firmware implementation must be corrected or a defect logged.
+- Enforce Daily Zero-Gap Requirements Audit: Proactively alert the user at the start of each session if any implementation lacks requirements or test coverage, requesting explicit authorization to address it.
+**Consequences**: Eliminates technical debt, guarantees 100% ASPICE SWE.5 bidirectional traceability, and ensures physical heating safety.
 
 
 

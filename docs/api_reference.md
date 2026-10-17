@@ -26,14 +26,20 @@ The `smart-heating` ESP32 controller operates on an **API-First, Headless Archit
 
 | Category | Endpoint | Method | Description |
 |---|---|:---:|---|
-| **Boiler & Mode** | `/api/boiler/status` | `GET` | Core system telemetry, burner flame state, pump state, uptime |
+| **Boiler & Mode** | `/api/boiler/status` | `GET` | Core system telemetry, burner flame state, pump state, uptime, runtime |
 | | `/api/boiler/on` | `POST` | Trigger burner flame START via 433.92 MHz RF (safe guard active) |
 | | `/api/boiler/off` | `POST` | Trigger burner flame STOP via 433.92 MHz RF (idempotent) |
+| | `/api/boiler/cancel` | `POST` | Cancel pending deferred startup or shutdown action (`PENDING_ON`/`OFF`) |
+| | `/api/boiler/reset-runtime`| `POST` | Reset boiler burner runtime tracking counters to 0 |
 | | `/api/mode` | `POST` | Toggle AUTOMATIC (thermostat control) vs MANUAL mode |
 | **Thermal Zones** | `/api/zones` | `GET` | All underfloor heating zones, temperatures, setpoints, valve states |
 | | `/api/zones/setpoint` | `POST` | Calibrate target temperature setpoint for a specific zone |
 | | `/api/zones/toggle` | `POST` | Enable or disable heating loop for a zone |
 | | `/api/zones/sensor` | `POST` | Assign BLE thermometer MAC / name to a zone |
+| | `/api/zones/hold/clear` | `POST` | Clear temporary circadian hold for single zone or all (`id=X\|all`) |
+| | `/api/zones/window/clear`| `POST` | Clear window pause guard & reset baseline for zone or all (`id=X\|all`) |
+| | `/api/zones/window/threshold`| `POST` | Set window drop sensitivity threshold (0.8°C to 2.0°C) per zone |
+| **Telemetry History**| `/api/history` | `GET` | LittleFS flash telemetry history buffer (24h @ 5m & 5d @ 30m) |
 | **Bio-Schedule** | `/api/schedule` | `GET` | 4 Circadian anchors (`Sleep`, `Wake`, `Away`, `Home`) & profiles |
 | | `/api/schedule` | `POST` | Update circadian anchor times & target temperatures |
 | | `/api/schedule/enable` | `POST` | Toggle Bio-Schedule, Predictive Pre-Heat, and Window Guard |
@@ -69,21 +75,49 @@ Returns high-level system telemetry and heating status.
 ```json
 {
   "firmwareVersion": "1.2.0",
-  "buildDate": "Oct 13 2026 23:40:28",
+  "buildDate": "Oct 18 2026 01:28:28",
   "gitCommit": "8065534",
   "resetReason": "Software Reboot (Firmware Update / Restart)",
   "boiler": "OFF",
-  "boilerDemand": false,
-  "autoMode": true,
-  "pumpActive": false,
-  "frostGuardActive": false,
-  "scheduleEnabled": true,
-  "activeAnchor": "SLEEP",
-  "preHeatActive": false,
-  "freeHeap": 124928,
+  "boilerCooldownSec": 0,
+  "pendingAction": "NONE",
+  "pendingWaitSec": 0,
+  "lastTxMs": 552,
+  "freeHeap": 115240,
   "rssi": -58,
   "uptimeSec": 450,
+  "healthScore": 100,
+  "serviceMode": false,
+  "serialNumber": "ESP32-HEAT-D4D4DA5CD880",
+  "isCommissioned": true,
+  "time": "01:28:30",
+  "date": "2026-10-18",
+  "season": "Autumn",
+  "isHeatingSeason": true,
+  "outdoorTemp": 8.7,
+  "bleScanning": true,
+  "autoMode": true,
+  "boilerDemand": false,
+  "actuatorType": "NC",
+  "pumpEnabled": true,
+  "pumpActive": false,
+  "frostGuardActive": false,
   "sensorTimeoutSec": 600,
+  "lastAntiSeizeEpoch": 1791958044,
+  "scheduleEnabled": true,
+  "activePreset": "default",
+  "activeAnchor": "SLEEP",
+  "nextAnchor": "WAKE",
+  "minsToNextAnchor": 302,
+  "preHeatActive": false,
+  "boilerRuntime": {
+    "totalSec": 1273,
+    "todaySec": 766,
+    "yesterdaySec": 120,
+    "thisMonthSec": 1273,
+    "lastMonthSec": 0,
+    "currentBurnSec": 0
+  },
   "sensors": [
     {
       "name": "Living Room",
@@ -110,24 +144,50 @@ Triggers gas boiler burner ignition via 433.92 MHz radio signal.
   "boiler": "ON"
 }
 ```
-- **Response `429 Too Many Requests` (Anti-Short-Cycling Protected):**
+- **Response `429 Too Many Requests` (Anti-Short-Cycling Protected & Deferred Startup Queued):**
 ```json
 {
-  "status": "rate_limited",
+  "status": "pending",
   "error": "Anti-short-cycling guard active",
+  "target": "ON",
   "waitSec": 45,
-  "boiler": "OFF"
+  "pending": true,
+  "boiler": "OFF",
+  "message": "Pornire programata automat dupa expirarea timpului minim de pauza (45s)"
 }
 ```
 
 #### `POST /api/boiler/off`
-Turns off gas boiler flame. Always succeeds immediately (failsafe stop is never rate-limited).
+Turns off gas boiler flame. Always succeeds immediately (failsafe stop is never rate-limited). If an ignition was pending, it is cancelled immediately.
 
 - **Response `200 OK`:**
 ```json
 {
   "status": "ok",
   "boiler": "OFF"
+}
+```
+
+#### `POST /api/boiler/cancel`
+Cancels any scheduled deferred boiler action (`PENDING_ON` or `PENDING_OFF`) without modifying the active physical state of the burner.
+
+- **Response `200 OK`:**
+```json
+{
+  "status": "ok",
+  "pendingCancelled": true,
+  "boiler": "OFF"
+}
+```
+
+#### `POST /api/boiler/reset-runtime`
+Resets the non-volatile cumulative burner runtime counters (`totalSec`, `todaySec`, `thisMonthSec`, etc.) to zero.
+
+- **Response `200 OK`:**
+```json
+{
+  "status": "ok",
+  "message": "Boiler runtime counters reset to 0"
 }
 ```
 
@@ -157,50 +217,46 @@ Returns the status of all hydronic heating loops.
   "autoMode": true,
   "boiler": "OFF",
   "boilerCooldownSec": 0,
+  "pendingAction": "NONE",
+  "pendingWaitSec": 0,
   "boilerDemand": false,
   "actuatorType": "NC",
   "pumpEnabled": true,
   "pumpActive": false,
   "frostGuardActive": false,
+  "sensorTimeoutSec": 600,
+  "lastAntiSeizeEpoch": 1791958044,
+  "scheduleEnabled": true,
+  "activePreset": "default",
+  "activeAnchor": "SLEEP",
+  "nextAnchor": "WAKE",
+  "minsToNextAnchor": 302,
+  "preHeatActive": false,
   "zones": [
     {
       "id": 1,
       "name": "Living & Bucatarie",
-      "relayPin": 26,
-      "sensorName": "Living Room",
+      "sensor": "Living Room",
       "sensorMac": "A4:C1:38:A4:C1:DD",
-      "targetTemp": 20.0,
-      "effectiveTarget": 20.0,
+      "relayPin": 26,
+      "targetTemp": 22.0,
+      "effectiveTarget": 22.0,
       "hysteresis": 0.30,
       "enabled": true,
-      "currentTemp": 24.1,
+      "currentTemp": 23.6,
       "sensorValid": true,
       "sensorFault": false,
       "frostActive": false,
       "windowPauseActive": false,
       "windowPauseRemainingSec": 0,
+      "windowDropThreshold": 1.2,
+      "lastWindowEpoch": 0,
+      "lastWindowDurationSec": 0,
       "demand": false,
       "relayEngaged": false,
-      "state": "Idle (Temp OK)"
-    },
-    {
-      "id": 2,
-      "name": "Camera Copilului",
-      "relayPin": 25,
-      "sensorName": "Kids Room",
-      "sensorMac": "A4:C1:38:84:A1:E8",
-      "targetTemp": 21.0,
-      "effectiveTarget": 21.0,
-      "hysteresis": 0.30,
-      "enabled": true,
-      "currentTemp": 23.4,
-      "sensorValid": true,
-      "sensorFault": false,
-      "frostActive": false,
-      "windowPauseActive": false,
-      "windowPauseRemainingSec": 0,
-      "demand": false,
-      "relayEngaged": false,
+      "openSec": 0,
+      "isManualHold": false,
+      "holdAnchor": "",
       "state": "Idle (Temp OK)"
     }
   ]
@@ -208,17 +264,61 @@ Returns the status of all hydronic heating loops.
 ```
 
 #### `POST /api/zones/setpoint`
-Adjusts target temperature for a specific zone with immediate NVS flash persistence.
+Adjusts target temperature for a specific zone. If Bio-Schedule is enabled, this engages a non-destructive temporary hold (`isManualHold: true`) expiring on the next circadian anchor transition.
 
 - **Query Parameters / Form Data:**
-  - `id`: Zone ID (`1`, `2`, `3`, etc.).
-  - `target` or `temp`: Target temperature in Celsius (`15.0` to `28.0`).
+  - `id`: Zone index (`0`, `1`, `2`) or 1-based ID (`1`, `2`, `3`).
+  - `target` or `temp`: Target temperature in Celsius (`15.0` to `30.0`).
 - **Response `200 OK`:**
 ```json
 {
   "status": "ok",
   "zoneId": 1,
   "targetTemp": 22.5
+}
+```
+
+#### `POST /api/zones/hold/clear`
+Releases the temporary setpoint hold on a specific zone or across all zones simultaneously, restoring the active circadian anchor's baseline temperature immediately.
+
+- **Query Parameters:**
+  - `id`: Zone ID (`0`, `1`, `2` or `1`, `2`, `3`) or `all` to clear all zones.
+- **Response `200 OK`:**
+```json
+{
+  "status": "ok"
+}
+```
+
+#### `POST /api/zones/window/clear`
+Manually exits the open window pause guard, resets the zone's thermal baseline to the current room temperature, and immediately re-evaluates the hydronic loop to resume heating if demanded.
+
+- **Query Parameters:**
+  - `id`: Zone ID (`0`, `1`, `2` or `1`, `2`, `3`) or `all` to clear all zones.
+- **Response `200 OK` (Cleared or Already Inactive):**
+```json
+{
+  "status": "ok",
+  "message": "Window pause cleared for zone"
+}
+```
+
+#### `POST /api/zones/window/threshold`
+Calibrates the open window temperature drop sensitivity threshold for a specific zone. The value is validated and clamped strictly between `0.8°C` and `2.0°C` (default `1.2°C`) and saved persistently to NVS flash.
+
+- **Query Parameters:**
+  - `id`: Zone ID (`0`, `1`, `2` or `1`, `2`, `3`).
+  - `threshold`: Drop sensitivity in Celsius (`0.8` to `2.0`).
+- **Response `200 OK`:**
+```json
+{
+  "status": "ok"
+}
+```
+- **Response `400 Bad Request` (Out of Bounds):**
+```json
+{
+  "error": "Threshold out of bounds (allowed: 0.8 to 2.0 C)"
 }
 ```
 
@@ -488,6 +588,41 @@ Returns synchronized local time and outdoor weather telemetry.
   "weatherAgeSec": 180
 }
 ```
+
+---
+
+### 3.6. Flash Telemetry History Buffer (LittleFS)
+
+#### `GET /api/history`
+Streams historical temperature and actuation states persisted in non-volatile LittleFS flash memory. Data is organized into compact binary records (10 bytes per point) and served in a structured JSON payload with chunked streaming to prevent RAM exhaustion.
+
+- **Query Parameters:**
+  - `range`: `"24h"` (default: 5-minute sampling interval, up to 288 points) or `"5d"` (30-minute downsampled interval, up to 240 points).
+- **Response `200 OK`:**
+```json
+{
+  "range": "24h",
+  "stepSec": 300,
+  "currentSlot": 18,
+  "points": [
+    [15, null, null, null, null, 128],
+    [16, 23.7, 23.6, 23.5, 8.7, 128],
+    [17, 23.6, 23.6, 23.4, 8.7, 128],
+    [18, 23.6, 23.6, 23.4, 8.7, 128]
+  ]
+}
+```
+- **Tuple Structure per Point:** `[slotIndex, z1Temp, z2Temp, z3Temp, outdoorTemp, flagsBitmask]`
+  - `slotIndex` (integer): Ring buffer slot position (0..287 for 24h, 0..239 for 5d).
+  - `z1Temp`, `z2Temp`, `z3Temp` (float | null): Hydronic zone temperatures in °C (or `null` if uninitialized).
+  - `outdoorTemp` (float | null): Open-Meteo external temperature in °C.
+  - `flagsBitmask` (uint8): Binary bitmask of actuation status:
+    * Bit 0 (`0x01`): Gas Boiler Burner Flame Active
+    * Bit 1 (`0x02`): Secondary GPA Pump Active
+    * Bit 2 (`0x04`): Zone 1 Actuator Relay Engaged
+    * Bit 3 (`0x08`): Zone 2 Actuator Relay Engaged
+    * Bit 4 (`0x10`): Zone 3 Actuator Relay Engaged
+    * Bit 7 (`0x80`): Record Valid / Initialized
 
 ---
 

@@ -48,6 +48,8 @@ struct WindowDetectionState {
     uint32_t pauseStartMs;
     float pauseMinTemp;
     bool dropInsightLogged;
+    uint32_t lastDetectionEpoch;
+    uint32_t lastDetectionDurationSec;
 };
 
 struct ThermalZoneConfig {
@@ -59,6 +61,7 @@ struct ThermalZoneConfig {
     float targetTemp;
     float hysteresis;
     bool enabled;
+    float windowDropThreshold; // Drop in <=5m to trigger pause (0.8 - 2.0 C, default 1.2 C)
 };
 
 struct ThermalZoneStatus {
@@ -70,6 +73,8 @@ struct ThermalZoneStatus {
     bool demand;
     bool relayEngaged;
     uint32_t stateChangedMs;
+    bool isManualHold;
+    BioAnchorId holdAnchor;
 };
 
 class ThermalZoneManager {
@@ -137,6 +142,13 @@ public:
     void setPumpOverrunMs(uint32_t ms) { _pumpOverrunMs = ms; }
     void setMinBoilerOffMs(uint32_t ms) { _minBoilerOffMs = ms; }
 
+    // Manual Hold (Temporary Override until next anchor)
+    bool isManualHoldActive(size_t index) const {
+        if (index >= MAX_THERMAL_ZONES) return false;
+        return _statuses[index].isManualHold;
+    }
+    void clearManualHold(size_t index);
+
     // Manual Control
     void setRelayManual(size_t index, bool on);
     void setPumpManual(bool on);
@@ -181,6 +193,11 @@ public:
     // Open Window Detection State
     bool isWindowPauseActive(size_t index) const;
     uint32_t getWindowPauseRemainingSec(size_t index) const;
+    bool clearWindowPause(size_t index);
+    void setWindowDropThreshold(size_t index, float threshold);
+    float getWindowDropThreshold(size_t index) const;
+    uint32_t getWindowLastDetectionEpoch(size_t index) const;
+    uint32_t getWindowLastDetectionDurationSec(size_t index) const;
 
     // Effective Target (considers BioSchedule & Pre-Heat)
     float getEffectiveTargetTemp(size_t index) const;
@@ -231,6 +248,8 @@ private:
     uint32_t _lastBoilerOffTime;
     uint32_t _lastBoilerOnTime;
     uint32_t _lastEvaluationMs;
+    bool _nvsSavePending;
+    uint32_t _nvsSavePendingMs;
 
     void applyRelay(uint8_t pin, bool active);
     void updatePumpState(bool anyZoneReadyForBoiler, uint32_t now);

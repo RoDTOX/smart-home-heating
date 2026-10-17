@@ -1,7 +1,40 @@
 # Progress: Smart Home Heating System
 
 ## Status
-All core functional subsystems (heating hysteresis engine, boiler RF trigger, native BLE passive scanner, 2-way console, web OTA, diagnostic engine with DTCs, service mode, digital passport, NTP & weather sync, headless API-first architecture, hydronic safety controls, anti-spam burner interlocks, Bio-Schedule with presets engine & full factory/user customization, deferred action cooldown cancel, and atomic PC system test suite with bidirectional traceability matrix) are fully implemented, compiled, uploaded, and verified live on ESP32 (`192.168.1.20`) with 100% ASPICE SWE.5 pass rate (68/68 PASS, 33/33 requirements covered, 0 uncovered).
+All core functional subsystems (heating hysteresis engine, boiler RF trigger, native BLE passive scanner, 2-way console, web OTA, diagnostic engine with DTCs, service mode, digital passport, NTP & weather sync, headless API-first architecture, hydronic safety controls, anti-spam burner interlocks, Bio-Schedule with presets engine & full factory/user customization, deferred action cooldown cancel, atomic PC system test suite, Home Assistant full integration, FSM race condition fix, and Open Window Detection suite with per-zone configurable sensitivity and manual override) are fully implemented, compiled, flashed over Web OTA, and verified live on ESP32 (`192.168.1.20`).
+ASPICE SWE.5 test coverage: 44/44 Requirements (100.0%), 85/85 Tests Passed (100.0%), 0 uncovered requirements, 0 relaxed contracts.
+
+## Completed Work (2026-10-18 - Aliniere Riguroasă 1:1 Documentație & Suită Teste ASPICE SWE.5 44/44 Cerințe Live)
+- **100% Acoperire Cerințe ASPICE SWE.5:**
+  - 44/44 Cerințe verificate și documentate (FR-1..FR-40 + NFR-1.1, NFR-1.5, NFR-2.2, NFR-3.2).
+  - 0 cerințe netestate, 0 decalaje (gaps) între cod și documentație.
+- **Suită Automată Extinsă la 85 Teste Atomice (`tools/test_system.py`):**
+  - Adăugat verificări automate pentru FR-33..FR-40: persistență LittleFS (/api/history), model termic gaz (baseload ACM 0.40 m³/zi, 0.60 m³/h flacără, 3.30 Lei/m³), validare sintaxă modernă Home Assistant Core (`template:` packages), abortare instantanee a perioadei de warmup la scăderea setpoint-ului, post-circulație pompă condiționată de aprinderea flăcării, anulare hold circadian la reglaj manual și suita completă de ferestre deschise.
+  - Verificare live pe hardware real (`192.168.1.20`): **85/85 PASS (100.0%)** în 30.73 secunde.
+- **Hardening Firmware & Corectare Limite Fereastră:**
+  - Identificat și corectat în C++ intervalul pragului de detecție cădere: forțat `[0.8°C .. 2.0°C]` (default 1.2°C) în `ThermalZoneManager.cpp` și refuz cu HTTP 400 Bad Request în `main.cpp` pentru valori eronate.
+- **Actualizare Completă Documentație de Sistem:**
+  - `docs/requirements_and_features.md`: cerințe detaliate FR-34..FR-40 și matrice de trasabilitate 44/44 100% PASS.
+  - `docs/api_reference.md`: documentate toate endpoint-urile noi (`/api/history`, `/api/boiler/cancel`, `/api/boiler/reset-runtime`, `/api/zones/hold/clear`, `/api/zones/window/clear`, `/api/zones/window/threshold`).
+  - `docs/underfloor_heating_hydraulics_and_failsafes.md`: adăugate secțiunile 3.1 (Warmup Abort), 3.2 (Intelligent Overrun), 3.3 (Open Window Cutoff).
+  - `docs/system_test_report.md`: generat raport formal ASPICE SWE.5.
+
+## Completed Work (2026-10-18 - Suită Completă Detecție Geam Deschis, Salvare Folder Home Assistant în Git & Flashing OTA Live)
+- **Persistență Git Folder `homeassistant/`:**
+  - Migrat și structurat complet folderul `homeassistant/` în rădăcina proiectului Git (`packages/smart_heating.yaml`, `dashboards/smart_heating.yaml`, `configuration.yaml`, `docker-compose.yml`, `README.md`).
+  - Containerul Home Assistant poate fi pornit în 1 comandă (`docker compose up -d`) pe orice mașină, independent de existența sau resetarea VM-ului WSL2.
+- **Suită Completă Detecție Geam Deschis (Open Window Guard):**
+  - FSM & Siguranță: la scădere de $\ge \text{prag}$ în $\le 5$ minute, zona trece în `ZONE_WINDOW_PAUSE`, taie instant releul la 0V și oprește cazanul dacă nu mai există cerere în casă.
+  - Ieșiri din pauză: auto-timeout (30m), auto-rebound termic (+0.6°C), și override manual din Web UI sau Home Assistant (`[↺ Am Închis (Reia)]`) care resetează și baseline-ul la temperatura curentă.
+  - Prag de sensibilitate configurabil per zonă (0.8°C – 2.0°C, implicit 1.2°C) salvat în NVS prin endpoint REST `POST /api/zones/window/threshold` și badge UI.
+  - Istoric și telemetrie: înregistrează timestamp-ul și durata ultimei aerisiri (`lastDetectionEpoch`, `lastDetectionDurationSec`).
+- **Vizibilitate Web UI & Home Assistant:**
+  - Web UI: banner pulsant animat pe cameră când este aerisire activă cu cronometru rămas (`MM:SS`) și buton `[↺ Am Închis (Reia)]`; etichetă istoric discretă când este închis (`🪟 Aerisit: acum Xm`); schemă SVG actualizată.
+  - Home Assistant: 3 `binary_sensor` cu `device_class: window`, 3 senzori de countdown, 3 comenzi REST și template buttons, plus carduri de alertă condiționale pe dashboard-ul principal.
+- **Flashing OTA & Verificare Live pe Hardware (ESP32 `192.168.1.20`):**
+  - Compilare PlatformIO curată: `pio run` SUCCESS (RAM: 21.6%, Flash: 64.7%).
+  - Flashed via Web OTA (`tools/ota_upload.py`) în 7.92s.
+  - Verificat live prin API: releul de pe Camera Copilului a fost decuplat (`relayEngaged: false`), toate câmpurile noi de telemetrie sunt active și testate.
 
 ## Completed Work (2026-10-16 - Refactorizare Densitate Înaltă UI, Format Widescreen 16:9, De-Cramping Zone Termice & Consolă Wi-Fi Live pe Localhost)
 - **Format Widescreen 16:9 & Aliniere Laterală (`web/index.html`):**

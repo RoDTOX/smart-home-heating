@@ -33,7 +33,9 @@ ThermalZoneManager::ThermalZoneManager()
       _minBoilerOffMs(DEFAULT_MIN_BOILER_OFF_MS),
       _lastBoilerOffTime(0),
       _lastBoilerOnTime(0),
-      _lastEvaluationMs(0) {
+      _lastEvaluationMs(0),
+      _nvsSavePending(false),
+      _nvsSavePendingMs(0) {
 
     _scheduleConfig = getFactoryDefaultSchedule();
     _scheduleConfig.enabled = false;
@@ -46,6 +48,8 @@ ThermalZoneManager::ThermalZoneManager()
         _windowStates[i].pauseStartMs = 0;
         _windowStates[i].pauseMinTemp = 999.0f;
         _windowStates[i].dropInsightLogged = false;
+        _windowStates[i].lastDetectionEpoch = 0;
+        _windowStates[i].lastDetectionDurationSec = 0;
     }
 
     // Default Zone 1
@@ -57,6 +61,7 @@ ThermalZoneManager::ThermalZoneManager()
     _configs[0].targetTemp = DEFAULT_SETPOINT_TEMP;
     _configs[0].hysteresis = DEFAULT_HYSTERESIS;
     _configs[0].enabled = true;
+    _configs[0].windowDropThreshold = 1.2f;
 
     // Default Zone 2
     _configs[1].id = 2;
@@ -67,6 +72,7 @@ ThermalZoneManager::ThermalZoneManager()
     _configs[1].targetTemp = DEFAULT_SETPOINT_TEMP;
     _configs[1].hysteresis = DEFAULT_HYSTERESIS;
     _configs[1].enabled = true;
+    _configs[1].windowDropThreshold = 1.2f;
 
     // Default Zone 3
     _configs[2].id = 3;
@@ -77,6 +83,7 @@ ThermalZoneManager::ThermalZoneManager()
     _configs[2].targetTemp = DEFAULT_SETPOINT_TEMP;
     _configs[2].hysteresis = DEFAULT_HYSTERESIS;
     _configs[2].enabled = true;
+    _configs[2].windowDropThreshold = 1.2f;
 
     for (size_t i = 0; i < MAX_THERMAL_ZONES; i++) {
         _statuses[i].state = ZONE_IDLE;
@@ -87,6 +94,8 @@ ThermalZoneManager::ThermalZoneManager()
         _statuses[i].demand = false;
         _statuses[i].relayEngaged = false;
         _statuses[i].stateChangedMs = 0;
+        _statuses[i].isManualHold = false;
+        _statuses[i].holdAnchor = BIO_ANCHOR_HOME;
     }
 }
 
@@ -118,6 +127,7 @@ void ThermalZoneManager::loadFromPreferences() {
         _configs[i].targetTemp = prefs.getFloat((p + "target").c_str(), _configs[i].targetTemp);
         _configs[i].hysteresis = prefs.getFloat((p + "hyst").c_str(), _configs[i].hysteresis);
         _configs[i].enabled = prefs.getBool((p + "en").c_str(), _configs[i].enabled);
+        _configs[i].windowDropThreshold = prefs.getFloat((p + "wdrop").c_str(), 1.2f);
     }
     prefs.end();
 
@@ -155,6 +165,7 @@ void ThermalZoneManager::saveToPreferences() {
         prefs.putFloat((p + "target").c_str(), _configs[i].targetTemp);
         prefs.putFloat((p + "hyst").c_str(), _configs[i].hysteresis);
         prefs.putBool((p + "en").c_str(), _configs[i].enabled);
+        prefs.putFloat((p + "wdrop").c_str(), _configs[i].windowDropThreshold);
     }
     prefs.end();
     Serial.println(F("[Thermal] Zone configs successfully persisted to NVS."));
@@ -318,22 +329,39 @@ void ThermalZoneManager::setTargetTemperature(size_t index, float target) {
         if (target > 30.0f) target = 30.0f;
         if (fabsf(_configs[index].targetTemp - target) > 0.05f) {
             _configs[index].targetTemp = target;
-            saveToPreferences();
+            // Debounce NVS flash write by 3000ms to protect flash and smooth slider changes
+            _nvsSavePending = true;
+            _nvsSavePendingMs = millis() + 3000;
         }
 
-        // If Bio-Schedule is active, also adjust the current active anchor's target
-        // so the user's manual bump takes immediate effect in the thermodynamic loop!
+        // If Bio-Schedule is active, mark as Temporary Hold (holds until next anchor transition)
+        // Does NOT overwrite the schedule preset!
         if (_scheduleConfig.enabled && timeAndWeather.isTimeSynced()) {
-            bool weekend = timeAndWeather.isWeekend();
-            BioAnchorId targetAnchor = _preHeatActive ? _nextAnchor : _activeAnchor;
-            setAnchorTarget(weekend, targetAnchor, index, target);
-            if (_preHeatActive && _activeAnchor != targetAnchor) {
-                setAnchorTarget(weekend, _activeAnchor, index, target);
-            }
+            _statuses[index].isManualHold = true;
+            _statuses[index].holdAnchor = _activeAnchor;
+            netConsole.printf("[Thermal] Zone %u (%s) TEMPORARY HOLD set to %.1f C (holds until next anchor: %s)\n",
+                _configs[index].id, _configs[index].name, target, getAnchorName(_nextAnchor));
+        } else {
+            _statuses[index].isManualHold = false;
+            netConsole.printf("[Thermal] Zone %u (%s) new target temp: %.1f C\n",
+                _configs[index].id, _configs[index].name, target);
         }
+    }
+}
 
-        netConsole.printf("[Thermal] Zone %u (%s) new target temp: %.1f C\n",
-            _configs[index].id, _configs[index].name, target);
+void ThermalZoneManager::clearManualHold(size_t index) {
+    if (index >= MAX_THERMAL_ZONES) return;
+    _statuses[index].isManualHold = false;
+    if (_scheduleConfig.enabled && timeAndWeather.isTimeSynced()) {
+        bool weekend = timeAndWeather.isWeekend();
+        const BioAnchorConfig* profile = weekend ? _scheduleConfig.weekend : _scheduleConfig.weekday;
+        BioAnchorId anc = _preHeatActive ? _nextAnchor : _activeAnchor;
+        if (anc >= BIO_ANCHORS_COUNT) anc = BIO_ANCHOR_HOME;
+        _configs[index].targetTemp = profile[anc].targets[index];
+        _nvsSavePending = true;
+        _nvsSavePendingMs = millis() + 3000;
+        netConsole.printf("[Thermal] Zone %u (%s) manual hold CLEARED. Reverted to schedule target %.1f C\n",
+            _configs[index].id, _configs[index].name, _configs[index].targetTemp);
     }
 }
 
@@ -1014,6 +1042,18 @@ void ThermalZoneManager::evaluateSchedule(uint32_t now) {
         netConsole.printf("[Thermal][SCHEDULE] Bio-Schedule transition: %s -> %s (Profile: %s, Time: %02d:%02d)\n",
                           getAnchorName(prevAnchor), getAnchorName(_activeAnchor),
                           weekend ? "Weekend" : "Weekday", curHour, curMin);
+
+        // Automatic expiration of Temporary Holds on anchor transition!
+        for (size_t i = 0; i < MAX_THERMAL_ZONES; i++) {
+            if (_statuses[i].isManualHold) {
+                _statuses[i].isManualHold = false;
+                _configs[i].targetTemp = profile[_activeAnchor].targets[i];
+                _nvsSavePending = true;
+                _nvsSavePendingMs = now + 1000;
+                netConsole.printf("[Thermal][SCHEDULE] Zone %u (%s) Temporary Hold expired. Reverted to anchor %s target: %.1f C\n",
+                                  _configs[i].id, _configs[i].name, getAnchorName(_activeAnchor), _configs[i].targetTemp);
+            }
+        }
     }
 
     // Predictive Pre-Heat evaluation
@@ -1058,6 +1098,9 @@ void ThermalZoneManager::evaluateSchedule(uint32_t now) {
 
 float ThermalZoneManager::getEffectiveTargetTemp(size_t index) const {
     if (index >= MAX_THERMAL_ZONES) return DEFAULT_SETPOINT_TEMP;
+    if (_statuses[index].isManualHold) {
+        return _configs[index].targetTemp;
+    }
     if (!_scheduleConfig.enabled || !timeAndWeather.isTimeSynced()) {
         return _configs[index].targetTemp;
     }
@@ -1074,6 +1117,8 @@ void ThermalZoneManager::evaluateWindowDetection(size_t index, float currentTemp
         return;
     }
 
+    float dropThreshold = (_configs[index].windowDropThreshold >= 0.5f) ? _configs[index].windowDropThreshold : 1.2f;
+
     if (!_windowStates[index].pauseActive) {
         if (_windowStates[index].baselineMs == 0 || (now - _windowStates[index].baselineMs > 300000UL)) {
             _windowStates[index].baselineTemp = currentTemp;
@@ -1083,14 +1128,17 @@ void ThermalZoneManager::evaluateWindowDetection(size_t index, float currentTemp
             _windowStates[index].baselineTemp = currentTemp;
             _windowStates[index].baselineMs = now;
             _windowStates[index].dropInsightLogged = false;
-        } else if ((_windowStates[index].baselineTemp - currentTemp) >= 1.2f) {
+        } else if ((_windowStates[index].baselineTemp - currentTemp) >= dropThreshold) {
             _windowStates[index].pauseActive = true;
             _windowStates[index].pauseStartMs = now;
             _windowStates[index].pauseMinTemp = currentTemp;
-            netConsole.printf("[Thermal][WINDOW] Open window detected on Zone %u (%s): temp dropped %.1f \xC2\xB0""C in %us! Suspending heating for 30m.\n",
+            time_t nowEpoch = time(nullptr);
+            _windowStates[index].lastDetectionEpoch = (nowEpoch >= 1700000000) ? (uint32_t)nowEpoch : (now / 1000);
+            netConsole.printf("[Thermal][WINDOW] Open window detected on Zone %u (%s): temp dropped %.2f \xC2\xB0""C in %us! (threshold: %.1f C). Suspending heating for 30m.\n",
                               _configs[index].id, _configs[index].name,
                               _windowStates[index].baselineTemp - currentTemp,
-                              (now - _windowStates[index].baselineMs) / 1000);
+                              (now - _windowStates[index].baselineMs) / 1000,
+                              dropThreshold);
         } else if ((_windowStates[index].baselineTemp - currentTemp) >= 0.35f && !_windowStates[index].dropInsightLogged) {
             _windowStates[index].dropInsightLogged = true;
             netConsole.printf("[Thermal][INSIGHT] Rapid cooling detected on Zone %u (%s): %.2f C -> %.2f C (-%.2f C in %us, possible aeration)\n",
@@ -1106,12 +1154,14 @@ void ThermalZoneManager::evaluateWindowDetection(size_t index, float currentTemp
         bool timeoutExpired = (now - _windowStates[index].pauseStartMs >= 1800000UL); // 30 min
         bool rebounded = (currentTemp >= _windowStates[index].pauseMinTemp + 0.6f);
         if (timeoutExpired || rebounded) {
+            _windowStates[index].lastDetectionDurationSec = (now - _windowStates[index].pauseStartMs) / 1000;
             _windowStates[index].pauseActive = false;
             _windowStates[index].baselineTemp = currentTemp;
             _windowStates[index].baselineMs = now;
-            netConsole.printf("[Thermal][WINDOW] Zone %u (%s) window pause cleared (%s). Resuming normal thermostat loop.\n",
+            netConsole.printf("[Thermal][WINDOW] Zone %u (%s) window pause cleared (%s, lasted %us). Resuming normal thermostat loop.\n",
                               _configs[index].id, _configs[index].name,
-                              timeoutExpired ? "30 min timeout" : "temp rebounded +0.6 \xC2\xB0""C");
+                              timeoutExpired ? "30 min timeout" : "temp rebounded +0.6 \xC2\xB0""C",
+                              _windowStates[index].lastDetectionDurationSec);
         }
     }
 }
@@ -1126,6 +1176,54 @@ uint32_t ThermalZoneManager::getWindowPauseRemainingSec(size_t index) const {
     uint32_t elapsed = millis() - _windowStates[index].pauseStartMs;
     if (elapsed >= 1800000UL) return 0;
     return (1800000UL - elapsed) / 1000;
+}
+
+bool ThermalZoneManager::clearWindowPause(size_t index) {
+    if (index >= MAX_THERMAL_ZONES) return false;
+    uint32_t now = millis();
+    if (_windowStates[index].pauseActive) {
+        _windowStates[index].lastDetectionDurationSec = (now - _windowStates[index].pauseStartMs) / 1000;
+        _windowStates[index].pauseActive = false;
+        _windowStates[index].baselineTemp = _statuses[index].currentTemp;
+        _windowStates[index].baselineMs = now;
+        if (_statuses[index].state == ZONE_WINDOW_PAUSE) {
+            _statuses[index].state = ZONE_IDLE;
+            _statuses[index].stateChangedMs = now;
+        }
+        netConsole.printf("[Thermal][WINDOW] Zone %u (%s) window pause MANUALLY CLEARED (lasted %us). Re-armed baseline at %.2f C.\n",
+                          _configs[index].id, _configs[index].name,
+                          _windowStates[index].lastDetectionDurationSec,
+                          _windowStates[index].baselineTemp);
+        return true;
+    }
+    return false;
+}
+
+void ThermalZoneManager::setWindowDropThreshold(size_t index, float threshold) {
+    if (index >= MAX_THERMAL_ZONES) return;
+    if (threshold < 0.8f) threshold = 0.8f;
+    if (threshold > 2.0f) threshold = 2.0f;
+    if (fabsf(_configs[index].windowDropThreshold - threshold) > 0.05f) {
+        _configs[index].windowDropThreshold = threshold;
+        saveToPreferences();
+        netConsole.printf("[Thermal] Zone %u (%s) window drop threshold set to %.1f C\n",
+                          _configs[index].id, _configs[index].name, threshold);
+    }
+}
+
+float ThermalZoneManager::getWindowDropThreshold(size_t index) const {
+    if (index >= MAX_THERMAL_ZONES) return 1.2f;
+    return (_configs[index].windowDropThreshold >= 0.8f && _configs[index].windowDropThreshold <= 2.0f) ? _configs[index].windowDropThreshold : 1.2f;
+}
+
+uint32_t ThermalZoneManager::getWindowLastDetectionEpoch(size_t index) const {
+    if (index >= MAX_THERMAL_ZONES) return 0;
+    return _windowStates[index].lastDetectionEpoch;
+}
+
+uint32_t ThermalZoneManager::getWindowLastDetectionDurationSec(size_t index) const {
+    if (index >= MAX_THERMAL_ZONES) return 0;
+    return _windowStates[index].lastDetectionDurationSec;
 }
 
 String ThermalZoneManager::getScheduleJson() const {
@@ -1252,6 +1350,12 @@ void ThermalZoneManager::update(BoilerRadioTrigger& boiler) {
         return;
     }
     _lastEvaluationMs = now;
+
+    // Handle debounced NVS saving (3s after last slider change)
+    if (_nvsSavePending && now >= _nvsSavePendingMs) {
+        _nvsSavePending = false;
+        saveToPreferences();
+    }
 
     // Handle ongoing Anti-Seize Exercise (20s duration)
     if (_antiSeizeRunning) {
@@ -1385,13 +1489,14 @@ void ThermalZoneManager::update(BoilerRadioTrigger& boiler) {
                     } else {
                         if (_statuses[i].currentTemp >= (target + _configs[i].hysteresis)) {
                             _statuses[i].demand = false;
-                            _statuses[i].state = ZONE_IDLE;
-                            netConsole.printf("[Thermal] Zone %u (%s) target reached: current %.2f C >= stop threshold %.2f C (target: %.1f C, hyst: +/-%.2f C%s)\n",
+                            // Note: State transition to ZONE_IDLE and relay cut-off are safely executed in Step 2 below
+                            netConsole.printf("[Thermal] Zone %u (%s) target reached: current %.2f C >= stop threshold %.2f C (target: %.1f C, hyst: +/-%.2f C%s%s)\n",
                                 _configs[i].id, _configs[i].name,
                                 _statuses[i].currentTemp,
                                 target + _configs[i].hysteresis,
                                 target,
                                 _configs[i].hysteresis,
+                                _statuses[i].isManualHold ? ", HOLD" : "",
                                 _scheduleConfig.enabled ? (_preHeatActive ? ", PRE-HEAT" : ", BIO") : "");
                         }
                     }
@@ -1448,13 +1553,11 @@ void ThermalZoneManager::update(BoilerRadioTrigger& boiler) {
         // zones still waiting for BLE sensors stay safe in ZONE_WARMUP (valves closed).
     }
 
-
-
     if (!_autoMode && !_frostProtectionActive) {
         return; // In manual mode without frost emergency, skip automatic actuator & boiler sequencing
     }
 
-    // 2. Actuator Relay State Machine with Warm-up Delay
+    // 2. Actuator Relay State Machine with Warm-up Delay & Instant Abort
     bool anyZoneDemanding = false;
     bool anyZoneReadyForBoiler = false;
 
@@ -1486,9 +1589,17 @@ void ThermalZoneManager::update(BoilerRadioTrigger& boiler) {
             }
         } else {
             // Demand is false
-            if (_statuses[i].state == ZONE_HEATING || _statuses[i].state == ZONE_WARMING_UP) {
-                // If pump overrun is in progress and this is the keeper zone, keep it open until pump stops
-                if (_pumpActive && (int8_t)i == _overrunKeeperZone) {
+            if (_statuses[i].state == ZONE_WARMING_UP) {
+                // Instant Abort: Demand dropped during 120s warmup before boiler ever fired!
+                _statuses[i].state = ZONE_IDLE;
+                _statuses[i].stateChangedMs = now;
+                applyRelay(_configs[i].relayPin, false);
+                _statuses[i].relayEngaged = false;
+                netConsole.printf("[Thermal] Actuator Zone %u (%s) warmup aborted: closed relay on pin %u.\n",
+                    _configs[i].id, _configs[i].name, _configs[i].relayPin);
+            } else if (_statuses[i].state == ZONE_HEATING) {
+                // If pump overrun is actively in progress with scheduled stop, keeper zone stays open
+                if (_pumpActive && _pumpStopScheduledMs > 0 && (int8_t)i == _overrunKeeperZone) {
                     // Keeper zone stays engaged for residual heat dissipation
                 } else {
                     _statuses[i].state = ZONE_IDLE;
@@ -1503,6 +1614,15 @@ void ThermalZoneManager::update(BoilerRadioTrigger& boiler) {
                 _statuses[i].relayEngaged = false;
                 netConsole.printf("[Thermal] Zone %u (%s) closed relay due to window pause.\n",
                     _configs[i].id, _configs[i].name);
+            } else if (_statuses[i].relayEngaged) {
+                // HARDWARE SAFETY INVARIANT: Demand is false, not warming or heating, but relay is engaged!
+                if (!(_pumpActive && _pumpStopScheduledMs > 0 && (int8_t)i == _overrunKeeperZone)) {
+                    applyRelay(_configs[i].relayPin, false);
+                    _statuses[i].relayEngaged = false;
+                    _statuses[i].state = ZONE_IDLE;
+                    netConsole.printf("[Thermal] Safety invariant: Zone %u (%s) closed orphaned relay on pin %u.\n",
+                        _configs[i].id, _configs[i].name, _configs[i].relayPin);
+                }
             }
         }
     }
@@ -1533,9 +1653,11 @@ void ThermalZoneManager::update(BoilerRadioTrigger& boiler) {
     } else {
         // No zones ready for boiler
         if (_boilerDemand || boiler.isLastCommandOn()) {
+            bool flameWasActive = boiler.isLastCommandOn();
             _boilerDemand = false;
             _lastBoilerOffTime = now;
-            if (boiler.isLastCommandOn()) {
+
+            if (flameWasActive) {
                 if (boiler.canTransmit(false)) {
                     if (boiler.sendBoilerOff()) {
                         netConsole.println(F("[Thermal] BOILER STOP commanded via RF 433MHz!"));
@@ -1546,12 +1668,29 @@ void ThermalZoneManager::update(BoilerRadioTrigger& boiler) {
                 }
             } else if (boiler.getPendingAction() == PENDING_ON) {
                 boiler.cancelPendingAction();
+                netConsole.println(F("[Thermal] Pending boiler start CANCELLED (demand dropped before ignition)."));
             }
 
-            // Schedule Pump Overrun (Post-circulation)
-            if (_pumpControlEnabled && _pumpActive) {
+            // Intelligent Pump Overrun: ONLY run post-circulation if flame was actually active!
+            if (flameWasActive && _pumpControlEnabled && _pumpActive) {
                 _pumpStopScheduledMs = now + _pumpOverrunMs;
-                netConsole.printf("[Thermal] Pump Overrun active: pump will run for %u s to dissipate heat.\n", _pumpOverrunMs / 1000);
+                netConsole.printf("[Thermal] Intelligent Overrun: pump will run for %u s to dissipate boiler residual heat.\n", _pumpOverrunMs / 1000);
+            } else {
+                // Flame never lit: 0s overrun! Stop pump and close keeper zone immediately.
+                if (_pumpControlEnabled && _pumpActive) {
+                    applyRelay(PIN_RELAY_SPARE, false);
+                    _pumpActive = false;
+                    _pumpStopScheduledMs = 0;
+                    netConsole.println(F("[Thermal] 0s Overrun: Flame was not active, pump stopped immediately."));
+                }
+                if (_overrunKeeperZone >= 0 && _overrunKeeperZone < MAX_THERMAL_ZONES) {
+                    if (!_statuses[_overrunKeeperZone].demand) {
+                        applyRelay(_configs[_overrunKeeperZone].relayPin, false);
+                        _statuses[_overrunKeeperZone].relayEngaged = false;
+                        _statuses[_overrunKeeperZone].state = ZONE_IDLE;
+                    }
+                    _overrunKeeperZone = -1;
+                }
             }
         }
 

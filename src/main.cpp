@@ -5,6 +5,7 @@
 #include "DiagnosticEngine.h"
 #include "NetworkConsole.h"
 #include "ThermalZoneManager.h"
+#include "TelemetryHistoryManager.h"
 #include "TimeAndWeatherService.h"
 #include "Version.h"
 #include "dashboard_html_gz.h"
@@ -88,6 +89,8 @@ void printBootBannerAndSelfTest() {
                     bleOk ? "PASS" : "FAIL");
   netConsole.printf("  * Gas Boiler Radio (RF): PASS (Transmitter on GPIO%d Ready)\n", PIN_RF_DATA);
   netConsole.println(F("  * System Crash Guard:    PASS (Hardware Watchdog Armed: 90s timeout)"));
+  netConsole.printf("  * Flash Telemetry:       %s (LittleFS Ring Buffer: 24h@5m, 5d@30m)\n",
+                    telemetryHistory.isFsMounted() ? "PASS" : "WARN");
   netConsole.println(F("  * Web Dashboard & API:   PASS (HTTP Port 80, Telnet Port 23)"));
   netConsole.printf("  * Overall Health Score:  %u%% [%s]\n",
                     health,
@@ -199,6 +202,7 @@ void printHelp() {
       "  DIAG [SELFTEST]       -> System health score, active DTCs or full 6-subsystem test\r\n"
       "  DIAG CLEAR            -> Clear active Trouble Codes (DTCs) and restore 100% health\r\n"
       "  DIAG SERVICE <ON|OFF> -> Engineer Service Mode (bypasses RF anti-short-cycling guard)\r\n"
+      "  HISTORY [CLEAR]       -> Flash telemetry ring buffer status (24h/5d) or clear\r\n"
       "  PASSPORT              -> Device passport: commissioning date, serial, customer, address\r\n"
       "  CLEAR or CLS          -> Clear console terminal buffer\r\n"
       "------------------------------------\r\n\r\n"));
@@ -485,6 +489,12 @@ void handleApiZones() {
         "\"windowPauseActive\":" + String(thermalZones.isWindowPauseActive(i) ? "true" : "false") + ",";
     json +=
         "\"windowPauseRemainingSec\":" + String(thermalZones.getWindowPauseRemainingSec(i)) + ",";
+    json +=
+        "\"windowDropThreshold\":" + String(thermalZones.getWindowDropThreshold(i), 1) + ",";
+    json +=
+        "\"lastWindowEpoch\":" + String(thermalZones.getWindowLastDetectionEpoch(i)) + ",";
+    json +=
+        "\"lastWindowDurationSec\":" + String(thermalZones.getWindowLastDetectionDurationSec(i)) + ",";
     json += "\"demand\":" + String(st.demand ? "true" : "false") + ",";
     json +=
         "\"relayEngaged\":" + String(st.relayEngaged ? "true" : "false") + ",";
@@ -510,6 +520,8 @@ void handleApiZones() {
       }
     }
     json += "\"openSec\":" + String(openSec) + ",";
+    json += "\"isManualHold\":" + String(st.isManualHold ? "true" : "false") + ",";
+    json += "\"holdAnchor\":\"" + String(thermalZones.getAnchorName(st.holdAnchor)) + "\",";
     json += "\"state\":\"" + String(thermalZones.getStateStr(st.state)) + "\"";
     json += "}";
   }
@@ -538,6 +550,79 @@ void handleApiZoneSetpoint() {
   thermalZones.setTargetTemperature(idx, target);
   server.sendHeader("Access-Control-Allow-Origin", "*");
   server.send(200, "application/json", F("{\"status\":\"ok\"}"));
+}
+
+void handleApiZoneHoldClear() {
+  if (!server.hasArg("id")) {
+    server.send(400, "application/json",
+                F("{\"error\":\"Missing parameter (id)\"}"));
+    return;
+  }
+  int idVal = server.arg("id").toInt();
+  size_t idx = (idVal >= 1 && idVal <= (int)thermalZones.getZoneCount())
+                   ? (size_t)(idVal - 1)
+                   : (size_t)idVal;
+  if (idx < thermalZones.getZoneCount()) {
+    thermalZones.clearManualHold(idx);
+    server.sendHeader("Access-Control-Allow-Origin", "*");
+    server.send(200, "application/json", F("{\"status\":\"ok\"}"));
+  } else {
+    server.send(404, "application/json", F("{\"error\":\"Zone not found\"}"));
+  }
+}
+
+void handleApiZoneWindowClear() {
+  server.sendHeader("Access-Control-Allow-Origin", "*");
+  if (!server.hasArg("id")) {
+    server.send(400, "application/json",
+                F("{\"error\":\"Missing parameter (id)\"}"));
+    return;
+  }
+  String idStr = server.arg("id");
+  if (idStr.equalsIgnoreCase("all")) {
+    for (size_t i = 0; i < thermalZones.getZoneCount(); i++) {
+      thermalZones.clearWindowPause(i);
+    }
+    server.send(200, "application/json", F("{\"status\":\"ok\",\"cleared\":\"all\"}"));
+    return;
+  }
+  int idVal = idStr.toInt();
+  size_t idx = (idVal >= 1 && idVal <= (int)thermalZones.getZoneCount())
+                   ? (size_t)(idVal - 1)
+                   : (size_t)idVal;
+  if (idx < thermalZones.getZoneCount()) {
+    bool cleared = thermalZones.clearWindowPause(idx);
+    server.send(200, "application/json",
+                cleared ? F("{\"status\":\"ok\"}")
+                        : F("{\"status\":\"noop\",\"message\":\"Window pause was not active\"}"));
+  } else {
+    server.send(404, "application/json", F("{\"error\":\"Zone not found\"}"));
+  }
+}
+
+void handleApiZoneWindowThreshold() {
+  server.sendHeader("Access-Control-Allow-Origin", "*");
+  if (!server.hasArg("id") || !server.hasArg("threshold")) {
+    server.send(400, "application/json",
+                F("{\"error\":\"Missing parameter (id or threshold)\"}"));
+    return;
+  }
+  int idVal = server.arg("id").toInt();
+  float thresh = server.arg("threshold").toFloat();
+  if (thresh < 0.8f || thresh > 2.0f) {
+    server.send(400, "application/json",
+                F("{\"error\":\"Threshold out of bounds (allowed: 0.8 to 2.0 C)\"}"));
+    return;
+  }
+  size_t idx = (idVal >= 1 && idVal <= (int)thermalZones.getZoneCount())
+                   ? (size_t)(idVal - 1)
+                   : (size_t)idVal;
+  if (idx < thermalZones.getZoneCount()) {
+    thermalZones.setWindowDropThreshold(idx, thresh);
+    server.send(200, "application/json", F("{\"status\":\"ok\"}"));
+  } else {
+    server.send(404, "application/json", F("{\"error\":\"Zone not found\"}"));
+  }
 }
 
 void handleApiZoneToggle() {
@@ -1215,6 +1300,25 @@ void handleApiScheduleReset() {
   server.send(200, "application/json", thermalZones.getScheduleJson());
 }
 
+void handleApiHistory() {
+  server.sendHeader("Access-Control-Allow-Origin", "*");
+  if (server.hasArg("time")) {
+    uint32_t clientTime = (uint32_t)server.arg("time").toInt();
+    if (clientTime > 1700000000UL) {
+      telemetryHistory.setLocalTimeFromClient(clientTime);
+    }
+  }
+  String range = server.hasArg("range") ? server.arg("range") : "24h";
+  String json = telemetryHistory.getHistoryJson(range);
+  server.send(200, "application/json", json);
+}
+
+void handleApiHistoryClear() {
+  server.sendHeader("Access-Control-Allow-Origin", "*");
+  telemetryHistory.clearHistory();
+  server.send(200, "application/json", F("{\"status\":\"ok\",\"cleared\":true}"));
+}
+
 void setupWifi() {
   WiFi.setHostname("SmartHeating-BoilerRF");
   WiFi.mode(WIFI_STA);
@@ -1856,6 +1960,25 @@ void handleSerialCommand(String cmd) {
   } else if (upperCmd == "BOILER RESET RUNTIME" || upperCmd == "RESET RUNTIME") {
     boilerRadio.resetRuntime();
     netConsole.println(F("[Boiler][Runtime] Burn time counters reset to 0 in NVS."));
+  } else if (upperCmd.startsWith("HISTORY")) {
+    if (upperCmd == "HISTORY CLEAR") {
+      telemetryHistory.clearHistory();
+      netConsole.println(F("[HISTORY] All flash and RAM telemetry ring buffers cleared."));
+    } else if (upperCmd == "HISTORY CAPTURE" || upperCmd == "HISTORY SAMPLE") {
+      telemetryHistory.captureSample();
+      netConsole.println(F("[HISTORY] Immediate sample captured into ring buffers."));
+    } else {
+      netConsole.println(F("=================================================="));
+      netConsole.println(F("          TELEMETRY HISTORY STATUS"));
+      netConsole.println(F("=================================================="));
+      netConsole.printf("  * LittleFS Mounted:    %s\n", telemetryHistory.isFsMounted() ? "YES" : "NO");
+      netConsole.printf("  * Current 24h Slot:    %u / 288 (5-min intervals)\n", telemetryHistory.getCurrentSlot24h());
+      netConsole.printf("  * Last Sample Epoch:   %u\n", telemetryHistory.getLastSampleTime());
+      netConsole.println(F("--------------------------------------------------"));
+      netConsole.println(F("  Commands: HISTORY CLEAR | HISTORY CAPTURE"));
+      netConsole.println(F("  API:      GET /api/history?range=24h|5d"));
+      netConsole.println(F("=================================================="));
+    }
   } else if (upperCmd == "CLEAR" || upperCmd == "CLS") {
     netConsole.clear();
   } else if (upperCmd == "?" || upperCmd == "HELP") {
@@ -1908,6 +2031,9 @@ void setup() {
   // Initialize Diagnostic Engine & Service Mode
   diagEngine.begin();
 
+  // Initialize Flash Telemetry History Manager (LittleFS wear-leveling ring buffer)
+  telemetryHistory.begin();
+
   // Web Server routes
   server.on("/", HTTP_GET, handleRoot);
   server.on("/manifest.json", HTTP_GET, handleManifest);
@@ -1929,6 +2055,9 @@ void setup() {
   server.on("/api/zones", HTTP_GET, handleApiZones);
   server.on("/api/zones/setpoint", HTTP_POST, handleApiZoneSetpoint);
   server.on("/api/zones/toggle", HTTP_POST, handleApiZoneToggle);
+  server.on("/api/zones/hold/clear", HTTP_POST, handleApiZoneHoldClear);
+  server.on("/api/zones/window/clear", HTTP_POST, handleApiZoneWindowClear);
+  server.on("/api/zones/window/threshold", HTTP_POST, handleApiZoneWindowThreshold);
   server.on("/api/zones/sensor", HTTP_POST, handleApiZoneSensor);
   server.on("/api/mode", HTTP_POST, handleApiMode);
   server.on("/api/ble/sensors", HTTP_GET, handleApiBleSensors);
@@ -1949,6 +2078,8 @@ void setup() {
   server.on("/api/schedule/preset/save", HTTP_POST, handleApiSchedulePresetSave);
   server.on("/api/schedule/preset/reset", HTTP_POST, handleApiSchedulePresetReset);
   server.on("/api/schedule/reset", HTTP_POST, handleApiScheduleReset);
+  server.on("/api/history", HTTP_GET, handleApiHistory);
+  server.on("/api/history/clear", HTTP_POST, handleApiHistoryClear);
 
   // Initialize Hardware Task Watchdog Timer (90 seconds timeout)
   esp_task_wdt_init(90, true);
@@ -1977,6 +2108,7 @@ void loop() {
   if (timeAndWeather.isTimeSynced()) {
     boilerRadio.updateRuntimeDayMonth(timeAndWeather.getDay(), timeAndWeather.getMonth());
   }
+  telemetryHistory.update();
   diagEngine.update();
   boilerRadio.update();
   thermalZones.update(boilerRadio);

@@ -285,7 +285,49 @@ Distribuitorul de încălzire conține **7 robineți termostatabili** pe tur/ret
     * Punct luminos terminal (glowing circle dot) pe ultima citire în timp real;
     * Colorare semantică intuitivă: Portocaliu / Chihlimbar (`trend-up`, `↑ +X.X°`, încălzire), Azur / Cyan (`trend-down`, `↓ -X.X°`, răcire / aerisire geam), Ardezie / Slate (`trend-steady`, `→ 0.0°`, repaus confort);
     * Indicator compact de orizont de timp (`3h`, `45m`) și tooltip detaliat la hover (valoare start, valoare finală, durată minute, număr eșantioane).
-  - Test de verificare: `Browser CDP Live Suite` (`e2e_09_sparklines.png`). Status: `[VERIFIED]`.
+- **FR-34 (Buffer Istoric Telemetrie Flash LittleFS - 24h @ 5m & 5d @ 30m, `/api/history`):**
+  - Implementat în fișiere binare LittleFS compacte (`/history_24h.bin` și `/history_5d.bin`) cu serializator optimizat pe 10 octeți per punct (`int16_t` scalat cu 10 pentru z1, z2, z3, ext; bitmask `uint8_t flags`: `0x01` flacără, `0x02` pompă, `0x04` z1, `0x08` z2, `0x10` z3, `0x80` valid).
+  - Buffer 24 ore: 288 sloturi fixe la rezoluție de 5 minute (2.880 octeți flash).
+  - Buffer 5 zile: 240 sloturi fixe la rezoluție de 30 minute (2.400 octeți flash).
+  - Endpoint REST `GET /api/history?range=24h|5d` generează streaming JSON decuplat (`range`, `stepSec`, `currentSlot`, `points: [[slot, z1, z2, z3, out, flags], ...]`) fără fragmentare a memoriei RAM.
+  - Test de verificare: `SWE.5-TC20.1`, `TC20.2`, `TC20.3`. Status: `[VERIFIED 100% PASS]`.
+- **FR-35 (Model Termic Consum Gaz & Telemetrie Funcționare Cazan):**
+  - Monitorizare hardware directă a timpilor de ardere flacără în secunde (`totalSec`, `todaySec`, `yesterdaySec`, `thisMonthSec`, `lastMonthSec`, `currentBurnSec`) expuse în `/api/boiler/status`.
+  - Model termodinamic calibrat:
+    * Debit arzător cazan condensare joasă temperatură: $0.60\text{ m}^3/\text{oră}$ (flacără modulată ~6 kW).
+    * Baseload apă caldă menajeră (ACM): $0.40\text{ m}^3/\text{zi}$ ($12.0\text{ m}^3/\text{lună}$).
+    * Tarif reglementat plafonat: $3.30\text{ Lei}/\text{m}^3$.
+    * Formule: $V_{\text{heat}} = (\text{todaySec} / 3600.0) \times 0.60$, $V_{\text{total}} = V_{\text{heat}} + 0.40$, $\text{Cost} = V_{\text{total}} \times 3.30$.
+  - Simulare index contor mecanic cu tambur și asistent transmitere autocitire furnizor în Web Dashboard (`web/index_v2.html`) și Home Assistant.
+  - Test de verificare: `SWE.5-TC21.1`, `TC21.2`. Status: `[VERIFIED 100% PASS]`.
+- **FR-36 (Pachet Integrat Home Assistant REST & Configurație Modernă Template):**
+  - Pachet complet versionat sub folderul `homeassistant/`:
+    * Pachet: `homeassistant/packages/smart_heating.yaml` (46 entități totale: 3 climate REST, 13 senzori telemetrie/diagnoză, 3 binary sensors geam deschis, 3 countdown timers, 3 threshold sensors, 4 entități contorizare gaz și cost, 10 comenzi REST).
+    * Sintaxă modernă conform standardelor HA Core: configurat strict sub cheia de nivel superior `template:` (zero platforme depreciate sub `button:` sau `switch:`).
+    * Dashboard Lovelace: `homeassistant/dashboards/smart_heating.yaml` cu carduri condiționale animate pentru alerte de geam deschis (`type: conditional`).
+  - Test de verificare: `SWE.5-TC22.1`, `TC22.2`. Status: `[VERIFIED 100% PASS]`.
+- **FR-37 (Decuplare FSM Relee, Avortare Instantanee Warmup & Invariant Hardware):**
+  - Decuplare FSM Relee: Separarea stării logice a vanei de temporizatorul de deschidere ceară termică (120s interblocare).
+  - Instant Warmup Abort: Dacă utilizatorul reduce setpoint-ul sau temperatura camerei crește în timpul perioadei de warmup (înainte de expirarea celor 120s), mașina de stări FSM trece instantaneu în `IDLE_TEMP_OK`, taie comanda de 230V a releului (`applyRelay(pin, false)`), și anulează cererea către cazan fără pornirea flăcării.
+  - Invariant Hardware Anti-Orphaned Relays: În fiecare ciclu de execuție `update()`, dacă o zonă are `demand == false`, firmware-ul forțează activ pinul GPIO pe starea decuplată (0V / releu decuplat). Niciun releu nu poate rămâne alimentat fără cerere termică activă.
+  - Test de verificare: `SWE.5-TC23.1`, `TC23.2`. Status: `[VERIFIED 100% PASS]`.
+- **FR-38 (Overrun Inteligent Pompă & Disipare Căldură Condiționată de Flacără):**
+  - Ciclul de 180s de post-circulație a pompei GPA pentru disiparea căldurii reziduale din schimbătorul primar se declanșează **strict condiționat** dacă arzătorul a fost aprins efectiv (`_flameStartTimeMs > 0`).
+  - Dacă cererea a fost avortată în faza de warmup (120s actuator opening) înainte ca flacăra să fie aprinsă, timpul de overrun este setat la 0s, permițând oprirea imediată a instalației fără risipă de energie sau uzură a pompei.
+  - Test de verificare: `SWE.5-TC24.1`. Status: `[VERIFIED 100% PASS]`.
+- **FR-39 (Hold Temporar Setpoint & Suprascriere Non-Destructivă Orar Circadian):**
+  - Modificarea temperaturii țintă din interfață (Web UI, REST API, Home Assistant) activează un mod temporar de menținere (`isManualHold = true`, `holdAnchor = activeAnchor`), fără a altera sau corupe profilul de bază salvat în NVS.
+  - La trecerea ceasului biologic la următoarea ancoră circadiană (ex: `DAY` $\rightarrow$ `EVENING`), modul hold este eliberat automat și zona revine la orarul normal.
+  - Eliberare manuală instantanee via `POST /api/zones/hold/clear?id=X|all`.
+  - Mecanism de debounce de 3 secunde la salvarea în NVS (`_nvsSavePendingMs`) pentru protejarea memoriei flash împotriva uzurii la ajustări rapide de setpoint.
+  - Test de verificare: `SWE.5-TC25.1`, `TC25.2`. Status: `[VERIFIED 100% PASS]`.
+- **FR-40 (Suită Detectare Geam Deschis - Open Window Detection & Smart Pause):**
+  - Detecție cădere termică rapidă: $\Delta T \ge \text{threshold}$ (configurabil strict între 0.8°C și 2.0°C, implicit 1.2°C) într-o fereastră de $\le 5\text{ minute}$.
+  - Acțiune fizică imediată: Decuplare forțată releu la 0V (actuator NC închis), cerere termică forțată pe fals (`demand = false`), salvare stare `windowPauseActive = true`, declanșare banner alertă coral animat în UI cu numărătoare inversă live (`MM:SS`).
+  - Ieșire automată: Timeout de siguranță de 30 de minute (1800 secunde) SAU revenire termică (rebound) de $+0.6^\circ\text{C}$ peste temperatura minimă atinsă în timpul aerisirii.
+  - Ieșire manuală: Buton UI `[↺ Am Închis (Reia)]` / `POST /api/zones/window/clear?id=X|all` resetează baseline-ul termic la temperatura curentă și reia încălzirea instantaneu.
+  - Reglaj prag per zonă via `POST /api/zones/window/threshold?id=X&threshold=Y` validat cu HTTP 400 pentru valori în afara limitelor [0.8°C, 2.0°C], salvat persistent în NVS.
+  - Test de verificare: `SWE.5-TC26.1`, `TC26.2`, `TC26.3`, `TC26.4`. Status: `[VERIFIED 100% PASS]`.
 
 ---
 
@@ -353,12 +395,22 @@ Distribuitorul de încălzire conține **7 robineți termostatabili** pe tur/ret
 | **FR-29**| Bio-Schedule Circadian & Gărzi Termice Inteligente | [`src/ThermalZoneManager.cpp`](file:///c:/Users/BSeceleanu/.github_repos/smart-heating/src/ThermalZoneManager.cpp) | `SWE.5-TC16` | 100% PASS |
 | **FR-30**| Reglaj Dinamic Ancore Circadiene & Persistență NVS | [`src/ThermalZoneManager.cpp`](file:///c:/Users/BSeceleanu/.github_repos/smart-heating/src/ThermalZoneManager.cpp) & [`src/main.cpp`](file:///c:/Users/BSeceleanu/.github_repos/smart-heating/src/main.cpp) | `SWE.5-TC17` | 100% PASS |
 | **FR-31**| Catalog Preseturi Dinamice & Sloturi Utilizator | [`src/ThermalZoneManager.cpp`](file:///c:/Users/BSeceleanu/.github_repos/smart-heating/src/ThermalZoneManager.cpp) & [`src/main.cpp`](file:///c:/Users/BSeceleanu/.github_repos/smart-heating/src/main.cpp) | `SWE.5-TC18` | 100% PASS |
-| **FR-32**| Re-armare Flacără & Anulare Comandă Amânată Cazan | [`src/BoilerRadioTrigger.cpp`](file:///c:/Users/BSeceleanu/.github_repos/smart-heating/src/BoilerRadioTrigger.cpp) & [`src/main.cpp`](file:///c:/Users/BSeceleanu/.github_repos/smart-heating/src/main.cpp) | `SWE.5-TC08.2`, `TC09` | 100% PASS |
-| **FR-33**| Indicatori Dinamici de Trend Temperatură (↑/↓/→) | [`web/index.html`](file:///c:/Users/BSeceleanu/.github_repos/smart-heating/web/index.html) | `Browser CDP Live Suite` | 100% PASS |
-| **NFR-1.5**| Hardware Task Watchdog (TWDT 90s) | [`src/main.cpp`](file:///c:/Users/BSeceleanu/.github_repos/smart-heating/src/main.cpp) | `SWE.5-TC04` | 100% PASS |
+| **FR-32**| Re-armare Flacără & Anulare Comandă Amânată Cazan | [`src/BoilerRadioTrigger.cpp`](file:///c:/Users/BSeceleanu/.github_repos/smart-heating/src/BoilerRadioTrigger.cpp) & [`src/main.cpp`](file:///c:/Users/BSeceleanu/.github_repos/smart-heating/src/main.cpp) | `SWE.5-TC08.1`, `TC08.2`, `TC09.1` | 100% PASS |
+| **FR-33**| Indicatori Dinamici de Trend Temperatură (↑/↓/→) | [`web/index.html`](file:///c:/Users/BSeceleanu/.github_repos/smart-heating/web/index.html) | `SWE.5-TC19.6` | 100% PASS |
+| **FR-34**| Buffer Istoric Telemetrie Flash LittleFS (24h/5d) | [`src/main.cpp`](file:///c:/Users/BSeceleanu/.github_repos/smart-heating/src/main.cpp) | `SWE.5-TC20.1`, `TC20.2`, `TC20.3` | 100% PASS |
+| **FR-35**| Model Termic Consum Gaz & Telemetrie | [`src/main.cpp`](file:///c:/Users/BSeceleanu/.github_repos/smart-heating/src/main.cpp) & [`web/index_v2.html`](file:///c:/Users/BSeceleanu/.github_repos/smart-heating/web/index_v2.html) | `SWE.5-TC21.1`, `TC21.2` | 100% PASS |
+| **FR-36**| Pachet Home Assistant & Template Modern | [`homeassistant/packages/smart_heating.yaml`](file:///c:/Users/BSeceleanu/.github_repos/smart-heating/homeassistant/packages/smart_heating.yaml) | `SWE.5-TC22.1`, `TC22.2` | 100% PASS |
+| **FR-37**| FSM Warmup Abort & Invariant Relee Decuplate | [`src/ThermalZoneManager.cpp`](file:///c:/Users/BSeceleanu/.github_repos/smart-heating/src/ThermalZoneManager.cpp) | `SWE.5-TC23.1`, `TC23.2` | 100% PASS |
+| **FR-38**| Overrun Pompă Condiționat de Flacără (180s) | [`src/ThermalZoneManager.cpp`](file:///c:/Users/BSeceleanu/.github_repos/smart-heating/src/ThermalZoneManager.cpp) | `SWE.5-TC24.1` | 100% PASS |
+| **FR-39**| Hold Temporar Setpoint & Non-Destructive Override | [`src/ThermalZoneManager.cpp`](file:///c:/Users/BSeceleanu/.github_repos/smart-heating/src/ThermalZoneManager.cpp) & [`src/main.cpp`](file:///c:/Users/BSeceleanu/.github_repos/smart-heating/src/main.cpp) | `SWE.5-TC25.1`, `TC25.2` | 100% PASS |
+| **FR-40**| Suită Detectare Geam Deschis & Smart Pause | [`src/ThermalZoneManager.cpp`](file:///c:/Users/BSeceleanu/.github_repos/smart-heating/src/ThermalZoneManager.cpp) & [`src/main.cpp`](file:///c:/Users/BSeceleanu/.github_repos/smart-heating/src/main.cpp) | `SWE.5-TC26.1`, `TC26.2`, `TC26.3`, `TC26.4` | 100% PASS |
+| **NFR-1.1**| Autonomie Totală la Edge (Zero Cloud Dependency) | Arhitectură Firmware C++ Locală & Flash NVS | `SWE.5-TC01.1`, `TC02.1` | 100% PASS |
+| **NFR-1.5**| Hardware Task Watchdog (TWDT 90s) | [`src/main.cpp`](file:///c:/Users/BSeceleanu/.github_repos/smart-heating/src/main.cpp) | `SWE.5-TC05.1` | 100% PASS |
 | **NFR-1.7**| Invarianți Siguranță Termohidraulică (Pană/Avarie) | Arhitectură Hardware / NC Actuators / Solenoid Gaz | Analiză FMEA & Standard EN 298 | 100% PASS |
-| **NFR-2.5**| Paced Socket Streaming OTA (~110 KB/s) | [`tools/ota_upload.py`](file:///c:/Users/BSeceleanu/.github_repos/smart-heating/tools/ota_upload.py) | `SWE.5-TC14` | 100% PASS |
-| **NFR-2.6**| Igienizare Memorie Heap & Zero Fragmentare RAM | [`src/main.cpp`](file:///c:/Users/BSeceleanu/.github_repos/smart-heating/src/main.cpp), [`src/ThermalZoneManager.cpp`](file:///c:/Users/BSeceleanu/.github_repos/smart-heating/src/ThermalZoneManager.cpp) | `SWE.5-TC01`, `TC14` | 100% PASS |
+| **NFR-2.2**| Eficiență RAM (Free Heap >100 KB) | Arhitectură Buffer Static & `reserve()` | `SWE.5-TC01.2`, `TC04.2` | 100% PASS |
+| **NFR-2.5**| Paced Socket Streaming OTA (~110 KB/s) | [`tools/ota_upload.py`](file:///c:/Users/BSeceleanu/.github_repos/smart-heating/tools/ota_upload.py) | `SWE.5-TC15.1`, `TC15.2` | 100% PASS |
+| **NFR-2.6**| Igienizare Memorie Heap & Zero Fragmentare RAM | [`src/main.cpp`](file:///c:/Users/BSeceleanu/.github_repos/smart-heating/src/main.cpp), [`src/ThermalZoneManager.cpp`](file:///c:/Users/BSeceleanu/.github_repos/smart-heating/src/ThermalZoneManager.cpp) | `SWE.5-TC01.2`, `TC04.2` | 100% PASS |
 | **NFR-2.7**| Mediu de Dezvoltare Decuplat & Zero Flash Wear | [`tools/dev_server.py`](file:///c:/Users/BSeceleanu/.github_repos/smart-heating/tools/dev_server.py) | `Browser CDP Live Suite` | 100% PASS |
+| **NFR-3.2**| Zero Bloatware & Decoupled Architecture | Arhitectură fără MQTT / Zero Biblioteci Externe | `SWE.5-TC01.3` | 100% PASS |
 
 

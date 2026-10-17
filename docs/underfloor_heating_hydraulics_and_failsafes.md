@@ -89,6 +89,31 @@ Pentru ca produsul nostru să fie un succes comercial „plug-and-play” out-of
 | **Gripare Mecanică Ax Pompă**| Exercițiu Anti-Blocare (Summer) | Rulare automată 20 secunde o dată la 7 zile în extra-sezon pentru spargerea depunerilor de calcar/magnetită. | `ANTI-SEIZE` |
 | **Pierdere Conexiune Wi-Fi**| Autonomie Totală la Edge | Microcontrolerul continuă să regleze încălzirea 100% autonom prin BLE și histerezis local. | `NET-OFFLINE` |
 
+### 3.1. Decuplare FSM Relee & Anulare Instantanee Warmup (Instant Warmup Abort)
+- **Problema Tehnică:** Actuatoarele termoelectrice NC au nevoie de 120–180s pentru a deschide complet ventilul prin dilatarea elementului de ceară/parafină. Când o zonă cere căldură (`demand = true`), intră în starea `ZONE_WARMUP` și alimentează actuatorul la 230V. Dacă în acest interval utilizatorul reduce setpoint-ul (manual sau din Home Assistant) sau temperatura ambientală crește natural, condiția de cerere devine nulă (`demand = false`).
+- **Comportament de Siguranță Firmware:**
+  1. Starea FSM a zonei este imediat retrogradată din `ZONE_WARMUP` în `ZONE_IDLE`.
+  2. **Invariant Hardware Releu Orfan:** Releul fizic al zonei este forțat instantaneu la nivel inactiv (`digitalWrite(pin, LOW)` pentru actuatoare NC), tăind alimentarea de 230V. Vana se închide fără a rămâne deschisă fantomă în instalație.
+  3. **Protecție Cazan Gaz:** Centrala termică nu primește comanda de aprindere prin radio 433 MHz dacă toate zonele își anulează faza de warmup, eliminând pornirile inutile pe circuite fără circulație hidraulică activă (anti-dry firing).
+
+### 3.2. Post-Circulație Inteligentă Condiționată de Flacără (Intelligent Overrun)
+- **Problema Tehnică:** Pompa de distribuitor (GPA, Releul 4) include o funcție de post-circulație de 180 secunde (`PUMP_OVERRUN_MS = 180000`) pentru a disipa căldura acumulată în schimbătorul primar al cazanului după stingerea flăcării. Dacă cererea a fost inițiată, cazanul a intrat în armare prealabilă (`PENDING_ON`), dar cererea a fost anulată înainte ca flacăra să se aprindă efectiv (`_flameStartTimeMs == 0`), rularea pompei timp de 3 minute ar genera zgomot, uzură mecanică inutilă a rotorului și răcirea șapei.
+- **Soluție Firmware (`BoilerRadioTrigger`):**
+  - Temporizarea de post-circulație este declanșată **STRICT CONDIȚIONAT** de faptul că flacăra a fost aprinsă efectiv (`_flameStartTimeMs > 0`).
+  - Dacă starea cazanului este anulată înainte de aprindere (ex. prin comanda `/api/boiler/cancel` sau prin stingerea tuturor cererilor din camere), cazanul revine direct în `IDLE` cu `overrunRemainingSec = 0`.
+  - Când flacăra a funcționat efectiv, ultimul circuit activ (`_lastDemandZoneIndex`) este menținut forțat deschis pe întreaga durată a celor 180 secunde de post-circulație („Keeper Zone”), garantând că pompa secundară nu împinge împotriva unui colector închis.
+
+### 3.3. Tăiere Hidraulică la Detectare Fereastră Deschisă (Open Window Hydronic Cutoff)
+- **Problema Tehnică:** Aerisirea camerei în sezonul rece provoacă o scădere bruscă a temperaturii aerului. Un termostat clasic ar forța deschiderea circuitului și arderea masivă de gaz pentru a încerca să încălzească aerul de afară. Datorită inerției șapei (2–4 ore), încălzirea pompată în timpul aerisirii ar duce la o supraîncălzire sufocantă a camerei după închiderea geamului.
+- **Soluție Firmware (`ThermalZoneManager`):**
+  - Algoritmul calculează derivata de temperatură pe o fereastră mobilă de 10 minute (`WINDOW_HISTORY_SLOTS = 5`, eșantioane la fiecare 2 minute).
+  - Prag de detecție dinamic configurabil în intervalul sigur `[0.8°C .. 2.0°C]` (default `1.2°C`). Valorile sub 0.8°C sunt refuzate pentru a evita declanșările false cauzate de curenți slabi sau oscilații normale ale senzorului BLE.
+  - La confirmarea căderii de temperatură:
+    1. Zona intră în starea de protecție `windowOpen = true`.
+    2. Cererea termică a camerei este suprimată forțat (`demand = false`).
+    3. Releul electrotermic asociat este decuplat instantaneu la 0V (actuatorul NC închide ventilul buclei).
+    4. Încălzirea pe camera respectivă rămâne blocată timp de 30 de minute (`WINDOW_PAUSE_MS = 1800000`) sau până la deblocarea manuală prin `/api/zones/window/clear?zone=X` ori din comutatorul dedicat din Home Assistant.
+
 ---
 
 ## 4. Ghid de Cablare Electrică la Montaj

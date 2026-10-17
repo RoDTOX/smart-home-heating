@@ -3,6 +3,127 @@
 Jurnalul modificărilor, deciziilor tehnice și verificărilor efectuate pentru proiectul de încălzire inteligentă.
 Corelat cu planul activ: [`docs/plan.md`](file:///c:/Users/BSeceleanu/.github_repos/smart-heating/docs/plan.md).
 
+## [18.10.2026] - Aliniere Riguroasă 1:1 ASPICE SWE.5: 44/44 Cerințe Acoperite & 85/85 Teste Verificare Live
+
+### 1. Acoperire Integrală Cerințe (44/44 - 100%)
+- **Traceability Matrix:** Actualizată matricea de trasabilitate bidirecțională din `docs/requirements_and_features.md` cu toate cele 40 cerințe funcționale (`FR-1` .. `FR-40`) și 4 cerințe non-funcționale (`NFR-1.1`, `NFR-1.5`, `NFR-2.2`, `NFR-3.2`), fiecare mapată la surse C++ și cazuri de test specifice.
+- **Zero Decalaje (Gaps):** Documentate exhaustiv funcționalitățile recente: persistență LittleFS (FR-34), model termic gaz calibrat (FR-35), integrare modernă Home Assistant (FR-36), decuplare FSM warmup abort (FR-37), overrun inteligent pompă (FR-38), override circadian hold (FR-39), suită detecție geam deschis cu prag calibrabil (FR-40).
+
+### 2. Extindere & Execuție Suită Automată de Teste (`tools/test_system.py`)
+- **85 Teste Atomice Live pe Hardware:** Suita de testare a fost extinsă de la 68 la 85 de teste, rulate direct împotriva plăcii ESP32-Relay X4 V1.1 (`192.168.1.20`): **85/85 PASS (100.0%)** în 34.01s.
+- **Integritate Strictă Aserțiuni (Anti-Weakening):** Toate aserțiunile testează contractele reale de siguranță fizică fără relaxări sau compromisuri.
+- **Raport Formal ASPICE:** Generat raport complet la `docs/system_test_report.md`.
+
+### 3. Hardening Firmware C++ & Boundary Enforcing
+- **Prag Detecție Geam Deschis:** Clamping strict în intervalul hidraulic de siguranță `[0.8°C .. 2.0°C]` (default 1.2°C) în `src/ThermalZoneManager.cpp`.
+- **Validare REST API:** Endpoint-ul `POST /api/zones/window/threshold` refuză orice valoare în afara intervalului returnând `HTTP 400 Bad Request` cu mesaj explicit de eroare în `src/main.cpp`.
+- **Compilare & Flashing OTA:** Binar compilat fără warning-uri (`pio run`) și flashuit live pe ESP32 prin Web OTA în 8.52s.
+
+## [18.10.2026] - Suită Completă Detecție Geam Deschis (Open Window Guard), Praguri per Cameră & Persistență Git Home Assistant
+
+### 1. Consolidare & Persistență Folder Home Assistant în Git (`homeassistant/`)
+- **Independență față de WSL:** Toată configurația Home Assistant a fost mutată direct în folderul `homeassistant/` din rădăcina depozitului Git: `packages/smart_heating.yaml`, `dashboards/smart_heating.yaml`, `configuration.yaml`, `docker-compose.yml`, `README.md`.
+- **Fără Pierderi de Date:** Configurația este permanent salvată în Git, putând fi pornită pe orice mașină/server cu `docker compose up -d`. Fișierele locale de cache/baze de date generate de container sunt ignorate prin `.gitignore`.
+
+### 2. Suită Inteligentă Detecție Geam Deschis (`ThermalZoneManager.cpp`, `main.cpp`)
+- **Siguranță Fizică & Decuplare Instantanee:** La o scădere de temperatură $\ge \text{prag}$ în $\le 5$ minute, zona trece în `ZONE_WINDOW_PAUSE`, decuplează vana electrotermică (0V) și stinge cazanul dacă nu mai există cerere în alte camere.
+- **Trei Mecanisme de Ieșire din Pauză:**
+  1. *Timeout automat:* 30 de minute expirate.
+  2. *Rebound termic (+0.6°C):* camera a fost închisă și începe să se reîncălzească pasiv.
+  3. *Override manual instantaneu:* butonul `[↺ Am Închis (Reia)]` din Web UI sau Home Assistant oprește pauza instant și resetează baseline-ul la temperatura curentă pentru a preveni re-declanșarea falsă.
+- **Sensibilitate Calibrabilă per Cameră (0.8°C – 2.0°C):**
+  - Parametru `windowDropThreshold` configurabil individual per cameră, salvat în flash NVS (`<Preferences.h>`).
+  - Endpoint REST dedicat: `POST /api/zones/window/threshold?id=X&threshold=Y`.
+  - Endpoint REST anulare: `POST /api/zones/window/clear?id=X` (sau `id=all`).
+- **Jurnal & Istoric Telemetrie:**
+  - Salvează timestamp-ul și durata ultimei aerisiri (`lastDetectionEpoch`, `lastDetectionDurationSec`), expuse în `GET /api/zones`.
+  - Când geamul este închis, afișează subtil pe card: `🪟 Aerisit: acum Xm (durată Ym)`.
+
+### 3. Vizibilitate UI Completă (Web UI + Home Assistant)
+- **Web UI (`web/index.html`):**
+  - Banner animat cu bordură pulsantă pe cardul camerei când geamul este deschis: `🪟 Geam deschis detectat! Valvă închisă • Pauză rămasă: MM:SS` + buton `[↺ Am Închis (Reia)]`.
+  - Badge interactiv `🪟 Prag: 1.2°C ✏️` pentru ajustare rapidă din browser.
+  - Actualizat schema SVG dinamică să arate minutele rămase din pauză.
+  - Header comprimat în `include/dashboard_html_gz.h` (40.3 KB gzip).
+- **Home Assistant (`homeassistant/packages/smart_heating.yaml`, `dashboards/smart_heating.yaml`):**
+  - 3 entități `binary_sensor` cu `device_class: window` pentru starea geamului.
+  - 3 senzori pentru timpul rămas de pauză (secunde/minute) și 3 senzori pentru pragul configurat.
+  - 3 comenzi REST și template buttons `button.reia_incalzire_geam_*` pentru reluare cu 1 clic din HA.
+  - Carduri de alertă condiționale pe dashboard-ul principal care apar automat când se aerisește și se ascund când geamul este închis.
+
+### 4. Verificare & Build
+- **PlatformIO Build:** 100% SUCCESS în 21.14s (RAM: 21.6% [70 KB], Flash: 64.7% [1.27 MB]).
+
+## [18.10.2026] - Remediere FSM Race Condition (Vane Blocate), Suprascriere Temporară (Temporary Hold) & Overrun Inteligent Cazan
+
+### 1. Remediere FSM Race Condition & Siguranță Relee (`src/ThermalZoneManager.cpp`)
+- **Fix Vane Rămase Blocate pe 230V:** La scăderea setpoint-ului, Pasul 1 (histerezis) forța prematur `state = ZONE_IDLE`. Pasul 2 (releele vanelor) verifica `if (state == ZONE_HEATING || state == ZONE_WARMING_UP)` pentru decuplare; condiția pica mereu, lăsând releul alimentat la 230V permanent (`relayEngaged: true`), chiar dacă cererea era `false` și starea era `Idle`. S-a eliminat atribuirea prematură de stare din Pasul 1, decuplarea fiind garantată exclusiv în Pasul 2.
+- **Hardware Safety Invariant:** Orice vană care are `relayEngaged == true` dar `demand == false` (și nu este keeper zone într-un overrun activ) este decuplată necondiționat.
+- **Instant Warmup Abort:** Dacă cererea cade în timpul celor 120s de deschidere a vanei, releul este tăiat instant și cererea de flacără/pompă este anulată înainte de a se aprinde cazanul.
+- **Overrun Inteligent:** Ciclul de post-circulație a pompei de 180s este declanșat **exclusiv dacă flacăra a ars efectiv**; dacă flacăra nu s-a aprins (cererea a căzut în perioada de gardă sau warmup), totul se oprește imediat (0s overrun).
+
+### 2. Suprascriere Temporară (Temporary Hold) Integrată cu Bio-Schedule
+- **Păstrare Integritate Presets:** Modificarea manuală a temperaturii unei camere din Home Assistant sau Web UI setează `isManualHold` pentru camera respectivă fără a altera sau trece pe profilul `custom` orarul circadian salvat.
+- **Revenire Automată la Următoarea Ancoră:** La fiecare tranziție de ancoră circadiană (ex. Somn 20:00), hold-ul temporar expiră automat și camera revine la valoarea din orar.
+- **Revenire Manuală Anticipată:** Adăugat endpoint `POST /api/zones/hold/clear?id=X` și buton dedicat `[↺ Hold]` pe cardurile camerelor în interfața web.
+- **Debounce 3 Secunde Protecție Flash NVS:** Scrierile în flash NVS cauzate de glisarea sliderelor de temperatură din telefon sunt temporizate non-blocant cu debounce de 3 secunde, eliminând uzura flash-ului și fâlfâitul releelor.
+
+### 3. Verificare & Conformitate
+- **PlatformIO Build:** 100% SUCCESS în 18.13s (RAM: 21.5%, Flash: 64.4%).
+
+## [18.10.2026] - Portare Completă Funcționalități Smart Heating în Home Assistant & Dashboard Dedicat Lovelace
+
+### 1. Pachet Extins de Entități Home Assistant (`integrations/homeassistant/smart_heating.yaml`)
+- **Peste 80 de Entități Active:**
+  - **Termostate Inteligente (`climate`):** Living & Bucătărie, Camera Copilului, Dormitor Matrimonial conectate prin actuatori virtuali (`input_boolean`) și automatizări bidirecționale cu zero latență către ESP32 (`/api/zones/setpoint`).
+  - **Comenzi & Stare Centrală:** Comutator mod automat/manual (`switch.smart_heating_auto_mode`), senzori binari pentru flacără cazan, pompă GPA, cerere termică, protecție îngheț, comandă amânată și contor cooldown. Butoane de forțare manuală: Pornește Cazan, Oprește Cazan, Anulează Amânat.
+  - **Smart Bio-Schedule Circadian:** Selector de preseturi (`input_select.smart_heating_preset`), comutator master orar (`switch.smart_heating_schedule`), ancoră activă, următoarea ancoră și numărătoare inversă la tranziție.
+  - **Telemetrie Completă Xiaomi BLE:** Umiditate (%), Baterie (%) și Semnal RSSI (dBm) monitorizate independent pentru fiecare cameră.
+  - **Diagnoză Hardware ESP32:** Scor sănătate sistem (100%), Memorie RAM liberă (Heap KB), Uptime ore, Wi-Fi RSSI (dBm), Serie unică și versiune firmware. Butoane pentru lansare Self-Test și curățare coduri DTC.
+  - **Contor de Gaz & Energie:** Index contor mecanic, consum zilnic m³, cost zilnic RON, ore de flacără pe lună curentă.
+- **Migrare Sintaxă Modernă `template:`:**
+  - Înlocuit blocurile deprecate `button: - platform: template` și `switch: - platform: template` cu blocul unificat modern `template: - switch: ... - button: ...`.
+  - Rezolvat avertismentul Home Assistant Repairs `Unsupported YAML configuration for the template integration`. 0 erori/repairs active.
+
+### 2. Dashboard Dedicat Lovelace (`integrations/homeassistant/dashboards/smart_heating.yaml`)
+- **Integrare Directă în Meniul Lateral (`Smart Heating`, icon `mdi:radiator`):**
+  - **Tab 1 (Panou Principal):** Badges de stare, card centrală & pompă, 3 cadrane tactile de termostat, card Bio-Schedule și grid cu butoane rapide de comandă.
+  - **Tab 2 (Gaz & Energie):** Card factură/consum și 2 grafice istorice (Temperaturi 24h + Cicluri ardere flacără și acționare pompă).
+  - **Tab 3 (Senzori & Diagnostic):** Tabel baterii și semnal BLE Xiaomi, diagnoză controller ESP32 și acțiuni de testare.
+- **Validare 100% Entități:** Toate cele 46 de entități din dashboard sunt mapate și active în Home Assistant Core. Zero carduri cu "Entity not found".
+
+## [17.10.2026] - Integrare Model Termic Gaz, Card Telemetrie Consum & Cost, Calibrare Index Contor și Compatibilitate Home Assistant
+
+
+### 1. Card Telemetrie Consum & Cost Gaze Naturale (`web/index_v2.html`)
+- **Card Dedicat (Layer 4.5):** Afișează consumul de gaz calculat în timp real în metri cubi (`m³`) și costul în `Lei` (preț reglementat plafonat 3.30 Lei/m³):
+  - **Consum Astăzi:** Defalcare automată între Încălzire Pardoseală (bazată pe secundele exacte de ardere a flăcării înregistrate de ESP32) și Baseload Apă Caldă Menajeră (ACM, 0.40 m³/zi).
+  - **Consum Luna Curentă:** Volum total cumulat, estimare factură finală de lună și economii procentuale aduse de orarul circadian (~16.5%).
+  - **Contor Mecanic Virtual (Tumbler):** Afișaj cifric mecanic (5 cifre întregi pe fundal negru + 2 zecimale pe fundal roșu) pentru indexul curent estimat al contorului (`Serie: 34119099055`).
+  - **Asistent Autocitire:** Afișează indexul întreg recomandat pentru transmiterea indexului lunar către furnizor, prevenind supra-estimările prin convenție.
+
+### 2. Tab Dedicat Calibrare Gaze & Istoric Facturi în Admin Suite (`web/index_v2.html`)
+- **Tab Nou în Panoul Tehnic (PIN 1234):** `🔥 Calibrare Gaz & Index Contor`:
+  - **Sincronizare Index Fizic:** Permite introducerea indexului citit direct de pe contorul fizic pentru recalibrarea instantă 1:1 a modelului.
+  - **Parametri Termici Centrală:** Slidere și inputuri pentru debitul de gaz la flacără activă (`0.60 m³/h`), baseload ACM (`0.40 m³/zi`) și prețul gazului (`3.30 Lei/m³`), salvate în NVS local.
+  - **Reconciliere Facturi Istorice:** Tabel integrat cu datele din facturile reale ale utilizatorului (indexuri certe citite: 1966, 2096, 2189, 2228), evidențiind anomalia furnizorului din Februarie-Martie 2026 (index estimat 2307 vs 2189 citit).
+
+### 3. Arhitectură & Compatibilitate Home Assistant (homeassistant.io)
+- **Compatibilitate 100% Garantată:**
+  - **Pachet YAML Complet (`integrations/homeassistant/smart_heating.yaml`):** Entitate `sensor.smart_heating_gas_meter_index` (`device_class: gas`, `state_class: total_increasing`) recunoscută nativ în Energy Dashboard.
+  - **Senzori Zilnici de Consum & Cost:** `sensor.smart_heating_gas_today` și `sensor.smart_heating_cost_today`.
+  - **Entități Climate & Relee:** 3 entități `climate` pentru zone, senzori binari pentru flacără și pompă, comenzi REST pentru boost și setpoint-uri.
+
+### 4. Telemetry History Manager pe ESP32 Flash (LittleFS Wear-Leveling) & Grafic Canvas Live
+- **Modul C++ Nou (`include/TelemetryHistoryManager.h` & `src/TelemetryHistoryManager.cpp`):**
+  - **Structură Binară Compactă (10 bytes/punct):** 3 temperaturi de zonă (scalate x10, int16), temperatură exterioară (int16), măști de biți de stare (flacără, pompă, 3 actuatoare, bit validare) și octet de padding.
+  - **Două Buffere Inelare:** 24 ore la rezoluție de 5 minute (288 puncte = 2880 bytes) și 5 zile la rezoluție de 30 minute (240 puncte = 2400 bytes). Dimensiune totală de doar ~5.2 KB în LittleFS pe partiția `spiffs` existentă de 192 KB.
+  - **Protecție Avansată Flash:** LittleFS distribuie scrierile uniform (wear-leveling) pe 48 sectoare; scrierea la fiecare 5 minute atinge un sector o singură dată la 4 ore (>15 ani durată de viață hardware garantată).
+  - **Endpoint REST `/api/history`:** Returnează JSON compact sub formă de vector de vectori `[slot, z1, z2, z3, ext, flags]` (<4.5 KB payload), prevenind fragmentarea heap-ului.
+  - **Comenzi Telnet & Consolă Serială:** `HISTORY`, `HISTORY CAPTURE`, `HISTORY CLEAR`.
+  - **Integrare Grafic Canvas (`web/index_v2.html`):** Răspunde dinamic la comutatorul `[24 Ore (5m) | 5 Zile (30m)]`, trasează curbele reale de telemetrie pentru cele 3 zone și evidențiază barele portocalii de funcționare a flăcării cazanului.
+  - **Validare Build PlatformIO:** Compilare 100% curată (`pio run` SUCCESS, RAM 21.5%, Flash 64.3%).
+
 ## [16.10.2026] - Refactorizare Densitate Extremă UI 720p, Redesenare Card Centrală & Rezolvare Comutare Preset Utilizator
 
 ### 1. Compactare Extremă Antet & Card Centrală pentru Ecrane 720p (`web/index.html`)

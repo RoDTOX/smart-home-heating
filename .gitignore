@@ -14,8 +14,8 @@
 .gcc-flags.json
 
 # VS Code / IDE
-.vscode/c_cpp_properties.json
-.vscode/.ropeproject
+.vscode/
+
 
 # Credentials / Secrets
 include/secrets.h
@@ -32,3 +32,13 @@ scratch/
 # Python cache
 __pycache__/
 *.pyc
+
+# Home Assistant runtime artifacts
+homeassistant/*.db*
+homeassistant/*.log*
+homeassistant/.HA_VERSION
+homeassistant/.ha_run.lock
+homeassistant/.cloud/
+homeassistant/deps/
+homeassistant/tts/
+homeassistant/.storage/

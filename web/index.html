@@ -950,6 +950,103 @@
       color: #f1f5f9;
       border-color: #0369a1;
     }
+    .btn-hold-revert {
+      background: rgba(245, 158, 11, 0.12);
+      border: 1px solid rgba(245, 158, 11, 0.35);
+      color: #fbbf24;
+      border-radius: 4px;
+      font-size: 0.65rem;
+      font-weight: 600;
+      padding: 1px 5px;
+      cursor: pointer;
+      margin-left: 4px;
+      transition: all 0.2s;
+    }
+    .btn-hold-revert:hover {
+      background: rgba(245, 158, 11, 0.25);
+      border-color: #f59e0b;
+      color: #fef3c7;
+    }
+    .window-banner-active {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      margin-top: 6px;
+      padding: 6px 10px;
+      background: linear-gradient(90deg, rgba(244, 63, 94, 0.15) 0%, rgba(225, 29, 72, 0.08) 100%);
+      border: 1px solid rgba(244, 63, 94, 0.35);
+      border-radius: 6px;
+      animation: pulse-border 2s infinite ease-in-out;
+    }
+    @keyframes pulse-border {
+      0%, 100% { border-color: rgba(244, 63, 94, 0.35); }
+      50% { border-color: rgba(244, 63, 94, 0.7); }
+    }
+    .win-left {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .win-icon-anim {
+      font-size: 1.15rem;
+      animation: float-win 1.5s infinite ease-in-out alternate;
+    }
+    @keyframes float-win {
+      from { transform: translateY(0); }
+      to { transform: translateY(-2px); }
+    }
+    .win-title {
+      font-size: 0.76rem;
+      font-weight: 700;
+      color: #fda4af;
+    }
+    .win-subtitle {
+      font-size: 0.68rem;
+      color: #cbd5e1;
+    }
+    .win-countdown {
+      color: #f43f5e;
+      font-weight: 700;
+      font-family: monospace;
+    }
+    .btn-win-clear {
+      background: rgba(244, 63, 94, 0.2);
+      border: 1px solid #f43f5e;
+      color: #fff;
+      font-size: 0.68rem;
+      font-weight: 600;
+      padding: 4px 8px;
+      border-radius: 5px;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: all 0.2s;
+    }
+    .btn-win-clear:hover {
+      background: #e11d48;
+      border-color: #fda4af;
+      transform: scale(1.02);
+    }
+    .win-thresh-pill {
+      display: inline-block;
+      font-size: 0.62rem;
+      color: #94a3b8;
+      background: #0f172a;
+      border: 1px dashed #334155;
+      border-radius: 4px;
+      padding: 1px 4px;
+      cursor: pointer;
+      margin-left: 4px;
+      transition: all 0.15s;
+    }
+    .win-thresh-pill:hover {
+      border-color: #38bdf8;
+      color: #38bdf8;
+    }
+    .win-hist {
+      color: #64748b;
+      font-size: 0.63rem;
+    }
     .setpoint-val-slave {
       font-size: 0.76rem;
       font-weight: 600;
@@ -1441,6 +1538,7 @@
           <div class="badge-pill weather" id="pill-weather" style="padding:2px 7px;font-size:0.7rem;">&#9925; --.-&deg;C</div>
           <div class="badge-pill time" id="pill-time" style="padding:2px 7px;font-size:0.7rem;">&#9200; --:--:--</div>
           <button class="btn-install btn-install-compact" id="btn-pwa-install" onclick="installPwa()" style="padding:2px 8px;font-size:0.7rem;">&#128242; App</button>
+          <a href="/index_v2.html" style="text-decoration:none;display:inline-flex;align-items:center;gap:4px;background:#ea580c;color:#ffffff;font-size:0.72rem;font-weight:700;padding:2px 9px;border-radius:14px;box-shadow:0 2px 8px rgba(234,88,12,0.4);">✨ Prototip V2</a>
         </div>
       </div>
 
@@ -2761,6 +2859,36 @@
       el.innerHTML = nxt + '&deg;C';
       fetch(base + 'api/zones/setpoint?id=' + idx + '&target=' + nxt, { method: 'POST' })
         .then(() => refresh());
+    }
+
+    function clearZoneHold(idx) {
+      fetch(base + 'api/zones/hold/clear?id=' + idx, { method: 'POST' })
+        .then(() => refresh());
+    }
+
+    function clearWindowPause(idx) {
+      fetch(base + 'api/zones/window/clear?id=' + idx, { method: 'POST' })
+        .then(r => r.json())
+        .then(data => {
+          showToast('🪟 Pauză geam anulată. Încălzirea se reia normal!');
+          refresh();
+        })
+        .catch(() => refresh());
+    }
+
+    function promptWindowThreshold(idx, currentThresh, zoneName) {
+      const input = prompt(`Prag detecție geam deschis pentru "${zoneName}" (scădere °C în max 5 min):\nInterval recomandat: 0.8°C - 2.0°C`, (currentThresh || 1.2).toFixed(1));
+      if (input === null) return;
+      const val = parseFloat(input);
+      if (isNaN(val) || val < 0.5 || val > 3.0) {
+        alert('Introduceți o valoare numerică între 0.8°C și 2.0°C.');
+        return;
+      }
+      fetch(base + `api/zones/window/threshold?id=${idx}&threshold=${val.toFixed(1)}`, { method: 'POST' })
+        .then(() => {
+          showToast(`Prag geam setat la ${val.toFixed(1)}°C pentru ${zoneName}`);
+          refresh();
+        });
     }
 
     // Toggle Zone Enable
@@ -4246,33 +4374,77 @@
         const statusBadgeHtml = (miniStatusClass !== 'st-idle')
           ? `<span class='zone-status-mini ${miniStatusClass}' title='${fullStatusTooltip}'>${miniStatusIcon} ${miniStatusText}</span>`
           : '';
+        const holdHtml = (z.isManualHold && scheduleEnabled)
+          ? `<button class='btn-hold-revert' onclick='clearZoneHold(${z.id})' title='Suprascriere temporară (Hold). Clic pentru revenire la orar'>↺ Hold</button>`
+          : '';
+
+        let winBannerHtml = '';
+        if (z.windowPauseActive) {
+          const remSec = z.windowPauseRemainingSec || 0;
+          const remMin = Math.floor(remSec / 60);
+          const remS = (remSec % 60).toString().padStart(2, '0');
+          winBannerHtml = `
+            <div class='window-banner-active'>
+              <div class='win-left'>
+                <span class='win-icon-anim'>🪟</span>
+                <div>
+                  <div class='win-title'>Geam deschis detectat!</div>
+                  <div class='win-subtitle'>Valvă închisă &bull; Pauză rămasă: <b class='win-countdown'>${remMin}:${remS}</b></div>
+                </div>
+              </div>
+              <button class='btn-win-clear' onclick='clearWindowPause(${z.id})' title='Am închis geamul. Reia încălzirea acum'>
+                ↺ Am Închis (Reia)
+              </button>
+            </div>
+          `;
+        }
+
+        let winHistHtml = '';
+        if (!z.windowPauseActive && z.lastWindowDurationSec && z.lastWindowDurationSec > 0) {
+          const durMin = Math.max(1, Math.round(z.lastWindowDurationSec / 60));
+          if (z.lastWindowEpoch && z.lastWindowEpoch > 0) {
+            const nowSec = Math.floor(Date.now() / 1000);
+            const diffMin = Math.max(0, Math.floor((nowSec - z.lastWindowEpoch) / 60));
+            const agoText = diffMin < 60 ? `${diffMin}m în urmă` : `${Math.floor(diffMin / 60)}h în urmă`;
+            winHistHtml = ` &bull; <span class='win-hist' title='Ultima aerisire detectată în această încăpere'>🪟 Aerisit: ${agoText} (${durMin}m)</span>`;
+          } else {
+            winHistHtml = ` &bull; <span class='win-hist' title='Ultima aerisire detectată'>🪟 Aerisit (${durMin}m)</span>`;
+          }
+        }
+
+        const threshPill = `<span class='win-thresh-pill' onclick='promptWindowThreshold(${z.id}, ${z.windowDropThreshold || 1.2}, "${dispName.replace(/"/g, '&quot;')}")' title='Ajustează pragul de scădere de temperatură pentru geam deschis'>🪟 Prag: ${(z.windowDropThreshold || 1.2).toFixed(1)}&deg;C ✏️</span>`;
 
         html += `
-          <div class='sensor-row'>
-            <div class='sensor-left'>
-              <div class='sensor-title-row'>
-                <span class='sensor-signal-dot ${badgeClass}' title='Semnal BLE: ${badgeText} (${rssi} dBm)'></span>
-                <button class='zone-power-btn ${z.enabled ? 'on' : 'off'}' onclick='toggleZone(${z.id})' title='${z.enabled ? "Oprește termostatul camerei" : "Pornește termostatul camerei"}'>
-                  ⏻
-                </button>
-                <span class='sensor-name' onclick='promptRenameSensor("${sensMac}", "${dispName.replace(/"/g, '&quot;')}")' title='Clic pentru redenumire senzor'>
-                  ${dispName} <span class='sensor-edit-icon'>✏️</span>
-                </span>
-                ${statusBadgeHtml}
+          <div class='sensor-row' style='flex-direction:column;align-items:stretch;gap:4px;'>
+            <div style='display:flex;align-items:center;justify-content:space-between;width:100%;'>
+              <div class='sensor-left'>
+                <div class='sensor-title-row'>
+                  <span class='sensor-signal-dot ${badgeClass}' title='Semnal BLE: ${badgeText} (${rssi} dBm)'></span>
+                  <button class='zone-power-btn ${z.enabled ? 'on' : 'off'}' onclick='toggleZone(${z.id})' title='${z.enabled ? "Oprește termostatul camerei" : "Pornește termostatul camerei"}'>
+                    ⏻
+                  </button>
+                  <span class='sensor-name' onclick='promptRenameSensor("${sensMac}", "${dispName.replace(/"/g, '&quot;')}")' title='Clic pentru redenumire senzor'>
+                    ${dispName} <span class='sensor-edit-icon'>✏️</span>
+                  </span>
+                  ${statusBadgeHtml}
+                  ${threshPill}
+                </div>
+                <span class='sensor-mac'>${sensMac}${ageStr ? ' &bull; ' + ageStr : ''} &bull; ${humStr} &bull; 🔋 ${batStr}${winHistHtml}</span>
               </div>
-              <span class='sensor-mac'>${sensMac}${ageStr ? ' &bull; ' + ageStr : ''} &bull; ${humStr} &bull; 🔋 ${batStr}</span>
+              <div class='sensor-right'>
+                <div class='sensor-temp-col'>
+                  <span class='sensor-temp' style='${!z.enabled ? "color:#64748b;" : ""}'>${tempStr}</span>
+                  ${sparkHtml}
+                </div>
+                <div class='setpoint-slave-stepper'>
+                  <button class='step-btn-slim' aria-label='Scade temperatura ${z.name}' onclick='adjTarget(${z.id}, -0.5)'>-</button>
+                  <span class='setpoint-val setpoint-val-slave' id='sp-${z.id}' data-val='${curTarget.toFixed(1)}'>${curTarget.toFixed(1)}&deg;</span>
+                  <button class='step-btn-slim' aria-label='Crește temperatura ${z.name}' onclick='adjTarget(${z.id}, 0.5)'>+</button>
+                  ${holdHtml}
+                </div>
+              </div>
             </div>
-            <div class='sensor-right'>
-              <div class='sensor-temp-col'>
-                <span class='sensor-temp' style='${!z.enabled ? "color:#64748b;" : ""}'>${tempStr}</span>
-                ${sparkHtml}
-              </div>
-              <div class='setpoint-slave-stepper'>
-                <button class='step-btn-slim' aria-label='Scade temperatura ${z.name}' onclick='adjTarget(${z.id}, -0.5)'>-</button>
-                <span class='setpoint-val setpoint-val-slave' id='sp-${z.id}' data-val='${curTarget.toFixed(1)}'>${curTarget.toFixed(1)}&deg;</span>
-                <button class='step-btn-slim' aria-label='Crește temperatura ${z.name}' onclick='adjTarget(${z.id}, 0.5)'>+</button>
-              </div>
-            </div>
+            ${winBannerHtml}
           </div>
         `;
       });

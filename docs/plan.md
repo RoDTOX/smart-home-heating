@@ -402,13 +402,24 @@ Pentru a asigura tranziția de la un sistem home-made la un **produs comercial s
         * **Remediere Audit DevTools & Lighthouse (WCAG AA + Network):** Contrast cromatic ridicat (>5.8:1), etichetare accesibilă switch-uri/inputuri (`aria-label`), landmark semantic `<main class="container" role="main">`, ergonomie mobilă `@media (max-width: 520px)` și toleranță latență reverse proxy Nginx (`AbortController` 4000ms).
       - *Validat:* 68/68 PASS (100.0%) pe ASPICE SWE.5 (`tools/test_system.py`) și 10/10 PASS (100.0%) pe CDP browser test (`tools/browser_live_test.py`).
 
-- [ ] **34. Decuplare Arhitecturală & Optimizare Workflow (Anti-Bloat & Headless C++ First):**
+- [x] **34. Decuplare Arhitecturală & Optimizare Workflow (Anti-Bloat & Headless C++ First):** (Adoptat & Operaționalizat 15.10.2026)
       - **Problemă Identificată (15.10.2026):** Modificarea continuă a unui fișier HTML uriaș (3300+ linii), recompilarea gzip C++ în `dashboard_html_gz.h`, flash OTA wireless pe ESP32 și reboot la fiecare mică schimbare de stil sau buton este ineficientă, riscantă pentru memoria flash și generează bloatware.
       - **Noua Disciplină de Lucru (Ponytail Engineering):**
         * **Backend C++ Headless:** ESP32 răspunde exclusiv de siguranța fizică a cazanului (interblocări, TWDT, supraveghere senzori), bucla termică deterministă și servirea rapidă a API-ului REST/JSON (`/api/...`). Modificările de C++ se testează prin consolă (`/console`, Telnet, `tools/esp_cli.py`) sau suita automată `test_system.py`.
         * **Frontend Decuplat Local (Dev Server):** Prototiparea și ajustarea UI-ului se fac 100% pe mașina locală (ex: rulare prin server static local sau fișier web local conectat prin CORS la `http://192.168.1.20/`). Iterare instantanee cu F5 în browser (fără recompilare C++, fără flash OTA).
         * **Bundling Final pe Flash:** Doar după ce o interfață este complet aprobată și stabilă, se rulează `tools/build_web.py` și se include în binarul de producție.
         * **Zi de Observație Live (Test Dinamic de Comportament):** Menținerea stabilității firmware-ului v1.2.0 pentru a colecta date reale de comportament dinamic (temperatură, histerezis, timpi de răspuns).
+
+- [x] **36. Integrare Bivalentă Home Assistant (Pachet YAML Modern, REST API & Dashboard Dedicat):** (Finalizat 17.10.2026)
+      - **Pachet YAML:** Creat `homeassistant/packages/smart_heating.yaml` compatibil cu schema modernă HA Core (`template:` la nivel de rădăcină). Include senzorii REST pentru toate cele 3 zone (Living, Copil, Matrimonial), starea cazanului, telemetria gazului, vremea exterioară și switch-urile/butoanele de comandă.
+      - **Persistență în Repozitoriu:** Fișierele HA sunt stocate nativ în directorul `homeassistant/` (`smart_heating.yaml`, `lovelace_dashboard.yaml`, `README.md`) pentru a nu depinde de stocarea volatilă din WSL sau containere Docker.
+      - **Robustețe FSM & Comandă Setpoint:** Corelat comportamentul când setpoint-ul se modifică rapid: dacă o cameră se află în warmup de deschidere ceară (`ZONE_WARMUP`) și setpoint-ul este redus sub temperatura curentă, FSM-ul decuplează instantaneu releul la 0V și anulează armarea cazanului fără a lăsa vana deschisă fantomă.
+
+- [x] **37. Aliniere Riguroasă 1:1 Specificații & Teste Automate ASPICE SWE.5 (FR-1..FR-40 + NFR-uri):** (Finalizat 18.10.2026)
+      - **Acoperire Cerințe:** 44/44 Cerințe (40 Funcționale FR-1..FR-40 + 4 Non-Funcționale NFR-1.1, NFR-1.5, NFR-2.2, NFR-3.2) acoperite 100% cu trasabilitate bidirecțională completă către cod și teste.
+      - **Suită de Testare Live:** Extins `tools/test_system.py` la 85 de teste atomice (de la 68). Rulate live împotriva plăcii reale `192.168.1.20`: **85/85 PASS (100.0%)**, 0 cerințe netestate, 0 contracte relaxate.
+      - **Hardening Logică & Boundary Enforcing:** Detectat și corectat în C++ intervalul permis pentru pragul de detecție geam deschis (`[0.8°C .. 2.0°C]`, clamping în `ThermalZoneManager.cpp` și validare strictă HTTP 400 în `main.cpp`).
+      - **Raport Formal SWE.5:** Generat raport complet ASPICE la `docs/system_test_report.md`. Actualizat `docs/requirements_and_features.md`, `docs/api_reference.md` și `docs/underfloor_heating_hydraulics_and_failsafes.md`.
 
 - [ ] **35. Roadmap Comercial & Inteligență Termică (Confort, Calibrare & Cloud):**
       - **35.1. Trend Temperaturi (Săgeți Dinamice & Istoric 3h):**
