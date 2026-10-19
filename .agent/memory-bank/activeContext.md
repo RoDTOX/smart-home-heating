@@ -1,5 +1,11 @@
 # Active Context: Smart Home Heating System
 
+- **Inițiere Migrare Home Server pe Lenovo ThinkPad L590 (În curs 19.10.2026):**
+  - **Hardware:** Lenovo ThinkPad L590 (Intel Core i7 Gen 8, 32 GB RAM, 475 GB SSD NVMe). Baterie în stare bună (UPS integrat), ceas RTC sincronizat automat via NTP `systemd-timesyncd`.
+  - **Arhitectură convenită:** Ubuntu Server 24.04 LTS (fără GUI, consum minim ~250MB RAM, instalare curată pe tot SSD-ul), `HandleLidSwitch=ignore` pentru funcționare cu capacul închis, prag încărcare baterie la 80% (`tlp`/sysfs) pentru protecție pe post de UPS.
+  - **Servicii Docker Compose unificate:** Home Assistant Core (`smart_heating.yaml`), Mosquitto MQTT broker, TeslaMate + PostgreSQL 17 + Grafana (cu restaurare backup `pg_dump` de pe Galaxy-A6), Smart Aquarium, Nginx Reverse Proxy, Cloudflare Named Tunnel (`mysmarthome.cc` refolosind tokenul existent din `/etc/cloudflared/token`).
+  - **Stare Curentă:** Imaginea ISO Ubuntu Server a fost descărcată. Urmează scrierea pe stick USB cu Rufus, setarea BIOS `Power On with AC Attach` și instalarea pe SSD.
+
 - **Aliniere Riguroasă 1:1 Documentație & Testare ASPICE SWE.5 pe Hardware Real (Finalizat 18.10.2026):**
   - **44/44 Cerințe Acoperite (100.0%):** FR-1..FR-40 + NFR-1.1, NFR-1.5, NFR-2.2, NFR-3.2 documentate în detaliu în `docs/requirements_and_features.md` cu trasabilitate bidirecțională completă către codul sursă C++ și suita de testare.
   - **85/85 Teste Verificare Live (100.0% PASS):** Suita automată `tools/test_system.py` extinsă de la 68 la 85 de teste atomice, executate împotriva plăcii reale ESP32 (`192.168.1.20`). Zero cerințe netestate, zero contracte relaxate.

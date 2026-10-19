@@ -2,6 +2,15 @@
 
 <!-- Append-only Architecture Decision Record (ADR) log. -->
 
+## 2026-10-18 — Dedicated Home Server (ThinkPad L590) & Cloudflare Named Tunnel on mysmarthome.cc
+**Context**: External mobile access without VPN/Tailscale client apps was required for Home Assistant, Smart Heating Odaia Clasic, and Galaxy-A6 services. Furthermore, running long-term server daemons (Home Assistant, PostgreSQL, TeslaMate, Nginx, Mosquitto) on a mobile phone (Galaxy-A6) and WSL laptop introduces battery swelling risks, resource limits, and WSL port bindings.
+**Decision**:
+- Acquired custom domain `mysmarthome.cc` managed via Cloudflare authoritative nameservers (`devin` / `elisabeth.ns.cloudflare.com`).
+- Deployed a permanent outbound Cloudflare Tunnel (`cloudflared.service` via QUIC) eliminating port forwarding, dynamic DNS issues, and public IP vulnerability.
+- Enforced edge Basic Authentication (`seceleanu:bogdan`) in front of the local Nginx proxy (`127.0.0.1:8088`).
+- Formally decided to migrate central infrastructure onto a dedicated Lenovo ThinkPad L590 (Intel Core i7 Gen 8) running Linux + Docker Compose. The laptop's battery acts as an integrated UPS, providing uninterrupted operations during power cuts, while freeing the ESP32 to focus strictly on real-time hardware safety, relays, and its headless REST API.
+**Consequences**: Solid multi-tiered architecture: ESP32 remains hard real-time edge controller; ThinkPad L590 serves as durable 24/7 Home Server; Cloudflare delivers globally cached, encrypted, and bot-protected access.
+
 ## 2026-10-07 — Permanent Native ESP32 Migration & Elimination of Legacy ESP8266 Code
 **Context**: The new 4-relay board arrived physically equipped with an ESP32-WROOM-32E module (DOIT ESP32-32E N4, ESP32-D0WD-V3, 4MB Flash). To ensure long-term maintainability and prevent technical debt when changing machines, the user requested removing all `#ifdef ESP8266` preprocessor hacks and standardizing 100% on native ESP32 code.
 **Decision**:

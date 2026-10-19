@@ -437,20 +437,21 @@ Pentru a asigura tranziția de la un sistem home-made la un **produs comercial s
 
 ---
 
-## 🔮 Viitor / Nice to Have: Migrare Home Server pe ThinkPad L590 (Înlocuire Galaxy A6)
+## 🚀 Sarcină Activă: Migrare Home Server pe ThinkPad L590 (Înlocuire Galaxy A6 & WSL)
 
-Această sarcină este opțională și va fi declanșată când Galaxy A6 („Cinderella”) dă semne de oboseală accentuată sau când se dorește centralizarea robustă a serviciilor.
-
-- [ ] **NTH-1: Pregătire & Audit ThinkPad L590 (Intel Core Gen 8, NVMe SSD, Gigabit LAN):**
-  - **Sistem de Operare:** Linux curat (Ubuntu Server 24.04 LTS sau Debian 12 Minimal) sau dual-boot. Fără interfață grafică greoaie desktop pentru a minimiza consumul.
-  - **Consum Real la Priză în Idle:** Procesoarele Intel Whiskey Lake (15W TDP) coboară în stările energetice profunde (Package C-States C8/C9/C10). Cu capacul închis (`HandleLidSwitch=ignore`) și ecranul decuplat complet, consumul măsurat la priză este de **4.5W – 6.5W** (sub 5 lei/lună la Hidroelectrica/Enel, comparabil cu un încărcător de telefon sau un Raspberry Pi cu SSD).
-  - **Protecție Baterie & UPS Automat:** Configurare `tlp` cu praguri de încărcare (start la 40%, stop la 50%). Bateria nu se degradează niciodată, iar în caz de cădere de tensiune în apartament serverul are 3–6 ore de autonomie completă, prevenind coruperea bazelor de date.
-  - **Stack Servicii (Docker Compose):**
-    - `teslamate` + `postgres:17` + `grafana`
-    - `eclipse-mosquitto:2` (broker MQTT pe `0.0.0.0:1883`)
-    - `ble-gateway` (daemon Python folosind adaptorul Bluetooth integrat Intel)
-    - `nginx` (reverse proxy portal centralizat + Tailscale)
-    - Opțional: `adguard-home` / `pi-hole` (blocare reclame la nivel de rețea întreagă).
+- [/] **TASK-38: Consolidare Servicii Home Server pe ThinkPad L590 (Ubuntu Server 24.04 LTS):**
+  - **Status curent (19.10.2026):**
+    * [x] Audit hardware confirmat: Intel Core i7 Gen 8, 32 GB RAM, 475 GB SSD NVMe, baterie stare bună (UPS hardware integrat).
+    * [x] Decizie de arhitectură: Ștergere Windows 11, instalare dedicată Ubuntu Server 24.04 LTS (fără GUI, consum ~250MB RAM).
+    * [x] Strategie ceas RTC: sincronizare automată NTP `systemd-timesyncd` la boot.
+    * [x] Strategie baterie UPS: prag încărcare 80% (`tlp`/sysfs) și funcționare cu capacul închis (`HandleLidSwitch=ignore`).
+    * [x] Descărcat ISO oficial Ubuntu Server pe mașina locală.
+    * [ ] Scriere stick USB bootabil cu Rufus (GPT / UEFI).
+    * [ ] Configurare BIOS L590: `Power On with AC Attach` = Enabled, Boot F12.
+    * [ ] Instalare pe disc curat, configurare IP static/DHCP și acces SSH.
+    * [ ] Instalare Docker CE & Docker Compose.
+    * [ ] Desfășurare stack unificat `docker-compose.yml` (Home Assistant, Mosquitto, TeslaMate, PostgreSQL 17, Grafana, Nginx, Cloudflared pe `mysmarthome.cc`).
+    * [ ] Restaurare backup `pg_dump` TeslaMate de pe Galaxy-A6.
 
 ---
 
