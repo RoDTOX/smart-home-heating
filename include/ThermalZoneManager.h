@@ -19,6 +19,17 @@ enum ZoneState {
     ZONE_WINDOW_PAUSE   // Smart pause: open window detected (>1.2C drop in <5 min)
 };
 
+#define MAX_SCHEDULE_BLOCKS 8
+
+struct ScheduleBlockConfig {
+    char name[32];
+    uint8_t hour;
+    uint8_t minute;
+    float targets[MAX_THERMAL_ZONES];
+};
+
+typedef ScheduleBlockConfig BioAnchorConfig;
+
 enum BioAnchorId {
     BIO_ANCHOR_SLEEP = 0,
     BIO_ANCHOR_WAKE  = 1,
@@ -27,18 +38,14 @@ enum BioAnchorId {
     BIO_ANCHORS_COUNT = 4
 };
 
-struct BioAnchorConfig {
-    uint8_t hour;
-    uint8_t minute;
-    float targets[MAX_THERMAL_ZONES];
-};
-
 struct BioScheduleConfig {
     bool enabled;
     bool preHeatEnabled;
     bool windowDetectionEnabled;
-    BioAnchorConfig weekday[BIO_ANCHORS_COUNT];
-    BioAnchorConfig weekend[BIO_ANCHORS_COUNT];
+    uint8_t weekdayCount;
+    ScheduleBlockConfig weekday[MAX_SCHEDULE_BLOCKS];
+    uint8_t weekendCount;
+    ScheduleBlockConfig weekend[MAX_SCHEDULE_BLOCKS];
 };
 
 struct WindowDetectionState {
@@ -98,6 +105,16 @@ public:
     uint32_t getPumpOverrunMs() const { return _pumpOverrunMs; }
     uint32_t getMinBoilerOffMs() const { return _minBoilerOffMs; }
 
+    // Hydraulic & Installation Settings
+    bool isOpenLoopBypass() const { return _openLoopBypass; }
+    void setOpenLoopBypass(bool en);
+    uint32_t getBoilerDelayMs() const { return _boilerDelayMs; }
+    void setBoilerDelayMs(uint32_t ms);
+    bool hasManifoldTurReturSensors() const { return _hasManifoldTurReturSensors; }
+    void setManifoldTurReturSensors(bool en);
+    uint8_t getPumpRelayPin() const { return _pumpRelayPin; }
+    void setPumpRelayPin(uint8_t pin);
+
     // Pump Control (Relay 4 on PIN_RELAY_SPARE / GPIO26)
     bool isPumpControlEnabled() const { return _pumpControlEnabled; }
     bool isPumpActive() const { return _pumpActive; }
@@ -138,9 +155,9 @@ public:
     void setRelayPin(size_t index, uint8_t pin);
     void mapZone(size_t index, const char* name, const char* sensorMac, const char* sensorName, uint8_t relayPin, float targetTemp, float hysteresis, bool enabled);
     void setAutoMode(bool autoMode);
-    void setInterlockDelayMs(uint32_t ms) { _interlockDelayMs = ms; }
-    void setPumpOverrunMs(uint32_t ms) { _pumpOverrunMs = ms; }
-    void setMinBoilerOffMs(uint32_t ms) { _minBoilerOffMs = ms; }
+    void setInterlockDelayMs(uint32_t ms);
+    void setPumpOverrunMs(uint32_t ms);
+    void setMinBoilerOffMs(uint32_t ms);
 
     // Manual Hold (Temporary Override until next anchor)
     bool isManualHoldActive(size_t index) const {
@@ -164,19 +181,33 @@ public:
     void setWindowDetectionEnabled(bool enabled);
     bool isWindowDetectionEnabled() const { return _scheduleConfig.windowDetectionEnabled; }
 
-    // Bio-Schedule Customization
+    // Dynamic Time Block Management (Tado / Honeywell Style)
+    uint8_t getBlockCount(bool weekend) const { return weekend ? _scheduleConfig.weekendCount : _scheduleConfig.weekdayCount; }
+    const ScheduleBlockConfig* getBlocks(bool weekend) const { return weekend ? _scheduleConfig.weekend : _scheduleConfig.weekday; }
+    bool addBlock(bool weekend, const char* name, uint8_t hour, uint8_t minute, const float targets[MAX_THERMAL_ZONES]);
+    bool updateBlock(bool weekend, size_t index, const char* name, uint8_t hour, uint8_t minute, const float targets[MAX_THERMAL_ZONES]);
+    bool deleteBlock(bool weekend, size_t index);
+    size_t getActiveBlockIndex() const { return _activeBlockIdx; }
+    size_t getNextBlockIndex() const { return _nextBlockIdx; }
+    const char* getActiveBlockName() const;
+    const char* getNextBlockName() const;
+
+    // Bio-Schedule Customization (Backward compatibility)
     bool updateAnchor(bool weekend, BioAnchorId anchor, uint8_t hour, uint8_t minute, const float targets[MAX_THERMAL_ZONES]);
     bool setAnchorTime(bool weekend, BioAnchorId anchor, uint8_t hour, uint8_t minute);
     bool setAnchorTargets(bool weekend, BioAnchorId anchor, const float targets[MAX_THERMAL_ZONES]);
     bool setAnchorTarget(bool weekend, BioAnchorId anchor, size_t zoneIndex, float target);
+    bool setAnchorName(bool weekend, BioAnchorId anchor, const char* name);
 
     // Presets Engine
     String getPresetsJson() const;
     bool applyPreset(const char* presetId);
-    bool savePreset(const char* presetId, const char* name);
+    bool savePreset(const char* presetId, const char* name, uint8_t daysMask = 0x7F);
     bool resetPreset(const char* presetId);
     void resetScheduleToDefault();
     const char* getActivePresetId() const { return _activePresetId; }
+    uint8_t getPresetDays(const char* presetId) const;
+    bool setPresetDays(const char* presetId, uint8_t daysMask);
 
     static BioScheduleConfig getFactoryDefaultSchedule();
     static BioScheduleConfig getFactoryEcoSchedule();
@@ -219,6 +250,8 @@ private:
     // Bio-Schedule & Climate State
     BioScheduleConfig _scheduleConfig;
     char _activePresetId[16];
+    size_t _activeBlockIdx;
+    size_t _nextBlockIdx;
     BioAnchorId _activeAnchor;
     BioAnchorId _nextAnchor;
     uint32_t _minsToNextAnchor;
@@ -242,9 +275,15 @@ private:
     bool _bootWarmupActive;
     uint32_t _bootWarmupStartMs;
 
+    // Hydraulic Timings & Hardware Wiring
     uint32_t _interlockDelayMs;
     uint32_t _pumpOverrunMs;
     uint32_t _minBoilerOffMs;
+    uint32_t _boilerDelayMs;
+    bool _openLoopBypass;
+    bool _hasManifoldTurReturSensors;
+    uint8_t _pumpRelayPin;
+
     uint32_t _lastBoilerOffTime;
     uint32_t _lastBoilerOnTime;
     uint32_t _lastEvaluationMs;

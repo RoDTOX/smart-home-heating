@@ -102,6 +102,8 @@ BoilerRadioTrigger boilerRadio;
 BoilerRadioTrigger::BoilerRadioTrigger()
     : _dataPin(5), _lastCommandOn(false), _hasTransmittedOnce(false),
       _lastTxTime(0), _lastStateChangeTime(0), _pendingAction(PENDING_NONE),
+      _minRunTimeMs(180000UL), _minPauseTimeMs(180000UL),
+      _rfMinCooldownMs(3000UL), _safetyHeartbeatMs(900000UL), _safetyHeartbeatEnabled(true),
       _spamAttemptCount(0), _lastSpamAttemptMs(0),
       _runtimeTotalSec(0), _runtimeTodaySec(0), _runtimeYesterdaySec(0),
       _runtimeThisMonthSec(0), _runtimeLastMonthSec(0),
@@ -119,6 +121,11 @@ void BoilerRadioTrigger::loadStateFromPreferences() {
         _runtimeLastMonthSec = prefs.getUInt("rt_lmon", 0);
         _lastDay = prefs.getUChar("last_day", 0);
         _lastMonth = prefs.getUChar("last_mon", 0);
+        _minRunTimeMs = prefs.getUInt("min_run", 180000UL);
+        _minPauseTimeMs = prefs.getUInt("min_pause", 180000UL);
+        _rfMinCooldownMs = prefs.getUInt("rf_cd", 3000UL);
+        _safetyHeartbeatMs = prefs.getUInt("hb_ms", 900000UL);
+        _safetyHeartbeatEnabled = prefs.getBool("hb_en", true);
         prefs.end();
     }
 }
@@ -150,6 +157,21 @@ void BoilerRadioTrigger::saveStateToPreferences() {
         }
         if (prefs.getUChar("last_mon", 0) != _lastMonth) {
             prefs.putUChar("last_mon", _lastMonth);
+        }
+        if (prefs.getUInt("min_run", 0) != _minRunTimeMs) {
+            prefs.putUInt("min_run", _minRunTimeMs);
+        }
+        if (prefs.getUInt("min_pause", 0) != _minPauseTimeMs) {
+            prefs.putUInt("min_pause", _minPauseTimeMs);
+        }
+        if (prefs.getUInt("rf_cd", 0) != _rfMinCooldownMs) {
+            prefs.putUInt("rf_cd", _rfMinCooldownMs);
+        }
+        if (prefs.getUInt("hb_ms", 0) != _safetyHeartbeatMs) {
+            prefs.putUInt("hb_ms", _safetyHeartbeatMs);
+        }
+        if (prefs.getBool("hb_en", true) != _safetyHeartbeatEnabled) {
+            prefs.putBool("hb_en", _safetyHeartbeatEnabled);
         }
         prefs.end();
         _lastNvsSaveMs = millis();
@@ -204,15 +226,16 @@ void BoilerRadioTrigger::update() {
         }
     }
 
-    // 2. Periodic 15-minute safety heartbeat burst (FR-17.7 redundancy)
-    if (_hasTransmittedOnce && _pendingAction == PENDING_NONE && (now - _lastTxTime >= 900000UL)) {
+    // 2. Periodic safety heartbeat burst (FR-17.7 redundancy)
+    if (_safetyHeartbeatEnabled && _hasTransmittedOnce && _pendingAction == PENDING_NONE && (now - _lastTxTime >= _safetyHeartbeatMs)) {
         if (_lastCommandOn) {
             transmitBurst(rf_on_durations);
         } else {
             transmitBurst(rf_off_durations);
         }
         _lastTxTime = now;
-        netConsole.printf("[RF 433MHz][HEARTBEAT] 15m safety refresh burst emitted (%s).\n",
+        netConsole.printf("[RF 433MHz][HEARTBEAT] %u s safety refresh burst emitted (%s).\n",
+                          (unsigned int)(_safetyHeartbeatMs / 1000),
                           _lastCommandOn ? "ON" : "OFF");
     }
 
@@ -242,29 +265,29 @@ bool BoilerRadioTrigger::canTransmit(bool targetOn, uint32_t* remainingSec, bool
     }
     if (isIdempotent) *isIdempotent = false;
 
-    // 2. Check RF hardware burst cooldown (FR-17.2: Min 3s)
-    if (_lastTxTime > 0 && (now - _lastTxTime < RF_MIN_COOLDOWN_MS)) {
+    // 2. Check RF hardware burst cooldown (Configurable, default 3s)
+    if (_lastTxTime > 0 && (now - _lastTxTime < _rfMinCooldownMs)) {
         if (remainingSec) {
-            *remainingSec = (RF_MIN_COOLDOWN_MS - (now - _lastTxTime) + 999) / 1000;
+            *remainingSec = (_rfMinCooldownMs - (now - _lastTxTime) + 999) / 1000;
         }
         return false;
     }
 
-    // 3. Check Burner Anti-Short-Cycling Guard (FR-17.3 & NFR-1.6: Min 60s run / 60s pause)
+    // 3. Check Burner Anti-Short-Cycling Guard (Configurable, default 180s)
     if (_hasTransmittedOnce) {
         if (_lastCommandOn && !targetOn) {
-            // Switching ON -> OFF: must run at least BOILER_MIN_RUN_TIME_MS
-            if (now - _lastStateChangeTime < BOILER_MIN_RUN_TIME_MS) {
+            // Switching ON -> OFF: must run at least _minRunTimeMs
+            if (now - _lastStateChangeTime < _minRunTimeMs) {
                 if (remainingSec) {
-                    *remainingSec = (BOILER_MIN_RUN_TIME_MS - (now - _lastStateChangeTime) + 999) / 1000;
+                    *remainingSec = (_minRunTimeMs - (now - _lastStateChangeTime) + 999) / 1000;
                 }
                 return false;
             }
         } else if (!_lastCommandOn && targetOn) {
-            // Switching OFF -> ON: must rest at least BOILER_MIN_PAUSE_TIME_MS
-            if (now - _lastStateChangeTime < BOILER_MIN_PAUSE_TIME_MS) {
+            // Switching OFF -> ON: must rest at least _minPauseTimeMs
+            if (now - _lastStateChangeTime < _minPauseTimeMs) {
                 if (remainingSec) {
-                    *remainingSec = (BOILER_MIN_PAUSE_TIME_MS - (now - _lastStateChangeTime) + 999) / 1000;
+                    *remainingSec = (_minPauseTimeMs - (now - _lastStateChangeTime) + 999) / 1000;
                 }
                 return false;
             }
@@ -448,3 +471,37 @@ void BoilerRadioTrigger::resetRuntime() {
     netConsole.println(F("[Boiler][Runtime] All burner runtime counters reset to 0."));
 }
 
+
+
+void BoilerRadioTrigger::setMinRunTimeMs(uint32_t ms) {
+    if (ms >= 10000UL && ms <= 600000UL) {
+        _minRunTimeMs = ms;
+        saveStateToPreferences();
+    }
+}
+
+void BoilerRadioTrigger::setMinPauseTimeMs(uint32_t ms) {
+    if (ms >= 10000UL && ms <= 600000UL) {
+        _minPauseTimeMs = ms;
+        saveStateToPreferences();
+    }
+}
+
+void BoilerRadioTrigger::setRfMinCooldownMs(uint32_t ms) {
+    if (ms >= 500UL && ms <= 60000UL) {
+        _rfMinCooldownMs = ms;
+        saveStateToPreferences();
+    }
+}
+
+void BoilerRadioTrigger::setSafetyHeartbeatMs(uint32_t ms) {
+    if (ms >= 60000UL && ms <= 3600000UL) {
+        _safetyHeartbeatMs = ms;
+        saveStateToPreferences();
+    }
+}
+
+void BoilerRadioTrigger::setSafetyHeartbeatEnabled(bool en) {
+    _safetyHeartbeatEnabled = en;
+    saveStateToPreferences();
+}

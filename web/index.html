@@ -1195,8 +1195,8 @@
       box-shadow: 0 2px 10px rgba(3, 105, 161, 0.4);
     }
 
-    /* Tesla Service Mode Schema Styles */
-    .tesla-card {
+    /* Schemă Hidraulică & Diagnostic Schema Styles */
+    .hydraulic-card {
       background: #080d1a;
       border: 1px solid #1e293b;
       border-radius: var(--radius);
@@ -1204,29 +1204,29 @@
       box-shadow: 0 16px 36px -12px rgba(0,0,0,0.8);
       position: relative;
     }
-    .tesla-flow-pipe {
+    .hydro-flow-pipe {
       stroke-dasharray: 12 10;
-      animation: teslaPipeFlow 1.1s linear infinite;
+      animation: pipeFlow 1.1s linear infinite;
     }
-    .tesla-flow-pipe-rev {
+    .hydro-flow-pipe-rev {
       stroke-dasharray: 12 10;
-      animation: teslaPipeFlowRev 1.1s linear infinite;
+      animation: pipeFlowRev 1.1s linear infinite;
     }
-    @keyframes teslaPipeFlow {
+    @keyframes pipeFlow {
       from { stroke-dashoffset: 22; }
       to { stroke-dashoffset: 0; }
     }
-    @keyframes teslaPipeFlowRev {
+    @keyframes pipeFlowRev {
       from { stroke-dashoffset: 0; }
       to { stroke-dashoffset: 22; }
     }
-    @keyframes teslaSpin {
+    @keyframes pumpSpin {
       from { transform: rotate(0deg); }
       to { transform: rotate(360deg); }
     }
     .pump-spinning {
       transform-origin: 380px 180px;
-      animation: teslaSpin 1.2s linear infinite;
+      animation: pumpSpin 1.2s linear infinite;
     }
     .flow-paused {
       animation-play-state: paused !important;
@@ -1237,8 +1237,8 @@
       stroke: #1e293b !important;
     }
 
-    /* Tesla Service Action Buttons */
-    .tesla-actions-grid {
+    /* Service Hidraulic Action Buttons */
+    .hydro-actions-grid {
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
       gap: 10px;
@@ -1246,7 +1246,7 @@
       padding-top: 14px;
       border-top: 1px solid rgba(255,255,255,0.06);
     }
-    .btn-tesla {
+    .btn-hydro {
       background: #0f172a;
       border: 1px solid #334155;
       color: #cbd5e1;
@@ -1262,12 +1262,12 @@
       gap: 6px;
       transition: all 0.15s;
     }
-    .btn-tesla:hover {
+    .btn-hydro:hover {
       background: #1e293b;
       color: #fff;
       border-color: #0369a1;
     }
-    .btn-tesla:active { transform: scale(0.97); }
+    .btn-hydro:active { transform: scale(0.97); }
 
     /* FSM State Machine Styles */
     .fsm-grid {
@@ -1537,30 +1537,19 @@
           <div class="badge-pill" id="pill-net" title="Sincronizare Rețea ESP32" style="color:#34d399;border-color:rgba(16,185,129,0.3);background:rgba(16,185,129,0.1);padding:2px 7px;font-size:0.7rem;">🟢 Live</div>
           <div class="badge-pill weather" id="pill-weather" style="padding:2px 7px;font-size:0.7rem;">&#9925; --.-&deg;C</div>
           <div class="badge-pill time" id="pill-time" style="padding:2px 7px;font-size:0.7rem;">&#9200; --:--:--</div>
-          <button class="btn-install btn-install-compact" id="btn-pwa-install" onclick="installPwa()" style="padding:2px 8px;font-size:0.7rem;">&#128242; App</button>
-          <a href="/index_v2.html" style="text-decoration:none;display:inline-flex;align-items:center;gap:4px;background:#ea580c;color:#ffffff;font-size:0.72rem;font-weight:700;padding:2px 9px;border-radius:14px;box-shadow:0 2px 8px rgba(234,88,12,0.4);">✨ Prototip V2</a>
         </div>
       </div>
 
-      <!-- Lower Row: View Navigation Tabs & Control Level Switcher -->
+      <!-- Lower Row: View Navigation Tabs (Compact & Direct) -->
       <div class="top-nav-row2" style="padding-top:2px;">
-        <div class="view-nav-bar" style="margin-bottom:0;gap:4px;">
-          <button id="view-btn-dash" class="view-tab-btn active" onclick="switchViewMode('dash')" style="padding:3px 9px;font-size:0.74rem;">&#127915; Panou</button>
-          <button id="view-btn-tesla" class="view-tab-btn" onclick="switchViewMode('tesla')" style="padding:3px 9px;font-size:0.74rem;">&#127950; Tesla Mode</button>
-          <button id="view-btn-fsm" class="view-tab-btn" onclick="switchViewMode('fsm')" style="padding:3px 9px;font-size:0.74rem;">&#129504; FSM Logic</button>
-          <button id="view-btn-console" class="view-tab-btn" onclick="switchViewMode('console')" style="padding:3px 9px;font-size:0.74rem;">&#62;_ Consolă Live</button>
+        <div class="view-nav-bar" style="margin-bottom:0;gap:6px;">
+          <button id="view-btn-dash" class="view-tab-btn active" onclick="switchViewMode('dash')" style="padding:4px 10px;font-size:0.75rem;">&#127915; Panou</button>
+          <button id="view-btn-hydro" class="view-tab-btn" onclick="switchViewMode('hydro')" style="padding:4px 10px;font-size:0.75rem;">&#128260; Schemă Hidraulică</button>
+          <button id="view-btn-fsm" class="view-tab-btn" onclick="switchViewMode('fsm')" style="padding:4px 10px;font-size:0.75rem;">&#129504; FSM Logic</button>
+          <button id="view-btn-console" class="view-tab-btn" onclick="switchViewMode('console')" style="padding:4px 10px;font-size:0.75rem;">&#62;_ Consolă Live</button>
+          <button id="view-btn-config" class="view-tab-btn" onclick="switchViewMode('config')" style="padding:4px 10px;font-size:0.75rem;background:#1e293b;border-color:#38bdf8;color:#38bdf8;">&#9881; Configurare</button>
         </div>
-
-        <div style="display:flex;align-items:center;gap:6px;">
-          <span style="font-size:0.72rem;font-weight:800;color:#94a3b8;">NIVEL:</span>
-          <div class="level-selector-bar" style="margin-bottom:0;gap:3px;">
-            <button id="lvl-beginner" class="lvl-btn" onclick="setUiLevel('beginner')" style="padding:3px 8px;font-size:0.72rem;">&#128994; Simplu</button>
-            <button id="lvl-presets" class="lvl-btn active" onclick="setUiLevel('presets')" style="padding:3px 8px;font-size:0.72rem;">&#128993; Preseturi</button>
-            <button id="lvl-advanced" class="lvl-btn" onclick="setUiLevel('advanced')" style="padding:3px 8px;font-size:0.72rem;">&#128308; Avansat</button>
-          </div>
-          <span style="display:none;" id="view-mode-hint">Tablou de bord principal cu zone și orar</span>
-          <span style="display:none;" id="lvl-hint-text">Scenarii de viață dintr-un singur click</span>
-        </div>
+        <span style="display:none;" id="view-mode-hint">Tablou de bord principal</span>
       </div>
     </div>
 
@@ -1601,40 +1590,29 @@
       <!-- SMART BIO-SCHEDULE & PRESETS CARD -->
       <div class="card" id="card-bio-schedule">
         <div class="sec-head">
-          <h2>&#9201; Smart Bio-Schedule</h2>
+          <h2>🗓️ Program Orar (Blocuri de Timp)</h2>
           <span class="sub-tag" id="tag-active-preset">Preset: standard</span>
         </div>
 
-        <!-- Beginner Info Box (shown only in beginner level) -->
-        <div id="box-beginner-msg" style="display:none;padding:12px;background:rgba(16,185,129,0.08);border:1px solid rgba(16,185,129,0.25);border-radius:10px;font-size:0.78rem;color:#6ee7b7;line-height:1.4;">
-          &#127793; <b>Mod Simplu (Manual Direct):</b> Orarul automat este oprit. Poți regla direct temperaturile camerelor din cardurile de pardoseală din dreapta folosind butoanele <b>+</b> și <b>-</b>, exact ca la un termostat clasic.
-        </div>
-
-        <!-- Master Toggles & Advanced Guards (PreHeat & Window) -->
-        <div id="box-advanced-guards" style="display:none;flex-direction:column;gap:6px;">
+        <!-- Master Toggles (Orar Inteligent & Pre-Heat) -->
+        <div id="box-advanced-guards" style="display:flex;flex-direction:column;gap:6px;">
           <div style="display:flex;gap:6px;flex-wrap:wrap;">
-            <div class="toggle-row" style="flex:1;min-width:140px;margin-bottom:0;">
+            <div class="toggle-row" style="flex:1;min-width:140px;margin-bottom:0;" title="Activează/dezactivează motorul de orar automat. Oprit = mod simplu cu setpoint manual.">
               <span class="toggle-label" style="font-size:0.75rem;">&#128197; Orar Inteligent</span>
               <label class="switch">
                 <input type="checkbox" id="sw-schedule-en" aria-label="Activare Orar Inteligent" title="Activare Orar Inteligent" onchange="toggleScheduleMaster()">
                 <span class="slider"></span>
               </label>
             </div>
-            <div class="toggle-row" style="flex:1;min-width:120px;margin-bottom:0;">
+            <div class="toggle-row" style="flex:1;min-width:120px;margin-bottom:0;" title="Anticipare Termică: pornește circulația apei calde în șapă cu 45 de minute înainte de intervalul următor, pentru a compensa inerția termică a pardoselii.">
               <span class="toggle-label" style="font-size:0.75rem;">&#128293; Pre-Heat</span>
               <label class="switch">
-                <input type="checkbox" id="sw-preheat-en" aria-label="Activare Pre-Heat Anticipativ" title="Activare Pre-Heat Anticipativ" onchange="toggleScheduleMaster()">
-                <span class="slider"></span>
-              </label>
-            </div>
-            <div class="toggle-row" style="flex:1;min-width:120px;margin-bottom:0;">
-              <span class="toggle-label" style="font-size:0.75rem;">&#129695; Geam Deschis</span>
-              <label class="switch">
-                <input type="checkbox" id="sw-window-en" aria-label="Protecție Geam Deschis" title="Protecție Geam Deschis" onchange="toggleScheduleMaster()">
+                <input type="checkbox" id="sw-preheat-en" aria-label="Activare Pre-Heat Anticipativ" title="Anticipare Termică: pornește circulația apei calde în șapă cu 45 de minute înainte de intervalul următor, pentru a compensa inerția termică a pardoselii." onchange="toggleScheduleMaster()">
                 <span class="slider"></span>
               </label>
             </div>
           </div>
+          <div id="sched-mode-hint" style="font-size:0.72rem;font-weight:600;color:#38bdf8;padding:2px 4px;">Mod Inteligent: urmează presetul activ</div>
 
           <!-- Pre-Heat Active Alert -->
           <div class="preheat-banner" id="banner-preheat" style="padding:6px 10px;font-size:0.74rem;">
@@ -1663,47 +1641,70 @@
           <span id="next-anchor-countdown" style="font-weight:700;color:#38bdf8;">(în --)</span>
         </div>
 
-        <!-- Presets Selection Bar (visible in Presets and Advanced) -->
+        <!-- Presets Selection Bar -->
         <div id="box-presets-section">
-          <div style="font-size:0.76rem;font-weight:700;color:#94a3b8;margin:8px 0 6px;">PRESET-URI RAPIDE:</div>
+          <div style="display:flex;align-items:center;justify-content:space-between;margin:8px 0 6px;">
+            <span style="font-size:0.76rem;font-weight:700;color:#94a3b8;">PRESET-URI RAPIDE:</span>
+            <div id="preset-active-days-tag" style="font-size:0.7rem;color:#38bdf8;font-weight:600;"></div>
+          </div>
           <div class="presets-container" id="presets-chips-box">
             <div class="preset-chip active" onclick="applyPreset('default')">&#127981; Standard</div>
             <div class="preset-chip" onclick="applyPreset('eco')">&#127811; Eco (18&deg;)</div>
             <div class="preset-chip" onclick="applyPreset('wfh')">&#128188; WFH (22.5&deg;)</div>
           </div>
 
-          <div class="preset-actions-bar" id="box-presets-actions" style="display:flex;flex-wrap:wrap;gap:6px;margin-top:8px;">
-            <button class="btn-preset-action" id="btn-preset-add" onclick="addNewCustomPreset()">➕ Adaugă Slot</button>
-            <button class="btn-preset-action" id="btn-preset-save" onclick="saveCurrentPresetChanges()">💾 Salvează</button>
-            <button class="btn-preset-action" id="btn-preset-discard" onclick="discardPresetChanges()">↺ Anulează</button>
-            <button class="btn-preset-action" id="btn-preset-rename" onclick="renameCurrentPreset()">✏️ Redenumește</button>
-            <button class="btn-preset-action btn-preset-danger" id="btn-preset-delete" onclick="deleteCurrentPreset()">🗑️ Șterge</button>
+          <div class="preset-actions-bar" id="box-presets-actions" style="display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:6px;margin-top:10px;">
+            <div style="display:flex;flex-wrap:wrap;gap:6px;">
+              <button class="btn-preset-action" id="btn-toggle-editor" onclick="togglePresetEditor()" style="background:#0284c7;color:#fff;font-weight:700;padding:6px 14px;font-size:0.8rem;border-radius:6px;box-shadow:0 2px 8px rgba(2,132,199,0.4);">⚙️ Configurează Orar &amp; Intervale 🔽</button>
+              <button class="btn-preset-action" id="btn-preset-add" onclick="addNewCustomPreset()">➕ Preset Nou</button>
+              <button class="btn-preset-action" id="btn-preset-rename" onclick="renameCurrentPreset()">✏️ Redenumește</button>
+              <button class="btn-preset-action btn-preset-danger" id="btn-preset-delete" onclick="deleteCurrentPreset()">🗑️ Șterge</button>
+            </div>
           </div>
         </div>
 
-        <!-- Direct Schedule Editor Table (visible ONLY in Advanced) -->
-        <div class="editor-card" id="box-advanced-editor" style="display:none;">
+        <!-- Direct Schedule Editor Table -->
+        <div class="editor-card" id="box-advanced-editor" style="display:block;margin-top:12px;background:#0b1329;border:1px solid #1e293b;border-radius:10px;padding:12px;">
           <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;flex-wrap:wrap;gap:6px;">
-            <span style="font-size:0.78rem;font-weight:800;color:#cbd5e1;">CONFIGURARE ORAR CIRCADIAN:</span>
-            <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
-              <div class="profile-tabs" style="margin-bottom:0;">
-                <button class="tab-btn active" id="tab-weekday" onclick="setEditorProfile('weekday')">L–V (Săptămână)</button>
-                <button class="tab-btn" id="tab-weekend" onclick="setEditorProfile('weekend')">S–D (Weekend)</button>
+            <div>
+              <span style="font-size:0.78rem;font-weight:800;color:#cbd5e1;">EDITARE ORAR &amp; ANCORE PRESET:</span>
+              <div style="display:flex;align-items:center;gap:4px;margin-top:4px;">
+                <span style="font-size:0.7rem;color:#94a3b8;">Zile active pentru acest preset:</span>
+                <div id="preset-days-checkboxes" style="display:flex;gap:4px;font-size:0.68rem;font-weight:700;">
+                  <label class="day-chip"><input type="checkbox" id="chk-day-1" onchange="onPresetDaysChange()"> L</label>
+                  <label class="day-chip"><input type="checkbox" id="chk-day-2" onchange="onPresetDaysChange()"> M</label>
+                  <label class="day-chip"><input type="checkbox" id="chk-day-3" onchange="onPresetDaysChange()"> M</label>
+                  <label class="day-chip"><input type="checkbox" id="chk-day-4" onchange="onPresetDaysChange()"> J</label>
+                  <label class="day-chip"><input type="checkbox" id="chk-day-5" onchange="onPresetDaysChange()"> V</label>
+                  <label class="day-chip"><input type="checkbox" id="chk-day-6" onchange="onPresetDaysChange()"> S</label>
+                  <label class="day-chip"><input type="checkbox" id="chk-day-0" onchange="onPresetDaysChange()"> D</label>
+                </div>
               </div>
-              <button class="btn-preset-action" onclick="copyWeekdayToWeekend()" title="Copiază orarul complet L-V în S-D (Weekend)" style="padding:4px 8px;font-size:0.7rem;">📋 Copiază L-V &rarr; S-D</button>
+            </div>
+            <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
+              <button class="btn-preset-action" onclick="saveCurrentPresetChanges()" style="background:#059669;color:#fff;font-weight:700;">💾 Salvează Preset</button>
+              <button class="btn-preset-action" onclick="discardPresetChanges()">↺ Anulează</button>
+              <button class="btn-preset-action" onclick="copyWeekdayToWeekend()" title="Copiază orarul complet L-V în S-D (Weekend)" style="padding:4px 8px;font-size:0.7rem;">📋 L-V &rarr; S-D</button>
             </div>
           </div>
 
-          <!-- Direct Inline Matrix Table for the active profile (L-V or S-D) -->
+          <!-- Profile Tabs for Weekday vs Weekend -->
+          <div style="display:flex;gap:6px;margin:8px 0 10px;">
+            <button class="tab-btn active" id="tab-weekday" onclick="setEditorProfile('weekday')" style="padding:5px 12px;font-size:0.75rem;font-weight:700;">📅 L–V (Săptămână)</button>
+            <button class="tab-btn" id="tab-weekend" onclick="setEditorProfile('weekend')" style="padding:5px 12px;font-size:0.75rem;font-weight:700;">🏖️ S–D (Weekend)</button>
+          </div>
+
+          <!-- Direct Dynamic Block Table for the active profile -->
           <div style="overflow-x:auto;">
             <table class="matrix-table" style="width:100%;font-size:0.78rem;">
               <thead>
                 <tr>
-                  <th style="padding:6px 8px;font-size:0.72rem;">Ancoră</th>
-                  <th style="padding:6px 8px;font-size:0.72rem;">Oră</th>
+                  <th style="padding:6px 8px;font-size:0.72rem;">Interval / Denumire</th>
+                  <th style="padding:6px 8px;font-size:0.72rem;">Oră Pornire</th>
                   <th style="padding:6px 8px;font-size:0.72rem;">Living (Z1)</th>
                   <th style="padding:6px 8px;font-size:0.72rem;">Copil (Z2)</th>
                   <th style="padding:6px 8px;font-size:0.72rem;">Matrimonial (Z3)</th>
+                  <th style="padding:6px 4px;font-size:0.72rem;width:35px;"></th>
                 </tr>
               </thead>
               <tbody id="anchors-table-tbody">
@@ -1712,9 +1713,13 @@
             </table>
           </div>
 
-          <div style="display:flex;justify-content:space-between;align-items:center;margin-top:8px;font-size:0.7rem;color:#94a3b8;">
-            <span>* Modificările pe <b id="active-profile-label" style="color:#38bdf8;">L–V</b> sunt independente de Weekend și se salvează automat în Flash.</span>
-            <span id="matrix-save-indicator" style="color:#34d399;display:none;font-weight:700;">✓ Salvat în NVS</span>
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-top:10px;flex-wrap:wrap;gap:8px;">
+            <button class="btn-preset-action" onclick="addNewBlock()" style="background:#0284c7;color:#fff;font-weight:700;font-size:0.76rem;padding:5px 12px;">➕ Adaugă Interval (Max 8)</button>
+            <span id="matrix-save-indicator" style="color:#34d399;display:none;font-weight:700;font-size:0.75rem;">✓ Salvat în NVS</span>
+          </div>
+
+          <div style="margin-top:8px;font-size:0.7rem;color:#94a3b8;">
+            * Modificările pe <b id="active-profile-label" style="color:#38bdf8;">L–V (Săptămână)</b> sunt independente de Weekend și se salvează automat în memoria Flash NVS.
           </div>
 
           <!-- Preserved legacy containers to prevent query errors -->
@@ -1765,18 +1770,18 @@
     </div>
 
     <!-- ======================================================== -->
-    <!-- CARD 1: SCHEMĂ TERMODINAMICĂ & HIDRAULICĂ (TESLA MODE)   -->
+    <!-- CARD 1: SCHEMĂ TERMODINAMICĂ & HIDRAULICĂ (SCHEMĂ HIDRAULICĂ)   -->
     <!-- ======================================================== -->
-    <div id="card-tesla-view" class="card col-span-2 tesla-card" style="display:none;">
+    <div id="card-hydro-view" class="card col-span-2 hydraulic-card" style="display:none;">
       
-      <!-- Tesla Header -->
+      <!-- Header Hidraulic -->
       <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:14px;padding-bottom:10px;border-bottom:1px solid rgba(255,255,255,0.06);">
         <div style="display:flex;align-items:center;gap:10px;">
           <div style="background:rgba(56,189,248,0.15);border:1px solid rgba(56,189,248,0.3);border-radius:10px;width:38px;height:38px;display:flex;align-items:center;justify-content:center;font-size:1.3rem;">
             &#127950;
           </div>
           <div>
-            <h2 style="font-size:1.05rem;font-weight:800;color:#f8fafc;letter-spacing:-0.2px;">Tesla Service Mode &bull; Schemă Bucle Termodinamice</h2>
+            <h2 style="font-size:1.05rem;font-weight:800;color:#f8fafc;letter-spacing:-0.2px;">Schemă Hidraulică & Diagnostic &bull; Schemă Bucle Termodinamice</h2>
             <div style="font-size:0.72rem;color:#94a3b8;">Supermanifold 7 Circuite Șapă &bull; Bypass Băi &bull; Pompă GPA &bull; Dilatare Ceară</div>
           </div>
         </div>
@@ -1879,14 +1884,14 @@
           <!-- Main Tur Pipe (Boiler -> Manifold) -->
           <path d="M 225 100 L 280 100 M 320 100 L 365 100 L 365 138 M 365 222 L 365 295 L 435 295 L 435 98 L 505 98"
                 fill="none" stroke="#ea580c" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>
-          <path id="ts-pipe-flow-tur" class="tesla-flow-pipe"
+          <path id="ts-pipe-flow-tur" class="hydro-flow-pipe"
                 d="M 225 100 L 280 100 M 320 100 L 365 100 L 365 138 M 365 222 L 365 295 L 435 295 L 435 98 L 505 98"
                 fill="none" stroke="#fef08a" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
 
           <!-- Main Retur Pipe (Manifold -> Boiler) -->
           <path d="M 505 353 L 225 353"
                 fill="none" stroke="#0284c7" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>
-          <path id="ts-pipe-flow-retur" class="tesla-flow-pipe-rev"
+          <path id="ts-pipe-flow-retur" class="hydro-flow-pipe-rev"
                 d="M 505 353 L 225 353"
                 fill="none" stroke="#bae6fd" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
 
@@ -1898,7 +1903,7 @@
             <path d="M 535 131 L 535 170 Q 520 195 535 220 Q 550 245 535 270 L 535 295" fill="none" stroke="#ea580c" stroke-width="3" stroke-linecap="round"/>
             <path d="M 558 131 L 558 170 Q 545 195 558 220 Q 570 245 558 270 L 558 295" fill="none" stroke="#ea580c" stroke-width="3.5" stroke-linecap="round"/>
             <path d="M 580 131 L 580 170 Q 568 195 580 220 Q 595 245 580 270 L 580 295" fill="none" stroke="#ea580c" stroke-width="3" stroke-linecap="round"/>
-            <path id="ts-coil-flow-1" class="tesla-flow-pipe"
+            <path id="ts-coil-flow-1" class="hydro-flow-pipe"
                   d="M 558 131 L 558 170 Q 545 195 558 220 Q 570 245 558 270 L 558 295"
                   fill="none" stroke="#fef08a" stroke-width="2.5" stroke-linecap="round"/>
             
@@ -1924,7 +1929,7 @@
             <!-- 2 Parallel Loops -->
             <path d="M 645 131 L 645 170 Q 630 195 645 220 Q 660 245 645 270 L 645 295" fill="none" stroke="#ea580c" stroke-width="3.5" stroke-linecap="round"/>
             <path d="M 670 131 L 670 170 Q 655 195 670 220 Q 685 245 670 270 L 670 295" fill="none" stroke="#ea580c" stroke-width="3.5" stroke-linecap="round"/>
-            <path id="ts-coil-flow-2" class="tesla-flow-pipe"
+            <path id="ts-coil-flow-2" class="hydro-flow-pipe"
                   d="M 658 131 L 658 170 Q 645 195 658 220 Q 670 245 658 270 L 658 295"
                   fill="none" stroke="#fef08a" stroke-width="2.5" stroke-linecap="round"/>
             
@@ -1950,7 +1955,7 @@
             <!-- 2 Parallel Loops -->
             <path d="M 745 131 L 745 170 Q 730 195 745 220 Q 760 245 745 270 L 745 295" fill="none" stroke="#ea580c" stroke-width="3.5" stroke-linecap="round"/>
             <path d="M 770 131 L 770 170 Q 755 195 770 220 Q 785 245 770 270 L 770 295" fill="none" stroke="#ea580c" stroke-width="3.5" stroke-linecap="round"/>
-            <path id="ts-coil-flow-3" class="tesla-flow-pipe"
+            <path id="ts-coil-flow-3" class="hydro-flow-pipe"
                   d="M 758 131 L 758 170 Q 745 195 758 220 Q 770 245 758 270 L 758 295"
                   fill="none" stroke="#fef08a" stroke-width="2.5" stroke-linecap="round"/>
             
@@ -1977,7 +1982,7 @@
             <!-- Towel Radiator Permanent Bypass Flow -->
             <path d="M 855 131 L 855 185 M 840 185 L 870 185 M 840 205 L 870 205 M 840 225 L 870 225 M 855 185 L 855 340"
                   fill="none" stroke="#0284c7" stroke-width="4" stroke-linecap="round"/>
-            <path id="ts-coil-flow-bypass" class="tesla-flow-pipe"
+            <path id="ts-coil-flow-bypass" class="hydro-flow-pipe"
                   d="M 855 131 L 855 340"
                   fill="none" stroke="#7dd3fc" stroke-width="2.5" stroke-linecap="round"/>
 
@@ -1990,13 +1995,13 @@
         </svg>
       </div>
 
-      <!-- Tesla Service Actions Grid -->
-      <div class="tesla-actions-grid">
-        <button class="btn-tesla" onclick="testTeslaPump()">&#128260; Purjare / Test Pompă GPA</button>
-        <button class="btn-tesla" onclick="testTeslaBoilerPing()">&#128251; Test Emisie RF Cazan</button>
-        <button class="btn-tesla" onclick="toggleZone(1)">&#128268; Test Valvă Copil (R33)</button>
-        <button class="btn-tesla" onclick="toggleZone(0)">&#128268; Test Valvă Living (R32)</button>
-        <button class="btn-tesla" onclick="clearDtcErrors()">&#129529; Curățare DTC Diagnoză</button>
+      <!-- Service Hidraulic Actions Grid -->
+      <div class="hydro-actions-grid">
+        <button class="btn-hydro" onclick="testHydroPump()">&#128260; Purjare / Test Pompă GPA</button>
+        <button class="btn-hydro" onclick="testHydroBoilerPing()">&#128251; Test Emisie RF Cazan</button>
+        <button class="btn-hydro" onclick="toggleZone(1)">&#128268; Test Valvă Copil (R33)</button>
+        <button class="btn-hydro" onclick="toggleZone(0)">&#128268; Test Valvă Living (R32)</button>
+        <button class="btn-hydro" onclick="clearDtcErrors()">&#129529; Curățare DTC Diagnoză</button>
       </div>
 
     </div>
@@ -2012,7 +2017,7 @@
           </div>
           <div>
             <h2 style="font-size:1.05rem;font-weight:800;color:#f8fafc;letter-spacing:-0.2px;">Stateflow FSM Ierarhic &bull; Arbore de Decizie Hidraulic</h2>
-            <div style="font-size:0.72rem;color:#94a3b8;">Plan A (Master Plant Boiler + Pompă GPA) &bull; Plan B (3 Benzi Zone Paralele)</div>
+            <div style="font-size:0.72rem;color:#94a3b8;">Ciclu Termic Hidraulic &bull; Gărzi Asincrone de Siguranță</div>
           </div>
         </div>
 
@@ -2023,7 +2028,7 @@
 
       <!-- Stateflow SVG 2-Plane Diagram -->
       <div style="background:#050811;border:1px solid rgba(255,255,255,0.06);border-radius:12px;padding:12px;margin-bottom:14px;overflow-x:auto;">
-        <svg viewBox="0 0 940 460" style="width:100%;min-width:780px;height:auto;display:block;">
+        <svg viewBox="0 0 940 235" style="width:100%;min-width:780px;height:auto;display:block;">
           <defs>
             <marker id="fsm-arrow" viewBox="0 0 10 10" refX="7" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
               <path d="M 0 1 L 10 5 L 0 9 z" fill="#38bdf8" />
@@ -2038,8 +2043,6 @@
           <text x="35" y="38" fill="#38bdf8" font-size="11" font-weight="800" letter-spacing="0.5">PLANUL A: MASTER PLANT & HYDRONIC FSM (1 Instanță &mdash; Cazan Gaz + Pompă GPA)</text>
 
           <!-- Transition Arrows Plan A -->
-          <!-- S0 -> S1 -->
-          <path d="M 125 90 L 165 90" stroke="#475569" stroke-width="2" marker-end="url(#fsm-arrow-muted)"/>
           
           <!-- S1 -> S2 (anyDemand) -->
           <path id="fsm-p-idle-demand" d="M 285 90 L 335 90" stroke="#38bdf8" stroke-width="2" class="fsm-arrow-path" marker-end="url(#fsm-arrow)"/>
@@ -2067,10 +2070,7 @@
           <path d="M 330 195 L 225 195 L 225 125" stroke="#475569" stroke-width="2" marker-end="url(#fsm-arrow-muted)"/>
           <text x="270" y="190" fill="#cbd5e1" font-size="8" font-weight="700" text-anchor="middle">[60s Cooldown Gata]</text>
 
-          <!-- State S0: BOOT_WARMUP -->
-          <rect x="35" y="70" width="90" height="42" rx="8" fill="#0f172a" stroke="#334155" stroke-width="1.5"/>
-          <text x="80" y="88" fill="#e2e8f0" font-size="9" font-weight="800" text-anchor="middle">S0: BOOT</text>
-          <text x="80" y="102" fill="#cbd5e1" font-size="7.5" text-anchor="middle">Warmup BLE</text>
+          
 
           <!-- State S1: SYS_IDLE -->
           <rect id="svg-node-idle" x="165" y="65" width="120" height="52" rx="8" fill="#0f172a" stroke="#38bdf8" stroke-width="2"/>
@@ -2115,120 +2115,312 @@
           <text x="232" y="204" fill="#94a3b8" font-size="7" text-anchor="middle">Standby Forțat Manual</text>
 
 
-          <!-- ================= PLAN B: ZONE PARALLEL FSM ================= -->
-          <rect x="15" y="260" width="910" height="185" rx="12" fill="#090e1c" stroke="#1e293b" stroke-width="1.5"/>
-          <text x="35" y="282" fill="#38bdf8" font-size="11" font-weight="800" letter-spacing="0.5">PLANUL B: ZONE PARALLEL FSM (3 Benzi Orizontale &bull; Valve Pardoseală &amp; Interblocări)</text>
-
-          <!-- Lane 1: Z1 Living (GPIO32) -->
-          <text x="35" y="315" fill="#f8fafc" font-size="9.5" font-weight="800">Z1: Living &amp; Bucătărie (R32):</text>
-          <rect id="track-z1-state" x="220" y="302" width="460" height="24" rx="6" fill="#0f172a" stroke="#334155"/>
-          <text id="track-z1-txt" x="450" y="318" fill="#38bdf8" font-size="8.5" font-weight="700" text-anchor="middle">IDLE (Temp OK) &bull; Valvă Închisă (NC)</text>
-
-          <!-- Lane 2: Z2 Copil (GPIO33) -->
-          <text x="35" y="355" fill="#f8fafc" font-size="9.5" font-weight="800">Z2: Camera Copilului (R33):</text>
-          <rect id="track-z2-state" x="220" y="342" width="460" height="24" rx="6" fill="#0f172a" stroke="#334155"/>
-          <text id="track-z2-txt" x="450" y="358" fill="#34d399" font-size="8.5" font-weight="700" text-anchor="middle">FLOW ACTIVE &bull; Încălzire Activă (230V)</text>
-
-          <!-- Lane 3: Z3 Matrimonial (GPIO25) -->
-          <text x="35" y="395" fill="#f8fafc" font-size="9.5" font-weight="800">Z3: Dormitor Matrimonial (R25):</text>
-          <rect id="track-z3-state" x="220" y="382" width="460" height="24" rx="6" fill="#0f172a" stroke="#334155"/>
-          <text id="track-z3-txt" x="450" y="398" fill="#38bdf8" font-size="8.5" font-weight="700" text-anchor="middle">IDLE (Temp OK) &bull; Valvă Închisă (NC)</text>
-
-          <!-- Local Exception Badges on Right -->
-          <g transform="translate(700, 295)">
-            <rect x="0" y="0" width="210" height="135" rx="8" fill="#070c18" stroke="#1e293b"/>
-            <text x="15" y="20" fill="#cbd5e1" font-size="8.5" font-weight="800">Interblocări &amp; Protecții Locale:</text>
-            <text id="fsm-badge-window" x="15" y="45" fill="#fb7185" font-size="8">&bull; 🪟 Geam Deschis: Inactiv</text>
-            <text id="fsm-badge-frost" x="15" y="70" fill="#38bdf8" font-size="8">&bull; ❄️ Protecție Îngheț: Inactiv (&gt;12&deg;C)</text>
-            <text id="fsm-badge-sensor" x="15" y="95" fill="#34d399" font-size="8">&bull; 📡 Failsafe Senzori (DTC-101): OK</text>
-            <text x="15" y="120" fill="#94a3b8" font-size="7.5">&bull; Prioritate: Failsafe &gt; Manual &gt; Auto</text>
-          </g>
-
-        </svg>
+                  </svg>
       </div>
 
-      <!-- FSM Nodes Grid (Preserving All 9 Node IDs for Full ASPICE SWE.5 & CDP Live Test Suite Verification) -->
+      <!-- FSM Nodes Group 1: Fluxul Ciclului Termic (Secvențial & Hidraulic) -->
+      <div style="font-size:0.78rem;font-weight:800;color:#38bdf8;margin:12px 0 6px;">🌀 FLUXUL CICLULUI TERMIC HIDRAULIC:</div>
       <div class="fsm-grid">
-        <!-- Node 1: IDLE / STANDBY -->
+        <!-- Node: IDLE / STANDBY -->
         <div id="fsm-node-idle" class="fsm-node active">
           <div class="fsm-node-header">
-            <span class="fsm-node-title">&#128564; 1. IDLE / STANDBY</span>
+            <span class="fsm-node-title">&#128564; STANDBY / REPAUS</span>
             <span class="fsm-badge">0V / Standby</span>
           </div>
           <div class="fsm-node-desc">Toate camerele la temperatură. Cazan oprit, pompă oprită, valve electrotermice NC închise.</div>
         </div>
 
-        <!-- Node 2: ZONE DEMAND -->
+        <!-- Node: ZONE DEMAND -->
         <div id="fsm-node-demand" class="fsm-node">
           <div class="fsm-node-header">
-            <span class="fsm-node-title">&#128227; 2. CERERE TERMICĂ</span>
+            <span class="fsm-node-title">&#128227; CERERE TERMICĂ</span>
             <span class="fsm-badge">T &lt; Setpoint</span>
           </div>
           <div class="fsm-node-desc">Cel puțin o cameră scade sub setpoint - 0.15&deg;C. Releul NC al buclei pornește (230V aplicat).</div>
         </div>
 
-        <!-- Node 3: WAX EXPANSION DELAY -->
+        <!-- Node: WAX EXPANSION DELAY -->
         <div id="fsm-node-wax" class="fsm-node">
           <div class="fsm-node-header">
-            <span class="fsm-node-title">&#9203; 3. AȘTEPTARE ACTUATOR</span>
-            <span class="fsm-badge" id="fsm-wax-timer">120-180s WAX</span>
+            <span class="fsm-node-title">&#9203; AȘTEPTARE ACTUATOR</span>
+            <span class="fsm-badge" id="fsm-wax-timer">120-180s Ceară</span>
           </div>
           <div class="fsm-node-desc">Interlock de protecție: flacăra este reținută până când ceara termică deschide complet circuitul.</div>
         </div>
 
-        <!-- Node 4: MANUAL HOLD (Special Substate) -->
-        <div id="fsm-node-manual-hold" class="fsm-node">
-          <div class="fsm-node-header">
-            <span class="fsm-node-title">&#9995; 4. MANUAL HOLD</span>
-            <span class="fsm-badge">Master OFF</span>
-          </div>
-          <div class="fsm-node-desc">Cerere activă în camere, dar Cazanul este în Standby Manual. Pompă pornită, flacăra nu aprinde gazul.</div>
-        </div>
-
-        <!-- Node 5: ACTIVE BURNING -->
+        <!-- Node: ACTIVE BURNING -->
         <div id="fsm-node-active-heat" class="fsm-node">
           <div class="fsm-node-header">
-            <span class="fsm-node-title">&#128293; 5. ÎNCĂLZIRE ACTIVĂ</span>
+            <span class="fsm-node-title">&#128293; ÎNCĂLZIRE ACTIVĂ</span>
             <span class="fsm-badge">433MHz ON</span>
           </div>
-          <div class="fsm-node-desc">Comandă RF ON trimisă la cazan. Pompa Releu 4 activă. Flacăra menținută minim 60s (Anti-Short Cycle).</div>
+          <div class="fsm-node-desc">Comandă RF ON trimisă la cazan. Flacăra menținută minim 60s (Garda Anti-Short Cycle).</div>
         </div>
 
-        <!-- Node 6: PUMP OVERRUN -->
+        <!-- Node: PUMP OVERRUN -->
         <div id="fsm-node-overrun" class="fsm-node">
           <div class="fsm-node-header">
-            <span class="fsm-node-title">&#128260; 6. POST-CIRCULAȚIE POMPĂ</span>
+            <span class="fsm-node-title">&#128260; POST-CIRCULAȚIE (DISIPARE)</span>
             <span class="fsm-badge" id="fsm-overrun-timer">180s Overrun</span>
           </div>
-          <div class="fsm-node-desc">Cazan stins. Pompa Releu 4 continuă 180s pe keeper zone pentru a disipa căldura din corpul centralei.</div>
+          <div class="fsm-node-desc">Cazan stins. Circulația continuă pe bucla deschisă pentru a disipa căldura din corpul centralei.</div>
         </div>
 
-        <!-- Node 7: COOLDOWN LOCK -->
+        <!-- Node: COOLDOWN LOCK -->
         <div id="fsm-node-cooldown" class="fsm-node">
           <div class="fsm-node-header">
-            <span class="fsm-node-title">&#128274; 7. GARDĂ COOLDOWN</span>
+            <span class="fsm-node-title">&#128274; GARDĂ ANTI-SHORT-CYCLE</span>
             <span class="fsm-badge" id="fsm-cooldown-timer">60s Lockout</span>
           </div>
-          <div class="fsm-node-desc">Interdicție de reaprindere rapidă (60s). Protejează bobinele vanei de gaz și previne short-cycling.</div>
+          <div class="fsm-node-desc">Interdicție de reaprindere rapidă (60s). Protejează bobinele vanei de gaz și componentele cazanului.</div>
         </div>
+      </div>
 
-        <!-- Node 8: FROST PROTECTION -->
+      <!-- FSM Nodes Group 2: Gărzi & Suprascrieri de Siguranță -->
+      <div style="font-size:0.78rem;font-weight:800;color:#fb923c;margin:16px 0 6px;">🛡️ GĂRZI ASINCRONE &amp; SUPRASCRIERI DE SIGURANȚĂ:</div>
+      <div class="fsm-grid">
+        <!-- Node: FROST PROTECTION -->
         <div id="fsm-node-frost" class="fsm-node">
           <div class="fsm-node-header">
-            <span class="fsm-node-title">&#10052; 8. PROTECȚIE ÎNGHEȚ</span>
+            <span class="fsm-node-title">&#10052; PROTECȚIE LA ÎNGHEȚ</span>
             <span class="fsm-badge">&lt;12.0&deg;C Urgent</span>
           </div>
           <div class="fsm-node-desc">Failsafe critic: dacă orice cameră coboară sub 12&deg;C, cazanul și valvele pornesc forțat indiferent de orar.</div>
         </div>
 
-        <!-- Node 9: OPEN WINDOW PAUSE -->
+        <!-- Node: OPEN WINDOW PAUSE -->
         <div id="fsm-node-window" class="fsm-node">
           <div class="fsm-node-header">
-            <span class="fsm-node-title">&#129695; 9. GEAM DESCHIS (PAUZĂ)</span>
+            <span class="fsm-node-title">&#129695; DETECȚIE GEAM DESCHIS</span>
             <span class="fsm-badge">30m Pauză</span>
           </div>
-          <div class="fsm-node-desc">Cădere &gt;1.2&deg;C / 5min detectată. Valva zonei este forțată pe închis 30 minute pentru a opri risipa de gaz.</div>
+          <div class="fsm-node-desc">Cădere &gt;1.0&deg;C / 5min detectată. Valva zonei este forțată pe închis 30 minute pentru a opri risipa de gaz.</div>
         </div>
+
+        <!-- Node: MANUAL HOLD -->
+        <div id="fsm-node-manual-hold" class="fsm-node">
+          <div class="fsm-node-header">
+            <span class="fsm-node-title">&#9995; STANDBY FORȚAT MANUAL</span>
+            <span class="fsm-badge">Master OFF</span>
+          </div>
+          <div class="fsm-node-desc">Cerere activă în camere, dar Cazanul este în Standby Manual. Flacăra nu aprinde gazul.</div>
+        </div>
+      </div>
+    </div>
+
+
+    <!-- ======================================================== -->
+    <!-- CARD 4: PANOU DE CONFIGURARE SISTEM & PARAMETRI HARDWARE  -->
+    <!-- ======================================================== -->
+    <div id="card-config-view" class="card col-span-2" style="display:none;padding:16px 20px;">
+      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:14px;padding-bottom:10px;border-bottom:1px solid rgba(255,255,255,0.08);">
+        <div style="display:flex;align-items:center;gap:10px;">
+          <div style="background:rgba(56,189,248,0.15);border:1px solid rgba(56,189,248,0.3);border-radius:10px;width:38px;height:38px;display:flex;align-items:center;justify-content:center;font-size:1.3rem;">
+            ⚙️
+          </div>
+          <div>
+            <h2 style="font-size:1.05rem;font-weight:800;color:#f8fafc;letter-spacing:-0.2px;">Configurare Sistem &bull; Parametri Hidraulici &amp; Hardware</h2>
+            <div style="font-size:0.72rem;color:#94a3b8;">Setări salvate permanent în memoria non-volatilă (NVS Flash ESP32)</div>
+          </div>
+        </div>
+        <button class="btn-preset-action" onclick="saveSystemConfiguration()" style="background:#0284c7;color:#fff;font-weight:700;padding:6px 14px;">💾 Salvează Toate Configurrile</button>
+      </div>
+
+      <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(320px, 1fr));gap:16px;">
+        
+        <!-- SECȚIUNEA 1: FUNCȚII SISTEM & RELEE -->
+        <div style="background:#090e1c;border:1px solid #1e293b;border-radius:12px;padding:14px;">
+          <div style="font-size:0.82rem;font-weight:800;color:#38bdf8;margin-bottom:10px;display:flex;align-items:center;gap:6px;">
+            🔌 1. Circuite &amp; Mapare Relee Hardware (ESP32-Relay X4)
+          </div>
+          <div style="font-size:0.74rem;color:#94a3b8;margin-bottom:10px;">
+            Placa de comandă dispune de 4 relee mecanice 10A 230V. Testează live cuplarea fiecărui circuit:
+          </div>
+
+          <table style="width:100%;font-size:0.76rem;border-collapse:collapse;">
+            <thead>
+              <tr style="color:#94a3b8;border-bottom:1px solid #1e293b;text-align:left;">
+                <th style="padding:6px;">Releu</th>
+                <th style="padding:6px;">Pin</th>
+                <th style="padding:6px;">Funcție / Circuit</th>
+                <th style="padding:6px;text-align:right;">Test Live</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr style="border-bottom:1px solid rgba(255,255,255,0.04);">
+                <td style="padding:8px 6px;font-weight:700;color:#e2e8f0;">Releu 1</td>
+                <td style="padding:8px 6px;color:#94a3b8;">GPIO32</td>
+                <td style="padding:8px 6px;color:#38bdf8;">Z1: Living &amp; Bucătărie (Actuatoare NC)</td>
+                <td style="padding:8px 6px;text-align:right;">
+                  <button class="btn-sm" onclick="testRelay(32, 1)">ON</button>
+                  <button class="btn-sm" style="background:#475569;" onclick="testRelay(32, 0)">OFF</button>
+                </td>
+              </tr>
+              <tr style="border-bottom:1px solid rgba(255,255,255,0.04);">
+                <td style="padding:8px 6px;font-weight:700;color:#e2e8f0;">Releu 2</td>
+                <td style="padding:8px 6px;color:#94a3b8;">GPIO33</td>
+                <td style="padding:8px 6px;color:#38bdf8;">Z2: Camera Copilului (Actuatoare NC)</td>
+                <td style="padding:8px 6px;text-align:right;">
+                  <button class="btn-sm" onclick="testRelay(33, 1)">ON</button>
+                  <button class="btn-sm" style="background:#475569;" onclick="testRelay(33, 0)">OFF</button>
+                </td>
+              </tr>
+              <tr style="border-bottom:1px solid rgba(255,255,255,0.04);">
+                <td style="padding:8px 6px;font-weight:700;color:#e2e8f0;">Releu 3</td>
+                <td style="padding:8px 6px;color:#94a3b8;">GPIO25</td>
+                <td style="padding:8px 6px;color:#38bdf8;">Z3: Dormitor Matrimonial (Actuatoare NC)</td>
+                <td style="padding:8px 6px;text-align:right;">
+                  <button class="btn-sm" onclick="testRelay(25, 1)">ON</button>
+                  <button class="btn-sm" style="background:#475569;" onclick="testRelay(25, 0)">OFF</button>
+                </td>
+              </tr>
+              <tr>
+                <td style="padding:8px 6px;font-weight:700;color:#e2e8f0;">Releu 4</td>
+                <td style="padding:8px 6px;color:#94a3b8;">GPIO26</td>
+                <td style="padding:8px 6px;">
+                  <select id="cfg-relay-4-mode" style="background:#0f172a;border:1px solid #334155;color:#e2e8f0;padding:4px;border-radius:6px;font-size:0.75rem;">
+                    <option value="none">Neatribuit / Liber (Recomandat)</option>
+                    <option value="pump">Pompă Amestec GPA (Acționare secundară)</option>
+                    <option value="zone4">Zonă 4 / Actuator Adițional</option>
+                  </select>
+                </td>
+                <td style="padding:8px 6px;text-align:right;">
+                  <button class="btn-sm" onclick="testRelay(26, 1)">ON</button>
+                  <button class="btn-sm" style="background:#475569;" onclick="testRelay(26, 0)">OFF</button>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+
+          <div style="margin-top:12px;padding:8px 10px;background:#0c192c;border:1px solid #1e3a5f;border-radius:8px;">
+            <label style="display:flex;align-items:center;gap:8px;font-size:0.75rem;color:#cbd5e1;cursor:pointer;">
+              <input type="checkbox" id="cfg-pump-installed" onchange="togglePumpInstalledUI()">
+              <span><b>Instalație cu pompă de amestec GPA</b> (Nebifat = fără pompă suplimentară)</span>
+            </label>
+          </div>
+        </div>
+
+        <!-- SECȚIUNEA 2: PARAMETRI HIDRAULICI & SIGURANȚĂ CAZAN -->
+        <div style="background:#090e1c;border:1px solid #1e293b;border-radius:12px;padding:14px;">
+          <div style="font-size:0.82rem;font-weight:800;color:#38bdf8;margin-bottom:10px;display:flex;align-items:center;gap:6px;">
+            ⏱️ 2. Temporizări &amp; Protecție Hidraulică
+          </div>
+
+          <div style="display:flex;flex-direction:column;gap:10px;">
+            <div style="padding:8px 10px;background:rgba(56,189,248,0.08);border:1px solid rgba(56,189,248,0.25);border-radius:8px;">
+              <label style="display:flex;align-items:center;gap:8px;font-size:0.75rem;color:#e2e8f0;cursor:pointer;">
+                <input type="checkbox" id="cfg-open-loop" checked>
+                <span><b>Open-Loop Bypass:</b> Calorifere portprosop permanent deschise (Permite pornirea instantanee a centralei fără delay)</span>
+              </label>
+            </div>
+
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+              <div>
+                <label style="font-size:0.72rem;color:#94a3b8;font-weight:700;">Amorsare Actuatoare (sec):</label>
+                <input type="number" id="cfg-actuator-delay" value="180" min="5" max="600" style="width:100%;padding:6px;background:#0f172a;border:1px solid #334155;color:#f8fafc;border-radius:6px;font-size:0.8rem;margin-top:2px;">
+                <div style="font-size:0.65rem;color:#64748b;">Timp încălzire ceară (default: 180s = 3m)</div>
+              </div>
+              <div>
+                <label style="font-size:0.72rem;color:#94a3b8;font-weight:700;">Delay Pornire Cazan (sec):</label>
+                <input type="number" id="cfg-boiler-delay" value="180" min="0" max="600" style="width:100%;padding:6px;background:#0f172a;border:1px solid #334155;color:#f8fafc;border-radius:6px;font-size:0.8rem;margin-top:2px;">
+                <div style="font-size:0.65rem;color:#64748b;">Dacă Open-Loop = NU (default: 180s)</div>
+              </div>
+            </div>
+
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+              <div>
+                <label style="font-size:0.72rem;color:#94a3b8;font-weight:700;">Anti-Short-Cycling (sec):</label>
+                <input type="number" id="cfg-short-cycling" value="180" min="30" max="600" style="width:100%;padding:6px;background:#0f172a;border:1px solid #334155;color:#f8fafc;border-radius:6px;font-size:0.8rem;margin-top:2px;">
+                <div style="font-size:0.65rem;color:#64748b;">Timp minim ardere/pauză (default: 180s)</div>
+              </div>
+              <div>
+                <label style="font-size:0.72rem;color:#94a3b8;font-weight:700;">Post-Circulație Pompă (sec):</label>
+                <input type="number" id="cfg-pump-overrun" value="180" min="10" max="600" style="width:100%;padding:6px;background:#0f172a;border:1px solid #334155;color:#f8fafc;border-radius:6px;font-size:0.8rem;margin-top:2px;">
+                <div style="font-size:0.65rem;color:#64748b;">Disipare căldură reziduală (default: 180s)</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- SECȚIUNEA 3: PROTOCOL RADIO 433MHz & SENZORI DISTRIBUITOR -->
+        <div style="background:#090e1c;border:1px solid #1e293b;border-radius:12px;padding:14px;">
+          <div style="font-size:0.82rem;font-weight:800;color:#38bdf8;margin-bottom:10px;display:flex;align-items:center;gap:6px;">
+            📡 3. Siguranță Radio 433MHz &amp; Sondă Tur/Retur
+          </div>
+
+          <div style="display:flex;flex-direction:column;gap:10px;">
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+              <div>
+                <label style="font-size:0.72rem;color:#94a3b8;font-weight:700;">Cooldown Spam RF (sec):</label>
+                <input type="number" id="cfg-rf-cooldown" value="3" min="1" max="30" style="width:100%;padding:6px;background:#0f172a;border:1px solid #334155;color:#f8fafc;border-radius:6px;font-size:0.8rem;margin-top:2px;">
+                <div style="font-size:0.65rem;color:#64748b;">Pauză minimă între impulsuri (default: 3s)</div>
+              </div>
+              <div>
+                <label style="font-size:0.72rem;color:#94a3b8;font-weight:700;">Heartbeat Siguranță RF (sec):</label>
+                <input type="number" id="cfg-rf-heartbeat" value="900" min="60" max="3600" style="width:100%;padding:6px;background:#0f172a;border:1px solid #334155;color:#f8fafc;border-radius:6px;font-size:0.8rem;margin-top:2px;">
+                <div style="font-size:0.65rem;color:#64748b;">Retrimitere stare (default: 900s = 15m)</div>
+              </div>
+            </div>
+
+            <label style="display:flex;align-items:center;gap:8px;font-size:0.75rem;color:#cbd5e1;cursor:pointer;">
+              <input type="checkbox" id="cfg-rf-heartbeat-en" checked>
+              <span>Activează retrimiterea periodică a stării prin RF (Heartbeat de siguranță)</span>
+            </label>
+
+            <label style="display:flex;align-items:center;gap:8px;font-size:0.75rem;color:#cbd5e1;cursor:pointer;">
+              <input type="checkbox" id="cfg-tur-retur-sensors">
+              <span>Senzori de temperatură instalați pe tur și retur în distribuitor</span>
+            </label>
+          </div>
+        </div>
+
+        <!-- SECȚIUNEA 4: PROTECȚIE GEAM DESCHIS & FAILSAFE SENZORI -->
+        <div style="background:#090e1c;border:1px solid #1e293b;border-radius:12px;padding:14px;">
+          <div style="font-size:0.82rem;font-weight:800;color:#38bdf8;margin-bottom:10px;display:flex;align-items:center;gap:6px;">
+            🪟 4. Protecție Geam Deschis &amp; Failsafe Senzori
+          </div>
+
+          <div style="display:flex;flex-direction:column;gap:10px;">
+            <label style="display:flex;align-items:center;gap:8px;font-size:0.75rem;color:#cbd5e1;cursor:pointer;">
+              <input type="checkbox" id="cfg-window-en" checked>
+              <span>Activează detecția automată a geamului deschis (oprește încălzirea 30m)</span>
+            </label>
+
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+              <div>
+                <label style="font-size:0.72rem;color:#94a3b8;font-weight:700;">Prag Cădere Temperatură (&deg;C / 5m):</label>
+                <input type="number" id="cfg-window-drop" value="1.0" step="0.1" min="0.5" max="3.0" style="width:100%;padding:6px;background:#0f172a;border:1px solid #334155;color:#f8fafc;border-radius:6px;font-size:0.8rem;margin-top:2px;">
+                <div style="font-size:0.65rem;color:#64748b;">Implicit: 1.0&deg;C cădere rapidă</div>
+              </div>
+              <div>
+                <label style="font-size:0.72rem;color:#94a3b8;font-weight:700;">Timeout Pierdere Senzor BLE (sec):</label>
+                <input type="number" id="cfg-sensor-timeout" value="600" min="60" max="3600" style="width:100%;padding:6px;background:#0f172a;border:1px solid #334155;color:#f8fafc;border-radius:6px;font-size:0.8rem;margin-top:2px;">
+                <div style="font-size:0.65rem;color:#64748b;">Oprire buclă la lipsă pachete (default: 600s = 10m)</div>
+              </div>
+            </div>
+
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+              <div>
+                <label style="font-size:0.72rem;color:#94a3b8;font-weight:700;">Protecție la Îngheț (&deg;C):</label>
+                <input type="number" id="cfg-frost-temp" value="12.0" step="0.5" min="5.0" max="18.0" style="width:100%;padding:6px;background:#0f172a;border:1px solid #334155;color:#f8fafc;border-radius:6px;font-size:0.8rem;margin-top:2px;">
+                <div style="font-size:0.65rem;color:#64748b;">Pornire de urgență dacă o cameră coboară sub acest prag</div>
+              </div>
+              <div>
+                <label style="font-size:0.72rem;color:#94a3b8;font-weight:700;">Polaritate Actuatoare:</label>
+                <select id="cfg-actuator-nc" style="width:100%;padding:6px;background:#0f172a;border:1px solid #334155;color:#f8fafc;border-radius:6px;font-size:0.8rem;margin-top:2px;">
+                  <option value="nc">NC (Normal Închis &bull; Releu anclanșat la căldură)</option>
+                  <option value="no">NO (Normal Deschis &bull; Releu tăiat la căldură)</option>
+                </select>
+                <div style="font-size:0.65rem;color:#64748b;">Actuatoarele electrotermice standard sunt NC</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+      <div style="margin-top:16px;display:flex;justify-content:flex-end;">
+        <button class="btn-preset-action" onclick="saveSystemConfiguration()" style="background:#0284c7;color:#fff;font-weight:700;padding:8px 20px;font-size:0.85rem;">💾 Salvează Toate Configurrile în Flash NVS</button>
       </div>
     </div>
 
@@ -2387,26 +2579,24 @@
       }
     }
 
-    // Temperature History & Trend Engine (LocalStorage Cached, Max 3h Window)
-    const TEMP_HISTORY_KEY = 'smart_heating_temp_history_v1';
-    let tempHistoryCache = null;
+    // Real Server Telemetry Engine (Synchronized across all browsers & devices via /api/history)
+    let serverTelemetryHistory = null;
+    let lastHistoryFetchMs = 0;
 
-    function loadTempHistory() {
-      if (tempHistoryCache) return tempHistoryCache;
+    async function fetchServerTelemetryHistory() {
+      const now = Date.now();
+      if (serverTelemetryHistory && (now - lastHistoryFetchMs < 30000)) return serverTelemetryHistory;
       try {
-        const raw = localStorage.getItem(TEMP_HISTORY_KEY);
-        tempHistoryCache = raw ? JSON.parse(raw) : {};
-      } catch (e) {
-        tempHistoryCache = {};
-      }
-      return tempHistoryCache || {};
-    }
-
-    function saveTempHistory(hist) {
-      tempHistoryCache = hist;
-      try {
-        localStorage.setItem(TEMP_HISTORY_KEY, JSON.stringify(hist));
+        const res = await fetch(base + 'api/history?range=24h', { cache: 'no-store' });
+        if (res.ok) {
+          serverTelemetryHistory = await res.json();
+          lastHistoryFetchMs = now;
+          if (lastZData && lastZData.zones) {
+            renderZones(lastZData.zones, (scheduleData && scheduleData.enabled !== undefined) ? scheduleData.enabled : true);
+          }
+        }
       } catch (e) {}
+      return serverTelemetryHistory;
     }
 
     // Canonical Sensor Key Resolver - unites zone and sensor sample histories into a single shared timeline!
@@ -2447,92 +2637,75 @@
       refresh();
     }
 
-    function recordTempSample(key, currentTemp) {
-      if (typeof currentTemp !== 'number' || isNaN(currentTemp) || currentTemp < -50 || currentTemp > 60) return;
-      const hist = loadTempHistory();
-      if (!hist[key]) hist[key] = [];
-      const now = Date.now();
-      const list = hist[key];
-
-      // Prune samples older than 3 hours (10,800,000 ms)
-      const cutoff = now - 10800000;
-      hist[key] = list.filter(item => item.time >= cutoff);
-
-      const last = hist[key].length > 0 ? hist[key][hist[key].length - 1] : null;
-      if (!last || (now - last.time >= 120000) || Math.abs(currentTemp - last.temp) >= 0.15) {
-        hist[key].push({ time: now, temp: currentTemp });
-        if (hist[key].length > 40) {
-          hist[key].splice(0, hist[key].length - 40);
-        }
-        saveTempHistory(hist);
-      }
-    }
-
-    function getTempSparkline(key, currentTemp, width = 64, height = 20, compact = false) {
+    function getTempSparkline(zoneIdxOrKey, currentTemp, width = 64, height = 20, compact = false) {
       if (typeof currentTemp !== 'number' || isNaN(currentTemp) || currentTemp < -50) {
         return '';
       }
-      recordTempSample(key, currentTemp);
 
-      const hist = loadTempHistory();
-      const list = hist[key] || [];
+      let zIdx = -1;
+      if (typeof zoneIdxOrKey === 'number') {
+        zIdx = zoneIdxOrKey;
+      } else if (typeof zoneIdxOrKey === 'string') {
+        const lower = zoneIdxOrKey.toLowerCase();
+        if (lower.includes('living') || lower.includes('a4c138a4c1dd') || lower.includes('z1')) zIdx = 0;
+        else if (lower.includes('copil') || lower.includes('kids') || lower.includes('a4c13884a1e8') || lower.includes('z2')) zIdx = 1;
+        else if (lower.includes('matrimonial') || lower.includes('a4c138940f44') || lower.includes('z3')) zIdx = 2;
+      }
+
+      let list = [];
       const now = Date.now();
 
-      // Find reference sample (ideally 15 to 60 minutes ago, fallback to oldest >= 3m or first sample)
-      let refSample = null;
-      for (let i = 0; i < list.length - 1; i++) {
-        const ageMin = (now - list[i].time) / 60000;
-        if (ageMin >= 15 && ageMin <= 60) {
-          refSample = list[i];
-          break;
-        }
-      }
-      if (!refSample) {
-        for (let i = 0; i < list.length - 1; i++) {
-          const ageMin = (now - list[i].time) / 60000;
-          if (ageMin >= 3) {
-            refSample = list[i];
-            break;
+      if (serverTelemetryHistory && serverTelemetryHistory.points && serverTelemetryHistory.points.length > 0 && zIdx >= 0 && zIdx <= 2) {
+        const curSlot = (serverTelemetryHistory.currentSlot !== undefined) ? serverTelemetryHistory.currentSlot : 0;
+        const pts = serverTelemetryHistory.points;
+        const validRecent = [];
+
+        pts.forEach(p => {
+          if (!p || p[zIdx + 1] === null || p[zIdx + 1] <= 0) return;
+          const slot = p[0];
+          // Age in 5-minute slots relative to currentSlot (handles day boundary wrapping)
+          const ageSlots = (curSlot >= slot) ? (curSlot - slot) : (288 - slot + curSlot);
+          if (ageSlots <= 24) { // Points within the last 2 hours
+            validRecent.push({
+              ageSlots: ageSlots,
+              time: now - ageSlots * 300000,
+              temp: p[zIdx + 1]
+            });
           }
-        }
-      }
-      if (!refSample) {
-        refSample = list.length > 0 ? list[0] : { time: now, temp: currentTemp };
+        });
+
+        // Sort chronologically (oldest age down to youngest 0)
+        validRecent.sort((a, b) => b.ageSlots - a.ageSlots);
+        validRecent.forEach(item => list.push({ time: item.time, temp: item.temp }));
       }
 
+      // Always anchor with current real-time sample at now
+      list.push({ time: now, temp: currentTemp });
+      if (list.length === 1) {
+        list.unshift({ time: now - 300000, temp: currentTemp });
+      }
+
+      const refSample = list[0];
       const delta = currentTemp - refSample.temp;
       const ageMin = Math.round((now - refSample.time) / 60000);
       const sign = delta > 0 ? '+' : '';
       const deltaStr = sign + delta.toFixed(1) + '°';
-      const horizonStr = ageMin >= 60 ? (Math.round(ageMin / 60) + 'h') : (ageMin > 0 ? (ageMin + 'm') : '3h');
+      const horizonStr = ageMin >= 60 ? (Math.round(ageMin / 60) + 'h') : (ageMin > 0 ? (ageMin + 'm') : '1h');
 
       let trendClass = 'trend-steady';
       let color = '#94a3b8';
       let icon = '→';
-      let titleDesc = '';
 
-      if (delta >= 0.2) {
+      if (delta >= 0.15) {
         trendClass = 'trend-up';
         color = '#fb923c';
         icon = '↑';
-        titleDesc = `Trend încălzire: ${refSample.temp.toFixed(1)}°C ➔ ${currentTemp.toFixed(1)}°C (${deltaStr}C în ${ageMin} min) • ${list.length} eșantioane`;
-      } else if (delta <= -0.2) {
+      } else if (delta <= -0.15) {
         trendClass = 'trend-down';
         color = '#38bdf8';
         icon = '↓';
-        titleDesc = `Scădere termică: ${refSample.temp.toFixed(1)}°C ➔ ${currentTemp.toFixed(1)}°C (${deltaStr}C în ${ageMin} min, posibil aerisire) • ${list.length} eșantioane`;
-      } else {
-        trendClass = 'trend-steady';
-        color = '#94a3b8';
-        icon = '→';
-        if (list.length <= 1) {
-          titleDesc = `Inițializare istoric temperatură (${currentTemp.toFixed(1)}°C) • Se colectează date`;
-        } else {
-          titleDesc = `Temperatură stabilă: ${refSample.temp.toFixed(1)}°C ➔ ${currentTemp.toFixed(1)}°C (${deltaStr}C în ${ageMin} min) • ${list.length} eșantioane`;
-        }
       }
 
-      // Compute SVG Coordinates
       const padX = 2.5;
       const padY = 2.5;
       const usableW = width - 2 * padX;
@@ -2541,7 +2714,7 @@
       const temps = list.map(item => item.temp);
       const rawMin = Math.min(...temps, currentTemp);
       const rawMax = Math.max(...temps, currentTemp);
-      const minSpan = 1.0; // 1.0°C minimum scale: filters sensor noise so steady state looks calm and smooth, not jagged
+      const minSpan = 1.0;
 
       let tLow, tHigh;
       if ((rawMax - rawMin) < minSpan) {
@@ -2554,39 +2727,27 @@
       }
       const tRange = Math.max(0.001, tHigh - tLow);
 
-      const tMin = list.length > 0 ? list[0].time : now;
-      const tMax = list.length > 0 ? list[list.length - 1].time : now;
-      const elapsedMs = tMax - tMin;
+      const tMin = list[0].time;
+      const tMax = list[list.length - 1].time;
+      const elapsedMs = Math.max(180000, tMax - tMin);
 
-      let linePath = '';
-      let areaPath = '';
-      let xLast = width - padX;
-      let yLast = height / 2;
+      const points = list.map(item => {
+        const x = padX + ((item.time - tMin) / elapsedMs) * usableW;
+        const normT = Math.max(0, Math.min(1, (item.temp - tLow) / tRange));
+        const y = (height - padY) - normT * usableH;
+        return [x.toFixed(1), y.toFixed(1)];
+      });
 
-      if (list.length <= 1 || elapsedMs < 180000) {
-        // Calm steady horizontal baseline
-        linePath = `M ${padX} ${(height / 2).toFixed(1)} L ${(width - padX).toFixed(1)} ${(height / 2).toFixed(1)}`;
-        yLast = height / 2;
-      } else {
-        const timeSpan = Math.max(180000, elapsedMs);
-        const points = list.map(item => {
-          const x = padX + ((item.time - tMin) / timeSpan) * usableW;
-          const normT = Math.max(0, Math.min(1, (item.temp - tLow) / tRange));
-          const y = (height - padY) - normT * usableH;
-          return [x.toFixed(1), y.toFixed(1)];
-        });
+      const linePath = 'M ' + points.map(p => p.join(' ')).join(' L ');
+      const baseBottom = (height - padY).toFixed(1);
+      const areaPath = linePath + ` L ${points[points.length - 1][0]} ${baseBottom} L ${points[0][0]} ${baseBottom} Z`;
+      const xLast = points[points.length - 1][0];
+      const yLast = points[points.length - 1][1];
 
-        linePath = 'M ' + points.map(p => p.join(' ')).join(' L ');
-        const baseBottom = (height - padY).toFixed(1);
-        areaPath = linePath + ` L ${points[points.length - 1][0]} ${baseBottom} L ${points[0][0]} ${baseBottom} Z`;
-        xLast = points[points.length - 1][0];
-        yLast = points[points.length - 1][1];
-      }
-
-      const gradId = 'spk_' + key.replace(/[^a-zA-Z0-9_-]/g, '_');
+      const gradId = 'spk_' + String(zoneIdxOrKey).replace(/[^a-zA-Z0-9_-]/g, '_');
 
       return `
-        <span class="sparkline-badge ${trendClass} ${compact ? 'compact' : ''}" title="${titleDesc}">
+        <span class="sparkline-badge ${trendClass} ${compact ? 'compact' : ''}" title="Telemetrie reală ESP32: ${refSample.temp.toFixed(1)}°C ➔ ${currentTemp.toFixed(1)}°C (${deltaStr}C în ${ageMin}m)">
           <svg class="sparkline-svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" preserveAspectRatio="none">
             <defs>
               <linearGradient id="${gradId}" x1="0" y1="0" x2="0" y2="1">
@@ -2594,7 +2755,7 @@
                 <stop offset="100%" stop-color="${color}" stop-opacity="0.0"/>
               </linearGradient>
             </defs>
-            ${areaPath ? `<path d="${areaPath}" fill="url(#${gradId})" />` : ''}
+            <path d="${areaPath}" fill="url(#${gradId})" />
             <path d="${linePath}" fill="none" stroke="${color}" stroke-width="${compact ? '1.4' : '1.8'}" stroke-linecap="round" stroke-linejoin="round" />
             <circle cx="${xLast}" cy="${yLast}" r="${compact ? '1.8' : '2.2'}" fill="${color}" stroke="#0f172a" stroke-width="1.0" />
           </svg>
@@ -2686,67 +2847,20 @@
     let currentUiLevel = urlParams.get('lvl') || localStorage.getItem('heating_ui_level') || 'presets';
 
     function setUiLevel(lvl, skipBackendSync = false) {
-      currentUiLevel = lvl;
-      localStorage.setItem('heating_ui_level', lvl);
+      currentUiLevel = lvl || 'presets';
+      localStorage.setItem('heating_ui_level', currentUiLevel);
 
-      document.querySelectorAll('.lvl-btn').forEach(b => b.classList.remove('active'));
-      const activeBtn = document.getElementById('lvl-' + lvl);
-      if (activeBtn) activeBtn.classList.add('active');
-
-      const hint = document.getElementById('lvl-hint-text');
-      const boxBeginner = document.getElementById('box-beginner-msg');
       const boxGuards = document.getElementById('box-advanced-guards');
       const boxHero = document.getElementById('anchor-hero-box');
       const boxPresets = document.getElementById('box-presets-section');
       const boxPresetsActions = document.getElementById('box-presets-actions');
-      const boxEditor = document.getElementById('box-advanced-editor');
 
-      if (lvl === 'beginner') {
-        if (hint) hint.innerText = 'Termostat direct: reglezi manual temperaturile fără orar';
-        if (boxBeginner) boxBeginner.style.display = 'block';
-        if (boxGuards) boxGuards.style.display = 'none';
-        if (boxHero) boxHero.style.display = 'none';
-        if (boxPresets) boxPresets.style.display = 'none';
-        if (boxPresetsActions) boxPresetsActions.style.display = 'none';
-        if (boxEditor) boxEditor.style.display = 'none';
-        if (!skipBackendSync) {
-          fetch(base + 'api/schedule/enable?enabled=false', { method: 'POST' }).then(() => {
-            loadScheduleAndPresets();
-            refresh();
-          });
-          showToast('🟢 Mod Simplu activat: orar oprit, control direct pe camere.', 3000);
-        }
-      } else if (lvl === 'presets') {
-        if (hint) hint.innerText = 'Scenarii de viață dintr-un singur click';
-        if (boxBeginner) boxBeginner.style.display = 'none';
-        if (boxGuards) boxGuards.style.display = 'none';
-        if (boxHero) boxHero.style.display = 'flex';
-        if (boxPresets) boxPresets.style.display = 'block';
-        if (boxPresetsActions) boxPresetsActions.style.display = 'none';
-        if (boxEditor) boxEditor.style.display = 'none';
-        if (!skipBackendSync && scheduleData && !scheduleData.enabled) {
-          fetch(base + 'api/schedule/enable?enabled=true', { method: 'POST' }).then(() => {
-            loadScheduleAndPresets();
-            refresh();
-          });
-          showToast('🟡 Mod Preseturi activat.', 3000);
-        }
-      } else if (lvl === 'advanced') {
-        if (hint) hint.innerText = 'Control complet: ancore circadiene, pre-heat, geam deschis';
-        if (boxBeginner) boxBeginner.style.display = 'none';
-        if (boxGuards) boxGuards.style.display = 'flex';
-        if (boxHero) boxHero.style.display = 'flex';
-        if (boxPresets) boxPresets.style.display = 'block';
-        if (boxPresetsActions) boxPresetsActions.style.display = 'flex';
-        if (boxEditor) boxEditor.style.display = 'block';
-        if (!skipBackendSync && scheduleData && !scheduleData.enabled) {
-          fetch(base + 'api/schedule/enable?enabled=true', { method: 'POST' }).then(() => {
-            loadScheduleAndPresets();
-            refresh();
-          });
-          showToast('🔴 Mod Avansat activat: toate opțiunile deblocate.', 3000);
-        }
-      }
+      if (boxGuards) boxGuards.style.display = 'flex';
+      if (boxHero) boxHero.style.display = 'flex';
+      if (boxPresets) boxPresets.style.display = 'block';
+      if (boxPresetsActions) boxPresetsActions.style.display = 'flex';
+
+      initScheduleEditorState();
       refresh();
     }
 
@@ -2854,7 +2968,8 @@
       const el = document.getElementById('sp-' + idx);
       if (!el) return;
       let cur = parseFloat(el.dataset.val || el.innerText);
-      let nxt = (cur + delta).toFixed(1);
+      let nxtVal = delta > 0 ? (Math.floor(cur * 2 + 1e-4) + 1) / 2 : (Math.ceil(cur * 2 - 1e-4) - 1) / 2;
+      let nxt = nxtVal.toFixed(1);
       el.dataset.val = nxt;
       el.innerHTML = nxt + '&deg;C';
       fetch(base + 'api/zones/setpoint?id=' + idx + '&target=' + nxt, { method: 'POST' })
@@ -3005,51 +3120,68 @@
       renderScheduleEditor();
     }
 
-    let anchorAutoSaveTimer = null;
+    let blockAutoSaveTimer = null;
 
-    function adjAnchorTarget(anc, zIdx, delta) {
-      if (!scheduleData || !scheduleData[currentProfile] || !scheduleData[currentProfile][anc]) return;
-      const tg = scheduleData[currentProfile][anc].targets || [22.0, 22.0, 22.0];
-      tg[zIdx] = parseFloat((tg[zIdx] + delta).toFixed(1));
+    function adjBlockTarget(blkIdx, zIdx, delta) {
+      if (!scheduleData || !scheduleData[currentProfile]) return;
+      const profData = scheduleData[currentProfile];
+      if (!profData.blocks || !profData.blocks[blkIdx]) return;
+      const b = profData.blocks[blkIdx];
+      const tg = b.targets || [21.0, 21.0, 21.0];
+      let curT = tg[zIdx];
+      let nxtT = delta > 0 ? (Math.floor(curT * 2 + 1e-4) + 1) / 2 : (Math.ceil(curT * 2 - 1e-4) - 1) / 2;
+      tg[zIdx] = parseFloat(nxtT.toFixed(1));
       
-      const valEl = document.getElementById(`asp-${anc}-${zIdx}`);
+      const valEl = document.getElementById(`bsp-${blkIdx}-${zIdx}`);
       if (valEl) valEl.innerHTML = `${tg[zIdx].toFixed(1)}&deg;`;
 
-      scheduleAnchorAutoSave(anc);
+      scheduleBlockAutoSave(blkIdx);
     }
 
-    function onAnchorTimeChange(anc, newTime) {
-      if (!scheduleData || !scheduleData[currentProfile] || !scheduleData[currentProfile][anc]) return;
-      if (!newTime) return;
+    function onBlockTimeChange(blkIdx, newTime) {
+      if (!scheduleData || !scheduleData[currentProfile]) return;
+      const profData = scheduleData[currentProfile];
+      if (!profData.blocks || !profData.blocks[blkIdx] || !newTime) return;
       const parts = newTime.split(':');
       if (parts.length === 2) {
-        scheduleData[currentProfile][anc].hour = parseInt(parts[0], 10);
-        scheduleData[currentProfile][anc].minute = parseInt(parts[1], 10);
+        profData.blocks[blkIdx].hour = parseInt(parts[0], 10);
+        profData.blocks[blkIdx].minute = parseInt(parts[1], 10);
       }
-      scheduleAnchorAutoSave(anc);
+      scheduleBlockAutoSave(blkIdx);
     }
 
-    function scheduleAnchorAutoSave(anc) {
+    function onBlockNameChange(blkIdx, newName) {
+      if (!scheduleData || !scheduleData[currentProfile]) return;
+      const profData = scheduleData[currentProfile];
+      if (!profData.blocks || !profData.blocks[blkIdx]) return;
+      profData.blocks[blkIdx].name = newName;
+      scheduleBlockAutoSave(blkIdx);
+    }
+
+    function scheduleBlockAutoSave(blkIdx) {
       const ind = document.getElementById('matrix-save-indicator');
       if (ind) {
         ind.style.display = 'inline';
         ind.innerText = '⏳ Salvare...';
         ind.style.color = '#f59e0b';
       }
-      if (anchorAutoSaveTimer) clearTimeout(anchorAutoSaveTimer);
-      anchorAutoSaveTimer = setTimeout(() => {
-        saveCurrentProfileAnchor(anc);
-      }, 700);
+      if (blockAutoSaveTimer) clearTimeout(blockAutoSaveTimer);
+      blockAutoSaveTimer = setTimeout(() => {
+        saveScheduleBlock(blkIdx);
+      }, 600);
     }
 
-    function saveCurrentProfileAnchor(anc) {
-      if (!scheduleData || !scheduleData[currentProfile] || !scheduleData[currentProfile][anc]) return;
-      const item = scheduleData[currentProfile][anc];
-      const timeVal = `${String(item.hour).padStart(2,'0')}:${String(item.minute).padStart(2,'0')}`;
-      const tg = item.targets || [22.0, 22.0, 22.0];
-
+    function saveScheduleBlock(blkIdx) {
+      if (!scheduleData || !scheduleData[currentProfile]) return;
+      const profData = scheduleData[currentProfile];
+      if (!profData.blocks || !profData.blocks[blkIdx]) return;
+      const b = profData.blocks[blkIdx];
+      const timeVal = `${String(b.hour).padStart(2, '0')}:${String(b.minute).padStart(2, '0')}`;
+      const tg = b.targets || [21.0, 21.0, 21.0];
       const prof = currentProfile;
-      const url = base + `api/schedule/anchor?profile=${prof}&anchor=${anc}&time=${encodeURIComponent(timeVal)}&z1=${tg[0]}&z2=${tg[1]}&z3=${tg[2]}`;
+      const nameVal = encodeURIComponent(b.name || '');
+
+      const url = base + `api/schedule/block/update?profile=${prof}&index=${blkIdx}&time=${encodeURIComponent(timeVal)}&z1=${tg[0]}&z2=${tg[1]}&z3=${tg[2]}&name=${nameVal}`;
       return fetch(url, { method: 'POST' }).then(() => {
         const ind = document.getElementById('matrix-save-indicator');
         if (ind) {
@@ -3062,6 +3194,52 @@
         refresh();
       });
     }
+
+    function addNewBlock() {
+      if (!scheduleData || !scheduleData[currentProfile]) return;
+      const profData = scheduleData[currentProfile];
+      const blocks = profData.blocks || [];
+      if (blocks.length >= 8) {
+        alert('Numărul maxim de intervale (8) a fost deja atins.');
+        return;
+      }
+      let nextH = 12, nextM = 0;
+      if (blocks.length > 0) {
+        const lastB = blocks[blocks.length - 1];
+        nextH = (lastB.hour + 2) % 24;
+        nextM = lastB.minute;
+      }
+      const timeStr = `${String(nextH).padStart(2, '0')}:${String(nextM).padStart(2, '0')}`;
+      const nameVal = encodeURIComponent('Interval Nou');
+      const prof = currentProfile;
+      const url = base + `api/schedule/block/add?profile=${prof}&name=${nameVal}&time=${encodeURIComponent(timeStr)}&z1=21.0&z2=21.0&z3=21.0`;
+      fetch(url, { method: 'POST' })
+        .then(() => {
+          showToast('✓ Interval nou adăugat!', 2500);
+          loadScheduleAndPresets();
+          refresh();
+        });
+    }
+
+    function deleteScheduleBlock(blkIdx) {
+      if (!confirm('Sigur dorești să ștergi acest interval orar?')) return;
+      const prof = currentProfile;
+      const url = base + `api/schedule/block/delete?profile=${prof}&index=${blkIdx}`;
+      fetch(url, { method: 'POST' })
+        .then(() => {
+          showToast('🗑️ Interval orar șters!', 2500);
+          loadScheduleAndPresets();
+          refresh();
+        });
+    }
+
+    // Legacy anchor wrappers for backward compatibility
+    let anchorAutoSaveTimer = null;
+    function adjAnchorTarget(anc, zIdx, delta) { adjBlockTarget(0, zIdx, delta); }
+    function onAnchorTimeChange(anc, newTime) { onBlockTimeChange(0, newTime); }
+    function onAnchorNameChange(anc, newName) { onBlockNameChange(0, newName); }
+    function scheduleAnchorAutoSave(anc) { scheduleBlockAutoSave(0); }
+    function saveCurrentProfileAnchor(anc) { saveScheduleBlock(0); }
 
     function copyWeekdayToWeekend() {
       if (!scheduleData || !scheduleData.weekday) return;
@@ -3089,10 +3267,7 @@
     function openScheduleMatrixModal() { setEditorProfile(currentProfile || 'weekday'); }
     function closeScheduleMatrixModal() {}
 
-    // Adjust Anchor Setpoint in Editor (Legacy compatibility)
-    function adjAnchorTarget(anc, zIdx, delta) {
-      adjMatrixTarget(anc, zIdx, delta);
-    }
+    // Legacy compatibility cleaned
 
     // Save Anchor to Backend (Robust API + Live Sync of Active Anchor)
     function saveAnchor(anc, timeOverride, z1, z2, z3) {
@@ -3134,7 +3309,7 @@
     let lastZData = null;
     let lastSData = null;
 
-    // View Mode Switching (Dashboard vs Tesla Schematic vs FSM Diagram vs Live Console)
+    // View Mode Switching (Dashboard vs Schemă Hidraulică vs FSM Diagram vs Live Console)
     const urlViewParam = new URLSearchParams(window.location.search).get('view');
     let currentViewMode = urlViewParam || localStorage.getItem('heating_view_mode') || 'dash';
 
@@ -3148,46 +3323,229 @@
 
       const col1 = document.getElementById('col-main-1');
       const col2 = document.getElementById('col-main-2');
-      const cardTesla = document.getElementById('card-tesla-view');
+      const cardHydro = document.getElementById('card-hydro-view');
       const cardFsm = document.getElementById('card-fsm-view');
       const cardConsole = document.getElementById('card-console-view');
+      const cardConfig = document.getElementById('card-config-view');
       const hint = document.getElementById('view-mode-hint');
 
       if (mode === 'dash') {
         if (col1) col1.style.display = 'flex';
         if (col2) col2.style.display = 'flex';
-        if (cardTesla) cardTesla.style.display = 'none';
+        if (cardHydro) cardHydro.style.display = 'none';
         if (cardFsm) cardFsm.style.display = 'none';
         if (cardConsole) cardConsole.style.display = 'none';
+        if (cardConfig) cardConfig.style.display = 'none';
         if (hint) hint.innerText = 'Tablou de bord principal cu zone și orar';
         stopDashConsolePolling();
-      } else if (mode === 'tesla') {
+      } else if (mode === 'hydro') {
         if (col1) col1.style.display = 'none';
         if (col2) col2.style.display = 'none';
-        if (cardTesla) cardTesla.style.display = 'block';
+        if (cardHydro) cardHydro.style.display = 'block';
         if (cardFsm) cardFsm.style.display = 'none';
         if (cardConsole) cardConsole.style.display = 'none';
-        if (hint) hint.innerText = 'Schemă hidraulică interactivă & telemetrie stil Tesla HVAC';
+        if (cardConfig) cardConfig.style.display = 'none';
+        if (hint) hint.innerText = 'Schemă hidraulică interactivă & telemetrie';
         stopDashConsolePolling();
-        if (lastZData) updateTeslaSchema(lastSData, lastZData);
+        if (lastZData) updateHydroSchema(lastSData, lastZData);
       } else if (mode === 'fsm') {
         if (col1) col1.style.display = 'none';
         if (col2) col2.style.display = 'none';
-        if (cardTesla) cardTesla.style.display = 'none';
+        if (cardHydro) cardHydro.style.display = 'none';
         if (cardFsm) cardFsm.style.display = 'block';
         if (cardConsole) cardConsole.style.display = 'none';
+        if (cardConfig) cardConfig.style.display = 'none';
         if (hint) hint.innerText = 'Diagramă live de stări finite & fir logic decizional';
         stopDashConsolePolling();
         if (lastZData) updateFsmDiagram(lastSData, lastZData);
       } else if (mode === 'console') {
         if (col1) col1.style.display = 'none';
         if (col2) col2.style.display = 'none';
-        if (cardTesla) cardTesla.style.display = 'none';
+        if (cardHydro) cardHydro.style.display = 'none';
         if (cardFsm) cardFsm.style.display = 'none';
         if (cardConsole) cardConsole.style.display = 'block';
+        if (cardConfig) cardConfig.style.display = 'none';
         if (hint) hint.innerText = 'Consolă bidirecțională Wi-Fi live (comenzi și telemetrie)';
         startDashConsolePolling();
+      } else if (mode === 'config') {
+        if (col1) col1.style.display = 'none';
+        if (col2) col2.style.display = 'none';
+        if (cardHydro) cardHydro.style.display = 'none';
+        if (cardFsm) cardFsm.style.display = 'none';
+        if (cardConsole) cardConsole.style.display = 'none';
+        if (cardConfig) cardConfig.style.display = 'block';
+        if (hint) hint.innerText = 'Configurare avansată sistem, relee și temporizări hidraulice';
+        stopDashConsolePolling();
+        loadSystemConfigUI();
       }
+    }
+
+    
+    // ========================================================
+    // SYSTEM CONFIGURATION & HARDWARE RELAYS ENGINE
+    // ========================================================
+    async function loadSystemConfigUI() {
+      try {
+        const res = await fetch(base + 'api/config/system');
+        if (!res.ok) return;
+        const cfg = await res.json();
+        const setVal = (id, val) => { const el = document.getElementById(id); if (el) el.value = val; };
+        const setChk = (id, val) => { const el = document.getElementById(id); if (el) el.checked = !!val; };
+
+        setChk('cfg-open-loop', cfg.openLoopBypass);
+        setVal('cfg-actuator-delay', cfg.actuatorDelaySec || 180);
+        setVal('cfg-boiler-delay', cfg.boilerDelaySec || 180);
+        setVal('cfg-short-cycling', cfg.shortCyclingSec || 180);
+        setVal('cfg-pump-overrun', cfg.pumpOverrunSec || 180);
+        setVal('cfg-rf-cooldown', cfg.rfMinCooldownSec || 3);
+        setVal('cfg-rf-heartbeat', cfg.rfSafetyHeartbeatSec || 900);
+        setChk('cfg-rf-heartbeat-en', cfg.rfSafetyHeartbeatEnabled);
+        setChk('cfg-tur-retur-sensors', cfg.turReturSensors);
+        setChk('cfg-pump-installed', cfg.pumpControlEnabled);
+        setChk('cfg-window-en', (scheduleData && scheduleData.windowDetectionEnabled) || true);
+        if (cfg.zones && cfg.zones[0]) {
+          setVal('cfg-window-drop', cfg.zones[0].windowDropThreshold || 1.0);
+        }
+        setVal('cfg-sensor-timeout', cfg.sensorTimeoutSec || 600);
+        setVal('cfg-frost-temp', cfg.freezeProtectionTemp || 12.0);
+        setVal('cfg-actuator-nc', cfg.actuatorNormallyClosed ? 'nc' : 'no');
+
+        const r4 = document.getElementById('cfg-relay-4-mode');
+        if (r4) {
+          r4.value = cfg.pumpControlEnabled ? 'pump' : 'none';
+        }
+      } catch (e) {
+        console.error('Error loading config:', e);
+      }
+    }
+
+    async function saveSystemConfiguration() {
+      const getVal = (id) => { const el = document.getElementById(id); return el ? el.value : ''; };
+      const getChk = (id) => { const el = document.getElementById(id); return el ? el.checked : false; };
+
+      const params = new URLSearchParams();
+      params.append('openLoopBypass', getChk('cfg-open-loop') ? 'true' : 'false');
+      params.append('actuatorDelaySec', getVal('cfg-actuator-delay'));
+      params.append('boilerDelaySec', getVal('cfg-boiler-delay'));
+      params.append('shortCyclingSec', getVal('cfg-short-cycling'));
+      params.append('pumpOverrunSec', getVal('cfg-pump-overrun'));
+      params.append('rfMinCooldownSec', getVal('cfg-rf-cooldown'));
+      params.append('rfSafetyHeartbeatSec', getVal('cfg-rf-heartbeat'));
+      params.append('rfSafetyHeartbeatEnabled', getChk('cfg-rf-heartbeat-en') ? 'true' : 'false');
+      params.append('turReturSensors', getChk('cfg-tur-retur-sensors') ? 'true' : 'false');
+
+      const pumpEn = getChk('cfg-pump-installed') || (getVal('cfg-relay-4-mode') === 'pump');
+      params.append('pumpControlEnabled', pumpEn ? 'true' : 'false');
+      params.append('pumpRelayPin', '26');
+      params.append('actuatorNormallyClosed', getVal('cfg-actuator-nc') === 'nc' ? 'true' : 'false');
+      params.append('freezeProtectionTemp', getVal('cfg-frost-temp'));
+      params.append('sensorTimeoutSec', getVal('cfg-sensor-timeout'));
+
+      try {
+        const res = await fetch(base + 'api/config/system', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: params.toString()
+        });
+        if (res.ok) {
+          showToast('💾 Configurația completă a fost salvată în memoria Flash NVS!', 3500);
+          refresh();
+        } else {
+          showToast('❌ Eroare la salvarea configurației.', 3500);
+        }
+      } catch (e) {
+        showToast('❌ Eroare de rețea la salvarea configurației.', 3500);
+      }
+    }
+
+    async function testRelay(pin, state) {
+      try {
+        const res = await fetch(base + `api/relay/test?pin=${pin}&state=${state}`, { method: 'POST' });
+        if (res.ok) {
+          showToast(`⚡ Releu GPIO${pin}: ${state ? 'ANCLANȘAT (ON)' : 'DEZANCLANȘAT (OFF)'}`, 2500);
+        }
+      } catch (e) {
+        showToast(`❌ Eroare test releu GPIO${pin}`, 2500);
+      }
+    }
+
+    function togglePumpInstalledUI() {
+      const chk = document.getElementById('cfg-pump-installed');
+      const r4 = document.getElementById('cfg-relay-4-mode');
+      if (chk && r4) {
+        r4.value = chk.checked ? 'pump' : 'none';
+      }
+    }
+
+    let isPresetEditorExpanded = true;
+    function initScheduleEditorState() {
+      const ed = document.getElementById('box-advanced-editor');
+      const btn = document.getElementById('btn-toggle-editor');
+      if (!ed) return;
+      const stored = localStorage.getItem('schedule_editor_open');
+      isPresetEditorExpanded = (stored === null || stored === 'true');
+      ed.style.display = isPresetEditorExpanded ? 'block' : 'none';
+      if (btn) {
+        btn.innerHTML = isPresetEditorExpanded ? '🔼 Închide Configurator' : '⚙️ Configurează Orar &amp; Intervale 🔽';
+      }
+      if (isPresetEditorExpanded) {
+        renderScheduleEditor();
+        updatePresetDaysCheckboxes();
+      }
+    }
+
+    function togglePresetEditor() {
+      const ed = document.getElementById('box-advanced-editor');
+      const btn = document.getElementById('btn-toggle-editor');
+      if (!ed) return;
+      isPresetEditorExpanded = !isPresetEditorExpanded;
+      localStorage.setItem('schedule_editor_open', isPresetEditorExpanded ? 'true' : 'false');
+      ed.style.display = isPresetEditorExpanded ? 'block' : 'none';
+      if (btn) {
+        btn.innerHTML = isPresetEditorExpanded ? '🔼 Închide Configurator' : '⚙️ Configurează Orar &amp; Intervale 🔽';
+      }
+      if (isPresetEditorExpanded) {
+        renderScheduleEditor();
+        updatePresetDaysCheckboxes();
+      }
+    }
+
+    function updatePresetDaysCheckboxes() {
+      const curId = (presetsData && presetsData.activePreset) || (scheduleData && scheduleData.activePreset) || 'default';
+      const curPreset = presetsData && presetsData.presets ? presetsData.presets.find(p => p.id === curId) : null;
+      const mask = (curPreset && curPreset.daysMask !== undefined) ? curPreset.daysMask : 0x7F;
+      for (let d = 0; d < 7; d++) {
+        const chk = document.getElementById('chk-day-' + d);
+        if (chk) chk.checked = !!(mask & (1 << d));
+      }
+      const tag = document.getElementById('preset-active-days-tag');
+      if (tag) {
+        const dayNames = ['Duminică', 'Luni', 'Marți', 'Miercuri', 'Joi', 'Vineri', 'Sâmbătă'];
+        let activeDays = [];
+        for (let d = 0; d < 7; d++) {
+          if (mask & (1 << d)) activeDays.push(dayNames[d].substring(0, 3));
+        }
+        tag.innerText = activeDays.length === 7 ? 'Toate zilele' : (activeDays.length === 0 ? 'Inactiv' : activeDays.join(', '));
+      }
+    }
+
+    function onPresetDaysChange() {
+      let mask = 0;
+      for (let d = 0; d < 7; d++) {
+        const chk = document.getElementById('chk-day-' + d);
+        if (chk && chk.checked) mask |= (1 << d);
+      }
+      const curId = (presetsData && presetsData.activePreset) || (scheduleData && scheduleData.activePreset) || 'default';
+      let curPreset = presetsData && presetsData.presets ? presetsData.presets.find(p => p.id === curId) : null;
+      let curName = (curPreset && curPreset.name) ? curPreset.name : curId;
+      if (curPreset) curPreset.daysMask = mask;
+      updatePresetDaysCheckboxes();
+
+      fetch(base + `api/schedule/preset/save?id=${curId}&name=${encodeURIComponent(curName)}&days=${mask}`, { method: 'POST' })
+        .then(() => {
+          showToast(`✓ Zile active actualizate pentru '${curName}'`, 2000);
+          updatePresetDaysCheckboxes();
+        });
     }
 
     // Live Dashboard Console Engine
@@ -3208,6 +3566,7 @@
       const t = document.getElementById('dash-terminal');
       if (t) t.innerHTML = '';
       dashLastSeq = 0;
+      sendDashConsoleCmd('CLEAR');
     }
 
     function colorizeLog(line) {
@@ -3267,12 +3626,13 @@
         if (r.ok) {
           const seqHdr = r.headers.get('X-Log-Seq');
           const newSeq = seqHdr ? parseInt(seqHdr, 10) : 0;
-          if (newSeq === 0 && dashLastSeq > 0) {
-            clearDashTerm();
+          if (newSeq < dashLastSeq) {
+            const term = document.getElementById('dash-terminal');
+            if (term) term.innerHTML = '';
           }
           if (newSeq > 0) dashLastSeq = newSeq;
           const txt = await r.text();
-          renderDashLogs(txt);
+          if (txt && txt.length > 0) renderDashLogs(txt);
           const b = document.getElementById('dashConsoleBadge');
           if (b) { b.textContent = 'CONNECTED'; b.style.background = '#065f46'; }
         }
@@ -3317,7 +3677,7 @@
       }
       dashIsSending = true;
       try {
-        await fetch(base + 'api/console/cmd?c=' + encodeURIComponent(cmd), { method: 'POST' });
+        await fetch(base + 'api/console/send?cmd=' + encodeURIComponent(cmd), { method: 'POST' });
         setTimeout(fetchDashConsoleLogs, 150);
       } catch (e) {
         if (term) term.insertAdjacentHTML('beforeend', `<div style="color:#f87171;">[ERROR] Nu s-a putut trimite comanda către ESP32.</div>`);
@@ -3335,7 +3695,7 @@
       sendDashConsoleCmd(cmd);
     }
 
-    function updateTeslaSchema(sData, zData) {
+    function updateHydroSchema(sData, zData) {
       if (!zData) return;
       const isBoilerOn = (zData.boiler === 'ON');
       const isPumpOn = !!zData.pumpActive;
@@ -3570,35 +3930,35 @@
       const isAuto = zData.autoMode;
 
       let activeNode = 'idle';
-      let activeLabel = '1. IDLE / STANDBY';
+      let activeLabel = 'STANDBY / REPAUS';
 
       if (anyFrost) {
         activeNode = 'frost';
-        activeLabel = '8. PROTECȚIE ÎNGHEȚ (<12°C)';
+        activeLabel = 'PROTECȚIE LA ÎNGHEȚ (<12°C)';
       } else if (anyWindow) {
         activeNode = 'window';
-        activeLabel = '9. GEAM DESCHIS (PAUZĂ 30m)';
+        activeLabel = 'DETECȚIE GEAM DESCHIS (PAUZĂ 30m)';
       } else if (isBoilerOn) {
         activeNode = 'active-heat';
-        activeLabel = '5. ÎNCĂLZIRE ACTIVĂ (433MHz ON)';
+        activeLabel = 'ÎNCĂLZIRE ACTIVĂ (433MHz ON)';
       } else if (!isBoilerOn && isPumpOn && !anyDemand) {
         activeNode = 'overrun';
-        activeLabel = '6. POST-CIRCULAȚIE POMPĂ (180s)';
+        activeLabel = 'POST-CIRCULAȚIE POMPĂ (180s)';
       } else if (cooldownSec > 0 && !isBoilerOn) {
         activeNode = 'cooldown';
-        activeLabel = `7. GARDĂ COOLDOWN (${cooldownSec}s LOCKOUT)`;
+        activeLabel = `GARDĂ COOLDOWN (${cooldownSec}s LOCKOUT)`;
       } else if (!isAuto && !isBoilerOn && anyDemand) {
         activeNode = 'manual-hold';
-        activeLabel = '4. MANUAL HOLD (STANDBY FORȚAT)';
+        activeLabel = 'STANDBY FORȚAT MANUAL';
       } else if (anyWarming) {
         activeNode = 'wax';
-        activeLabel = '3. AȘTEPTARE ACTUATOR (DESCHIDERE CEARĂ)';
+        activeLabel = 'AȘTEPTARE ACTUATOR (AMORSARE CEARĂ)';
       } else if (anyDemand) {
         activeNode = 'demand';
-        activeLabel = '2. CERERE TERMICĂ (BUCLE DESCHISE)';
+        activeLabel = 'CERERE TERMICĂ (BUCLE DESCHISE)';
       } else {
         activeNode = 'idle';
-        activeLabel = '1. IDLE / STANDBY (TEMPERATURI ATINSE)';
+        activeLabel = 'STANDBY / REPAUS (TEMPERATURI ATINSE)';
       }
 
       const activeEl = document.getElementById('fsm-node-' + activeNode);
@@ -3648,7 +4008,7 @@
       });
     }
 
-    function testTeslaPump() {
+    function testHydroPump() {
       showToast('🔄 Test Pompă GPA: pornire forțată pentru aerisire/verificare...', 3500);
       fetch(base + 'api/diag/selftest', { method: 'POST' })
         .then(r => r.json())
@@ -3659,7 +4019,7 @@
         .catch(() => refresh());
     }
 
-    function testTeslaBoilerPing() {
+    function testHydroBoilerPing() {
       showToast('📻 Test RF Cazan: verificare impuls 433.92 MHz (idempotent)...', 3500);
       fetch(base + 'api/boiler/status')
         .then(r => r.json())
@@ -3709,6 +4069,7 @@
     async function refresh() {
       if (isRefreshing) return;
       isRefreshing = true;
+      fetchServerTelemetryHistory();
       let timeoutId = null;
       const t0 = performance.now();
       let success = false;
@@ -3822,8 +4183,8 @@
         }
 
         if (lastZData) {
-          if (currentViewMode === 'tesla') {
-            updateTeslaSchema(lastSData, lastZData);
+          if (currentViewMode === 'hydro') {
+            updateHydroSchema(lastSData, lastZData);
           } else if (currentViewMode === 'fsm') {
             updateFsmDiagram(lastSData, lastZData);
           }
@@ -3855,6 +4216,17 @@
           document.getElementById('sw-window-en').checked = scheduleData.windowDetectionEnabled;
           document.getElementById('tag-active-preset').innerText = 'Preset: ' + (scheduleData.activePreset || 'standard');
           
+          const hintEl = document.getElementById('sched-mode-hint');
+          if (hintEl) {
+            if (scheduleData.enabled) {
+              hintEl.innerText = 'Mod Inteligent: urmează presetul ' + (scheduleData.activePreset || 'standard');
+              hintEl.style.color = '#38bdf8';
+            } else {
+              hintEl.innerText = 'Mod Simplu (Manual): orar oprit, temperaturi reglate direct din camere';
+              hintEl.style.color = '#34d399';
+            }
+          }
+
           renderActiveAnchorHero(scheduleData.activeAnchor, scheduleData.activePreset);
           renderScheduleEditor(scheduleData.activePreset);
           updateNextAnchorCountdown();
@@ -3864,6 +4236,7 @@
         if (rPresets.ok) {
           presetsData = await rPresets.json();
           renderPresetsChips(presetsData);
+          updatePresetDaysCheckboxes();
         }
       } catch (e) {
         console.warn('Schedule/presets load error:', e);
@@ -3906,8 +4279,8 @@
 
       if (lastZData) {
         lastZData.boilerCooldownSec = boilerCooldownRemaining;
-        if (currentViewMode === 'tesla') {
-          updateTeslaSchema(lastSData, lastZData);
+        if (currentViewMode === 'hydro') {
+          updateHydroSchema(lastSData, lastZData);
         } else if (currentViewMode === 'fsm') {
           updateFsmDiagram(lastSData, lastZData);
         }
@@ -4030,8 +4403,9 @@
       const curId = (presetsData && presetsData.activePreset) || (scheduleData && scheduleData.activePreset) || 'default';
       let curPreset = presetsData && presetsData.presets ? presetsData.presets.find(p => p.id === curId) : null;
       let curName = (curPreset && curPreset.name) ? curPreset.name : curId;
+      let mask = (curPreset && curPreset.daysMask !== undefined) ? curPreset.daysMask : 0x7F;
 
-      fetch(base + `api/schedule/preset/save?id=${curId}&name=${encodeURIComponent(curName)}`, { method: 'POST' })
+      fetch(base + `api/schedule/preset/save?id=${curId}&name=${encodeURIComponent(curName)}&days=${mask}`, { method: 'POST' })
         .then(() => {
           showToast(`💾 Presetul '${curName}' a fost salvat cu succes în memoria Flash NVS!`, 3500);
           loadScheduleAndPresets();
@@ -4218,59 +4592,52 @@
       activePreset = (activePreset || (scheduleData ? scheduleData.activePreset : '') || 'default').toLowerCase();
 
       const profData = scheduleData[currentProfile];
-      const order = ['sleep', 'wake', 'away', 'home'];
+      const blocks = profData.blocks || [];
 
-      let awayLabel = '🚶 Plecat';
-      if (activePreset === 'wfh') awayLabel = '💼 Home Office';
-      else if (activePreset === 'eco') awayLabel = '🍃 Zi Eco';
-
-      const labels = {
-        'sleep': '🌙 Somn',
-        'wake':  '🌅 Trezire',
-        'away':  awayLabel,
-        'home':  '🏡 Acasă'
-      };
-
-      // 1. Populate Direct Inline Matrix Table for currentProfile (weekday or weekend)
+      // 1. Populate Dynamic Block Table for currentProfile (weekday or weekend)
       if (tbody) {
         let html = '';
-        order.forEach(anc => {
-          const item = profData[anc] || { hour: 0, minute: 0, targets: [22.0, 22.0, 22.0] };
-          const timeStr = `${String(item.hour).padStart(2, '0')}:${String(item.minute).padStart(2, '0')}`;
-          const tg = item.targets || [22.0, 22.0, 22.0];
+        if (blocks.length > 0) {
+          blocks.forEach(b => {
+            const timeStr = `${String(b.hour).padStart(2, '0')}:${String(b.minute).padStart(2, '0')}`;
+            const tg = b.targets || [21.0, 21.0, 21.0];
 
-          html += `
-            <tr>
-              <td style="font-weight:700;color:#f8fafc;white-space:nowrap;text-align:left;padding:8px 8px;">
-                ${labels[anc]}
-              </td>
-              <td style="padding:8px 6px;">
-                <input type="time" class="matrix-time-input" id="time-${anc}" value="${timeStr}" aria-label="Ora ${labels[anc]}" title="Ora ${labels[anc]}" onchange="onAnchorTimeChange('${anc}', this.value)">
-              </td>
-              <td style="padding:8px 6px;">
-                <div class="matrix-stepper">
-                  <button class="matrix-step-btn" aria-label="Scade Living" onclick="adjAnchorTarget('${anc}', 0, -0.5)">-</button>
-                  <span class="matrix-step-val" id="asp-${anc}-0">${tg[0].toFixed(1)}&deg;</span>
-                  <button class="matrix-step-btn" aria-label="Creste Living" onclick="adjAnchorTarget('${anc}', 0, 0.5)">+</button>
-                </div>
-              </td>
-              <td style="padding:8px 6px;">
-                <div class="matrix-stepper">
-                  <button class="matrix-step-btn" aria-label="Scade Copil" onclick="adjAnchorTarget('${anc}', 1, -0.5)">-</button>
-                  <span class="matrix-step-val" id="asp-${anc}-1">${tg[1].toFixed(1)}&deg;</span>
-                  <button class="matrix-step-btn" aria-label="Creste Copil" onclick="adjAnchorTarget('${anc}', 1, 0.5)">+</button>
-                </div>
-              </td>
-              <td style="padding:8px 6px;">
-                <div class="matrix-stepper">
-                  <button class="matrix-step-btn" aria-label="Scade Matrimonial" onclick="adjAnchorTarget('${anc}', 2, -0.5)">-</button>
-                  <span class="matrix-step-val" id="asp-${anc}-2">${tg[2].toFixed(1)}&deg;</span>
-                  <button class="matrix-step-btn" aria-label="Creste Matrimonial" onclick="adjAnchorTarget('${anc}', 2, 0.5)">+</button>
-                </div>
-              </td>
-            </tr>
-          `;
-        });
+            html += `
+              <tr>
+                <td style="font-weight:700;color:#f8fafc;white-space:nowrap;text-align:left;padding:8px 8px;">
+                  <input type="text" class="matrix-name-input" value="${b.name || 'Interval'}" aria-label="Nume interval" title="Editează denumirea intervalului" onchange="onBlockNameChange(${b.index}, this.value)" style="background:transparent;border:1px solid rgba(255,255,255,0.15);color:#f8fafc;padding:3px 6px;border-radius:4px;width:125px;font-size:0.8rem;font-weight:700;">
+                </td>
+                <td style="padding:8px 6px;">
+                  <input type="time" class="matrix-time-input" id="time-blk-${b.index}" value="${timeStr}" aria-label="Ora ${b.name}" title="Ora de pornire" onchange="onBlockTimeChange(${b.index}, this.value)">
+                </td>
+                <td style="padding:8px 6px;">
+                  <div class="matrix-stepper">
+                    <button class="matrix-step-btn" aria-label="Scade Living" onclick="adjBlockTarget(${b.index}, 0, -0.5)">-</button>
+                    <span class="matrix-step-val" id="bsp-${b.index}-0">${tg[0].toFixed(1)}&deg;</span>
+                    <button class="matrix-step-btn" aria-label="Creste Living" onclick="adjBlockTarget(${b.index}, 0, 0.5)">+</button>
+                  </div>
+                </td>
+                <td style="padding:8px 6px;">
+                  <div class="matrix-stepper">
+                    <button class="matrix-step-btn" aria-label="Scade Copil" onclick="adjBlockTarget(${b.index}, 1, -0.5)">-</button>
+                    <span class="matrix-step-val" id="bsp-${b.index}-1">${tg[1].toFixed(1)}&deg;</span>
+                    <button class="matrix-step-btn" aria-label="Creste Copil" onclick="adjBlockTarget(${b.index}, 1, 0.5)">+</button>
+                  </div>
+                </td>
+                <td style="padding:8px 6px;">
+                  <div class="matrix-stepper">
+                    <button class="matrix-step-btn" aria-label="Scade Matrimonial" onclick="adjBlockTarget(${b.index}, 2, -0.5)">-</button>
+                    <span class="matrix-step-val" id="bsp-${b.index}-2">${tg[2].toFixed(1)}&deg;</span>
+                    <button class="matrix-step-btn" aria-label="Creste Matrimonial" onclick="adjBlockTarget(${b.index}, 2, 0.5)">+</button>
+                  </div>
+                </td>
+                <td style="padding:8px 4px;text-align:center;">
+                  ${blocks.length > 1 ? `<button class="btn-preset-action btn-preset-danger" title="Șterge acest interval" onclick="deleteScheduleBlock(${b.index})" style="padding:3px 7px;font-size:0.75rem;">🗑️</button>` : ''}
+                </td>
+              </tr>
+            `;
+          });
+        }
         tbody.innerHTML = html;
       }
 
@@ -4357,7 +4724,7 @@
           : ((s && s.temp !== undefined && s.temp > -100) ? s.temp : null);
 
         const sparkHtml = (currentTemp !== null)
-          ? getTempSparkline(sensKey, currentTemp, 56, 18, true)
+          ? getTempSparkline(z.id - 1, currentTemp, 56, 18, true)
           : '';
         const tempStr = (currentTemp !== null)
           ? `${currentTemp.toFixed(1)}&deg;C`
@@ -4427,21 +4794,19 @@
                     ${dispName} <span class='sensor-edit-icon'>✏️</span>
                   </span>
                   ${statusBadgeHtml}
-                  ${threshPill}
+                  
                 </div>
                 <span class='sensor-mac'>${sensMac}${ageStr ? ' &bull; ' + ageStr : ''} &bull; ${humStr} &bull; 🔋 ${batStr}${winHistHtml}</span>
               </div>
-              <div class='sensor-right'>
-                <div class='sensor-temp-col'>
-                  <span class='sensor-temp' style='${!z.enabled ? "color:#64748b;" : ""}'>${tempStr}</span>
-                  ${sparkHtml}
-                </div>
+              <div class='sensor-right' style='display:flex;align-items:center;gap:10px;'>
+                <span class='sensor-temp' style='${!z.enabled ? "color:#64748b;" : ""}'>${tempStr}</span>
                 <div class='setpoint-slave-stepper'>
                   <button class='step-btn-slim' aria-label='Scade temperatura ${z.name}' onclick='adjTarget(${z.id}, -0.5)'>-</button>
                   <span class='setpoint-val setpoint-val-slave' id='sp-${z.id}' data-val='${curTarget.toFixed(1)}'>${curTarget.toFixed(1)}&deg;</span>
                   <button class='step-btn-slim' aria-label='Crește temperatura ${z.name}' onclick='adjTarget(${z.id}, 0.5)'>+</button>
                   ${holdHtml}
                 </div>
+                ${sparkHtml}
               </div>
             </div>
             ${winBannerHtml}

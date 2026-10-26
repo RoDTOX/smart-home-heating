@@ -1,0 +1,144 @@
+version: '3.8'
+
+networks:
+  smarthome:
+    driver: bridge
+
+services:
+  # ==========================================
+  # 1. Mosquitto MQTT Broker
+  # ==========================================
+  mosquitto:
+    image: eclipse-mosquitto:2
+    container_name: mosquitto
+    restart: unless-stopped
+    ports:
+      - "1883:1883"
+      - "9001:9001"
+    volumes:
+      - /opt/smarthome/mosquitto/config/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
+      - /opt/smarthome/mosquitto/data:/mosquitto/data
+      - /opt/smarthome/mosquitto/log:/mosquitto/log
+    networks:
+      - smarthome
+
+  # ==========================================
+  # 2. PostgreSQL 17 (TeslaMate DB)
+  # ==========================================
+  database:
+    image: postgres:17
+    container_name: teslamate_db
+    restart: unless-stopped
+    environment:
+      - POSTGRES_USER=teslamate
+      - POSTGRES_PASSWORD=teslamate
+      - POSTGRES_DB=teslamate
+    volumes:
+      - /opt/smarthome/teslamate/db-data:/var/lib/postgresql/data
+      - /opt/smarthome/teslamate/backups:/backups
+    networks:
+      - smarthome
+
+  # ==========================================
+  # 3. TeslaMate Core
+  # ==========================================
+  teslamate:
+    image: teslamate/teslamate:latest
+    container_name: teslamate
+    restart: unless-stopped
+    depends_on:
+      - database
+      - mosquitto
+    environment:
+      - ENCRYPTION_KEY=teslamate_secret_key_12345
+      - DATABASE_USER=teslamate
+      - DATABASE_PASS=teslamate
+      - DATABASE_NAME=teslamate
+      - DATABASE_HOST=database
+      - MQTT_HOST=mosquitto
+    ports:
+      - "4000:4000"
+    networks:
+      - smarthome
+
+  # ==========================================
+  # 4. Grafana (TeslaMate Dashboards)
+  # ==========================================
+  grafana:
+    image: teslamate/grafana:latest
+    container_name: teslamate_grafana
+    restart: unless-stopped
+    depends_on:
+      - database
+    environment:
+      - DATABASE_USER=teslamate
+      - DATABASE_PASS=teslamate
+      - DATABASE_NAME=teslamate
+      - DATABASE_HOST=database
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_SERVER_SERVE_FROM_SUB_PATH=true
+      - GF_SERVER_ROOT_URL=%(protocol)s://%(domain)s/grafana/
+    volumes:
+      - /opt/smarthome/teslamate/grafana-data:/var/lib/grafana
+    ports:
+      - "3000:3000"
+    networks:
+      - smarthome
+
+  # ==========================================
+  # 5. Home Assistant (Core & Integrations)
+  # ==========================================
+  homeassistant:
+    image: homeassistant/home-assistant:stable
+    container_name: homeassistant
+    privileged: true
+    restart: unless-stopped
+    network_mode: host
+    environment:
+      - TZ=Europe/Bucharest
+    volumes:
+      - /opt/smarthome/homeassistant:/config
+
+  # ==========================================
+  # 6. Dozzle (Live Docker Container Monitor & Logs)
+  # ==========================================
+  dozzle:
+    image: amir20/dozzle:latest
+    container_name: dozzle
+    restart: unless-stopped
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - /opt/smarthome/dozzle/data:/data
+    ports:
+      - "8888:8080"
+    networks:
+      - smarthome
+
+  # ==========================================
+  # 7. Nginx Reverse Proxy Gateway
+  # ==========================================
+  nginx:
+    image: nginx:alpine
+    container_name: nginx_gateway
+    restart: unless-stopped
+    ports:
+      - "8088:8088"
+    volumes:
+      - /opt/smarthome/nginx/conf.d:/etc/nginx/conf.d:ro
+      - /opt/smarthome/nginx/.htpasswd:/etc/nginx/.htpasswd:ro
+      - /opt/smarthome/nginx/html:/usr/share/nginx/html:ro
+    networks:
+      - smarthome
+
+  # ==========================================
+  # 8. Cloudflare Tunnel (mysmarthome.cc)
+  # ==========================================
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    container_name: cloudflare_tunnel
+    restart: unless-stopped
+    network_mode: host
+    command: tunnel --no-autoupdate run
+    environment:
+      - TUNNEL_TOKEN=${CLOUDFLARE_TUNNEL_TOKEN}

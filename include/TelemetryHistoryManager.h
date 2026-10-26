@@ -57,7 +57,7 @@ private:
     uint16_t _currentSlot24h;
     uint32_t _lastSampleMs;
     uint32_t _lastSampleEpoch;
-    uint8_t  _lastRecorded5mSlot;
+    uint16_t _lastRecorded5mSlot;
     uint8_t  _lastRecorded30mSlot;
     bool     _dirty24h;
     bool     _dirty5d;

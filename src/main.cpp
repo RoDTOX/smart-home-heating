@@ -17,6 +17,7 @@
 #include <WebServer.h>
 #include <WiFi.h>
 #include <esp_task_wdt.h>
+#include <esp_idf_version.h>
 
 WebServer server(80);
 HTTPUpdateServer httpUpdater;
@@ -950,6 +951,7 @@ void handleApiStatus() {
   json += "\"freeHeap\":" + String(ESP.getFreeHeap()) + ",";
   json += "\"rssi\":" + String(WiFi.RSSI()) + ",";
   json += "\"uptimeSec\":" + String(millis() / 1000) + ",";
+  json += "\"wifiWatchdog\":\"active\",";
   json += "\"healthScore\":" + String(diagEngine.calculateHealthScore()) + ",";
   json += "\"serviceMode\":" +
           String(diagEngine.isServiceMode() ? "true" : "false") + ",";
@@ -1235,9 +1237,102 @@ void handleApiScheduleAnchor() {
     for (size_t i = 0; i < MAX_THERMAL_ZONES; i++) targets[i] = t;
   }
 
+  if (hasJson && doc["name"].is<const char*>()) {
+    thermalZones.setAnchorName(weekend, anchorId, doc["name"].as<const char*>());
+  } else if (server.hasArg("name")) {
+    thermalZones.setAnchorName(weekend, anchorId, server.arg("name").c_str());
+  }
+
   bool ok = thermalZones.updateAnchor(weekend, anchorId, h, m, targets);
   if (!ok) {
     server.send(400, "application/json", F("{\"status\":\"error\",\"message\":\"Failed to update anchor parameters.\"}"));
+    return;
+  }
+  server.send(200, "application/json", thermalZones.getScheduleJson());
+}
+
+
+void handleApiScheduleBlockAdd() {
+  server.sendHeader("Access-Control-Allow-Origin", "*");
+  bool weekend = server.hasArg("profile") && server.arg("profile").equalsIgnoreCase("weekend");
+  String name = server.hasArg("name") ? server.arg("name") : "Interval";
+  uint8_t h = 12, m = 0;
+  if (server.hasArg("time")) {
+    String t = server.arg("time");
+    int colon = t.indexOf(':');
+    if (colon > 0) {
+      h = t.substring(0, colon).toInt();
+      m = t.substring(colon + 1).toInt();
+    }
+  } else if (server.hasArg("hour")) {
+    h = server.arg("hour").toInt();
+    if (server.hasArg("minute")) m = server.arg("minute").toInt();
+  }
+  float targets[MAX_THERMAL_ZONES] = {21.0f, 21.0f, 21.0f};
+  if (server.hasArg("z1")) targets[0] = server.arg("z1").toFloat();
+  if (server.hasArg("z2")) targets[1] = server.arg("z2").toFloat();
+  if (server.hasArg("z3")) targets[2] = server.arg("z3").toFloat();
+
+  bool ok = thermalZones.addBlock(weekend, name.c_str(), h, m, targets);
+  if (!ok) {
+    server.send(400, "application/json", F("{\"status\":\"error\",\"message\":\"Failed to add schedule block (max 8 reached or invalid time).\"}"));
+    return;
+  }
+  server.send(200, "application/json", thermalZones.getScheduleJson());
+}
+
+void handleApiScheduleBlockUpdate() {
+  server.sendHeader("Access-Control-Allow-Origin", "*");
+  bool weekend = server.hasArg("profile") && server.arg("profile").equalsIgnoreCase("weekend");
+  if (!server.hasArg("index")) {
+    server.send(400, "application/json", F("{\"status\":\"error\",\"message\":\"Missing 'index' parameter.\"}"));
+    return;
+  }
+  size_t idx = (size_t)server.arg("index").toInt();
+  String name = server.hasArg("name") ? server.arg("name") : "";
+  uint8_t h = 12, m = 0;
+  if (server.hasArg("time")) {
+    String t = server.arg("time");
+    int colon = t.indexOf(':');
+    if (colon > 0) {
+      h = t.substring(0, colon).toInt();
+      m = t.substring(colon + 1).toInt();
+    }
+  } else if (server.hasArg("hour")) {
+    h = server.arg("hour").toInt();
+    if (server.hasArg("minute")) m = server.arg("minute").toInt();
+  }
+  float targets[MAX_THERMAL_ZONES];
+  const ScheduleBlockConfig* blks = thermalZones.getBlocks(weekend);
+  uint8_t count = thermalZones.getBlockCount(weekend);
+  if (idx < count) {
+    for (size_t i = 0; i < MAX_THERMAL_ZONES; i++) targets[i] = blks[idx].targets[i];
+  } else {
+    for (size_t i = 0; i < MAX_THERMAL_ZONES; i++) targets[i] = 21.0f;
+  }
+  if (server.hasArg("z1")) targets[0] = server.arg("z1").toFloat();
+  if (server.hasArg("z2")) targets[1] = server.arg("z2").toFloat();
+  if (server.hasArg("z3")) targets[2] = server.arg("z3").toFloat();
+
+  bool ok = thermalZones.updateBlock(weekend, idx, name.length() > 0 ? name.c_str() : nullptr, h, m, targets);
+  if (!ok) {
+    server.send(400, "application/json", F("{\"status\":\"error\",\"message\":\"Failed to update block (invalid index or time).\"}"));
+    return;
+  }
+  server.send(200, "application/json", thermalZones.getScheduleJson());
+}
+
+void handleApiScheduleBlockDelete() {
+  server.sendHeader("Access-Control-Allow-Origin", "*");
+  bool weekend = server.hasArg("profile") && server.arg("profile").equalsIgnoreCase("weekend");
+  if (!server.hasArg("index")) {
+    server.send(400, "application/json", F("{\"status\":\"error\",\"message\":\"Missing 'index' parameter.\"}"));
+    return;
+  }
+  size_t idx = (size_t)server.arg("index").toInt();
+  bool ok = thermalZones.deleteBlock(weekend, idx);
+  if (!ok) {
+    server.send(400, "application/json", F("{\"status\":\"error\",\"message\":\"Failed to delete block (must retain at least 1 block).\"}"));
     return;
   }
   server.send(200, "application/json", thermalZones.getScheduleJson());
@@ -1271,7 +1366,8 @@ void handleApiSchedulePresetSave() {
   }
   String id = server.arg("id");
   String name = server.hasArg("name") ? server.arg("name") : id;
-  bool ok = thermalZones.savePreset(id.c_str(), name.c_str());
+  uint8_t daysMask = server.hasArg("days") ? (uint8_t)server.arg("days").toInt() : 0x7F;
+  bool ok = thermalZones.savePreset(id.c_str(), name.c_str(), daysMask);
   if (!ok) {
     server.send(400, "application/json", F("{\"status\":\"error\",\"message\":\"Invalid preset slot id. Valid slots: default, eco, wfh, custom1..custom4.\"}"));
     return;
@@ -1319,6 +1415,10 @@ void handleApiHistoryClear() {
   server.send(200, "application/json", F("{\"status\":\"ok\",\"cleared\":true}"));
 }
 
+// Wi-Fi Connection Supervisor State
+static uint32_t _wifiDisconnectMs = 0;
+static bool     _wifiWasConnected = true;
+
 void setupWifi() {
   WiFi.setHostname("SmartHeating-BoilerRF");
   WiFi.mode(WIFI_STA);
@@ -1339,14 +1439,59 @@ void setupWifi() {
     Serial.printf("[WiFi] Connected successfully! Local IP: %s\n",
                   WiFi.localIP().toString().c_str());
     digitalWrite(PIN_STATUS_LED, LOW); // LED off when connected
+    _wifiWasConnected = true;
+    _wifiDisconnectMs = 0;
   } else {
     Serial.println(F("[WiFi] Could not connect to router within 12s. Starting "
                      "Fallback Access Point..."));
     WiFi.mode(WIFI_AP_STA);
     WiFi.softAP(AP_SSID, AP_PASS);
     softApActive = true;
+    _wifiWasConnected = false;
+    _wifiDisconnectMs = millis();
     Serial.printf("[WiFi] AP active: '%s', Password: '%s', IP: %s\n", AP_SSID,
                   AP_PASS, WiFi.softAPIP().toString().c_str());
+  }
+}
+
+// Wi-Fi Connection Supervisor & Auto-Recovery Watchdog
+static uint32_t _lastWifiCheckMs = 0;
+
+void updateWifiWatchdog() {
+  uint32_t now = millis();
+  if (now - _lastWifiCheckMs < 10000UL) return; // Non-blocking check every 10s
+  _lastWifiCheckMs = now;
+
+  if (WiFi.status() == WL_CONNECTED) {
+    if (!_wifiWasConnected) {
+      _wifiWasConnected = true;
+      _wifiDisconnectMs = 0;
+      digitalWrite(PIN_STATUS_LED, LOW);
+      netConsole.printf("[WiFi][RECOVERED] Reconnected successfully! Local IP: %s (RSSI: %d dBm)\n",
+                        WiFi.localIP().toString().c_str(), WiFi.RSSI());
+      diagEngine.clearDtc("DTC-401");
+    }
+  } else {
+    if (_wifiWasConnected) {
+      _wifiWasConnected = false;
+      _wifiDisconnectMs = now;
+      digitalWrite(PIN_STATUS_LED, HIGH); // Status LED ON indicates connection lost
+      netConsole.println(F("[WiFi][WARN] Wi-Fi connection lost! Initiating auto-recovery..."));
+      diagEngine.raiseDtc("DTC-401", "Wi-Fi link disconnected", SEV_WARNING);
+    }
+
+    uint32_t disconnectedDurationSec = (now - _wifiDisconnectMs) / 1000;
+
+    if (disconnectedDurationSec > 90) {
+      netConsole.println(F("[WiFi][RETRY] Disconnected > 90s. Hard reset Wi-Fi radio and reconnecting..."));
+      WiFi.disconnect();
+      delay(50);
+      WiFi.begin(DEFAULT_WIFI_SSID, DEFAULT_WIFI_PASS);
+      _wifiDisconnectMs = now;
+    } else {
+      netConsole.println(F("[WiFi][RETRY] Attempting non-blocking Wi-Fi reconnect..."));
+      WiFi.reconnect();
+    }
   }
 }
 
@@ -1989,6 +2134,123 @@ void handleSerialCommand(String cmd) {
   }
 }
 
+
+void handleApiConfigSystemGet() {
+  server.sendHeader("Access-Control-Allow-Origin", "*");
+  String json;
+  json.reserve(1024);
+  json = "{";
+  json += "\"status\":\"ok\",";
+  json += "\"zonesCount\":" + String(thermalZones.getZoneCount()) + ",";
+  json += "\"openLoopBypass\":" + String(thermalZones.isOpenLoopBypass() ? "true" : "false") + ",";
+  json += "\"actuatorDelaySec\":" + String(thermalZones.getInterlockDelayMs() / 1000) + ",";
+  json += "\"boilerDelaySec\":" + String(thermalZones.getBoilerDelayMs() / 1000) + ",";
+  json += "\"pumpOverrunSec\":" + String(thermalZones.getPumpOverrunMs() / 1000) + ",";
+  json += "\"shortCyclingSec\":" + String(boilerRadio.getMinRunTimeMs() / 1000) + ",";
+  json += "\"rfMinCooldownSec\":" + String(boilerRadio.getRfMinCooldownMs() / 1000) + ",";
+  json += "\"rfSafetyHeartbeatSec\":" + String(boilerRadio.getSafetyHeartbeatMs() / 1000) + ",";
+  json += "\"rfSafetyHeartbeatEnabled\":" + String(boilerRadio.isSafetyHeartbeatEnabled() ? "true" : "false") + ",";
+  json += "\"turReturSensors\":" + String(thermalZones.hasManifoldTurReturSensors() ? "true" : "false") + ",";
+  json += "\"pumpControlEnabled\":" + String(thermalZones.isPumpControlEnabled() ? "true" : "false") + ",";
+  json += "\"pumpRelayPin\":" + String(thermalZones.getPumpRelayPin()) + ",";
+  json += "\"actuatorNormallyClosed\":" + String(thermalZones.isActuatorNormallyClosed() ? "true" : "false") + ",";
+  json += "\"freezeProtectionTemp\":" + String(thermalZones.getFreezeProtectionTemp(), 1) + ",";
+  json += "\"sensorTimeoutSec\":" + String(thermalZones.getSensorTimeoutSec()) + ",";
+  json += "\"zones\":[";
+  for (size_t i = 0; i < thermalZones.getZoneCount(); i++) {
+    if (i > 0) json += ",";
+    const auto& z = thermalZones.getConfig(i);
+    json += "{";
+    json += "\"id\":" + String(z.id) + ",";
+    json += "\"name\":\"" + String(z.name) + "\",";
+    json += "\"mac\":\"" + String(z.sensorMac) + "\",";
+    json += "\"relayPin\":" + String(z.relayPin) + ",";
+    json += "\"hysteresis\":" + String(z.hysteresis, 2) + ",";
+    json += "\"enabled\":" + String(z.enabled ? "true" : "false") + ",";
+    json += "\"windowDropThreshold\":" + String(z.windowDropThreshold, 1);
+    json += "}";
+  }
+  json += "]}";
+  server.send(200, "application/json", json);
+}
+
+void handleApiConfigSystemPost() {
+  server.sendHeader("Access-Control-Allow-Origin", "*");
+  if (server.hasArg("openLoopBypass")) {
+    thermalZones.setOpenLoopBypass(server.arg("openLoopBypass") == "true" || server.arg("openLoopBypass") == "1");
+  }
+  if (server.hasArg("actuatorDelaySec")) {
+    uint32_t s = server.arg("actuatorDelaySec").toInt();
+    if (s >= 1 && s <= 600) thermalZones.setInterlockDelayMs(s * 1000UL);
+  }
+  if (server.hasArg("boilerDelaySec")) {
+    uint32_t s = server.arg("boilerDelaySec").toInt();
+    if (s >= 1 && s <= 600) thermalZones.setBoilerDelayMs(s * 1000UL);
+  }
+  if (server.hasArg("pumpOverrunSec")) {
+    uint32_t s = server.arg("pumpOverrunSec").toInt();
+    if (s >= 1 && s <= 600) thermalZones.setPumpOverrunMs(s * 1000UL);
+  }
+  if (server.hasArg("shortCyclingSec")) {
+    uint32_t s = server.arg("shortCyclingSec").toInt();
+    if (s >= 10 && s <= 600) {
+      boilerRadio.setMinRunTimeMs(s * 1000UL);
+      boilerRadio.setMinPauseTimeMs(s * 1000UL);
+    }
+  }
+  if (server.hasArg("rfMinCooldownSec")) {
+    uint32_t s = server.arg("rfMinCooldownSec").toInt();
+    if (s >= 1 && s <= 60) boilerRadio.setRfMinCooldownMs(s * 1000UL);
+  }
+  if (server.hasArg("rfSafetyHeartbeatSec")) {
+    uint32_t s = server.arg("rfSafetyHeartbeatSec").toInt();
+    if (s >= 60 && s <= 3600) boilerRadio.setSafetyHeartbeatMs(s * 1000UL);
+  }
+  if (server.hasArg("rfSafetyHeartbeatEnabled")) {
+    boilerRadio.setSafetyHeartbeatEnabled(server.arg("rfSafetyHeartbeatEnabled") == "true" || server.arg("rfSafetyHeartbeatEnabled") == "1");
+  }
+  if (server.hasArg("turReturSensors")) {
+    thermalZones.setManifoldTurReturSensors(server.arg("turReturSensors") == "true" || server.arg("turReturSensors") == "1");
+  }
+  if (server.hasArg("pumpControlEnabled")) {
+    thermalZones.setPumpControlEnabled(server.arg("pumpControlEnabled") == "true" || server.arg("pumpControlEnabled") == "1");
+  }
+  if (server.hasArg("pumpRelayPin")) {
+    thermalZones.setPumpRelayPin((uint8_t)server.arg("pumpRelayPin").toInt());
+  }
+  if (server.hasArg("actuatorNormallyClosed")) {
+    thermalZones.setActuatorNormallyClosed(server.arg("actuatorNormallyClosed") == "true" || server.arg("actuatorNormallyClosed") == "1");
+  }
+  if (server.hasArg("freezeProtectionTemp")) {
+    float f = server.arg("freezeProtectionTemp").toFloat();
+    if (f >= 5.0f && f <= 20.0f) thermalZones.setFreezeProtectionTemp(f);
+  }
+  if (server.hasArg("sensorTimeoutSec")) {
+    uint32_t s = server.arg("sensorTimeoutSec").toInt();
+    if (s >= 60 && s <= 3600) thermalZones.setSensorTimeoutSec(s);
+  }
+  thermalZones.saveToPreferences();
+  handleApiConfigSystemGet();
+}
+
+void handleApiRelayTest() {
+  server.sendHeader("Access-Control-Allow-Origin", "*");
+  if (!server.hasArg("pin")) {
+    server.send(400, "application/json", F("{\"status\":\"error\",\"message\":\"Missing 'pin' parameter.\"}"));
+    return;
+  }
+  uint8_t pin = (uint8_t)server.arg("pin").toInt();
+  if (pin != PIN_RELAY_ZONE_1 && pin != PIN_RELAY_ZONE_2 && pin != PIN_RELAY_ZONE_3 && pin != PIN_RELAY_SPARE) {
+    server.send(400, "application/json", F("{\"status\":\"error\",\"message\":\"Invalid relay pin. Allowed: 32, 33, 25, 26.\"}"));
+    return;
+  }
+  bool state = (server.arg("state") == "1" || server.arg("state") == "true" || server.arg("state") == "on");
+  pinMode(pin, OUTPUT);
+  digitalWrite(pin, state ? RELAY_ACTIVE_LEVEL : RELAY_INACTIVE_LEVEL);
+  netConsole.printf("[RELAY-TEST] Direct Relay Test: pin %u -> %s\n", pin, state ? "ON" : "OFF");
+  server.send(200, "application/json", F("{\"status\":\"ok\"}"));
+}
+
 void setup() {
   Serial.setTxBufferSize(4096);
   Serial.begin(115200);
@@ -2073,6 +2335,9 @@ void setup() {
   server.on("/api/schedule", HTTP_POST, handleApiSchedulePost);
   server.on("/api/schedule/enable", HTTP_POST, handleApiScheduleEnable);
   server.on("/api/schedule/anchor", HTTP_POST, handleApiScheduleAnchor);
+  server.on("/api/schedule/block/add", HTTP_POST, handleApiScheduleBlockAdd);
+  server.on("/api/schedule/block/update", HTTP_POST, handleApiScheduleBlockUpdate);
+  server.on("/api/schedule/block/delete", HTTP_POST, handleApiScheduleBlockDelete);
   server.on("/api/schedule/presets", HTTP_GET, handleApiSchedulePresets);
   server.on("/api/schedule/preset/apply", HTTP_POST, handleApiSchedulePresetApply);
   server.on("/api/schedule/preset/save", HTTP_POST, handleApiSchedulePresetSave);
@@ -2080,9 +2345,21 @@ void setup() {
   server.on("/api/schedule/reset", HTTP_POST, handleApiScheduleReset);
   server.on("/api/history", HTTP_GET, handleApiHistory);
   server.on("/api/history/clear", HTTP_POST, handleApiHistoryClear);
+  server.on("/api/config/system", HTTP_GET, handleApiConfigSystemGet);
+  server.on("/api/config/system", HTTP_POST, handleApiConfigSystemPost);
+  server.on("/api/relay/test", HTTP_POST, handleApiRelayTest);
 
   // Initialize Hardware Task Watchdog Timer (90 seconds timeout)
+#if defined(ESP_IDF_VERSION_MAJOR) && (ESP_IDF_VERSION_MAJOR >= 5)
+  esp_task_wdt_config_t twdt_config = {
+      .timeout_ms = 90000,
+      .idle_core_mask = 0,
+      .trigger_panic = true,
+  };
+  esp_task_wdt_init(&twdt_config);
+#else
   esp_task_wdt_init(90, true);
+#endif
   esp_task_wdt_add(NULL);
   Serial.println(
       F("[System] Hardware Task Watchdog Timer (TWDT) armed: 90s."));
@@ -2112,6 +2389,7 @@ void loop() {
   diagEngine.update();
   boilerRadio.update();
   thermalZones.update(boilerRadio);
+  updateWifiWatchdog();
 
   // Non-blocking serial command reader
   while (Serial.available()) {

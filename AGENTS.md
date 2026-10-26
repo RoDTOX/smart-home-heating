@@ -22,7 +22,7 @@ Before writing, proposing, or refactoring any code or adding any dependency, cli
    - If an idea does not solve an immediate, proven problem, **skip it**.
    - Do NOT write speculative, "just-in-case" architectures or premature generalizations.
 2. **Is it already in this codebase?**
-   - Inspect existing modules ([`ThermalZoneManager`](file:///c:/Users/BSeceleanu/.github_repos/smart-heating/src/ThermalZoneManager.cpp), [`BoilerRadioTrigger`](file:///c:/Users/BSeceleanu/.github_repos/smart-heating/src/BoilerRadioTrigger.cpp), [`BleSensorScanner`](file:///c:/Users/BSeceleanu/.github_repos/smart-heating/src/BleSensorScanner.cpp), [`DiagnosticEngine`](file:///c:/Users/BSeceleanu/.github_repos/smart-heating/src/DiagnosticEngine.cpp), [`DevicePassport`](file:///c:/Users/BSeceleanu/.github_repos/smart-heating/src/DevicePassport.cpp), [`TimeAndWeatherService`](file:///c:/Users/BSeceleanu/.github_repos/smart-heating/src/TimeAndWeatherService.cpp), [`NetworkConsole`](file:///c:/Users/BSeceleanu/.github_repos/smart-heating/src/NetworkConsole.cpp)).
+   - Inspect existing modules ([`ThermalZoneManager`](file:///d:/_git/smart-home-heating/src/ThermalZoneManager.cpp), [`BoilerRadioTrigger`](file:///d:/_git/smart-home-heating/src/BoilerRadioTrigger.cpp), [`BleSensorScanner`](file:///d:/_git/smart-home-heating/src/BleSensorScanner.cpp), [`DiagnosticEngine`](file:///d:/_git/smart-home-heating/src/DiagnosticEngine.cpp), [`DevicePassport`](file:///d:/_git/smart-home-heating/src/DevicePassport.cpp), [`TimeAndWeatherService`](file:///d:/_git/smart-home-heating/src/TimeAndWeatherService.cpp), [`NetworkConsole`](file:///d:/_git/smart-home-heating/src/NetworkConsole.cpp)).
    - Reuse existing patterns and helpers before writing new routines.
 3. **Does the standard library / ESP-IDF core do it?**
    - Favor native standard C++ (`<vector>`, `<string>`, `<algorithm>`, `<cstdint>`) or ESP-IDF / Arduino core features over third-party libraries.
@@ -45,12 +45,20 @@ Minimalism strictly stops where safety begins. **NEVER** cut corners on:
 ### Headless API-First Principle
 - The microcontroller's responsibility is real-time safety, thermodynamic control, and serving a fast REST/JSON API.
 - Do NOT bloat microcontroller flash with heavy, volatile frontend UI experiments.
-- Primary interaction, testing, and debugging are performed via REST endpoints and the CLI tool ([`tools/esp_cli.py`](file:///c:/Users/BSeceleanu/.github_repos/smart-heating/tools/esp_cli.py)).
+- Primary interaction, testing, and debugging are performed via REST endpoints and the CLI tool ([`tools/esp_cli.py`](file:///d:/_git/smart-home-heating/tools/esp_cli.py)).
 
 ### Shell & Tooling Hygiene (Zero-Escape Protocol)
 - **UTF-8 Mandate:** Windows environment is configured with `PYTHONUTF8=1` / `PYTHONIOENCODING=utf-8`. If invoking one-off verification commands, use `python -X utf8` or ensure `sys.stdout.reconfigure(encoding='utf-8')` to prevent `UnicodeEncodeError` on Romanian diacritics (`ă`, `ș`, `ț`) and thermodynamic symbols (`°C`, `⏳`).
 - **Zero Multiline Inline Scripting:** **NEVER** run ad-hoc multiline Python scripts containing nested quotes, parentheses, or HTML/regex through PowerShell inline `python -c "..."`. PowerShell's tokenizer strips escape quotes `\"` and misinterprets parentheses as subexpressions, causing fatal `UnexpectedToken` parser crashes.
 - **Native Tools First:** For file modifications and searches, always use native agent tools (`replace_file_content`, `multi_replace_file_content`, `write_to_file`, `view_file`). If batch script automation is strictly required, write a dedicated script in `tools/` (e.g., `tools/temp_task.py`), execute `python tools/temp_task.py`, and remove it after completion.
+
+### Socratic Mentorship & Proactive Grilling Protocol ("No Understanding, No Code")
+- **Default Autonomy L0 (Coach):** Never assume passive user approval ("ok", "go ahead") means full comprehension or alignment. Speed without mutual understanding is pure refactoring technical debt.
+- **Explain First Principles First:** Always deconstruct *why* an architectural choice is made, how it works mechanically, and what trade-offs it introduces (using clear physical/engineering analogies, max 2-3 short paragraphs, zero walls of text).
+- **Proactive Grilling (Mini Quiz):** Before major configuration, containerization, or architectural steps, proactively grill the user with 1-2 focused questions:
+  1. *Scenario & Trade-off Check:* "If we choose approach A over B, the consequence is X. Is that your intention?"
+  2. *Concept Verification:* "Before we execute this step, explain in your own words why we are putting this in a container instead of directly on Ubuntu?"
+- **Hold the Line:** Stop calling tools and wait for the user's response. Do NOT execute terminal commands or write production files until mutual understanding is validated.
 
 ---
 
@@ -58,11 +66,11 @@ Minimalism strictly stops where safety begins. **NEVER** cut corners on:
 
 Every non-trivial task (more than one edit or touching more than one file) follows three checkpoints:
 
-1. **Start:** Ensure [`docs/plan.md`](file:///c:/Users/BSeceleanu/.github_repos/smart-heating/docs/plan.md) is reviewed before making edits.
+1. **Start:** Ensure [`docs/plan.md`](file:///d:/_git/smart-home-heating/docs/plan.md) is reviewed before making edits.
 2. **Checkpoint:** Check alignment every ~15 tool calls. If scope drifts, verify with user.
 3. **Handoff:** Upon task completion:
-   - Refresh [`.agent/memory-bank/`](file:///c:/Users/BSeceleanu/.github_repos/smart-heating/.agent/memory-bank/) (`activeContext.md`, `progress.md`).
-   - Update [`docs/changelog.md`](file:///c:/Users/BSeceleanu/.github_repos/smart-heating/docs/changelog.md).
+   - Refresh [`.agent/memory-bank/`](file:///d:/_git/smart-home-heating/.agent/memory-bank/) (`activeContext.md`, `progress.md`).
+   - Update [`docs/changelog.md`](file:///d:/_git/smart-home-heating/docs/changelog.md).
    - Only commit and push when the user explicitly requests it.
 
 ### 3.1. Two-Stage Review Protocol (Author + Independent Fresh Review)
@@ -98,7 +106,7 @@ No firmware modification or control logic change is considered complete, flashed
 
 ## 5. Memory Bank Protocol
 
-Context persists across sessions in [`.agent/memory-bank/`](file:///c:/Users/BSeceleanu/.github_repos/smart-heating/.agent/memory-bank/) with 7 core files:
+Context persists across sessions in [`.agent/memory-bank/`](file:///d:/_git/smart-home-heating/.agent/memory-bank/) with 7 core files:
 - `projectbrief.md`: Core scope and goals.
 - `productContext.md`: Why the project exists.
 - `systemPatterns.md`: Architecture, component design, and patterns.

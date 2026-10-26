@@ -1,6 +1,31 @@
 # Progress: Smart Home Heating System
 
 ## Status
+All core functional subsystems (heating hysteresis engine, boiler RF trigger, native BLE passive scanner, 2-way console, web OTA, diagnostic engine with DTCs, service mode, digital passport, NTP & weather sync, headless API-first architecture, hydronic safety controls, anti-spam burner interlocks, Bio-Schedule with presets engine & full factory/user customization, deferred action cooldown cancel, atomic PC system test suite, Home Assistant full integration, FSM race condition fix, Open Window Detection suite, new Configuration Panel with live relay testing, and Wi-Fi auto-recovery watchdog) are fully implemented, compiled, flashed over Web OTA, and verified live on ESP32 (`192.168.1.20`).
+ASPICE SWE.5 test coverage: 49/49 Requirements (100.0%), 92/92 Tests Passed (100.0%), 0 uncovered requirements, 0 relaxed contracts.
+
+## Completed Work (2026-10-21 - Remediere 6 Probleme Majore, Overhaul UI/UX FSM, Config Panel, Wi-Fi Watchdog & 92/92 Teste ASPICE SWE.5)
+- **100% Acoperire Cerințe ASPICE SWE.5:**
+  - 49/49 Cerințe verificate și documentate (FR-1..FR-45 + NFR-1.1, NFR-1.5, NFR-2.2, NFR-3.2).
+  - 92/92 Teste Atomice Live pe Hardware Real (`192.168.1.20`): 100.0% PASS.
+- **Remediere 6 Probleme Raportate de Utilizator:**
+  - 1. Persistență Preset & Setări NVS la Reboot: Salvare automată ancore direct în cheia de preset NVS `${presetId}_cfg`.
+  - 2. Orar Inteligent 100% Customizabil: `BioAnchorConfig.name[32]`, `daysMask` (L-D) per preset cu auto-switching determinist.
+  - 3. Compactare UI: Eliminat selectorul de nivel redundant și butoanele legacy; switch unificat Simplu vs Inteligent.
+  - 4. Grafice Sparkline Reale: Consumă direct `/api/history?range=24h`; rezolvat overflow slot 256 (>21:20) cu `uint16_t`.
+  - 5. Reordonare Ergonomică Rânduri: `[Zonă]` -> `[Temp Citită]` -> `[Stepper Țintă]` -> `[Sparkline 24h]`.
+  - 6. Decuplare Pompă GPA: Releul 4 eliberat ca spare contact (`pumpControlEnabled: false`).
+- **Overhaul Brand & FSM:**
+  - Eliminat 100% termenul "Tesla"; tab redenumit în `Schemă Hidraulică`.
+  - Eliminat starea tranzitorie S0 BOOT/Warmup BLE; restructurat diagrama SVG și cardurile în Ciclul Circular Principal vs Gărzi Asincrone.
+- **Panou de Configurare Sistem (`⚙️ Configurare`):**
+  - Testare live relee cu whitelist hardware pini (32, 33, 25, 26).
+  - Configurare timpi hidraulici (amorsare, delay centrală, bypass open loop, post-circulație pompă).
+  - Configurare siguranță RF (anti-short-cycling, cooldown, heartbeat de siguranță).
+  - Praguri și comutator gardă geam deschis.
+- **Consolă Live & Wi-Fi Watchdog:**
+  - Execuție comenzi prin API și reset memorie circulară hardware prin `CLEAR`.
+  - Supervizor Wi-Fi non-blocking în `loop()` cu DTC-401 și radio hard reset la 90s.
 All core functional subsystems (heating hysteresis engine, boiler RF trigger, native BLE passive scanner, 2-way console, web OTA, diagnostic engine with DTCs, service mode, digital passport, NTP & weather sync, headless API-first architecture, hydronic safety controls, anti-spam burner interlocks, Bio-Schedule with presets engine & full factory/user customization, deferred action cooldown cancel, atomic PC system test suite, Home Assistant full integration, FSM race condition fix, and Open Window Detection suite with per-zone configurable sensitivity and manual override) are fully implemented, compiled, flashed over Web OTA, and verified live on ESP32 (`192.168.1.20`).
 ASPICE SWE.5 test coverage: 44/44 Requirements (100.0%), 85/85 Tests Passed (100.0%), 0 uncovered requirements, 0 relaxed contracts.
 
@@ -290,16 +315,16 @@ ASPICE SWE.5 test coverage: 44/44 Requirements (100.0%), 85/85 Tests Passed (100
   - Eliminat orice spam automat de pachete BLE din consolă.
   - Datele senzorilor sunt afișate strict la cerere explicită (`STATUS`, `BLE`, `SENSORS` sau interogare REST).
 - **Suită Automată de Testare Sistem ASPICE SWE.5:**
-  - Implementat [`tools/test_system.py`](file:///c:/Users/BSeceleanu/.github_repos/smart-heating/tools/test_system.py) și integrat în CLI (`python tools/esp_cli.py test`).
+  - Implementat [`tools/test_system.py`](file:///d:/_git/smart-home-heating/tools/test_system.py) și integrat în CLI (`python tools/esp_cli.py test`).
   - 12 cazuri de testare end-to-end acoperind toate cerințele din PRD (`FR-1`, `FR-4`, `FR-10`, `FR-11`, `FR-13`, `FR-14`, `FR-15`, `FR-17`, `NFR-1.1`).
   - Validat live pe hardware cu rată de succes de **100.0% (12/12 PASS)**.
-  - Generat raport oficial de testare în [`docs/system_test_report.md`](file:///c:/Users/BSeceleanu/.github_repos/smart-heating/docs/system_test_report.md).
+  - Generat raport oficial de testare în [`docs/system_test_report.md`](file:///d:/_git/smart-home-heating/docs/system_test_report.md).
 - **Headless API-First Architecture & UI Latency Elimination:**
   - Decoupled backend REST endpoints from front-end volatility.
   - Eliminated UI lag: converted all buttons to 0ms optimistic DOM updates and asynchronous background POSTs (removed `location.reload()`).
   - Smart location selection without GPS coordinate requirements (Geocoding search + 41 Romanian county capitals + IP/GPS auto-detection).
   - Zone index normalization (supports 1-based and 0-based indices).
-  - Comprehensive CLI utility [`tools/esp_cli.py`](file:///c:/Users/BSeceleanu/.github_repos/smart-heating/tools/esp_cli.py).
+  - Comprehensive CLI utility [`tools/esp_cli.py`](file:///d:/_git/smart-home-heating/tools/esp_cli.py).
 - **Failsafes de Siguranță, Hardening Firmware & Suport Hidraulic (Task 15):**
   - Control pompă secundară GPA via Releu 4 (`GPIO26`) cu interlock și 180s overrun.
   - Actuatoare NC / NO configurabile persistent în NVS.

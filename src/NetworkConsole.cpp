@@ -224,6 +224,7 @@ void NetworkConsole::setupWebRoutes() {
     _webServer->on("/console", HTTP_GET, std::bind(&NetworkConsole::handleWebConsolePage, this));
     _webServer->on("/api/console/logs", HTTP_GET, std::bind(&NetworkConsole::handleApiConsoleLogs, this));
     _webServer->on("/api/console/send", HTTP_POST, std::bind(&NetworkConsole::handleApiConsoleSend, this));
+    _webServer->on("/api/console/cmd", HTTP_POST, std::bind(&NetworkConsole::handleApiConsoleSend, this));
 }
 
 String NetworkConsole::getLogsSince(uint32_t since) {
@@ -263,6 +264,8 @@ void NetworkConsole::handleApiConsoleSend() {
     String cmd = "";
     if (_webServer->hasArg("cmd")) {
         cmd = _webServer->arg("cmd");
+    } else if (_webServer->hasArg("c")) {
+        cmd = _webServer->arg("c");
     } else if (_webServer->hasArg("plain")) {
         cmd = _webServer->arg("plain");
     }

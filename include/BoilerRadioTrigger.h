@@ -3,10 +3,11 @@
 
 #include <Arduino.h>
 
-// FR-17 Timing Thresholds & Safety Limits
+// FR-17 Timing Thresholds & Safety Limits (Defaults)
 #define RF_MIN_COOLDOWN_MS       3000UL   // FR-17.2: Min 3s silence between any consecutive RF bursts
-#define BOILER_MIN_RUN_TIME_MS   60000UL  // FR-17.3: Min 60s burn duration before turning OFF allowed
-#define BOILER_MIN_PAUSE_TIME_MS 60000UL  // FR-17.3: Min 60s rest duration before turning ON allowed
+#define BOILER_MIN_RUN_TIME_MS   180000UL // FR-17.3: Min 180s burn duration before turning OFF allowed
+#define BOILER_MIN_PAUSE_TIME_MS 180000UL // FR-17.3: Min 180s rest duration before turning ON allowed
+#define BOILER_HEARTBEAT_MS      900000UL // FR-17.7: Periodic 15m safety heartbeat
 
 enum PendingBoilerAction {
     PENDING_NONE = 0,
@@ -53,6 +54,18 @@ public:
     void saveStateToPreferences();
     void loadStateFromPreferences();
 
+    // Configurable RF & Safety Timings
+    uint32_t getMinRunTimeMs() const { return _minRunTimeMs; }
+    void setMinRunTimeMs(uint32_t ms);
+    uint32_t getMinPauseTimeMs() const { return _minPauseTimeMs; }
+    void setMinPauseTimeMs(uint32_t ms);
+    uint32_t getRfMinCooldownMs() const { return _rfMinCooldownMs; }
+    void setRfMinCooldownMs(uint32_t ms);
+    uint32_t getSafetyHeartbeatMs() const { return _safetyHeartbeatMs; }
+    void setSafetyHeartbeatMs(uint32_t ms);
+    bool isSafetyHeartbeatEnabled() const { return _safetyHeartbeatEnabled; }
+    void setSafetyHeartbeatEnabled(bool en);
+
 private:
     uint8_t _dataPin;
     bool _lastCommandOn;
@@ -60,6 +73,13 @@ private:
     uint32_t _lastTxTime;
     uint32_t _lastStateChangeTime;
     PendingBoilerAction _pendingAction;
+
+    // Configurable Timers & Safety
+    uint32_t _minRunTimeMs;
+    uint32_t _minPauseTimeMs;
+    uint32_t _rfMinCooldownMs;
+    uint32_t _safetyHeartbeatMs;
+    bool     _safetyHeartbeatEnabled;
 
     // Spam & abuse tracking (FR-17.5)
     uint32_t _spamAttemptCount;
@@ -82,4 +102,3 @@ private:
 extern BoilerRadioTrigger boilerRadio;
 
 #endif // BOILER_RADIO_TRIGGER_H
-

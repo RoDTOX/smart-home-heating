@@ -17,7 +17,7 @@ TelemetryHistoryManager::TelemetryHistoryManager()
       _currentSlot24h(0),
       _lastSampleMs(0),
       _lastSampleEpoch(0),
-      _lastRecorded5mSlot(255),
+      _lastRecorded5mSlot(0xFFFF),
       _lastRecorded30mSlot(255),
       _dirty24h(false),
       _dirty5d(false) {
@@ -108,7 +108,7 @@ void TelemetryHistoryManager::setLocalTimeFromClient(uint32_t epochSec) {
 
 void TelemetryHistoryManager::captureSample() {
     time_t now = time(nullptr);
-    uint8_t slot5m = 0;
+    uint16_t slot5m = 0;
     uint8_t slot30m = 0;
 
     if (now > 1700000000UL) {
@@ -119,7 +119,7 @@ void TelemetryHistoryManager::captureSample() {
         _lastSampleEpoch = (uint32_t)now;
     } else {
         // Fallback to uptime-based slot
-        slot5m = (uint8_t)((millis() / 300000UL) % TELEMETRY_24H_POINTS);
+        slot5m = (uint16_t)((millis() / 300000UL) % TELEMETRY_24H_POINTS);
         slot30m = (uint8_t)((millis() / 1800000UL) % 48);
         _lastSampleEpoch = (uint32_t)(millis() / 1000);
     }
@@ -181,14 +181,14 @@ void TelemetryHistoryManager::update() {
     }
 
     time_t now = time(nullptr);
-    uint8_t currentSlot5m = 0;
+    uint16_t currentSlot5m = 0;
 
     if (now > 1700000000UL) {
         struct tm tmInfo;
         localtime_r(&now, &tmInfo);
         currentSlot5m = (tmInfo.tm_hour * 60 + tmInfo.tm_min) / 5;
     } else {
-        currentSlot5m = (uint8_t)((millis() / 300000UL) % TELEMETRY_24H_POINTS);
+        currentSlot5m = (uint16_t)((millis() / 300000UL) % TELEMETRY_24H_POINTS);
     }
 
     if (currentSlot5m != _lastRecorded5mSlot || _lastSampleMs == 0) {

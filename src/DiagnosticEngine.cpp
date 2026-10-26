@@ -173,6 +173,8 @@ void DiagnosticEngine::evaluateSystem() {
     } else if (rssi >= -78) {
       clearDtc("DTC-401");
     }
+  } else {
+    raiseDtc("DTC-401", "Wi-Fi link disconnected", SEV_WARNING);
   }
 
   // Free heap memory check (hysteresis: raise at <60 KB, clear at >75 KB)

@@ -3,6 +3,65 @@
 Jurnalul modificărilor, deciziilor tehnice și verificărilor efectuate pentru proiectul de încălzire inteligentă.
 Corelat cu planul activ: [`docs/plan.md`](file:///c:/Users/BSeceleanu/.github_repos/smart-heating/docs/plan.md).
 
+
+
+## [21.10.2026] - Remediere 6 Probleme Majore, Overhaul UI/UX FSM, Suită Nouă Configurare Hardware & Hardening Firmware (100% ASPICE SWE.5)
+
+### 1. Remediere Cele 6 Probleme Majore Raportate de Utilizator
+- **Problema 1 (Persistență Preset & Setări NVS la Reset):**
+  - Identificat defectul de salvare a ancorelor: modificările ancorelor se salvau doar în bufferul volatil activ și în `schedule_cfg`. La reboot, comutarea sau reîncărcarea presetului suprascria modificările cu valorile vechi din namespace-ul NVS `presets`.
+  - În `ThermalZoneManager::updateAnchor` și `setAnchorTarget`: salvat automat starea ancorelor direct în cheia NVS dedicată a presetului activ (`${_activePresetId}_cfg`).
+- **Problema 2 (Orar Inteligent 100% Customizabil & Nume Flexibile):**
+  - Mărit bufferul numelui ancorei de la `char name[16]` la `char name[32]` în `BioAnchorConfig` pentru a preveni trunchierea numelor descriptive (ex: "Trezire Dimineață", "Home Office Day").
+  - Adăugat câmpul `daysMask` (mască biți Luni-Duminică) per preset și persistență completă în NVS.
+  - Implementat auto-switching determinist în `evaluateSchedule()`: orarul își adaptează setpoint-urile și ancorele în funcție de ziua curentă NTP.
+  - Sincronizare la pornire: la prima sincronizare NTP validă, temperaturile țintă ale zonelor sunt actualizate instantaneu la setpoint-ul ancorei active.
+- **Problema 3 (Compactare UI & Eliminare Moduri Redundante):**
+  - Eliminat din interfață selectorul redundant de nivel ("NIVEL: Simplu / Preseturi / Avansat"), precum și butoanele "App" și "Prototip V2".
+  - Comutatorul slider "Orar Inteligent" devine comutatorul unificat Simplu (OFF - temperaturi manuale) vs Inteligent (ON - urmărire preset).
+  - Adăugat buton direct de acțiune "⚙️ Configurează orar preset" pentru deschiderea inline a matricei de configurare a orelor și temperaturilor.
+- **Problema 4 (Mini-Grafice Sparkline Fiabile Direct din RAM / LittleFS):**
+  - Eliminat `localStorage` din browser care ducea la grafice plate de 0.0°C și desincronizări între PC și mobil.
+  - Sparklines citesc acum direct telemetria pe ultimele 24h servită din RAM și LittleFS de către ESP32 prin `/api/history?range=24h`.
+  - Corectat defectul critic de overflow la ora 21:20 (slot 256): `_lastRecorded5mSlot` extins din `uint8_t` în `uint16_t` în `TelemetryHistoryManager.h/.cpp`.
+- **Problema 5 (Reordonare Ergonomică Rânduri Zone Termice):**
+  - Reorganizat fluxul vizual pe rândurile fiecărei camere: `[Informații Zonă]` $\rightarrow$ `[Temperatură Citită]` $\rightarrow$ `[Reglaj Temperatură Țintă Stepper - / +]` $\rightarrow$ `[Mini-grafic Sparkline 24h]`.
+- **Problema 6 (Decuplare Pompă GPA & Releu Liber):**
+  - Eliminată maparea automată a pompei de amestec GPA pe Releul 4 (`GPIO26`), deoarece distribuitorul fizic nu are pompă secundară GPA montată.
+  - Releul 4 rămâne liber ca contact de rezervă (spare contact), `pumpControlEnabled` inițializat pe `false`.
+
+### 2. Curățare Brand & Eliminare Nomenclatură "Tesla"
+- Eliminat complet termenul "Tesla" din tot codul HTML, CSS, scripturile JS, denumirile SVG și endpoint-uri.
+- Redenumit tab-ul de vizualizare în `Schemă Hidraulică`.
+
+### 3. Overhaul Diagramă FSM (Finite State Machine)
+- Eliminat starea redundantă S0 (`BOOT / Warmup BLE`) din FSM; diagrama reflectă doar stările operaționale.
+- Eliminat Planul B redundant; optimizat viewBox-ul SVG la `0 0 940 235`.
+- Restructurat cardurile descriptive de la baza diagramei în două secțiuni logice:
+  1. *Ciclul Principal Circular de Încălzire:* `IDLE` $\rightarrow$ `WARMING UP` $\rightarrow$ `HEATING` $\rightarrow$ `OVERRUN`.
+  2. *Gărzi Asincrone de Siguranță:* `FEREASTRĂ DESCHISĂ` (DTC-301), `SENZOR TIMEOUT` (DTC-101), `PROTECȚIE ÎNGHEȚ`, `SHORT-CYCLING GUARD` (DTC-201).
+
+### 4. Panou de Configurare Sistem (`⚙️ Configurare`)
+- Adăugat tab dedicat în interfața web cu 4 secțiuni modulare:
+  - **Filtru & Testare Live Relee:** butoane de test anclanșare/decuplare pentru fiecare releu și configurare mapare GPIO, cu validare strictă pe whitelist-ul hardware de pini (32, 33, 25, 26).
+  - **Temporizări Hidraulice:** timp amorsare actuatori termici (default 3 min), delay aprindere centrală (default 3 min), comutator bypass open-loop (aprindere imediată a flăcării fără delay dacă există calorifere portprosop fără termostat), post-circulație pompă (default 3 min).
+  - **Parametri Radio & Siguranță RF:** cooldown minim între pachete RF (default 3s), timp minim anti-short-cycling flacără (default 180s), heartbeat retransmitere de siguranță RF (default 15m) cu buton activare/dezactivare.
+  - **Failsafe & Senzori:** senzori tur/retur colector, comutator gardă geam deschis și prag cădere per cameră.
+- Creat endpoint-uri REST dedicate: `GET /api/config/system`, `POST /api/config/system` și `POST /api/relay/test?pin=&state=`.
+
+### 5. Consolă Live Reparată & Ștergere Memorie Hardware
+- Comenzile (`STATUS`, `ON`, `OFF`, `HELP`, etc.) transmise prin `/api/console/send?cmd=` sunt executate direct în `NetworkConsole`.
+- Comanda `CLEAR` resetează ring buffer-ul hardware din RAM-ul ESP32, prevenind re-afișarea mesajelor vechi la următorul ciclu de interogare (poll).
+
+### 6. Supervizor Wi-Fi Watchdog & Auto-Recovery
+- Adăugat `updateWifiWatchdog()` în bucla principală `loop()`: la deconectare ridică avertismentul `DTC-401`, încearcă reconectarea periodică la 10s, iar dacă linkul este căzut >90s forțează resetarea hard a modulului radio Wi-Fi.
+- Expus statusul watchdog-ului în `/api/status` (`"wifiWatchdog":"active"`).
+
+### 7. Verificare ASPICE SWE.5 & Test-Driven Development (TDD)
+- Adăugat Grupul 27 în `tools/test_system.py` (`SWE.5-TC27.1` .. `SWE.5-TC27.5`) pentru cerințele `FR-42`, `FR-43`, `FR-44`, `FR-45`.
+- Execuție completă împotriva plăcii reale ESP32 (`192.168.1.20`): **92/92 PASS (100.0%)**, **49/49 Cerințe Acoperite (100.0%)**.
+- Actualizat raportul formal la `docs/system_test_report.md`.
+
 ## [18.10.2026] - Aliniere Riguroasă 1:1 ASPICE SWE.5: 44/44 Cerințe Acoperite & 85/85 Teste Verificare Live
 
 ### 1. Acoperire Integrală Cerințe (44/44 - 100%)

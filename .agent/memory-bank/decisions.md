@@ -124,5 +124,30 @@
 - Enforce Daily Zero-Gap Requirements Audit: Proactively alert the user at the start of each session if any implementation lacks requirements or test coverage, requesting explicit authorization to address it.
 **Consequences**: Eliminates technical debt, guarantees 100% ASPICE SWE.5 bidirectional traceability, and ensures physical heating safety.
 
+## 2026-10-19 — Multi-Tenant IoT SaaS Architecture & Edge Decoupling
+**Context**: Transitioning from a single-home server to a commercial Multi-Tenant IoT Platform as a Service (PaaS) under `mysmarthome.cc`. The platform must serve Client 0 (Admin / personal services), Client 1 (Residential Smart Heating + private TeslaMate), Client 2 (Standalone offline-first ESP32 with cloud telemetry/OTA updates), and Client 3 (Remote heating control via Web/Mobile app without Tailscale).
+**Decision**:
+- Adopt three-tier domain topology: `mysmarthome.cc` (public showcase), `app.mysmarthome.cc` (authenticated multi-tenant portal with tenant filtering), and `mqtt.mysmarthome.cc` (secure outbound device ingestion and fleet management).
+- ESP32 firmware remains offline-first for physical heating safety, while adopting dual-mode outbound MQTT connectivity using persistent device credentials (`DevicePassport`).
+- Decouple Web UI from hardcoded local IPs (`192.168.1.20`) to allow running identical frontends locally, via Nginx gateway, or hosted in the cloud.
+- Comprehensive technical specification documented in `docs/architecture_multitenant_iot_saas.md`.
+**Consequences**: Clean separation of concerns; zero port-forwarding on client routers; hardware safety guaranteed at the edge; infrastructure ready for multi-client scale.
 
 
+
+
+## 2026-10-22 — Architectural Consensus (/grill-me): Hybrid Server, Master-Slave ESP-NOW Topology, PWA & PocketBase Multi-Tenant Backend
+**Context**: The user initiated a systematic /grill-me architectural review to lock in commercial strategy, hardware hierarchy for large properties, UI delivery, and backend technology stack for the Smart Heating IoT platform.
+**Decision**:
+1. **Server Role (ThinkPad L590)**: Operates as a Hybrid Server hosting personal private services (TeslaMate, Aquarium, Home Assistant) alongside the MVP Smart Heating platform on mysmarthome.cc with zero cloud operating costs during development.
+2. **Autonomous Edge & Optional Home Assistant**: The ESP32 heating controller remains 100% offline-first and self-sufficient. Home Assistant is strictly an optional MQTT integration (heating never fails if HA reboots).
+3. **Master-Slave Multi-Manifold Architecture**: In multi-story houses with multiple hydraulic manifolds, each manifold receives its own dedicated ESP32 controller. One controller is designated Master (firing the boiler via 433 MHz RF trigger); other controllers act as Slaves. Inter-controller coordination uses **ESP-NOW** (direct 2.4 GHz peer-to-peer wireless), guaranteeing boiler actuation even if the homeowner's Wi-Fi router is offline or credentials change.
+4. **Multi-Property Data Hierarchy**: A single user account manages multiple properties via a switcher ([București ▼ | Sinaia]). Hierarchy: User -> 1..N Properties -> 1..M Controllers (Master/Slaves) -> 1..K Zones.
+5. **Commercial Strategy (Dual Channel)**:
+   - *B2C*: Complete turnkey retrofit (hardware + physical manifold installation + zero monthly subscriptions for core features, eliminating user frustration with Tado/Nabu Casa).
+   - *B2B*: Strategic partnerships with heating/plumbing contractors and property developers to supply pre-assembled kits in new builds.
+6. **User Interface Delivery**: Dual form factor:
+   - Responsive **Progressive Web App (PWA)** installable with 1 click on iOS & Android (zero App Store friction/fees).
+   - Dedicated **Wall Tablet Kiosk Mode** for wall-mounted touch displays.
+7. **Multi-Tenant Server Backend**: Selected **PocketBase** (Go + SQLite embedded) for the backend microservice on pp.mysmarthome.cc. Consumes only ~15 MB RAM, includes out-of-the-box Auth (OAuth2 Google/Apple/Email PIN), real-time WebSockets, and built-in Admin UI.
+**Consequences**: Crystal-clear architectural alignment; high hardware resilience through ESP-NOW; negligible server footprint; fast time-to-market without App Store delays or recurring cloud bills.

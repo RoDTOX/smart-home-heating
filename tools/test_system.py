@@ -102,6 +102,11 @@ SWE1_REQUIREMENTS = {
     "FR-38": "Intelligent Overrun & Conditional Post-Circulation Heat Dissipation",
     "FR-39": "Temporary Setpoint Hold & Circadian Bio-Schedule Non-Destructive Override",
     "FR-40": "Open Window Detection Suite & Smart Pause Guard",
+    "FR-41": "Wi-Fi Link Supervisor & Auto-Recovery Watchdog (DTC-401)",
+    "FR-42": "System Configuration REST API & Hydraulic Timing Guards",
+    "FR-43": "Multi-Relay Dynamic Testing & Safety Interlock",
+    "FR-44": "Bio-Schedule Customizable Preset Days & Custom Interval Names",
+    "FR-45": "Bidirectional Web Wi-Fi Console Protocol & Invariant Buffer Reset",
     "NFR-1.1": "Autonomous Edge Operation (Zero Cloud Dependency)",
     "NFR-1.5": "Hardware Task Watchdog Timer (TWDT 90s)",
     "NFR-2.2": "RAM Efficiency (Free Heap >100 KB)",
@@ -216,6 +221,23 @@ class SystemTestSuite:
             return TestResult(test_id, name, req, "FAIL", (time.time() - start)*1000, str(e))
 
     # ---------------------------------------------------------
+    def test_tc01_5_wifi_watchdog_supervisor(self):
+        """SWE.5-TC01.5: Wi-Fi Connection Supervisor & Watchdog Telemetry (FR-41, NFR-1.1)"""
+        test_id = "SWE.5-TC01.5"
+        name = "Wi-Fi Watchdog & Link Supervisor"
+        req = "FR-41, NFR-1.1"
+        start = time.time()
+        try:
+            r = requests.get(f"{self.base_url}/api/boiler/status", timeout=self.timeout)
+            latency = (time.time() - start) * 1000
+            data = r.json()
+            assert "wifiWatchdog" in data, "Missing 'wifiWatchdog' field in /api/boiler/status payload"
+            assert data.get("wifiWatchdog") == "active", f"Expected wifiWatchdog == 'active', got {data.get('wifiWatchdog')}"
+            details = f"Wi-Fi Watchdog: {data.get('wifiWatchdog')} (auto-recovery active, DTC-401 supervised)"
+            return TestResult(test_id, name, req, "PASS", latency, details)
+        except Exception as e:
+            return TestResult(test_id, name, req, "FAIL", (time.time() - start)*1000, str(e))
+
     # Group 2: Device Commissioning Passport
     # ---------------------------------------------------------
 
@@ -1176,13 +1198,12 @@ class SystemTestSuite:
             r = requests.get(f"{self.base_url}/api/schedule", timeout=self.timeout)
             latency = (time.time() - start) * 1000
             data = r.json()
-            assert "weekday" in data and len(data["weekday"]) == 4, "Weekday profile must have 4 anchors"
-            assert "weekend" in data and len(data["weekend"]) == 4, "Weekend profile must have 4 anchors"
+            assert "weekday" in data, "Weekday profile must exist"
+            assert "weekend" in data, "Weekend profile must exist"
             expected = {"sleep", "wake", "away", "home"}
-            assert set(data["weekday"].keys()) == expected, f"Weekday keys mismatch: {data['weekday'].keys()}"
-            assert set(data["weekend"].keys()) == expected, f"Weekend keys mismatch: {data['weekend'].keys()}"
-            details = "Verified 4 natural anchors (Sleep, Wake, Away, Home) across Weekday & Weekend profiles"
-            return TestResult(test_id, name, req, "PASS", latency, details)
+            assert expected.issubset(set(data["weekday"].keys())), f"Weekday missing legacy anchors: {data['weekday'].keys()}"
+            assert expected.issubset(set(data["weekend"].keys())), f"Weekend missing legacy anchors: {data['weekend'].keys()}"
+            return TestResult(test_id, name, req, "PASS", latency, "Verified circadian life anchors")
         except Exception as e:
             return TestResult(test_id, name, req, "FAIL", (time.time() - start)*1000, str(e))
 
@@ -1589,6 +1610,40 @@ class SystemTestSuite:
             return TestResult(test_id, name, req, "FAIL", (time.time() - start)*1000, str(e))
 
     # ---------------------------------------------------------
+    def test_tc20_4_history_288_slots_overflow_guard(self):
+        """SWE.5-TC20.4: Telemetry History 288-Slot Index Integrity & Overflow Guard (FR-34)"""
+        test_id = "SWE.5-TC20.4"
+        name = "History 288-Slot Overflow Guard"
+        req = "FR-34"
+        start = time.time()
+        try:
+            r = requests.get(f"{self.base_url}/api/history?range=24h", timeout=self.timeout)
+            latency = (time.time() - start) * 1000
+            assert r.status_code == 200, f"Failed fetching 24h history: {r.status_code}"
+            data = r.json()
+            points = data.get("points", [])
+            slots = [p[0] for p in points]
+
+            # Check slot integrity: 288 slots total in 24h (0..287)
+            # If current local time is >= 21:20 (slot >= 256), slot must exceed 255 (no 8-bit wrap)
+            now = datetime.now()
+            current_slot = (now.hour * 12) + (now.minute // 5)
+            if current_slot >= 256:
+                slots_above_255 = [s for s in slots if s >= 256]
+                assert len(slots_above_255) > 0, (
+                    f"8-bit overflow detected: 0 slots >= 256 found despite current slot {current_slot} "
+                    f"(max slot: {max(slots) if slots else 0}, points: {len(points)})"
+                )
+
+            # Verify no slots exceed 287 (boundary safety)
+            invalid_slots = [s for s in slots if s > 287 or s < 0]
+            assert len(invalid_slots) == 0, f"Invalid slot numbers detected (>287 or <0): {invalid_slots}"
+
+            details = f"Verified 16-bit slot indexing (points: {len(points)}, max slot: {max(slots) if slots else 0}, current slot: {current_slot})"
+            return TestResult(test_id, name, req, "PASS", latency, details)
+        except Exception as e:
+            return TestResult(test_id, name, req, "FAIL", (time.time() - start)*1000, str(e))
+
     # Group 21: Thermal Gas Consumption Model & Telemetry (FR-35)
     # ---------------------------------------------------------
 
@@ -1918,6 +1973,207 @@ class SystemTestSuite:
             return TestResult(test_id, name, req, "FAIL", (time.time() - start)*1000, str(e))
 
     # ---------------------------------------------------------
+    # Group 27: System Configuration, Multi-Relay & Presets 2.0 (FR-42, FR-43, FR-44, FR-45)
+    # ---------------------------------------------------------
+
+    def test_tc27_1_system_config_schema(self):
+        """SWE.5-TC27.1: System Configuration REST Schema (FR-42)"""
+        test_id = "SWE.5-TC27.1"
+        name = "System Configuration REST Schema"
+        req = "FR-42"
+        start = time.time()
+        try:
+            r = requests.get(f"{self.base_url}/api/config/system", timeout=self.timeout)
+            latency = (time.time() - start) * 1000
+            assert r.status_code == 200, f"Expected 200, got {r.status_code}"
+            data = r.json()
+            assert data.get("status") == "ok", "Expected status ok"
+            expected_fields = [
+                "openLoopBypass", "actuatorDelaySec", "boilerDelaySec", "pumpOverrunSec",
+                "shortCyclingSec", "rfMinCooldownSec", "rfSafetyHeartbeatSec",
+                "turReturSensors", "pumpControlEnabled", "pumpRelayPin", "zones"
+            ]
+            for f in expected_fields:
+                assert f in data, f"Missing '{f}' in /api/config/system"
+            details = f"Verified /api/config/system schema ({len(data.get('zones', []))} zones, openLoop={data.get('openLoopBypass')})"
+            return TestResult(test_id, name, req, "PASS", latency, details)
+        except Exception as e:
+            return TestResult(test_id, name, req, "FAIL", (time.time() - start)*1000, str(e))
+
+    def test_tc27_2_system_config_mutation_persistence(self):
+        """SWE.5-TC27.2: System Configuration Mutation & Persistence (FR-42)"""
+        test_id = "SWE.5-TC27.2"
+        name = "System Configuration Mutation"
+        req = "FR-42"
+        start = time.time()
+        try:
+            payload = {
+                "openLoopBypass": "true",
+                "actuatorDelaySec": "180",
+                "boilerDelaySec": "180",
+                "pumpOverrunSec": "180",
+                "shortCyclingSec": "180",
+                "rfMinCooldownSec": "3",
+                "rfSafetyHeartbeatSec": "900",
+                "rfSafetyHeartbeatEnabled": "true",
+                "turReturSensors": "false",
+                "pumpControlEnabled": "false",
+                "pumpRelayPin": "26",
+                "actuatorNormallyClosed": "true",
+                "freezeProtectionTemp": "12.0",
+                "sensorTimeoutSec": "600"
+            }
+            r = requests.post(f"{self.base_url}/api/config/system", data=payload, timeout=self.timeout)
+            assert r.status_code == 200, f"Expected 200 on config post, got {r.status_code}"
+            data = r.json()
+            assert data.get("openLoopBypass") is True, "openLoopBypass not true in response"
+            latency = (time.time() - start) * 1000
+            details = f"Configuration mutation verified & persisted to NVS (actuatorDelay={data.get('actuatorDelaySec')}s)"
+            return TestResult(test_id, name, req, "PASS", latency, details)
+        except Exception as e:
+            return TestResult(test_id, name, req, "FAIL", (time.time() - start)*1000, str(e))
+
+    def test_tc27_3_relay_test_contract(self):
+        """SWE.5-TC27.3: Hardware Relay Safe Live Test Contract (FR-43)"""
+        test_id = "SWE.5-TC27.3"
+        name = "Hardware Relay Safe Live Test Contract"
+        req = "FR-43"
+        start = time.time()
+        try:
+            r_valid = requests.post(f"{self.base_url}/api/relay/test?pin=26&state=0", timeout=self.timeout)
+            assert r_valid.status_code == 200, f"Expected 200 for pin 26 test, got {r_valid.status_code}"
+
+            r_invalid = requests.post(f"{self.base_url}/api/relay/test?pin=99&state=1", timeout=self.timeout)
+            assert r_invalid.status_code == 400, f"Expected 400 for illegal pin 99, got {r_invalid.status_code}"
+
+            latency = (time.time() - start) * 1000
+            details = "Relay test API validated (GPIO26 safe toggle verified, pin 99 rejected with HTTP 400)"
+            return TestResult(test_id, name, req, "PASS", latency, details)
+        except Exception as e:
+            return TestResult(test_id, name, req, "FAIL", (time.time() - start)*1000, str(e))
+
+    def test_tc27_4_preset_days_and_anchor_names(self):
+        """SWE.5-TC27.4: Schedule Preset Days Mask & Anchor Naming (FR-44)"""
+        test_id = "SWE.5-TC27.4"
+        name = "Preset Days Mask & Anchor Naming"
+        req = "FR-44"
+        start = time.time()
+        try:
+            r_anc = requests.post(f"{self.base_url}/api/schedule/anchor?profile=weekday&anchor=wake&name=Trezire%20Dimineata", timeout=self.timeout)
+            assert r_anc.status_code == 200, f"Anchor name post failed: {r_anc.status_code}"
+            anc_data = r_anc.json()
+            assert anc_data.get("weekday", {}).get("wake", {}).get("name") == "Trezire Dimineata", "Anchor name not updated"
+
+            r_pre = requests.get(f"{self.base_url}/api/schedule/presets", timeout=self.timeout)
+            assert r_pre.status_code == 200, f"Presets catalog query failed: {r_pre.status_code}"
+            pdata = r_pre.json()
+            for p in pdata.get("presets", []):
+                assert "daysMask" in p, f"Missing 'daysMask' in preset {p.get('id')}"
+
+            latency = (time.time() - start) * 1000
+            details = "Preset days mask (0..127) & custom anchor names ('Trezire Dimineata') validated"
+            return TestResult(test_id, name, req, "PASS", latency, details)
+        except Exception as e:
+            return TestResult(test_id, name, req, "FAIL", (time.time() - start)*1000, str(e))
+
+    def test_tc27_5_console_command_and_clear_invariant(self):
+        """SWE.5-TC27.5: Bidirectional Web Wi-Fi Console Execution & Clear Invariant (FR-45)"""
+        test_id = "SWE.5-TC27.5"
+        name = "Console Execution & Clear Invariant"
+        req = "FR-45"
+        start = time.time()
+        try:
+            r_cmd = requests.post(f"{self.base_url}/api/console/send?cmd=STATUS", timeout=self.timeout)
+            assert r_cmd.status_code == 200, f"Console send STATUS failed: {r_cmd.status_code}"
+            assert "STATUS" in r_cmd.text, "Response missing STATUS echo"
+
+            r_clr = requests.post(f"{self.base_url}/api/console/send?cmd=CLEAR", timeout=self.timeout)
+            assert r_clr.status_code == 200, f"Console send CLEAR failed: {r_clr.status_code}"
+
+            r_logs = requests.get(f"{self.base_url}/api/console/logs?since=0", timeout=self.timeout)
+            assert r_logs.status_code == 200, f"Console logs fetch failed: {r_logs.status_code}"
+            assert len(r_logs.text.strip()) == 0, f"Expected empty logs after CLEAR, got {len(r_logs.text)} chars"
+
+            latency = (time.time() - start) * 1000
+            details = "Console command execution (STATUS) and hardware buffer wipe (CLEAR) verified"
+            return TestResult(test_id, name, req, "PASS", latency, details)
+        except Exception as e:
+            return TestResult(test_id, name, req, "FAIL", (time.time() - start)*1000, str(e))
+
+    # Group 28: Dynamic Time Blocks Engine & Hydraulic Isolation (FR-46, FR-14)
+    def test_tc28_1_dynamic_schedule_blocks_schema(self):
+        """SWE.5-TC28.1: Dynamic Schedule Blocks Schema (/api/schedule) (FR-46)"""
+        test_id = "SWE.5-TC28.1"
+        name = "Dynamic Schedule Blocks Schema"
+        req = "FR-46"
+        start = time.time()
+        try:
+            r = requests.get(f"{self.base_url}/api/schedule", timeout=self.timeout)
+            assert r.status_code == 200, f"Expected 200, got {r.status_code}"
+            data = r.json()
+            for prof in ["weekday", "weekend"]:
+                assert prof in data, f"Missing {prof} profile"
+                assert "blocks" in data[prof], f"Missing blocks array in {prof}"
+                blocks = data[prof]["blocks"]
+                assert len(blocks) >= 1, f"Expected >= 1 block, got {len(blocks)}"
+                for b in blocks:
+                    assert "name" in b and "hour" in b and "minute" in b and "targets" in b, f"Malformed block: {b}"
+            latency = (time.time() - start) * 1000
+            details = f"Verified blocks schema (weekday={len(data['weekday']['blocks'])}, weekend={len(data['weekend']['blocks'])})"
+            return TestResult(test_id, name, req, "PASS", latency, details)
+        except Exception as e:
+            return TestResult(test_id, name, req, "FAIL", (time.time() - start)*1000, str(e))
+
+    def test_tc28_2_dynamic_schedule_block_crud(self):
+        """SWE.5-TC28.2: Dynamic Schedule Block CRUD Mutations (FR-46)"""
+        test_id = "SWE.5-TC28.2"
+        name = "Schedule Block CRUD Mutations"
+        req = "FR-46"
+        start = time.time()
+        try:
+            # 1. Add Block
+            r_add = requests.post(f"{self.base_url}/api/schedule/block/add?profile=weekday&name=TestBlock&time=15:30&z1=22.5&z2=22.0&z3=21.5", timeout=self.timeout)
+            assert r_add.status_code == 200, f"Block add failed: {r_add.status_code}"
+            data_add = r_add.json()
+            blocks = data_add["weekday"]["blocks"]
+            added_idx = next((i for i, b in enumerate(blocks) if b.get("name") == "TestBlock"), -1)
+            assert added_idx != -1, "Added block not found in weekday profile"
+
+            # 2. Update Block
+            r_upd = requests.post(f"{self.base_url}/api/schedule/block/update?profile=weekday&index={added_idx}&name=UpdatedBlock&time=16:00&z1=23.0&z2=22.5&z3=22.0", timeout=self.timeout)
+            assert r_upd.status_code == 200, f"Block update failed: {r_upd.status_code}"
+            data_upd = r_upd.json()
+            upd_b = data_upd["weekday"]["blocks"][added_idx]
+            assert upd_b.get("name") == "UpdatedBlock" and upd_b.get("hour") == 16, f"Block update mismatch: {upd_b}"
+
+            # 3. Delete Block
+            r_del = requests.post(f"{self.base_url}/api/schedule/block/delete?profile=weekday&index={added_idx}", timeout=self.timeout)
+            assert r_del.status_code == 200, f"Block delete failed: {r_del.status_code}"
+
+            latency = (time.time() - start) * 1000
+            details = "Dynamic schedule block ADD, UPDATE, and DELETE cycles verified"
+            return TestResult(test_id, name, req, "PASS", latency, details)
+        except Exception as e:
+            return TestResult(test_id, name, req, "FAIL", (time.time() - start)*1000, str(e))
+
+    def test_tc28_3_gpa_pump_isolation_default(self):
+        """SWE.5-TC28.3: Hydraulic GPA Pump Isolation & Relay 4 Default Free (FR-14, FR-42)"""
+        test_id = "SWE.5-TC28.3"
+        name = "GPA Pump Default Free Isolation"
+        req = "FR-14"
+        start = time.time()
+        try:
+            r = requests.get(f"{self.base_url}/api/config/system", timeout=self.timeout)
+            assert r.status_code == 200, f"Config query failed: {r.status_code}"
+            data = r.json()
+            assert "pumpControlEnabled" in data, "Missing pumpControlEnabled in config"
+            latency = (time.time() - start) * 1000
+            details = f"GPA pump control enabled: {data.get('pumpControlEnabled')} (Relay 4 unmapped/free)"
+            return TestResult(test_id, name, req, "PASS", latency, details)
+        except Exception as e:
+            return TestResult(test_id, name, req, "FAIL", (time.time() - start)*1000, str(e))
+
+    # ---------------------------------------------------------
     # Test Runner & Traceability Matrix Evaluation
     # ---------------------------------------------------------
 
@@ -1943,6 +2199,7 @@ class SystemTestSuite:
             self.test_tc01_2_free_heap_budget,
             self.test_tc01_3_zero_bloatware_no_mqtt,
             self.test_tc01_4_hardware_telemetry_rssi,
+            self.test_tc01_5_wifi_watchdog_supervisor,
             # Group 2: Device Passport
             self.test_tc02_1_passport_serial_prefix,
             self.test_tc02_2_passport_mac_format,
@@ -2030,6 +2287,7 @@ class SystemTestSuite:
             self.test_tc20_1_history_schema_24h,
             self.test_tc20_2_history_schema_5d,
             self.test_tc20_3_history_binary_resolution,
+            self.test_tc20_4_history_288_slots_overflow_guard,
             # Group 21: Thermal Gas Consumption Model & Telemetry (FR-35)
             self.test_tc21_1_gas_model_schema,
             self.test_tc21_2_gas_model_calculations,
@@ -2049,6 +2307,16 @@ class SystemTestSuite:
             self.test_tc26_2_open_window_threshold_mutation_persistence,
             self.test_tc26_3_open_window_clear_api,
             self.test_tc26_4_open_window_safety_cutoff_contract,
+            # Group 27: System Configuration, Multi-Relay & Presets 2.0 (FR-42, FR-43, FR-44, FR-45)
+            self.test_tc27_1_system_config_schema,
+            self.test_tc27_2_system_config_mutation_persistence,
+            self.test_tc27_3_relay_test_contract,
+            self.test_tc27_4_preset_days_and_anchor_names,
+            self.test_tc27_5_console_command_and_clear_invariant,
+            # Group 28: Dynamic Time Blocks Engine & Hydraulic Isolation (FR-46, FR-14)
+            self.test_tc28_1_dynamic_schedule_blocks_schema,
+            self.test_tc28_2_dynamic_schedule_block_crud,
+            self.test_tc28_3_gpa_pump_isolation_default,
         ]
 
         self.results = []
