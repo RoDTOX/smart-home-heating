@@ -1,6 +1,17 @@
 # Active Context: Smart Home Heating System
 
-- **Overhaul AplicaÈ›ie & Remediere 6 Defecte Majore, Panou Configurare & ASPICE SWE.5 (Finalizat 21.10.2026):**
+- **Wall-Tablet UX, LittleFS Direct Web Serving, Telemetry Events & Versioning v1.MM.DD.rev (Finalizat 27.10.2026):**
+  - **1. Ergonomie Wall-Tablet UX & Orar 24h:** Carduri cameră cu cadran tactil circular (`room-dial`), afișare mărită a temperaturii citite (2.4rem), ținte tactile 48px, linie explicativă „de ce” (`room-reason`) și acțiuni rapide (Plec de acasă, Boost, Vacanță, Revin la orar).
+  - **2. Timeline Interactiv 24h & Marker Real-Time:** Drag handles cu pas de 15 min; indicatorul de timp real `.tl-now` a fost îmbogățit cu insignă superioară `[ACUM] ▼`, eliminând confuzia cu un defect grafic la ora 10:50.
+  - **3. Compactare Schemă Hidraulică (Bare Verticale Actuatoare):** Înlocuit barele orizontale separate de ceară cu bare verticale de progres integrate direct în actuatoare (`ts-act-fill`), reducând înălțimea SVG-ului de la 510px la 455px și economisind spațiu pe tableta de perete.
+  - **4. Rezolvare Bug Plec de acasă / Am revenit:** Fallback determinist pe preset-ul activ al zilei (`wfh` sau `default`) în `ThermalZoneManager::endAway()` și `setAway()`, eliminând blocarea pe `eco`; `resumeSchedule()` anulează acum și starea globală Away. Verificat live pe placă: Plec de acasă -> Eco, Am revenit -> restaurat WFH.
+  - **5. Noua Schemă de Versionare:** Trecut la formatul `v1.<lună>.<zi>.<rev_zi>` (ex: `v1.10.27.4`) prin `tools/version_helper.py`, sincronizat pe firmware (`include/git_version.h`) și pagini web (`window.UI_VERSION`). Placa rulează live `v1.10.27.4`.
+  - **6. LittleFS Web Serving & Instant UI Uploader:** Pagini web servite direct din LittleFS cu fallback pe PROGMEM; utilitar autonom `tools/upload_ui.py` pentru actualizarea interfeței în <1s fără recompilare firmware, fără flash OTA și fără restart.
+  - **7. Optimizare Flash Firmware:** Redus firmware-ul sub limita slotului OTA (1.28 MB vs 1.31 MB slot fizic) prin eliminare CSS mort (-498 linii), compresie PWA și flag `-D CORE_DEBUG_LEVEL=0`.
+  - **8. Telemetrie pe Evenimente:** Structură `StateEvent` (8 bytes) cu buffer circular de 2.048 intrări în LittleFS (`/events.bin`) și endpoint `GET /api/history/events?limit=N` pentru urmărirea exactă la secundă a pornirilor/opririlor cazanului și pompei.
+  - **9. Diagnoză Hardware & Consolă:** Expus în `/api/boiler/status` și panou `minFreeHeap`, `cpuFreqMHz`, `fsTotalBytes`, `fsUsedBytes`; adăugat comanda de consolă `SYS` / `MEM`.
+
+- **Overhaul Aplicație & Remediere 6 Defecte Majore, Panou Configurare & ASPICE SWE.5 (Finalizat 21.10.2026):**
   - **1. PersistenÈ›Äƒ Preset & SetÄƒri NVS la Reboot:** ModificÄƒrile ancorelor se persistÄƒ automat Ã®n slotul presetului curent (`${presetId}_cfg`), garantÃ¢nd restaurarea exactÄƒ dupÄƒ panÄƒ de curent.
   - **2. Orar Inteligent 100% Customizabil & Nume Flexibile:** Buffer ancore lÄƒrgit la `char name[32]` (fÄƒrÄƒ trunchieri); adÄƒugat `daysMask` (L-D) per preset cu auto-switching determinist Ã®n funcÈ›ie de ziua sÄƒptÄƒmÃ¢nii NTP; sincronizare automatÄƒ temperaturÄƒ È›intÄƒ la prima conectare NTP.
   - **3. Compactare UI & Eliminare Moduri Redundante:** Eliminat selectorul de nivel ("NIVEL: Simplu / Preseturi / Avansat"), butoanele "App" È™i "Prototip V2"; comutatorul "Orar Inteligent" a devenit selectorul unificat Simplu vs Inteligent; buton dedicat "âš™ï¸ ConfigureazÄƒ orar preset" pentru matricea inline.

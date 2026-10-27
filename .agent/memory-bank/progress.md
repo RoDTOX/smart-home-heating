@@ -4,6 +4,23 @@
 All core functional subsystems (heating hysteresis engine, boiler RF trigger, native BLE passive scanner, 2-way console, web OTA, diagnostic engine with DTCs, service mode, digital passport, NTP & weather sync, headless API-first architecture, hydronic safety controls, anti-spam burner interlocks, Bio-Schedule with presets engine & full factory/user customization, deferred action cooldown cancel, atomic PC system test suite, Home Assistant full integration, FSM race condition fix, Open Window Detection suite, new Configuration Panel with live relay testing, and Wi-Fi auto-recovery watchdog) are fully implemented, compiled, flashed over Web OTA, and verified live on ESP32 (`192.168.1.20`).
 ASPICE SWE.5 test coverage: 49/49 Requirements (100.0%), 92/92 Tests Passed (100.0%), 0 uncovered requirements, 0 relaxed contracts.
 
+## Completed Work (2026-10-27 - Wall-Tablet UX Overhaul, LittleFS Direct Serving, Telemetry Events, Versioning v1.MM.DD.rev & Hardware Diagnostics)
+- **Wall-Tablet UX & Orar 24h:**
+  - Carduri de cameră cu cadran tactil (`room-dial`), citire mărită a temperaturii (2.4rem), ținte tactile minime de 48px, linie explicativă `room-reason` și acțiuni rapide (Plec de acasă, Boost, Vacanță, Revin la orar).
+  - Timeline 24h interactiv cu blocuri glisabile la pas de 15 minute; marker real-time `.tl-now` îmbogățit cu insignă `[ACUM] ▼`.
+  - Schema hidraulică compactată prin bare verticale de progres integrate direct în actuatoare (`ts-act-fill`), reducând înălțimea diagramei cu 55px.
+- **Rezolvare Bug Plec de acasă / Am revenit:**
+  - `endAway()` și `setAway()` din `ThermalZoneManager.cpp` fac fallback determinist pe preset-ul activ al zilei (`wfh` sau `default`), eliminând blocarea pe `eco`.
+  - Butonul „Revin la orar” (`resumeSchedule`) anulează acum și modul Away alături de hold-urile individuale. Verificat live pe hardware.
+- **Noua Schemă de Versionare:**
+  - Format `v1.<lună>.<zi>.<rev_zi>` (ex: `v1.10.27.4`) generat automat prin `tools/version_helper.py`, sincronizat pe firmware (`include/git_version.h`) și pagini web (`window.UI_VERSION`). Placa rulează versiunea `v1.10.27.4`.
+- **LittleFS Web Serving & Instant UI Uploader:**
+  - Servire directă a paginilor `/`, `/setup`, `/console` din LittleFS cu fallback pe PROGMEM; instrumentul `tools/upload_ui.py` actualizează paginile în flash în sub 1s fără recompilare firmware și fără restart.
+  - Binar firmware redus la ~1.28 MB (29 KB sub slotul OTA de 1.31 MB) prin eliminare CSS mort (-498 linii) și flag `-D CORE_DEBUG_LEVEL=0`.
+- **Telemetrie pe Evenimente & Diagnoză Sistem:**
+  - Structură `StateEvent` (8 bytes) cu ring buffer de 2.048 intrări în LittleFS (`/events.bin`) și endpoint `GET /api/history/events?limit=N`.
+  - Expus metrici hardware (`minFreeHeap`, `cpuFreqMHz`, `fsTotalBytes`, `fsUsedBytes`) în `/api/boiler/status` și consolă prin comanda `SYS` / `MEM`.
+
 ## Completed Work (2026-10-21 - Remediere 6 Probleme Majore, Overhaul UI/UX FSM, Config Panel, Wi-Fi Watchdog & 92/92 Teste ASPICE SWE.5)
 - **100% Acoperire Cerințe ASPICE SWE.5:**
   - 49/49 Cerințe verificate și documentate (FR-1..FR-45 + NFR-1.1, NFR-1.5, NFR-2.2, NFR-3.2).

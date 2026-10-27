@@ -39,7 +39,9 @@ The `smart-heating` ESP32 controller operates on an **API-First, Headless Archit
 | | `/api/zones/hold/clear` | `POST` | Clear temporary circadian hold for single zone or all (`id=X\|all`) |
 | | `/api/zones/window/clear`| `POST` | Clear window pause guard & reset baseline for zone or all (`id=X\|all`) |
 | | `/api/zones/window/threshold`| `POST` | Set window drop sensitivity threshold (0.8°C to 2.0°C) per zone |
-| **Telemetry History**| `/api/history` | `GET` | LittleFS flash telemetry history buffer (24h @ 5m & 5d @ 30m) |
+| **Telemetry History**| `/api/history` | `GET` | LittleFS flash telemetry history buffer (24h @ 5m & 7d @ 30m) |
+| **State Events History**| `/api/history/events` | `GET` | Second-accurate edge-triggered start/stop runtime event log & daily sums |
+| **LittleFS Asset Upload**| `/api/upload-file` | `POST` | Multipart upload of UI assets directly to LittleFS (no reboot needed) |
 | **Bio-Schedule** | `/api/schedule` | `GET` | 4 Circadian anchors (`Sleep`, `Wake`, `Away`, `Home`) & profiles |
 | | `/api/schedule` | `POST` | Update circadian anchor times & target temperatures |
 | | `/api/schedule/enable` | `POST` | Toggle Bio-Schedule, Predictive Pre-Heat, and Window Guard |
@@ -74,16 +76,24 @@ Returns high-level system telemetry and heating status.
 - **Response `200 OK`:**
 ```json
 {
-  "firmwareVersion": "1.2.0",
-  "buildDate": "Oct 18 2026 01:28:28",
-  "gitCommit": "8065534",
+  "firmwareVersion": "v1.10.27.4",
+  "buildDate": "Oct 27 2026 11:19:34",
+  "gitCommit": "fb0d4e6",
+  "otaFreeBytes": 22512,
+  "otaSlotBytes": 1310720,
+  "awayActive": false,
+  "awayUntil": 0,
   "resetReason": "Software Reboot (Firmware Update / Restart)",
   "boiler": "OFF",
   "boilerCooldownSec": 0,
   "pendingAction": "NONE",
   "pendingWaitSec": 0,
   "lastTxMs": 552,
-  "freeHeap": 115240,
+  "freeHeap": 88228,
+  "minFreeHeap": 73932,
+  "cpuFreqMHz": 240,
+  "fsTotalBytes": 1441792,
+  "fsUsedBytes": 90112,
   "rssi": -58,
   "uptimeSec": 450,
   "healthScore": 100,
@@ -623,6 +633,64 @@ Streams historical temperature and actuation states persisted in non-volatile Li
     * Bit 3 (`0x08`): Zone 2 Actuator Relay Engaged
     * Bit 4 (`0x10`): Zone 3 Actuator Relay Engaged
     * Bit 7 (`0x80`): Record Valid / Initialized
+
+---
+
+#### `GET /api/history/events`
+Returns second-accurate state transition logs (edge-triggered) for the boiler, secondary pump, and all 3 thermal zone relays, plus today's runtime aggregates. Persisted in LittleFS (`/events.bin`) with a 2,048-event circular buffer.
+
+- **Query Parameters:**
+  - `limit`: Maximum number of recent events to return (default: `100`, max: `2048`).
+- **Response `200 OK`:**
+```json
+{
+  "events": [
+    {
+      "epoch": 1793090542,
+      "device": 0,
+      "devName": "Boiler",
+      "state": 1,
+      "stateStr": "START",
+      "durationSec": 0
+    },
+    {
+      "epoch": 1793090722,
+      "device": 0,
+      "devName": "Boiler",
+      "state": 0,
+      "stateStr": "STOP",
+      "durationSec": 180
+    }
+  ],
+  "todayRuntime": {
+    "boilerSec": 766,
+    "livingSec": 1200,
+    "copilSec": 1850,
+    "matrimonialSec": 900,
+    "pumpSec": 820
+  }
+}
+```
+- **Device Index Map:**
+  - `0`: Boiler (RF Burner)
+  - `1`: Living & Bucătărie (Zone 1)
+  - `2`: Camera Copilului (Zone 2)
+  - `3`: Dormitor Matrimonial (Zone 3)
+  - `4`: Secondary Circulation Pump (GPA)
+
+---
+
+#### `POST /api/upload-file`
+Multipart upload endpoint that writes files directly into the ESP32 LittleFS flash filesystem. Used by `tools/upload_ui.py` to update web pages (`/index.html.gz`, `/setup.html.gz`, `/console.html.gz`) in under 1 second without recompiling C++ or rebooting the ESP32.
+
+- **Payload:** `multipart/form-data` with `file` field.
+- **Response `200 OK`:**
+```json
+{
+  "status": "ok",
+  "message": "Upload complete"
+}
+```
 
 ---
 

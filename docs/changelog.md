@@ -5,6 +5,63 @@ Corelat cu planul activ: [`docs/plan.md`](file:///c:/Users/BSeceleanu/.github_re
 
 
 
+## [27.10.2026] - Wall-Tablet UX Overhaul, LittleFS Direct Web Serving & Instant Uploader, Event-Based Telemetry, Noua Schemă de Versionare & Hardware Diagnostics
+
+### 1. Wall-Tablet UX & Ergonomie Panou Trecere Tablou
+- **Carduri Cameră Moderne & Touch Dial:**
+  - Redesenat cardurile fiecărei camere cu selector tactil circular (`room-dial`), afișare mărită a temperaturii citite (2.4rem) și butoane stepper de 48px conforme standardelor de accesibilitate tactilă.
+  - Adăugată linia explicativă „de ce” (`room-reason`) care prezintă clar motivul setpoint-ului curent (ex: urmărire orar vs manual hold vs boost vs protecție geam).
+  - Adăugate acțiuni rapide globale: „Plec de acasă”, „Boost”, „Vacanță”, „Revin la orar”.
+- **Timeline Interactiv 24h & Clarificare Indicator Oră Curentă:**
+  - Implementat timeline 24h cu segmente colorate conform temperaturii medii și mânere de drag (`tl-handle`) cu pas de 15 minute pentru ajustarea intuitivă a orelor de pornire.
+  - **Clarificare Indicator Real-Time:** Marcajul de oră curentă (`.tl-now`) a fost îmbogățit cu insignă superioară și săgeată discretă `[ACUM] ▼`. La ora 10:50, linia roșie indică fără echivoc poziția minutului 650, eliminând confuzia cu un defect grafic.
+- **Compactare Schemă Hidraulică (Bare Verticale Actuatoare):**
+  - Eliminat barele orizontale separate de sub colectorul de retur (`ts-wax-bg`, `ts-wax-bar`, `ts-wax-txt`).
+  - Integrat progresul de dilatare/răcire termică a cartușului de ceară (0..100% în 120s) direct în interiorul fiecărui actuator (`ts-act-fill`), cu umplere verticală de jos în sus:
+    - Verde smarald (`230V` / `${pct}%`) la anclanșare releu.
+    - Galben-chihlimbar (`RĂCIRE` / `${pct}%`) la decuplare releu în timpul perioadei de inerție termică a cerii.
+    - Gri neutru (`NC` / `0%`) în repaus.
+  - Înălțimea diagramei SVG redusă de la 510px la 455px, compactând vizual spațiul pe tabletele montate pe perete.
+
+### 2. Rezolvare Bug Revenire din Modul Plecat („Plec de acasă” / „Am revenit”)
+- **Identificare Defect:** Când se revenea din modul Plecat, dacă preset-ul memorat anterior era `eco` (de exemplu în urma apelurilor repetate sau sincronizării externe), `applyPreset(_awayPrevPreset)` reaplica `eco`. În plus, acțiunea „Revin la orar” ștergea doar hold-urile zonale, fără a anula starea globală de Away.
+- **Rezolvare în Firmware (`ThermalZoneManager.cpp`):**
+  - În `endAway()` și `setAway()`, adăugată validare strictă: ținta de restaurare nu poate fi `eco` sau goală. Dacă preset-ul anterior lipsește sau e `eco`, se determină automat preset-ul programat conform zilei curente din orar (`wfh` sau `default`).
+- **Rezolvare în Web UI (`web/index.html`):**
+  - Butonul „Revin la orar” (`resumeSchedule()`) anulează acum explicit starea Away (`POST /api/schedule/away?off=1`) alături de ștergerea hold-urilor manuale.
+  - Acțiunea „Am revenit” forțează dezactivarea modului Plecat și reîmprospătează imediat starea interfeței.
+
+### 3. Noua Schemă de Versionare Firmware & Website
+- **Format Unificat:** `v1.<lună>.<zi>.<rev_zi>` (ex: `v1.10.27.4`).
+- **Modul Partajat (`tools/version_helper.py`):** Calculează automat versiunea pe baza numărului de commit-uri din ziua respectivă și stării arborelui git (flag dirty).
+- **Firmware (`tools/git_version.py` & `include/Version.h`):** Generează `#define APP_VERSION "v1.10.27.X"` pentru raportare în `/api/boiler/status` și în consolă.
+- **Website (`tools/upload_ui.py` & `tools/build_web.py`):** Injectează automat aceeași versiune în paginile web (`window.UI_VERSION`), asigurând trasabilitate 1:1 între binar și interfață.
+
+### 4. Servire Directă din LittleFS & Pipeline Instant Uploader (`tools/upload_ui.py`)
+- **Decuplare Totală UI de Memoria Flash Executabilă:**
+  - `src/main.cpp` și `src/NetworkConsole.cpp` servesc paginile `/`, `/setup` și `/console` direct din LittleFS dacă fișierele gzip există (`/index.html.gz`, `/setup.html.gz`, `/console.html.gz`), făcând fallback pe PROGMEM doar dacă acestea lipsesc.
+  - Adăugat endpoint multipart `POST /api/upload-file`.
+  - Creat instrumentul autonom `tools/upload_ui.py` care minifică, comprimă cu gzip și urcă paginile în flash în sub 1 secundă, **fără compilare C++, fără flash OTA și fără restart al plăcii**.
+- **Reducere Binar Firmware sub Limita Slotului OTA:**
+  - Curățat 498 de linii de CSS mort din `web/index.html`.
+  - Optimizat minifierul din `tools/build_web.py` cu parser de stări pentru comentarii `//` și `/* */`.
+  - Reutilizat iconița PWA de 192px pentru cea de 512px (-4 KB).
+  - Adăugat flag-ul `-D CORE_DEBUG_LEVEL=0` în `platformio.ini`.
+  - Dimensiunea firmware-ului a scăzut de la 1.315.920 B la ~1.281.637 B, creând o rezervă de peste 29 KB sub slotul fizic OTA de 1.310.720 B.
+
+### 5. Logare Telemetrie pe Evenimente (Start/Stop Cazan & Circuite)
+- **Structură Compactă `StateEvent` (8 bytes per tranziție):**
+  - Înregistrează tranziția exactă la nivel de secundă pentru: Cazan (0), Living (1), Copil (2), Matrimonial (3), Pompă GPA (4), starea (START/STOP) și durata ciclului.
+- **Persistență în LittleFS (`/events.bin`):** Buffer circular de 2.048 de evenimente (16 KB), menținut în RAM și sincronizat în flash.
+- **API Dedicat:** `GET /api/history/events?limit=N` returnează istoricul recent și totalurile zilnice (`todayRuntime`) de funcționare per circuit.
+
+### 6. Monitorizare Hardware & Diagnoză Sistem
+- **Expus în `/api/boiler/status`:** `minFreeHeap`, `cpuFreqMHz`, `fsTotalBytes`, `fsUsedBytes`, `otaSlotBytes`, `otaFreeBytes`.
+- **Comandă Consolă `SYS` / `MEM`:** Afișează raportul complet hardware: frecvență CPU (240 MHz), RAM liber/minim, uzură și spațiu LittleFS, marjă slot OTA, Uptime și RSSI Wi-Fi.
+- **Card Telemetrie în Panou (Meta Grid):** Afișează compact în footer versiunile FW/UI, memoria RAM, spațiul de stocare, CPU și link-ul Wi-Fi.
+
+---
+
 ## [21.10.2026] - Remediere 6 Probleme Majore, Overhaul UI/UX FSM, Suită Nouă Configurare Hardware & Hardening Firmware (100% ASPICE SWE.5)
 
 ### 1. Remediere Cele 6 Probleme Majore Raportate de Utilizator
