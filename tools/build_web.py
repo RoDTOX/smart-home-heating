@@ -11,12 +11,24 @@ or standalone: python tools/build_web.py
 import gzip
 import os
 import re
+import sys
 
 try:
     Import("env")  # noqa: F821 (provided by PlatformIO/SCons)
-    PROJECT_DIR = env["PROJECT_DIR"]  # noqa: F821
+    PROJECT_DIR = str(env["PROJECT_DIR"])  # noqa: F821
 except NameError:
     PROJECT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+tools_dir = os.path.join(str(PROJECT_DIR), "tools")
+if tools_dir not in sys.path:
+    sys.path.insert(0, tools_dir)
+if str(PROJECT_DIR) not in sys.path:
+    sys.path.insert(0, str(PROJECT_DIR))
+
+try:
+    from tools.version_helper import get_version_info
+except ImportError:
+    from version_helper import get_version_info
 
 PAGES = [
     {
@@ -188,6 +200,9 @@ def build(force=False):
 
         with open(src, "r", encoding="utf-8") as f:
             text = f.read()
+
+        ver_info = get_version_info(PROJECT_DIR)
+        text = text.replace("__UI_VERSION__", ver_info["version"])
 
         minified = minify_html(text)
         minified_bytes = minified.encode("utf-8")

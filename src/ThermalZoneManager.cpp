@@ -429,10 +429,30 @@ bool ThermalZoneManager::setAway(uint32_t untilEpoch) {
     char prev[16];
     strncpy(prev, _awayActive ? _awayPrevPreset : _activePresetId, sizeof(prev) - 1);
     prev[sizeof(prev) - 1] = '\0';
+
+    // Safety: If previous preset was already eco or invalid, find today's active schedule preset
+    if (strcasecmp(prev, "eco") == 0 || strlen(prev) == 0) {
+        int wday = timeAndWeather.getDayOfWeekIndex();
+        uint8_t currentDayBit = (uint8_t)(1 << wday);
+        const char* candidatePresets[] = {"wfh", "default", "custom1", "custom2", "custom3", "custom4"};
+        for (size_t p = 0; p < sizeof(candidatePresets)/sizeof(candidatePresets[0]); p++) {
+            if (getPresetDays(candidatePresets[p]) & currentDayBit) {
+                strncpy(prev, candidatePresets[p], sizeof(prev) - 1);
+                prev[sizeof(prev) - 1] = '\0';
+                break;
+            }
+        }
+        if (strcasecmp(prev, "eco") == 0 || strlen(prev) == 0) {
+            strncpy(prev, "default", sizeof(prev) - 1);
+            prev[sizeof(prev) - 1] = '\0';
+        }
+    }
+
     if (!applyPreset("eco")) return false;
     _awayActive = true;
     _awayUntil = untilEpoch;
-    strncpy(_awayPrevPreset, prev, sizeof(_awayPrevPreset));
+    strncpy(_awayPrevPreset, prev, sizeof(_awayPrevPreset) - 1);
+    _awayPrevPreset[sizeof(_awayPrevPreset) - 1] = '\0';
     Preferences prefs;
     if (prefs.begin("sched", false)) {
         prefs.putBool("away_on", true);
@@ -454,8 +474,30 @@ void ThermalZoneManager::endAway(bool restorePrevious) {
         prefs.remove("away_until");
         prefs.end();
     }
-    netConsole.printf("[Schedule][AWAY] Away mode OFF%s\n", restorePrevious ? " (restoring previous preset)" : "");
-    if (restorePrevious) applyPreset(_awayPrevPreset);
+
+    // Safety: Ensure target is never empty or eco when restoring previous preset
+    char targetPreset[16];
+    strncpy(targetPreset, _awayPrevPreset, sizeof(targetPreset) - 1);
+    targetPreset[sizeof(targetPreset) - 1] = '\0';
+    if (strcasecmp(targetPreset, "eco") == 0 || strlen(targetPreset) == 0) {
+        int wday = timeAndWeather.getDayOfWeekIndex();
+        uint8_t currentDayBit = (uint8_t)(1 << wday);
+        const char* candidatePresets[] = {"wfh", "default", "custom1", "custom2", "custom3", "custom4"};
+        for (size_t p = 0; p < sizeof(candidatePresets)/sizeof(candidatePresets[0]); p++) {
+            if (getPresetDays(candidatePresets[p]) & currentDayBit) {
+                strncpy(targetPreset, candidatePresets[p], sizeof(targetPreset) - 1);
+                targetPreset[sizeof(targetPreset) - 1] = '\0';
+                break;
+            }
+        }
+        if (strcasecmp(targetPreset, "eco") == 0 || strlen(targetPreset) == 0) {
+            strncpy(targetPreset, "default", sizeof(targetPreset) - 1);
+            targetPreset[sizeof(targetPreset) - 1] = '\0';
+        }
+    }
+
+    netConsole.printf("[Schedule][AWAY] Away mode OFF%s (target '%s')\n", restorePrevious ? " (restoring previous preset)" : "", targetPreset);
+    if (restorePrevious) applyPreset(targetPreset);
 }
 
 void ThermalZoneManager::setHysteresis(size_t index, float hyst) {

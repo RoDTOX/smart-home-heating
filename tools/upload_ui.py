@@ -17,6 +17,7 @@ if PROJECT_DIR not in sys.path:
     sys.path.insert(0, PROJECT_DIR)
 
 from tools.build_web import minify_html
+from tools.version_helper import get_version_info
 
 PAGES = {
     "index": {
@@ -50,7 +51,10 @@ def upload(page_name="index", host="192.168.1.20"):
     with open(src_path, "r", encoding="utf-8") as f:
         raw_text = f.read()
 
-    print(f"[*] Minifying {os.path.basename(src_path)} ({len(raw_text)} chars)...")
+    ver_info = get_version_info(PROJECT_DIR)
+    raw_text = raw_text.replace("__UI_VERSION__", ver_info["version"])
+
+    print(f"[*] Minifying {os.path.basename(src_path)} ({len(raw_text)} chars, ver: {ver_info['version']})...")
     minified = minify_html(raw_text)
     gz_data = gzip.compress(minified.encode("utf-8"), compresslevel=9, mtime=0)
     print(f"[*] Compressed: {len(raw_text)} -> {len(gz_data)} bytes ({len(gz_data)/len(raw_text)*100:.1f}%)")

@@ -198,6 +198,7 @@ void printHelp() {
       "  SCHEDULE WINDOW <ON|OFF>  -> Rapid temperature drop open window detection guard\r\n\r\n"
       "[Telemetry, Sensors & Diagnostics]\r\n"
       "  STATUS or S           -> Comprehensive live dashboard: CPU, boiler, weather, zones\r\n"
+      "  SYS or MEM            -> Hardware metrics: CPU 240MHz, RAM heap min/max, LittleFS, OTA\r\n"
       "  BLE or SENSORS        -> Decoded Xiaomi BLE thermometer registry, signal & battery\r\n"
       "  WEATHER / TIME        -> Open-Meteo outdoor temperature & NTP local calendar\r\n"
       "  TIMEOUT [sec]         -> Get or set BLE sensor offline failsafe timeout (default 600s)\r\n"
@@ -1011,6 +1012,10 @@ void handleApiStatus() {
   json += "\"pendingWaitSec\":" + String(bWaitSec) + ",";
   json += "\"lastTxMs\":" + String(boilerRadio.getLastTransmissionTime()) + ",";
   json += "\"freeHeap\":" + String(ESP.getFreeHeap()) + ",";
+  json += "\"minFreeHeap\":" + String(ESP.getMinFreeHeap()) + ",";
+  json += "\"cpuFreqMHz\":" + String(getCpuFrequencyMhz()) + ",";
+  json += "\"fsTotalBytes\":" + String(LittleFS.totalBytes()) + ",";
+  json += "\"fsUsedBytes\":" + String(LittleFS.usedBytes()) + ",";
   json += "\"rssi\":" + String(WiFi.RSSI()) + ",";
   json += "\"uptimeSec\":" + String(millis() / 1000) + ",";
   json += "\"wifiWatchdog\":\"active\",";
@@ -1899,6 +1904,25 @@ void handleSerialCommand(String cmd) {
       printTwoCols("Hydraulic Relay:", relayStr, "Telemetry Data:", telemStr);
       netConsole.println(F("----------------------------------------------------------------------------------------------------"));
     }
+  } else if (upperCmd == "SYS" || upperCmd == "MEM" || upperCmd == "TOP") {
+    netConsole.println(F("================= SYSTEM TELEMETRY ================="));
+    netConsole.printf("Firmware: %s (Commit: %s, Built: %s %s)\n", APP_VERSION, APP_GIT_COMMIT, APP_BUILD_DATE, APP_BUILD_TIME);
+    netConsole.printf("CPU: ESP32 @ %u MHz (Cores: %u)\n", getCpuFrequencyMhz(), ESP.getChipCores());
+    netConsole.printf("RAM Free Heap: %u KB (Min Free: %u KB, Max Alloc: %u KB)\n",
+                      (unsigned int)(ESP.getFreeHeap() / 1024),
+                      (unsigned int)(ESP.getMinFreeHeap() / 1024),
+                      (unsigned int)(ESP.getMaxAllocHeap() / 1024));
+    netConsole.printf("Flash LittleFS: %u KB total, %u KB used (%u%% used)\n",
+                      (unsigned int)(LittleFS.totalBytes() / 1024),
+                      (unsigned int)(LittleFS.usedBytes() / 1024),
+                      (unsigned int)((LittleFS.usedBytes() * 100) / (LittleFS.totalBytes() > 0 ? LittleFS.totalBytes() : 1)));
+    uint32_t part = ESP.getFreeSketchSpace(), used = ESP.getSketchSize();
+    uint32_t otaFree = part > used ? part - used : 0;
+    netConsole.printf("OTA Flash Slot: %u KB slot, %u KB firmware, %u KB margin\n",
+                      (unsigned int)(part / 1024), (unsigned int)(used / 1024), (unsigned int)(otaFree / 1024));
+    netConsole.printf("Uptime: %u sec | Wi-Fi RSSI: %d dBm | IP: %s\n",
+                      (unsigned int)(millis() / 1000), WiFi.RSSI(), WiFi.localIP().toString().c_str());
+    netConsole.println(F("===================================================="));
   } else if (upperCmd == "BLE" || upperCmd == "SENSORS") {
 
     size_t bc = bleScanner.getSensorCount();

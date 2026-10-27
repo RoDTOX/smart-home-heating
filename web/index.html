@@ -702,7 +702,7 @@
     }
     .meta-grid {
       display: grid;
-      grid-template-columns: 1fr 1fr;
+      grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
       gap: 6px;
       font-size: 0.74rem;
       color: #94a3b8;
@@ -1091,7 +1091,9 @@
     .tl-handle::after { content: ''; width: 6px; margin: 8px 0; border-radius: 3px; background: #f8fafc; box-shadow: 0 0 0 2px rgba(15,23,42,0.6); }
     .tl-handle .tl-bubble { position: absolute; top: -2px; left: 50%; transform: translate(-50%, -100%); background: #f8fafc; color: #0b1120; font-size: 0.75rem; font-weight: 800; padding: 1px 6px; border-radius: 6px; display: none; }
     .tl-handle.drag .tl-bubble { display: block; }
-    .tl-now { position: absolute; top: -4px; bottom: -4px; width: 2px; background: #f43f5e; z-index: 3; pointer-events: none; }
+    .tl-now { position: absolute; top: -6px; bottom: -4px; width: 2px; background: #f43f5e; z-index: 4; pointer-events: none; }
+    .tl-now::before { content: '▼'; position: absolute; top: -8px; left: 50%; transform: translateX(-50%); color: #f43f5e; font-size: 8px; line-height: 1; }
+    .tl-now::after { content: 'ACUM'; position: absolute; top: -21px; left: 50%; transform: translateX(-50%); background: #f43f5e; color: #fff; font-size: 0.62rem; font-weight: 800; padding: 1px 4px; border-radius: 4px; letter-spacing: 0.5px; box-shadow: 0 2px 6px rgba(244, 63, 94, 0.5); }
     .tl-ticks { display: flex; justify-content: space-between; font-size: 0.7rem; color: #64748b; padding: 3px 2px 0; }
     .tl-hint { font-size: 0.72rem; color: #64748b; margin-top: 2px; }
     tr.row-flash td { background: rgba(56,189,248,0.15); transition: background 0.4s; }
@@ -1370,8 +1372,12 @@
 
         <!-- Meta Telemetry Grid -->
         <div class="meta-grid">
+          <div>FW: <b id="m-fw">--</b></div>
+          <div>UI: <b id="m-ui">__UI_VERSION__</b></div>
           <div>RAM Heap: <b id="m-heap">-- KB</b></div>
-          <div>Wi-Fi RSSI: <b id="m-rssi">-- dBm</b></div>
+          <div>CPU: <b id="m-cpu">240 MHz</b></div>
+          <div>LittleFS: <b id="m-fs">--</b></div>
+          <div>Wi-Fi: <b id="m-rssi">-- dBm</b></div>
           <div>Uptime: <b id="m-uptime">--</b></div>
           <div>OTA Margin: <b id="m-ota">-- MB free</b></div>
         </div>
@@ -1424,7 +1430,7 @@
 
       <!-- Interactive SVG Diagram -->
       <div style="background:#050811;border:1px solid rgba(255,255,255,0.06);border-radius:12px;padding:12px;overflow-x:auto;">
-        <svg viewBox="0 0 940 510" style="width:100%;min-width:780px;height:auto;display:block;">
+        <svg viewBox="0 0 940 455" style="width:100%;min-width:780px;height:auto;display:block;">
           <defs>
             <linearGradient id="gradBoiler" x1="0" y1="0" x2="1" y2="1">
               <stop offset="0%" stop-color="#1e1b4b"/>
@@ -1441,7 +1447,7 @@
           </defs>
 
           <!-- Group 1: BOILER SUB-SYSTEM -->
-          <rect x="20" y="25" width="220" height="460" rx="14" fill="#0b1120" stroke="#1e293b" stroke-width="1.5" stroke-dasharray="6,4"/>
+          <rect x="20" y="25" width="220" height="420" rx="14" fill="#0b1120" stroke="#1e293b" stroke-width="1.5" stroke-dasharray="6,4"/>
           <text x="35" y="50" fill="#94a3b8" font-size="11" font-weight="800" letter-spacing="0.5">SUB-SISTEM CAZAN GAZ</text>
 
           <!-- Boiler Box -->
@@ -1488,7 +1494,7 @@
           <text id="ts-pump-cfg" x="365" y="272" fill="#94a3b8" font-size="8.5" text-anchor="middle">Interlock: -- &bull; Overrun: --</text>
 
           <!-- Group 3: SUPERMANIFOLD 7 CIRCUITE & BYPASS -->
-          <rect x="485" y="25" width="440" height="460" rx="14" fill="#0b1120" stroke="#1e293b" stroke-width="1.5" stroke-dasharray="6,4"/>
+          <rect x="485" y="25" width="440" height="420" rx="14" fill="#0b1120" stroke="#1e293b" stroke-width="1.5" stroke-dasharray="6,4"/>
           <text x="500" y="50" fill="#94a3b8" font-size="11" font-weight="800" letter-spacing="0.5">SUPERMANIFOLD 7 CIRCUITE ȘAPĂ & BYPASS BĂI</text>
 
           <!-- BARA TUR DISTRIBUITOR (Red) -->
@@ -1526,19 +1532,17 @@
                   d="M 558 131 L 558 170 Q 545 195 558 220 Q 570 245 558 270 L 558 295"
                   fill="none" stroke="#fef08a" stroke-width="2.5" stroke-linecap="round"/>
 
-            <!-- Actuator Box & Wax Progress -->
-            <rect id="ts-act-box-1" x="544" y="295" width="28" height="45" rx="4" fill="#0f172a" stroke="#64748b" stroke-width="2"/>
-            <text id="ts-act-txt-1" x="558" y="322" fill="#94a3b8" font-size="8" font-weight="800" text-anchor="middle">NC</text>
+            <!-- Actuator Box with Vertical Progress Loading Bar -->
+            <rect id="ts-act-bg-1" x="542" y="295" width="32" height="45" rx="5" fill="#0b1120" stroke="#334155" stroke-width="1.5"/>
+            <rect id="ts-act-fill-1" x="543" y="340" width="30" height="0" rx="4" fill="#10b981" opacity="0.85"/>
+            <rect id="ts-act-box-1" x="542" y="295" width="32" height="45" rx="5" fill="none" stroke="#64748b" stroke-width="2"/>
+            <text id="ts-act-state-1" x="558" y="313" fill="#cbd5e1" font-size="7.5" font-weight="800" text-anchor="middle">NC</text>
+            <text id="ts-act-pct-1" x="558" y="328" fill="#94a3b8" font-size="8.5" font-weight="800" text-anchor="middle">0%</text>
 
-            <!-- Wax Expansion Progress Bar -->
-            <rect id="ts-wax-bg-1" x="525" y="370" width="66" height="6" rx="3" fill="#1e293b"/>
-            <rect id="ts-wax-bar-1" x="525" y="370" width="0" height="6" rx="3" fill="#34d399"/>
-            <text id="ts-wax-txt-1" x="558" y="384" fill="#94a3b8" font-size="7.5" font-weight="700" text-anchor="middle">NC (0V)</text>
-
-            <rect x="515" y="392" width="86" height="52" rx="7" fill="#0f172a" stroke="#334155" stroke-width="1.2"/>
-            <text x="558" y="407" fill="#f8fafc" font-size="8.8" font-weight="800" text-anchor="middle">Living (R32)</text>
-            <text id="ts-z1-temp" x="558" y="422" fill="#38bdf8" font-size="9" font-weight="800" text-anchor="middle">22.7&deg;C</text>
-            <text id="ts-z1-st" x="558" y="436" fill="#94a3b8" font-size="7.5" font-weight="700" text-anchor="middle">Dezactivat (0V)</text>
+            <rect x="515" y="374" width="86" height="52" rx="7" fill="#0f172a" stroke="#334155" stroke-width="1.2"/>
+            <text x="558" y="389" fill="#f8fafc" font-size="8.8" font-weight="800" text-anchor="middle">Living (R32)</text>
+            <text id="ts-z1-temp" x="558" y="404" fill="#38bdf8" font-size="9" font-weight="800" text-anchor="middle">22.7&deg;C</text>
+            <text id="ts-z1-st" x="558" y="418" fill="#94a3b8" font-size="7.5" font-weight="700" text-anchor="middle">Dezactivat (0V)</text>
           </g>
 
           <!-- =================== ZONE 2: CAMERA COPILULUI (R33 - 2 BUCLE: 6, 7) =================== -->
@@ -1552,19 +1556,17 @@
                   d="M 658 131 L 658 170 Q 645 195 658 220 Q 670 245 658 270 L 658 295"
                   fill="none" stroke="#fef08a" stroke-width="2.5" stroke-linecap="round"/>
 
-            <!-- Actuator Box & Wax Progress -->
-            <rect id="ts-act-box-2" x="644" y="295" width="28" height="45" rx="4" fill="#0f172a" stroke="#10b981" stroke-width="2"/>
-            <text id="ts-act-txt-2" x="658" y="322" fill="#34d399" font-size="8" font-weight="800" text-anchor="middle">230V</text>
+            <!-- Actuator Box with Vertical Progress Loading Bar -->
+            <rect id="ts-act-bg-2" x="642" y="295" width="32" height="45" rx="5" fill="#0b1120" stroke="#334155" stroke-width="1.5"/>
+            <rect id="ts-act-fill-2" x="643" y="340" width="30" height="0" rx="4" fill="#10b981" opacity="0.85"/>
+            <rect id="ts-act-box-2" x="642" y="295" width="32" height="45" rx="5" fill="none" stroke="#10b981" stroke-width="2"/>
+            <text id="ts-act-state-2" x="658" y="313" fill="#34d399" font-size="7.5" font-weight="800" text-anchor="middle">230V</text>
+            <text id="ts-act-pct-2" x="658" y="328" fill="#34d399" font-size="8.5" font-weight="800" text-anchor="middle">100%</text>
 
-            <!-- Wax Expansion Progress Bar -->
-            <rect id="ts-wax-bg-2" x="625" y="370" width="66" height="6" rx="3" fill="#1e293b"/>
-            <rect id="ts-wax-bar-2" x="625" y="370" width="0" height="6" rx="3" fill="#34d399"/>
-            <text id="ts-wax-txt-2" x="658" y="384" fill="#94a3b8" font-size="7.5" font-weight="700" text-anchor="middle">NC (0V)</text>
-
-            <rect x="615" y="392" width="86" height="52" rx="7" fill="#0f172a" stroke="#059669" stroke-width="1.2"/>
-            <text x="658" y="407" fill="#f8fafc" font-size="8.8" font-weight="800" text-anchor="middle">Copil (R33)</text>
-            <text id="ts-z2-temp" x="658" y="422" fill="#f97316" font-size="9" font-weight="800" text-anchor="middle">22.4&deg;C &bull; T: 23&deg;</text>
-            <text id="ts-z2-st" x="658" y="436" fill="#34d399" font-size="7.5" font-weight="700" text-anchor="middle">&#9832; ÎNCĂLZIRE</text>
+            <rect x="615" y="374" width="86" height="52" rx="7" fill="#0f172a" stroke="#059669" stroke-width="1.2"/>
+            <text x="658" y="389" fill="#f8fafc" font-size="8.8" font-weight="800" text-anchor="middle">Copil (R33)</text>
+            <text id="ts-z2-temp" x="658" y="404" fill="#f97316" font-size="9" font-weight="800" text-anchor="middle">22.4&deg;C &bull; T: 23&deg;</text>
+            <text id="ts-z2-st" x="658" y="418" fill="#34d399" font-size="7.5" font-weight="700" text-anchor="middle">&#9832; ÎNCĂLZIRE</text>
           </g>
 
           <!-- =================== ZONE 3: DORMITOR MATRIMONIAL (R25 - 2 BUCLE: 4, 5) =================== -->
@@ -1578,19 +1580,17 @@
                   d="M 758 131 L 758 170 Q 745 195 758 220 Q 770 245 758 270 L 758 295"
                   fill="none" stroke="#fef08a" stroke-width="2.5" stroke-linecap="round"/>
 
-            <!-- Actuator Box & Wax Progress -->
-            <rect id="ts-act-box-3" x="744" y="295" width="28" height="45" rx="4" fill="#0f172a" stroke="#64748b" stroke-width="2"/>
-            <text id="ts-act-txt-3" x="758" y="322" fill="#94a3b8" font-size="8" font-weight="800" text-anchor="middle">NC</text>
+            <!-- Actuator Box with Vertical Progress Loading Bar -->
+            <rect id="ts-act-bg-3" x="742" y="295" width="32" height="45" rx="5" fill="#0b1120" stroke="#334155" stroke-width="1.5"/>
+            <rect id="ts-act-fill-3" x="743" y="340" width="30" height="0" rx="4" fill="#10b981" opacity="0.85"/>
+            <rect id="ts-act-box-3" x="742" y="295" width="32" height="45" rx="5" fill="none" stroke="#64748b" stroke-width="2"/>
+            <text id="ts-act-state-3" x="758" y="313" fill="#cbd5e1" font-size="7.5" font-weight="800" text-anchor="middle">NC</text>
+            <text id="ts-act-pct-3" x="758" y="328" fill="#94a3b8" font-size="8.5" font-weight="800" text-anchor="middle">0%</text>
 
-            <!-- Wax Expansion Progress Bar -->
-            <rect id="ts-wax-bg-3" x="725" y="370" width="66" height="6" rx="3" fill="#1e293b"/>
-            <rect id="ts-wax-bar-3" x="725" y="370" width="0" height="6" rx="3" fill="#34d399"/>
-            <text id="ts-wax-txt-3" x="758" y="384" fill="#94a3b8" font-size="7.5" font-weight="700" text-anchor="middle">NC (0V)</text>
-
-            <rect x="715" y="392" width="86" height="52" rx="7" fill="#0f172a" stroke="#334155" stroke-width="1.2"/>
-            <text x="758" y="407" fill="#f8fafc" font-size="8.8" font-weight="800" text-anchor="middle">Matrimonial (R25)</text>
-            <text id="ts-z3-temp" x="758" y="422" fill="#38bdf8" font-size="9" font-weight="800" text-anchor="middle">22.3&deg;C &bull; T: 21.5&deg;</text>
-            <text id="ts-z3-st" x="758" y="436" fill="#94a3b8" font-size="7.5" font-weight="700" text-anchor="middle">Temp OK (Idle)</text>
+            <rect x="715" y="374" width="86" height="52" rx="7" fill="#0f172a" stroke="#334155" stroke-width="1.2"/>
+            <text x="758" y="389" fill="#f8fafc" font-size="8.8" font-weight="800" text-anchor="middle">Matrimonial (R25)</text>
+            <text id="ts-z3-temp" x="758" y="404" fill="#38bdf8" font-size="9" font-weight="800" text-anchor="middle">22.3&deg;C &bull; T: 21.5&deg;</text>
+            <text id="ts-z3-st" x="758" y="418" fill="#94a3b8" font-size="7.5" font-weight="700" text-anchor="middle">Temp OK (Idle)</text>
           </g>
 
           <!-- =================== BYPASS PERMANENT: BĂI PORTPROSOP (FĂRĂ ACTUATOARE) =================== -->
@@ -1605,10 +1605,10 @@
                   d="M 855 131 L 855 340"
                   fill="none" stroke="#7dd3fc" stroke-width="2.5" stroke-linecap="round"/>
 
-            <rect x="815" y="392" width="80" height="52" rx="7" fill="#081026" stroke="#0284c7" stroke-width="1.2"/>
-            <text x="855" y="407" fill="#7dd3fc" font-size="8.5" font-weight="800" text-anchor="middle">Portprosop Băi</text>
-            <text id="ts-bypass-temp" x="855" y="422" fill="#38bdf8" font-size="9" font-weight="800" text-anchor="middle">22.6&deg;C</text>
-            <text id="ts-bypass-st" x="855" y="436" fill="#34d399" font-size="7" font-weight="700" text-anchor="middle">DEBIT PERMANENT</text>
+            <rect x="815" y="374" width="80" height="52" rx="7" fill="#081026" stroke="#0284c7" stroke-width="1.2"/>
+            <text x="855" y="389" fill="#7dd3fc" font-size="8.5" font-weight="800" text-anchor="middle">Portprosop Băi</text>
+            <text id="ts-bypass-temp" x="855" y="404" fill="#38bdf8" font-size="9" font-weight="800" text-anchor="middle">22.6&deg;C</text>
+            <text id="ts-bypass-st" x="855" y="418" fill="#34d399" font-size="7" font-weight="700" text-anchor="middle">DEBIT PERMANENT</text>
           </g>
 
         </svg>
@@ -2702,15 +2702,19 @@
     }
 
     async function resumeSchedule() {
+      if (scheduleData && scheduleData.awayActive) {
+        await fetch(base + 'api/schedule/away?off=1', { method: 'POST' });
+      }
       const zones = ((lastZData && lastZData.zones) || []).filter(z => z.isManualHold);
       for (const z of zones) await fetch(base + 'api/zones/hold/clear?id=' + z.id, { method: 'POST' });
-      showToast('↺ Toate camerele urmează din nou orarul', 2500);
+      showToast('↺ Toate camerele și orarul au fost reluate normal', 2500);
       roomUiLockUntil = 0;
+      await loadScheduleAndPresets();
       refresh();
     }
 
     async function toggleAway() {
-      const away = scheduleData && scheduleData.awayActive;
+      const away = !!(scheduleData && scheduleData.awayActive);
       await fetch(base + (away ? 'api/schedule/away?off=1' : 'api/schedule/away?until=0'), { method: 'POST' });
       showToast(away ? '🏠 Bine ai revenit! Orarul obișnuit a fost reluat.' : '🚪 Mod plecat: casa trece pe Eco până revii.', 3500);
       await loadScheduleAndPresets();
@@ -3554,9 +3558,9 @@
         const num = i + 1;
         const coilFlow = document.getElementById(`ts-coil-flow-${num}`);
         const actBox = document.getElementById(`ts-act-box-${num}`);
-        const actTxt = document.getElementById(`ts-act-txt-${num}`);
-        const waxBar = document.getElementById(`ts-wax-bar-${num}`);
-        const waxTxt = document.getElementById(`ts-wax-txt-${num}`);
+        const actFill = document.getElementById(`ts-act-fill-${num}`);
+        const actState = document.getElementById(`ts-act-state-${num}`);
+        const actPct = document.getElementById(`ts-act-pct-${num}`);
         const zTemp = document.getElementById(`ts-z${num}-temp`);
         const zSt = document.getElementById(`ts-z${num}-st`);
 
@@ -3571,41 +3575,37 @@
           else coilFlow.classList.add('flow-paused');
         }
 
-        if (actBox && actTxt) {
-          if (z.relayEngaged) {
-            actBox.setAttribute('stroke', '#10b981');
-            actBox.setAttribute('fill', 'rgba(16, 185, 129, 0.2)');
-            actTxt.setAttribute('fill', '#34d399');
-            actTxt.textContent = '230V';
-          } else if (openSec > 0) {
-            actBox.setAttribute('stroke', '#f59e0b');
-            actBox.setAttribute('fill', 'rgba(245, 158, 11, 0.15)');
-            actTxt.setAttribute('fill', '#fbbf24');
-            actTxt.textContent = 'RĂCIRE';
-          } else {
-            actBox.setAttribute('stroke', '#475569');
-            actBox.setAttribute('fill', '#0f172a');
-            actTxt.setAttribute('fill', '#94a3b8');
-            actTxt.textContent = 'NC';
-          }
+        // Vertical Actuator Progress Loading Bar (rising from bottom to top)
+        const maxH = 43;
+        const fillH = Math.round((pct / 100) * maxH);
+
+        if (actFill) {
+          actFill.setAttribute('y', String(340 - fillH));
+          actFill.setAttribute('height', String(fillH));
         }
 
-        // Wax expansion progress bar
-        if (waxBar) {
-          const barW = Math.round((pct / 100) * 66);
-          waxBar.setAttribute('width', String(barW));
-          waxBar.setAttribute('fill', pct >= 100 ? '#34d399' : (pct > 0 ? (z.relayEngaged ? '#fcd34d' : '#f59e0b') : '#64748b'));
-        }
-        if (waxTxt) {
+        if (actBox && actState && actPct) {
           if (z.relayEngaged) {
-            waxTxt.textContent = `Deschidere: ${pct}% [${openSec}s/120s]`;
-            waxTxt.setAttribute('fill', pct >= 100 ? '#34d399' : '#fcd34d');
+            actBox.setAttribute('stroke', '#10b981');
+            if (actFill) actFill.setAttribute('fill', '#10b981');
+            actState.setAttribute('fill', '#ffffff');
+            actState.textContent = '230V';
+            actPct.setAttribute('fill', '#ffffff');
+            actPct.textContent = `${pct}%`;
           } else if (openSec > 0) {
-            waxTxt.textContent = `Răcire: ${pct}% [${openSec}s/120s]`;
-            waxTxt.setAttribute('fill', '#f59e0b');
+            actBox.setAttribute('stroke', '#f59e0b');
+            if (actFill) actFill.setAttribute('fill', '#f59e0b');
+            actState.setAttribute('fill', '#ffffff');
+            actState.textContent = 'RĂCIRE';
+            actPct.setAttribute('fill', '#ffffff');
+            actPct.textContent = `${pct}%`;
           } else {
-            waxTxt.textContent = 'NC (0V Închis)';
-            waxTxt.setAttribute('fill', '#94a3b8');
+            actBox.setAttribute('stroke', '#475569');
+            if (actFill) actFill.setAttribute('fill', 'none');
+            actState.setAttribute('fill', '#94a3b8');
+            actState.textContent = 'NC';
+            actPct.setAttribute('fill', '#64748b');
+            actPct.textContent = '0%';
           }
         }
 
@@ -3884,10 +3884,26 @@
           const sData = await rStatus.json();
           lastSData = sData;
           renderSensors(sData.sensors || []);
-          document.getElementById('m-heap').innerText = Math.round((sData.freeHeap || 0) / 1024) + ' KB';
-          document.getElementById('m-rssi').innerText = (sData.rssi || 0) + ' dBm';
-          document.getElementById('m-uptime').innerText = formatUptime(sData.uptimeSec || 0);
-          document.getElementById('m-ota').innerText = (sData.otaFreeBytes !== undefined) ? (sData.otaFreeBytes / 1048576).toFixed(2) + ' MB liber' : '--';
+          const elFw = document.getElementById('m-fw');
+          if (elFw) elFw.innerText = sData.firmwareVersion || '--';
+          const elUi = document.getElementById('m-ui');
+          if (elUi) elUi.innerText = window.UI_VERSION || '__UI_VERSION__';
+          const elHeap = document.getElementById('m-heap');
+          if (elHeap) elHeap.innerText = Math.round((sData.freeHeap || 0) / 1024) + ' KB' + (sData.minFreeHeap ? ` (min ${Math.round(sData.minFreeHeap / 1024)}k)` : '');
+          const elCpu = document.getElementById('m-cpu');
+          if (elCpu) elCpu.innerText = (sData.cpuFreqMHz ? (sData.cpuFreqMHz + ' MHz') : '240 MHz');
+          const elFs = document.getElementById('m-fs');
+          if (elFs && sData.fsTotalBytes && sData.fsUsedBytes !== undefined) {
+            const usedK = Math.round(sData.fsUsedBytes / 1024);
+            const totK = Math.round(sData.fsTotalBytes / 1024);
+            elFs.innerText = `${usedK}k/${totK}k (${Math.round((sData.fsUsedBytes / sData.fsTotalBytes) * 100)}%)`;
+          }
+          const elRssi = document.getElementById('m-rssi');
+          if (elRssi) elRssi.innerText = (sData.rssi || 0) + ' dBm';
+          const elUp = document.getElementById('m-uptime');
+          if (elUp) elUp.innerText = formatUptime(sData.uptimeSec || 0);
+          const elOta = document.getElementById('m-ota');
+          if (elOta) elOta.innerText = (sData.otaFreeBytes !== undefined) ? (sData.otaFreeBytes / 1024).toFixed(0) + ' KB liber' : '--';
           document.getElementById('pill-time').innerText = '🕒 ' + (sData.time || '--:--:--');
           document.getElementById('pill-weather').innerText = (sData.outdoorTemp !== undefined && sData.outdoorTemp > -900)
             ? ('⛅ ' + sData.outdoorTemp.toFixed(1) + '°C') : '⛅ --.-°C';
