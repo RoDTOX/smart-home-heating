@@ -10,6 +10,7 @@ or standalone: python tools/build_web.py
 """
 import gzip
 import os
+import re
 
 try:
     Import("env")  # noqa: F821 (provided by PlatformIO/SCons)
@@ -39,7 +40,139 @@ PAGES = [
 ]
 
 
-def build():
+def strip_js_comments_and_whitespace(js_code):
+    """Accurately strip single-line and multi-line comments while preserving string literals."""
+    out = []
+    i = 0
+    n = len(js_code)
+    state = "NORMAL"
+
+    while i < n:
+        c = js_code[i]
+        nxt = js_code[i + 1] if i + 1 < n else ""
+
+        if state == "NORMAL":
+            if c == "'":
+                state = "SINGLE_QUOTE"
+                out.append(c)
+                i += 1
+            elif c == '"':
+                state = "DOUBLE_QUOTE"
+                out.append(c)
+                i += 1
+            elif c == '`':
+                state = "TEMPLATE_STRING"
+                out.append(c)
+                i += 1
+            elif c == '/' and nxt == '/':
+                state = "LINE_COMMENT"
+                i += 2
+            elif c == '/' and nxt == '*':
+                state = "BLOCK_COMMENT"
+                i += 2
+            else:
+                out.append(c)
+                i += 1
+
+        elif state == "SINGLE_QUOTE":
+            out.append(c)
+            if c == '\\':
+                if i + 1 < n:
+                    out.append(js_code[i + 1])
+                    i += 2
+                else:
+                    i += 1
+            elif c == "'":
+                state = "NORMAL"
+                i += 1
+            else:
+                i += 1
+
+        elif state == "DOUBLE_QUOTE":
+            out.append(c)
+            if c == '\\':
+                if i + 1 < n:
+                    out.append(js_code[i + 1])
+                    i += 2
+                else:
+                    i += 1
+            elif c == '"':
+                state = "NORMAL"
+                i += 1
+            else:
+                i += 1
+
+        elif state == "TEMPLATE_STRING":
+            out.append(c)
+            if c == '\\':
+                if i + 1 < n:
+                    out.append(js_code[i + 1])
+                    i += 2
+                else:
+                    i += 1
+            elif c == '`':
+                state = "NORMAL"
+                i += 1
+            else:
+                i += 1
+
+        elif state == "LINE_COMMENT":
+            if c == '\n':
+                out.append('\n')
+                state = "NORMAL"
+            i += 1
+
+        elif state == "BLOCK_COMMENT":
+            if c == '*' and nxt == '/':
+                state = "NORMAL"
+                i += 2
+            else:
+                i += 1
+
+    cleaned = "".join(out)
+    clean_lines = []
+    for line in cleaned.splitlines():
+        s = line.strip()
+        if not s:
+            continue
+        s = re.sub(r' {2,}', ' ', s)
+        clean_lines.append(s)
+    return "\n".join(clean_lines)
+
+
+def minify_html(text):
+    # 1. Strip HTML comments
+    text = re.sub(r'<!--(?!\s*slide)[^>]*?-->', '', text)
+
+    # 2. Minify CSS blocks
+    def min_css(m):
+        c = m.group(1)
+        c = re.sub(r'/\*.*?\*/', '', c, flags=re.S)
+        c = re.sub(r'\s+', ' ', c)
+        c = re.sub(r'\s*([\{\}:;,>])\s*', r'\1', c)
+        c = re.sub(r';\}', '}', c)
+        return f"<style>{c.strip()}</style>"
+
+    text = re.sub(r'<style>(.*?)</style>', min_css, text, flags=re.S)
+
+    # 3. Minify JS blocks
+    def min_js(m):
+        js = m.group(1)
+        return f"<script>\n{strip_js_comments_and_whitespace(js)}\n</script>"
+
+    text = re.sub(r'<script>(.*?)</script>', min_js, text, flags=re.S)
+
+    # 4. Clean line breaks and extra whitespace
+    lines = [l.strip() for l in text.splitlines() if l.strip()]
+    return "\n".join(lines)
+
+
+def build(force=False):
+    try:
+        script_path = os.path.abspath(__file__)
+    except NameError:
+        script_path = os.path.join(PROJECT_DIR, "tools", "build_web.py")
+    script_mtime = os.path.getmtime(script_path) if os.path.exists(script_path) else 0
     for page in PAGES:
         src = page["src"]
         dst = page["dst"]
@@ -50,17 +183,14 @@ def build():
             print(f"[build_web] Warning: {src} not found, skipping.")
             continue
 
-        if os.path.exists(dst) and os.path.getmtime(dst) >= os.path.getmtime(src):
+        if not force and os.path.exists(dst) and os.path.getmtime(dst) >= os.path.getmtime(src) and os.path.getmtime(dst) >= script_mtime:
             continue
 
         with open(src, "r", encoding="utf-8") as f:
             text = f.read()
 
-        import re
-        # Strip HTML comments
-        text = re.sub(r'<!--(?!\s*slide)[^>]*?-->', '', text)
-        lines_clean = [l.strip() for l in text.splitlines() if l.strip()]
-        minified_bytes = "\n".join(lines_clean).encode("utf-8")
+        minified = minify_html(text)
+        minified_bytes = minified.encode("utf-8")
 
         # mtime=0 keeps the output deterministic between builds
         data = gzip.compress(minified_bytes, compresslevel=9, mtime=0)
@@ -82,4 +212,7 @@ def build():
         print(f"[build_web] {os.path.relpath(dst, PROJECT_DIR)}: {len(raw)} -> {len(data)} bytes ({pct:.1f}% gzip)")
 
 
-build()
+if __name__ == "__main__":
+    build(force=True)
+else:
+    build()

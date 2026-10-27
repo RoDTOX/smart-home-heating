@@ -13,6 +13,7 @@
 #include "setup_html_gz.h"
 #include <Arduino.h>
 #include <ArduinoJson.h>
+#include <LittleFS.h>
 #include <HTTPUpdateServer.h>
 #include <WebServer.h>
 #include <WiFi.h>
@@ -211,8 +212,16 @@ void printHelp() {
 
 void handleRoot() {
   server.sendHeader("Access-Control-Allow-Origin", "*");
+  server.sendHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+  if (LittleFS.exists("/index.html.gz")) {
+    File f = LittleFS.open("/index.html.gz", "r");
+    if (f) {
+      server.streamFile(f, "text/html");
+      f.close();
+      return;
+    }
+  }
   server.sendHeader("Content-Encoding", "gzip");
-  server.sendHeader("Cache-Control", "no-cache");
   server.send_P(200, "text/html", (const char*)DASHBOARD_HTML_GZ, DASHBOARD_HTML_GZ_LEN);
 }
 
@@ -749,8 +758,16 @@ void handleApiBleSensors() {
 
 void handleSetup() {
   server.sendHeader("Access-Control-Allow-Origin", "*");
+  server.sendHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+  if (LittleFS.exists("/setup.html.gz")) {
+    File f = LittleFS.open("/setup.html.gz", "r");
+    if (f) {
+      server.streamFile(f, "text/html");
+      f.close();
+      return;
+    }
+  }
   server.sendHeader("Content-Encoding", "gzip");
-  server.sendHeader("Cache-Control", "no-cache");
   server.send_P(200, "text/html", (const char*)SETUP_HTML_GZ, SETUP_HTML_GZ_LEN);
 }
 
@@ -981,6 +998,7 @@ void handleApiStatus() {
     otaFreeBytes = part > used ? part - used : 0;
   }
   json += "\"otaFreeBytes\":" + String(otaFreeBytes) + ",";
+  json += "\"otaSlotBytes\":" + String(ESP.getFreeSketchSpace()) + ",";
   json += "\"awayActive\":" + String(thermalZones.isAwayActive() ? "true" : "false") + ",";
   json += "\"awayUntil\":" + String(thermalZones.getAwayUntil()) + ",";
   json += "\"resetReason\":\"" + String(getResetReasonStr(esp_reset_reason())) + "\",";
@@ -1461,6 +1479,12 @@ void handleApiHistoryClear() {
   server.sendHeader("Access-Control-Allow-Origin", "*");
   telemetryHistory.clearHistory();
   server.send(200, "application/json", F("{\"status\":\"ok\",\"cleared\":true}"));
+}
+
+void handleApiHistoryEvents() {
+  server.sendHeader("Access-Control-Allow-Origin", "*");
+  uint16_t limit = server.hasArg("limit") ? (uint16_t)server.arg("limit").toInt() : 100;
+  server.send(200, "application/json", telemetryHistory.getEventsJson(limit));
 }
 
 // Wi-Fi Connection Supervisor State
@@ -2299,6 +2323,27 @@ void handleApiRelayTest() {
   server.send(200, "application/json", F("{\"status\":\"ok\"}"));
 }
 
+static File uploadFile;
+
+void handleFileUpload() {
+  HTTPUpload& upload = server.upload();
+  if (upload.status == UPLOAD_FILE_START) {
+    String filename = upload.filename;
+    if (!filename.startsWith("/")) filename = "/" + filename;
+    netConsole.printf("[UPLOAD] Starting upload of %s\n", filename.c_str());
+    uploadFile = LittleFS.open(filename, "w");
+  } else if (upload.status == UPLOAD_FILE_WRITE) {
+    if (uploadFile) {
+      uploadFile.write(upload.buf, upload.currentSize);
+    }
+  } else if (upload.status == UPLOAD_FILE_END) {
+    if (uploadFile) {
+      uploadFile.close();
+      netConsole.printf("[UPLOAD] Finished %s (%u bytes)\n", upload.filename.c_str(), (unsigned int)upload.totalSize);
+    }
+  }
+}
+
 void setup() {
   Serial.setTxBufferSize(4096);
   Serial.begin(115200);
@@ -2395,6 +2440,11 @@ void setup() {
   server.on("/api/schedule/reset", HTTP_POST, handleApiScheduleReset);
   server.on("/api/history", HTTP_GET, handleApiHistory);
   server.on("/api/history/clear", HTTP_POST, handleApiHistoryClear);
+  server.on("/api/history/events", HTTP_GET, handleApiHistoryEvents);
+  server.on("/api/upload-file", HTTP_POST, []() {
+    server.sendHeader("Access-Control-Allow-Origin", "*");
+    server.send(200, "application/json", F("{\"status\":\"ok\",\"message\":\"Upload complete\"}"));
+  }, handleFileUpload);
   server.on("/api/config/system", HTTP_GET, handleApiConfigSystemGet);
   server.on("/api/config/system", HTTP_POST, handleApiConfigSystemPost);
   server.on("/api/relay/test", HTTP_POST, handleApiRelayTest);

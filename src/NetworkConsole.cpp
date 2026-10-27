@@ -1,5 +1,6 @@
 #include "NetworkConsole.h"
 #include "console_html_gz.h"
+#include <LittleFS.h>
 #include <time.h>
 
 NetworkConsole netConsole;
@@ -284,8 +285,16 @@ void NetworkConsole::handleApiConsoleSend() {
 
 void NetworkConsole::handleWebConsolePage() {
     _webServer->sendHeader("Access-Control-Allow-Origin", "*");
-    _webServer->sendHeader("Content-Encoding", "gzip");
     _webServer->sendHeader("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0");
     _webServer->sendHeader("Pragma", "no-cache");
+    if (LittleFS.exists("/console.html.gz")) {
+        File f = LittleFS.open("/console.html.gz", "r");
+        if (f) {
+            _webServer->streamFile(f, "text/html");
+            f.close();
+            return;
+        }
+    }
+    _webServer->sendHeader("Content-Encoding", "gzip");
     _webServer->send_P(200, "text/html", (const char*)CONSOLE_HTML_GZ, CONSOLE_HTML_GZ_LEN);
 }
