@@ -451,7 +451,7 @@ void handleApiZones() {
   json += "\"scheduleEnabled\":" + String(thermalZones.isScheduleEnabled() ? "true" : "false") + ",";
   json += "\"activePreset\":\"" + String(thermalZones.getActivePresetId()) + "\",";
   json += "\"activeAnchor\":\"" + String(thermalZones.getActiveAnchorName()) + "\",";
-  json += "\"nextAnchor\":\"" + String(thermalZones.getAnchorName(thermalZones.getNextAnchor())) + "\",";
+  json += "\"nextAnchor\":\"" + String(thermalZones.getNextBlockName()) + "\",";
   json += "\"minsToNextAnchor\":" + String(thermalZones.getMinutesToNextAnchor()) + ",";
   json += "\"preHeatActive\":" + String(thermalZones.isPreHeatActive() ? "true" : "false") + ",";
   json += "\"boilerRuntime\":{";
@@ -522,6 +522,7 @@ void handleApiZones() {
     }
     json += "\"openSec\":" + String(openSec) + ",";
     json += "\"isManualHold\":" + String(st.isManualHold ? "true" : "false") + ",";
+    json += "\"holdRemainingSec\":" + String(thermalZones.getHoldRemainingSec(i)) + ",";
     json += "\"holdAnchor\":\"" + String(thermalZones.getAnchorName(st.holdAnchor)) + "\",";
     json += "\"state\":\"" + String(thermalZones.getStateStr(st.state)) + "\"";
     json += "}";
@@ -551,6 +552,40 @@ void handleApiZoneSetpoint() {
   thermalZones.setTargetTemperature(idx, target);
   server.sendHeader("Access-Control-Allow-Origin", "*");
   server.send(200, "application/json", F("{\"status\":\"ok\"}"));
+}
+
+void handleApiZoneBoost() {
+  server.sendHeader("Access-Control-Allow-Origin", "*");
+  int idVal = server.hasArg("id") ? server.arg("id").toInt() : 0;
+  if (idVal < 1 || idVal > (int)thermalZones.getZoneCount()) {
+    server.send(400, "application/json", F("{\"error\":\"Invalid zone id (1..3)\"}"));
+    return;
+  }
+  float delta = server.hasArg("delta") ? server.arg("delta").toFloat() : 1.0f;
+  uint32_t minutes = server.hasArg("min") ? (uint32_t)server.arg("min").toInt() : 30;
+  if (!thermalZones.boostZone((size_t)(idVal - 1), delta, minutes)) {
+    server.send(400, "application/json", F("{\"error\":\"Boost rejected (delta -5..5, min 5..240)\"}"));
+    return;
+  }
+  server.send(200, "application/json", F("{\"status\":\"ok\"}"));
+}
+
+void handleApiScheduleAway() {
+  server.sendHeader("Access-Control-Allow-Origin", "*");
+  if (server.hasArg("off")) {
+    thermalZones.endAway(true);
+  } else {
+    uint32_t until = server.hasArg("until") ? (uint32_t)strtoul(server.arg("until").c_str(), nullptr, 10) : 0;
+    if (until != 0 && until <= (uint32_t)time(nullptr)) {
+      server.send(400, "application/json", F("{\"error\":\"'until' must be a future epoch (or 0 = until return)\"}"));
+      return;
+    }
+    if (!thermalZones.setAway(until)) {
+      server.send(500, "application/json", F("{\"error\":\"Eco preset unavailable\"}"));
+      return;
+    }
+  }
+  server.send(200, "application/json", thermalZones.getScheduleJson());
 }
 
 void handleApiZoneHoldClear() {
@@ -939,6 +974,15 @@ void handleApiStatus() {
   json += "\"firmwareVersion\":\"" + String(APP_VERSION) + "\",";
   json += "\"buildDate\":\"" + String(APP_BUILD_DATE " " APP_BUILD_TIME) + "\",";
   json += "\"gitCommit\":\"" + String(APP_GIT_COMMIT) + "\",";
+  // getSketchSize() hashes the whole image, so compute the OTA headroom once
+  static uint32_t otaFreeBytes = UINT32_MAX;
+  if (otaFreeBytes == UINT32_MAX) {
+    uint32_t part = ESP.getFreeSketchSpace(), used = ESP.getSketchSize();
+    otaFreeBytes = part > used ? part - used : 0;
+  }
+  json += "\"otaFreeBytes\":" + String(otaFreeBytes) + ",";
+  json += "\"awayActive\":" + String(thermalZones.isAwayActive() ? "true" : "false") + ",";
+  json += "\"awayUntil\":" + String(thermalZones.getAwayUntil()) + ",";
   json += "\"resetReason\":\"" + String(getResetReasonStr(esp_reset_reason())) + "\",";
   json += "\"boiler\":\"" +
           String(boilerRadio.isLastCommandOn() ? "ON" : "OFF") + "\",";
@@ -995,7 +1039,10 @@ void handleApiStatus() {
   json += "\"activeAnchor\":\"" +
           String(thermalZones.getActiveAnchorName()) + "\",";
   json += "\"nextAnchor\":\"" +
-          String(thermalZones.getAnchorName(thermalZones.getNextAnchor())) + "\",";
+          String(thermalZones.getNextBlockName()) + "\",";
+  json += "\"activeBlockIndex\":" + String(thermalZones.getActiveBlockIndex()) + ",";
+  json += "\"nextBlockIndex\":" + String(thermalZones.getNextBlockIndex()) + ",";
+  json += "\"isWeekend\":" + String(timeAndWeather.isWeekend() ? "true" : "false") + ",";
   json += "\"minsToNextAnchor\":" +
           String(thermalZones.getMinutesToNextAnchor()) + ",";
   json += "\"preHeatActive\":" +
@@ -1350,6 +1397,7 @@ void handleApiSchedulePresetApply() {
     return;
   }
   String id = server.arg("id");
+  thermalZones.endAway(false);
   bool ok = thermalZones.applyPreset(id.c_str());
   if (!ok) {
     server.send(400, "application/json", F("{\"status\":\"error\",\"message\":\"Preset not found or invalid.\"}"));
@@ -1675,7 +1723,7 @@ void handleSerialCommand(String cmd) {
       snprintf(curAnchorBuf, sizeof(curAnchorBuf), "%s", thermalZones.getActiveAnchorName());
       snprintf(preHeatBuf, sizeof(preHeatBuf), "%s", thermalZones.isPreHeatActive() ? "ACTIVE (Pre-Warming)" : (thermalZones.isPreHeatEnabled() ? "STANDBY (Inertia Guard)" : "DISABLED"));
       snprintf(nextAnchorBuf, sizeof(nextAnchorBuf), "%s (In %um)",
-               thermalZones.getAnchorName(thermalZones.getNextAnchor()),
+               thermalZones.getNextBlockName(),
                (unsigned int)thermalZones.getMinutesToNextAnchor());
     } else {
       snprintf(schedStateBuf, sizeof(schedStateBuf), "DISABLED (Fixed Setpoints)");
@@ -2070,7 +2118,7 @@ void handleSerialCommand(String cmd) {
       netConsole.printf("  * Active Preset:       %s\n", thermalZones.getActivePresetId());
       netConsole.printf("  * Current Anchor:      %s\n", sc.enabled ? thermalZones.getActiveAnchorName() : "N/A");
       netConsole.printf("  * Next Anchor Event:   %s in %u min\n",
-                        thermalZones.getAnchorName(thermalZones.getNextAnchor()),
+                        thermalZones.getNextBlockName(),
                         thermalZones.getMinutesToNextAnchor());
       netConsole.printf("  * Pre-Heat Engine:     %s (Advance: %s)\n",
                         sc.preHeatEnabled ? "ENABLED" : "DISABLED",
@@ -2318,6 +2366,8 @@ void setup() {
   server.on("/api/zones/setpoint", HTTP_POST, handleApiZoneSetpoint);
   server.on("/api/zones/toggle", HTTP_POST, handleApiZoneToggle);
   server.on("/api/zones/hold/clear", HTTP_POST, handleApiZoneHoldClear);
+  server.on("/api/zones/boost", HTTP_POST, handleApiZoneBoost);
+  server.on("/api/schedule/away", HTTP_POST, handleApiScheduleAway);
   server.on("/api/zones/window/clear", HTTP_POST, handleApiZoneWindowClear);
   server.on("/api/zones/window/threshold", HTTP_POST, handleApiZoneWindowThreshold);
   server.on("/api/zones/sensor", HTTP_POST, handleApiZoneSensor);

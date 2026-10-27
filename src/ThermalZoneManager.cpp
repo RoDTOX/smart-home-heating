@@ -7,8 +7,19 @@
 
 ThermalZoneManager thermalZones;
 
+static const uint32_t PREHEAT_LEAD_MIN = 45;
+
+// Names are embedded in hand-built JSON: replace characters that would break it
+static void sanitizeName(char* s) {
+    for (; *s; s++) {
+        if (*s == '"' || *s == '\\' || (uint8_t)*s < 0x20) *s = '\'';
+    }
+}
+
 ThermalZoneManager::ThermalZoneManager()
-    : _activeAnchor(BIO_ANCHOR_HOME),
+    : _awayActive(false),
+      _awayUntil(0),
+      _activeAnchor(BIO_ANCHOR_HOME),
       _nextAnchor(BIO_ANCHOR_SLEEP),
       _minsToNextAnchor(0),
       _preHeatActive(false),
@@ -96,7 +107,10 @@ ThermalZoneManager::ThermalZoneManager()
         _statuses[i].stateChangedMs = 0;
         _statuses[i].isManualHold = false;
         _statuses[i].holdAnchor = BIO_ANCHOR_HOME;
+        _statuses[i].holdUntilMs = 0;
+        _statuses[i].holdRestoreTemp = DEFAULT_SETPOINT_TEMP;
     }
+    _awayPrevPreset[0] = '\0';
 }
 
 void ThermalZoneManager::loadFromPreferences() {
@@ -117,6 +131,12 @@ void ThermalZoneManager::loadFromPreferences() {
     _freezeProtectionTemp = prefs.getFloat("frz_temp", 12.0f);
     _lastAntiSeizeEpoch = prefs.getUInt("as_epoch", 0);
     _sensorTimeoutSec = prefs.getUInt("s_tout", 600UL);
+    _openLoopBypass = prefs.getBool("olb", _openLoopBypass);
+    _interlockDelayMs = prefs.getUInt("intlk_ms", _interlockDelayMs);
+    _boilerDelayMs = prefs.getUInt("blr_dly_ms", _boilerDelayMs);
+    _pumpOverrunMs = prefs.getUInt("p_ovr_ms", _pumpOverrunMs);
+    _hasManifoldTurReturSensors = prefs.getBool("tr_sens", _hasManifoldTurReturSensors);
+    _pumpRelayPin = prefs.getUChar("pump_pin", _pumpRelayPin);
 
     for (size_t i = 0; i < MAX_THERMAL_ZONES; i++) {
         String p = "z" + String(i) + "_";
@@ -155,6 +175,12 @@ void ThermalZoneManager::saveToPreferences() {
     prefs.putFloat("frz_temp", _freezeProtectionTemp);
     prefs.putUInt("as_epoch", _lastAntiSeizeEpoch);
     prefs.putUInt("s_tout", _sensorTimeoutSec);
+    prefs.putBool("olb", _openLoopBypass);
+    prefs.putUInt("intlk_ms", _interlockDelayMs);
+    prefs.putUInt("blr_dly_ms", _boilerDelayMs);
+    prefs.putUInt("p_ovr_ms", _pumpOverrunMs);
+    prefs.putBool("tr_sens", _hasManifoldTurReturSensors);
+    prefs.putUChar("pump_pin", _pumpRelayPin);
 
     for (size_t i = 0; i < MAX_THERMAL_ZONES; i++) {
         String p = "z" + String(i) + "_";
@@ -194,6 +220,11 @@ void ThermalZoneManager::loadSchedulePreferences() {
     } else {
         strncpy(_activePresetId, "default", sizeof(_activePresetId));
     }
+    _awayActive = prefs.getBool("away_on", false);
+    _awayUntil = prefs.getUInt("away_until", 0);
+    String prev = prefs.getString("away_prev", "default");
+    strncpy(_awayPrevPreset, prev.c_str(), sizeof(_awayPrevPreset) - 1);
+    _awayPrevPreset[sizeof(_awayPrevPreset) - 1] = '\0';
     prefs.end();
 }
 
@@ -342,8 +373,9 @@ void ThermalZoneManager::setTargetTemperature(size_t index, float target) {
         if (_scheduleConfig.enabled && timeAndWeather.isTimeSynced()) {
             _statuses[index].isManualHold = true;
             _statuses[index].holdAnchor = _activeAnchor;
-            netConsole.printf("[Thermal] Zone %u (%s) TEMPORARY HOLD set to %.1f C (holds until next anchor: %s)\n",
-                _configs[index].id, _configs[index].name, target, getAnchorName(_nextAnchor));
+            _statuses[index].holdUntilMs = 0;
+            netConsole.printf("[Thermal] Zone %u (%s) TEMPORARY HOLD set to %.1f C (holds until next block: %s)\n",
+                _configs[index].id, _configs[index].name, target, getNextBlockName());
         } else {
             _statuses[index].isManualHold = false;
             netConsole.printf("[Thermal] Zone %u (%s) new target temp: %.1f C\n",
@@ -355,17 +387,75 @@ void ThermalZoneManager::setTargetTemperature(size_t index, float target) {
 void ThermalZoneManager::clearManualHold(size_t index) {
     if (index >= MAX_THERMAL_ZONES) return;
     _statuses[index].isManualHold = false;
+    _statuses[index].holdUntilMs = 0;
     if (_scheduleConfig.enabled && timeAndWeather.isTimeSynced()) {
         bool weekend = timeAndWeather.isWeekend();
-        const BioAnchorConfig* profile = weekend ? _scheduleConfig.weekend : _scheduleConfig.weekday;
-        BioAnchorId anc = _preHeatActive ? _nextAnchor : _activeAnchor;
-        if (anc >= BIO_ANCHORS_COUNT) anc = BIO_ANCHOR_HOME;
-        _configs[index].targetTemp = profile[anc].targets[index];
+        uint8_t count = weekend ? _scheduleConfig.weekendCount : _scheduleConfig.weekdayCount;
+        const ScheduleBlockConfig* profile = weekend ? _scheduleConfig.weekend : _scheduleConfig.weekday;
+        size_t blk = _preHeatActive ? _nextBlockIdx : _activeBlockIdx;
+        if (count == 0) return;
+        if (blk >= count) blk = 0;
+        _configs[index].targetTemp = profile[blk].targets[index];
         _nvsSavePending = true;
         _nvsSavePendingMs = millis() + 3000;
         netConsole.printf("[Thermal] Zone %u (%s) manual hold CLEARED. Reverted to schedule target %.1f C\n",
             _configs[index].id, _configs[index].name, _configs[index].targetTemp);
     }
+}
+
+bool ThermalZoneManager::boostZone(size_t index, float delta, uint32_t minutes) {
+    if (index >= MAX_THERMAL_ZONES || minutes < 5 || minutes > 240 || delta < -5.0f || delta > 5.0f) return false;
+    float t = getEffectiveTargetTemp(index) + delta;
+    if (t < 15.0f) t = 15.0f;
+    if (t > 30.0f) t = 30.0f;
+    // Not persisted to NVS: a reboot during a boost falls back to the saved target
+    if (_statuses[index].holdUntilMs == 0) _statuses[index].holdRestoreTemp = _configs[index].targetTemp;
+    _configs[index].targetTemp = t;
+    _statuses[index].isManualHold = true;
+    _statuses[index].holdUntilMs = millis() + minutes * 60000UL;
+    if (_statuses[index].holdUntilMs == 0) _statuses[index].holdUntilMs = 1;
+    netConsole.printf("[Thermal] Zone %u (%s) BOOST to %.1f C for %u min\n",
+        _configs[index].id, _configs[index].name, t, (unsigned int)minutes);
+    return true;
+}
+
+uint32_t ThermalZoneManager::getHoldRemainingSec(size_t index) const {
+    if (index >= MAX_THERMAL_ZONES || !_statuses[index].isManualHold || _statuses[index].holdUntilMs == 0) return 0;
+    int32_t left = (int32_t)(_statuses[index].holdUntilMs - millis());
+    return left > 0 ? (uint32_t)left / 1000 : 0;
+}
+
+bool ThermalZoneManager::setAway(uint32_t untilEpoch) {
+    char prev[16];
+    strncpy(prev, _awayActive ? _awayPrevPreset : _activePresetId, sizeof(prev) - 1);
+    prev[sizeof(prev) - 1] = '\0';
+    if (!applyPreset("eco")) return false;
+    _awayActive = true;
+    _awayUntil = untilEpoch;
+    strncpy(_awayPrevPreset, prev, sizeof(_awayPrevPreset));
+    Preferences prefs;
+    if (prefs.begin("sched", false)) {
+        prefs.putBool("away_on", true);
+        prefs.putUInt("away_until", _awayUntil);
+        prefs.putString("away_prev", _awayPrevPreset);
+        prefs.end();
+    }
+    netConsole.printf("[Schedule][AWAY] Away mode ON (eco), restore '%s' at epoch %u\n", _awayPrevPreset, (unsigned int)_awayUntil);
+    return true;
+}
+
+void ThermalZoneManager::endAway(bool restorePrevious) {
+    if (!_awayActive) return;
+    _awayActive = false;
+    _awayUntil = 0;
+    Preferences prefs;
+    if (prefs.begin("sched", false)) {
+        prefs.remove("away_on");
+        prefs.remove("away_until");
+        prefs.end();
+    }
+    netConsole.printf("[Schedule][AWAY] Away mode OFF%s\n", restorePrevious ? " (restoring previous preset)" : "");
+    if (restorePrevious) applyPreset(_awayPrevPreset);
 }
 
 void ThermalZoneManager::setHysteresis(size_t index, float hyst) {
@@ -485,6 +575,7 @@ bool ThermalZoneManager::setAnchorName(bool weekend, BioAnchorId anchor, const c
     if (idx < count && name) {
         strncpy(profile[idx].name, name, sizeof(profile[idx].name) - 1);
         profile[idx].name[sizeof(profile[idx].name) - 1] = 0;
+        sanitizeName(profile[idx].name);
         saveSchedulePreferences();
         return true;
     }
@@ -690,6 +781,7 @@ bool ThermalZoneManager::addBlock(bool weekend, const char* name, uint8_t hour, 
     size_t newIdx = count;
     strncpy(profile[newIdx].name, (name && strlen(name) > 0) ? name : "Interval", sizeof(profile[newIdx].name) - 1);
     profile[newIdx].name[sizeof(profile[newIdx].name) - 1] = 0;
+    sanitizeName(profile[newIdx].name);
     profile[newIdx].hour = hour;
     profile[newIdx].minute = minute;
     for (size_t i = 0; i < MAX_THERMAL_ZONES; i++) {
@@ -712,6 +804,7 @@ bool ThermalZoneManager::updateBlock(bool weekend, size_t index, const char* nam
     if (name && strlen(name) > 0) {
         strncpy(profile[index].name, name, sizeof(profile[index].name) - 1);
         profile[index].name[sizeof(profile[index].name) - 1] = 0;
+        sanitizeName(profile[index].name);
     }
     profile[index].hour = hour;
     profile[index].minute = minute;
@@ -938,11 +1031,11 @@ bool ThermalZoneManager::savePreset(const char* presetId, const char* name, uint
     snprintf(keyName, sizeof(keyName), "%s_name", presetId);
 
     prefs.putBytes(keyCfg, &_scheduleConfig, sizeof(_scheduleConfig));
-    if (name && strlen(name) > 0) {
-        prefs.putString(keyName, name);
-    } else {
-        prefs.putString(keyName, presetId);
-    }
+    char safeName[32];
+    strncpy(safeName, (name && strlen(name) > 0) ? name : presetId, sizeof(safeName) - 1);
+    safeName[sizeof(safeName) - 1] = '\0';
+    sanitizeName(safeName);
+    prefs.putString(keyName, safeName);
     char keyDays[16];
     snprintf(keyDays, sizeof(keyDays), "%s_days", presetId);
     prefs.putUChar(keyDays, daysMask);
@@ -1062,9 +1155,13 @@ void ThermalZoneManager::setWindowDetectionEnabled(bool enabled) {
 void ThermalZoneManager::evaluateSchedule(uint32_t now) {
     if (!timeAndWeather.isTimeSynced()) return;
 
-    // Day of week auto-switching based on preset daysMask
+    if (_awayActive && _awayUntil != 0 && (uint32_t)time(nullptr) >= _awayUntil) {
+        endAway(true);
+    }
+
+    // Day of week auto-switching based on preset daysMask (bit n = tm_wday n, 0 = Sunday, same as the web UI)
     int wday = timeAndWeather.getDayOfWeekIndex();
-    uint8_t currentDayBit = (wday == 0) ? (1 << 6) : (1 << (wday - 1));
+    uint8_t currentDayBit = (uint8_t)(1 << wday);
     uint8_t activePresetDays = getPresetDays(_activePresetId);
     if ((activePresetDays & currentDayBit) == 0) {
         const char* candidatePresets[] = {"default", "wfh", "eco", "custom1", "custom2", "custom3", "custom4"};
@@ -1085,28 +1182,21 @@ void ThermalZoneManager::evaluateSchedule(uint32_t now) {
     int curMin = timeAndWeather.getMinute();
     uint32_t curMinutes = curHour * 60 + curMin;
 
-    // Find active block (latest block where blockMinutes <= curMinutes)
-    size_t activeIdx = 0;
-    bool found = false;
-    for (int i = (int)count - 1; i >= 0; i--) {
-        uint32_t blkMinutes = blocks[i].hour * 60 + blocks[i].minute;
-        if (curMinutes >= blkMinutes) {
-            activeIdx = (size_t)i;
-            found = true;
-            break;
-        }
+    // Blocks are stored in insertion order (UI may add/edit out of order): select by start time, not by index
+    auto blkMin = [&](size_t i) { return (uint32_t)blocks[i].hour * 60 + blocks[i].minute; };
+    size_t activeIdx = count, nextIdx = count, firstIdx = 0, lastIdx = 0;
+    for (size_t i = 0; i < count; i++) {
+        uint32_t m = blkMin(i);
+        if (m <= curMinutes && (activeIdx == count || m >= blkMin(activeIdx))) activeIdx = i;
+        if (m > curMinutes && (nextIdx == count || m <= blkMin(nextIdx))) nextIdx = i;
+        if (m <= blkMin(firstIdx)) firstIdx = i;
+        if (m >= blkMin(lastIdx)) lastIdx = i;
     }
-    if (!found) {
-        activeIdx = count - 1;
-    }
+    if (activeIdx == count) activeIdx = lastIdx;  // before today's first block: yesterday's last block still runs
+    if (nextIdx == count) nextIdx = firstIdx;      // after today's last block: next is tomorrow's first block
 
-    size_t nextIdx = (activeIdx + 1) % count;
-    uint32_t nextMinutes = blocks[nextIdx].hour * 60 + blocks[nextIdx].minute;
-    if (nextMinutes <= curMinutes) {
-        _minsToNextAnchor = (1440 - curMinutes) + nextMinutes;
-    } else {
-        _minsToNextAnchor = nextMinutes - curMinutes;
-    }
+    uint32_t nextMinutes = blkMin(nextIdx);
+    _minsToNextAnchor = (nextMinutes > curMinutes) ? (nextMinutes - curMinutes) : ((1440 - curMinutes) + nextMinutes);
 
     size_t prevBlock = _activeBlockIdx;
     _activeBlockIdx = activeIdx;
@@ -1114,9 +1204,9 @@ void ThermalZoneManager::evaluateSchedule(uint32_t now) {
     _activeAnchor = (BioAnchorId)(activeIdx < BIO_ANCHORS_COUNT ? activeIdx : 3);
     _nextAnchor = (BioAnchorId)(nextIdx < BIO_ANCHORS_COUNT ? nextIdx : 0);
 
-    // Pre-Heat calculation (45 mins anticipative underfloor heating)
+    // Pre-Heat calculation (anticipative underfloor heating)
     _preHeatActive = false;
-    if (_scheduleConfig.preHeatEnabled && _minsToNextAnchor <= 45) {
+    if (_scheduleConfig.preHeatEnabled && _minsToNextAnchor <= PREHEAT_LEAD_MIN) {
         for (size_t i = 0; i < MAX_THERMAL_ZONES; i++) {
             if (blocks[nextIdx].targets[i] > blocks[activeIdx].targets[i] + 0.2f) {
                 _preHeatActive = true;
@@ -1132,7 +1222,8 @@ void ThermalZoneManager::evaluateSchedule(uint32_t now) {
             weekend ? "Weekend" : "Weekday", curHour, curMin);
 
         for (size_t i = 0; i < MAX_THERMAL_ZONES; i++) {
-            if (_statuses[i].isManualHold) {
+            // Timed boosts outlive block changes; they expire on their own timer
+            if (_statuses[i].isManualHold && _statuses[i].holdUntilMs == 0) {
                 _statuses[i].isManualHold = false;
                 netConsole.printf("[Thermal] Zone %u (%s) Temporary Hold expired naturally at block change.\n",
                     (unsigned int)_configs[i].id, _configs[i].name);
@@ -1305,6 +1396,9 @@ String ThermalZoneManager::getScheduleJson() const {
     json += "\"nextAnchor\":\"" + String(getNextBlockName()) + "\",";
     json += "\"minsToNextAnchor\":" + String(_minsToNextAnchor) + ",";
     json += "\"preHeatActive\":" + String(_preHeatActive ? "true" : "false") + ",";
+    json += "\"preHeatLeadMin\":" + String(PREHEAT_LEAD_MIN) + ",";
+    json += "\"awayActive\":" + String(_awayActive ? "true" : "false") + ",";
+    json += "\"awayUntil\":" + String(_awayUntil) + ",";
     json += "\"isWeekend\":" + String(timeAndWeather.isWeekend() ? "true" : "false") + ",";
     json += "\"openLoopBypass\":" + String(_openLoopBypass ? "true" : "false") + ",";
     json += "\"interlockDelaySec\":" + String(_interlockDelayMs / 1000) + ",";
@@ -1427,6 +1521,15 @@ void ThermalZoneManager::update(BoilerRadioTrigger& boiler) {
     if (_nvsSavePending && now >= _nvsSavePendingMs) {
         _nvsSavePending = false;
         saveToPreferences();
+    }
+
+    for (size_t i = 0; i < MAX_THERMAL_ZONES; i++) {
+        ThermalZoneStatus& st = _statuses[i];
+        if (st.isManualHold && st.holdUntilMs != 0 && (int32_t)(now - st.holdUntilMs) >= 0) {
+            if (!(_scheduleConfig.enabled && timeAndWeather.isTimeSynced())) _configs[i].targetTemp = st.holdRestoreTemp;
+            netConsole.printf("[Thermal] Zone %u (%s) boost expired\n", _configs[i].id, _configs[i].name);
+            clearManualHold(i);
+        }
     }
 
     // Handle ongoing Anti-Seize Exercise (20s duration)

@@ -82,6 +82,8 @@ struct ThermalZoneStatus {
     uint32_t stateChangedMs;
     bool isManualHold;
     BioAnchorId holdAnchor;
+    uint32_t holdUntilMs;    // 0 = hold until next block, else timed boost expiry (millis)
+    float holdRestoreTemp;   // static target restored when a boost expires with the schedule off
 };
 
 class ThermalZoneManager {
@@ -165,6 +167,14 @@ public:
         return _statuses[index].isManualHold;
     }
     void clearManualHold(size_t index);
+    bool boostZone(size_t index, float delta, uint32_t minutes);
+    uint32_t getHoldRemainingSec(size_t index) const;
+
+    // Away / Vacation (eco preset, previous preset restored on return or at awayUntil epoch)
+    bool setAway(uint32_t untilEpoch);
+    void endAway(bool restorePrevious);
+    bool isAwayActive() const { return _awayActive; }
+    uint32_t getAwayUntil() const { return _awayUntil; }
 
     // Manual Control
     void setRelayManual(size_t index, bool on);
@@ -218,7 +228,7 @@ public:
     BioAnchorId getNextAnchor() const { return _nextAnchor; }
     uint32_t getMinutesToNextAnchor() const { return _minsToNextAnchor; }
     const char* getAnchorName(BioAnchorId id) const;
-    const char* getActiveAnchorName() const { return getAnchorName(_activeAnchor); }
+    const char* getActiveAnchorName() const { return getActiveBlockName(); }
     bool isPreHeatActive() const { return _preHeatActive; }
 
     // Open Window Detection State
@@ -250,6 +260,9 @@ private:
     // Bio-Schedule & Climate State
     BioScheduleConfig _scheduleConfig;
     char _activePresetId[16];
+    bool _awayActive;
+    uint32_t _awayUntil;
+    char _awayPrevPreset[16];
     size_t _activeBlockIdx;
     size_t _nextBlockIdx;
     BioAnchorId _activeAnchor;

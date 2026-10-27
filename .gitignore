@@ -25,6 +25,7 @@ compile_commands.json
 
 # Web build artifacts
 include/*_html_gz.h
+include/git_version.h
 
 # Temporary scratch & analysis files
 scratch/

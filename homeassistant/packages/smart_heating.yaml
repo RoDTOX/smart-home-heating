@@ -419,7 +419,7 @@ rest_command:
     method: POST
 
   smart_heating_set_schedule:
-    url: "http://192.168.1.20/api/schedule/enable?en={{ enabled }}"
+    url: "http://192.168.1.20/api/schedule/enable?enabled={{ enabled }}"
     method: POST
 
   smart_heating_apply_preset:
@@ -800,15 +800,21 @@ automation:
     trigger:
       - platform: state
         entity_id: input_select.smart_heating_preset
+    variables:
+      preset_id: >-
+        {% set opt = trigger.to_state.state %}
+        {% if 'Eco' in opt %}eco
+        {% elif 'Home' in opt %}wfh
+        {% elif 'Bogdan' in opt %}custom1
+        {% else %}default{% endif %}
+    # Only push real user changes, never echo back what the ESP already runs
+    condition:
+      - condition: template
+        value_template: "{{ preset_id != states('sensor.smart_heating_preset_circadian_activ') }}"
     action:
       - service: rest_command.smart_heating_apply_preset
         data:
-          preset_id: >-
-            {% set opt = trigger.to_state.state %}
-            {% if 'Eco' in opt %}eco
-            {% elif 'Home' in opt %}wfh
-            {% elif 'Bogdan' in opt %}custom1
-            {% else %}default{% endif %}
+          preset_id: "{{ preset_id }}"
 
   # Preset Selection Sync (ESP32 -> HA)
   - id: auto_sync_esp_preset_to_ha
@@ -817,6 +823,10 @@ automation:
     trigger:
       - platform: state
         entity_id: sensor.smart_heating_preset_circadian_activ
+    # 'unavailable' during ESP reboot/OTA must not be mapped to Standard (it would push 'default' back)
+    condition:
+      - condition: template
+        value_template: "{{ trigger.to_state.state in ['default', 'eco', 'wfh', 'custom1'] }}"
     action:
       - service: input_select.select_option
         target:

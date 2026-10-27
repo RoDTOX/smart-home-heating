@@ -5,6 +5,8 @@
 
 #if __has_include("secrets.h")
 #include "secrets.h"
+#else
+#error "include/secrets.h missing: firmware would boot with placeholder Wi-Fi/OTA credentials and drop off the network after OTA"
 #endif
 
 // ==========================================
