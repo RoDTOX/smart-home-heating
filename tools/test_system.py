@@ -89,9 +89,9 @@ SWE1_REQUIREMENTS = {
     "FR-26": "Web Console Exhaustive Status Highlighting & Coloring",
     "FR-27": "System Block Structure & utf8VisibleLen Alignment",
     "FR-28": "High Sensitivity NimBLE (90% Duty Cycle) & Non-Blocking Warmup",
-    "FR-29": "Circadian Bio-Schedule & Intelligent Thermal Guards",
-    "FR-30": "Dynamic Anchor Tuning & NVS Binary Persistence",
-    "FR-31": "Bio-Schedule Presets Engine & User Custom Slots",
+    "FR-29": "Day / Night / Away Level Schedule",
+    "FR-30": "Per-Zone Level Temperatures (NVS)",
+    "FR-31": "Weekday / Weekend Slot Lists",
     "FR-32": "Boiler Flame Re-Arming & Deferred Action Cancellation",
     "FR-33": "Temperature Trend Telemetry & Sparkline Vector Dynamics",
     "FR-34": "LittleFS Flash Telemetry History Buffer (24h @ 5m & 5d @ 30m, /api/history)",
@@ -104,7 +104,7 @@ SWE1_REQUIREMENTS = {
     "FR-41": "Wi-Fi Link Supervisor & Auto-Recovery Watchdog (DTC-401)",
     "FR-42": "System Configuration REST API & Hydraulic Timing Guards",
     "FR-43": "Multi-Relay Dynamic Testing & Safety Interlock",
-    "FR-44": "Bio-Schedule Customizable Preset Days & Custom Interval Names",
+    "FR-44": "Global Away Mode",
     "FR-45": "Bidirectional Web Wi-Fi Console Protocol & Invariant Buffer Reset",
     "NFR-1.1": "Autonomous Edge Operation (Zero Cloud Dependency)",
     "NFR-1.5": "Hardware Task Watchdog Timer (TWDT 90s)",
@@ -1129,246 +1129,91 @@ class SystemTestSuite:
             return TestResult(test_id, name, req, "FAIL", (time.time() - start)*1000, str(e))
 
     # ---------------------------------------------------------
-    # Group 16: Smart Bio-Schedule Contract & Guards
+    # Group 16: Schedule (day / night / away levels)
     # ---------------------------------------------------------
 
-    def test_tc16_1_bio_schedule_4_anchors(self):
-        """SWE.5-TC16.1: Bio-Schedule 4 Circadian Life Anchors Contract (FR-29)"""
+    def test_tc16_1_schedule_schema(self):
+        """SWE.5-TC16.1: Level Schedule Schema (/api/schedule) (FR-29)"""
         test_id = "SWE.5-TC16.1"
-        name = "Bio-Schedule 4 Life Anchors Contract"
+        name = "Level Schedule Schema"
         req = "FR-29"
         start = time.time()
         try:
             r = requests.get(f"{self.base_url}/api/schedule", timeout=self.timeout)
             latency = (time.time() - start) * 1000
-            data = r.json()
-            assert "weekday" in data, "Weekday profile must exist"
-            assert "weekend" in data, "Weekend profile must exist"
-            expected = {"sleep", "wake", "away", "home"}
-            assert expected.issubset(set(data["weekday"].keys())), f"Weekday missing legacy anchors: {data['weekday'].keys()}"
-            assert expected.issubset(set(data["weekend"].keys())), f"Weekend missing legacy anchors: {data['weekend'].keys()}"
-            return TestResult(test_id, name, req, "PASS", latency, "Verified circadian life anchors")
+            assert r.status_code == 200, f"HTTP {r.status_code}"
+            d = r.json()
+            for key in ("enabled", "away", "activeLevel", "nextLevel", "minsToNextSlot", "weekday", "weekend", "zones"):
+                assert key in d, f"Missing '{key}'"
+            assert d["activeLevel"] in ("day", "night", "away"), f"Invalid activeLevel {d['activeLevel']}"
+            for z in d["zones"]:
+                for lvl in ("day", "night", "away"):
+                    assert lvl in z, f"Zone {z.get('id')} missing level '{lvl}'"
+            details = f"Weekday '{d['weekday']}', weekend '{d['weekend']}', now '{d['activeLevel']}'"
+            return TestResult(test_id, name, req, "PASS", latency, details)
         except Exception as e:
             return TestResult(test_id, name, req, "FAIL", (time.time() - start)*1000, str(e))
 
-    def test_tc16_2_bio_schedule_predictive_preheat(self):
-        """SWE.5-TC16.2: Bio-Schedule Predictive Pre-Heat Contract (FR-29)"""
+    def test_tc16_2_level_temp_roundtrip(self):
+        """SWE.5-TC16.2: Level Temperature Set & Restore (FR-30)"""
         test_id = "SWE.5-TC16.2"
-        name = "Predictive Pre-Heat Thermal Advance"
-        req = "FR-29"
+        name = "Level Temperature Roundtrip"
+        req = "FR-30"
         start = time.time()
+        orig = None
         try:
-            r = requests.get(f"{self.base_url}/api/schedule", timeout=self.timeout)
+            orig = requests.get(f"{self.base_url}/api/schedule", timeout=self.timeout).json()["zones"][0]["night"]
+            new = 19.5 if abs(orig - 19.5) > 0.05 else 19.0
+            r = requests.post(f"{self.base_url}/api/schedule/level?zone=1&level=night&temp={new}", timeout=self.timeout)
             latency = (time.time() - start) * 1000
-            data = r.json()
-            assert "preHeatEnabled" in data, "Missing preHeatEnabled"
-            details = f"Pre-Heat Advance Enabled: {data.get('preHeatEnabled')} (Dynamic thermal inertia calculation)"
+            assert r.status_code == 200, f"HTTP {r.status_code}"
+            got = r.json()["zones"][0]["night"]
+            assert abs(got - new) < 0.05, f"Expected {new}, got {got}"
+            details = f"Zone 1 night {orig} -> {new} -> restored"
             return TestResult(test_id, name, req, "PASS", latency, details)
         except Exception as e:
             return TestResult(test_id, name, req, "FAIL", (time.time() - start)*1000, str(e))
+        finally:
+            if orig is not None:
+                requests.post(f"{self.base_url}/api/schedule/level?zone=1&level=night&temp={orig}", timeout=self.timeout)
 
-    def test_tc16_3_bio_schedule_open_window_guard(self):
-        """SWE.5-TC16.3: Bio-Schedule Open Window Failsafe Guard (FR-29)"""
+    def test_tc16_3_slots_roundtrip_sorted(self):
+        """SWE.5-TC16.3: Slots Are Stored Sorted & Restorable (FR-31)"""
         test_id = "SWE.5-TC16.3"
-        name = "Open Window Smart Pause Guard"
-        req = "FR-29"
+        name = "Slots Roundtrip (Sorted)"
+        req = "FR-31"
         start = time.time()
+        orig = None
         try:
-            r = requests.get(f"{self.base_url}/api/schedule", timeout=self.timeout)
+            orig = requests.get(f"{self.base_url}/api/schedule", timeout=self.timeout).json()["weekday"]
+            r = requests.post(f"{self.base_url}/api/schedule/slots",
+                              data={"weekend": "0", "slots": "22:30=night,06:30=day,08:30=away,17:00=day"}, timeout=self.timeout)
             latency = (time.time() - start) * 1000
-            data = r.json()
-            assert "windowDetectionEnabled" in data, "Missing windowDetectionEnabled"
-            details = f"Open Window Guard Enabled: {data.get('windowDetectionEnabled')} (>1.2°C / 5 min detection)"
+            assert r.status_code == 200, f"HTTP {r.status_code}"
+            got = r.json()["weekday"]
+            assert got == "06:30=day,08:30=away,17:00=day,22:30=night", f"Unexpected slots '{got}'"
+            details = f"Unsorted input stored sorted; original '{orig}' restored"
             return TestResult(test_id, name, req, "PASS", latency, details)
         except Exception as e:
             return TestResult(test_id, name, req, "FAIL", (time.time() - start)*1000, str(e))
+        finally:
+            if orig:
+                requests.post(f"{self.base_url}/api/schedule/slots", data={"weekend": "0", "slots": orig}, timeout=self.timeout)
 
-    def test_tc16_4_bio_schedule_telemetry_integration(self):
-        """SWE.5-TC16.4: Bio-Schedule Telemetry in Status & Zones (FR-29)"""
+    def test_tc16_4_invalid_schedule_rejection(self):
+        """SWE.5-TC16.4: Invalid Level / Slot Input Rejected (FR-31)"""
         test_id = "SWE.5-TC16.4"
-        name = "Bio-Schedule Telemetry Integration"
-        req = "FR-29"
-        start = time.time()
-        try:
-            r_stat = requests.get(f"{self.base_url}/api/boiler/status", timeout=self.timeout).json()
-            assert "scheduleEnabled" in r_stat, "Missing scheduleEnabled in status"
-            assert "activeAnchor" in r_stat, "Missing activeAnchor in status"
-            r_zones = requests.get(f"{self.base_url}/api/zones", timeout=self.timeout).json()
-            assert "effectiveTarget" in r_zones["zones"][0], "Missing effectiveTarget in zone 0"
-            latency = (time.time() - start) * 1000
-            details = f"Active Anchor: '{r_stat.get('activeAnchor')}', Effective Target Exposed per Zone"
-            return TestResult(test_id, name, req, "PASS", latency, details)
-        except Exception as e:
-            return TestResult(test_id, name, req, "FAIL", (time.time() - start)*1000, str(e))
-
-    # ---------------------------------------------------------
-    # Group 17: Bio-Schedule Anchor Customization & NVS
-    # ---------------------------------------------------------
-
-    def test_tc17_1_anchor_tuning_execution(self):
-        """SWE.5-TC17.1: Dynamic Anchor Tuning (06:45 [22.1, 22.6, 21.9]°C) (FR-30)"""
-        test_id = "SWE.5-TC17.1"
-        name = "Dynamic Anchor Tuning Execution"
-        req = "FR-30"
-        start = time.time()
-        try:
-            r = requests.post(
-                f"{self.base_url}/api/schedule/anchor?profile=weekday&anchor=wake&time=06:45&z1=22.1&z2=22.6&z3=21.9",
-                timeout=self.timeout
-            )
-            latency = (time.time() - start) * 1000
-            assert r.status_code == 200, f"Failed updating anchor: {r.status_code}"
-            data = r.json()
-            wake = data.get("weekday", {}).get("wake", {})
-            assert wake.get("hour") == 6 and wake.get("minute") == 45, f"Unexpected time: {wake}"
-            assert wake.get("targets") == [22.1, 22.6, 21.9], f"Unexpected targets: {wake.get('targets')}"
-            details = "Updated Weekday Wake anchor to 06:45 with targets [22.1, 22.6, 21.9]°C"
-            return TestResult(test_id, name, req, "PASS", latency, details)
-        except Exception as e:
-            return TestResult(test_id, name, req, "FAIL", (time.time() - start)*1000, str(e))
-
-    def test_tc17_2_anchor_tuning_nvs_persistence(self):
-        """SWE.5-TC17.2: Anchor Tuning NVS Persistence Verification (FR-30)"""
-        test_id = "SWE.5-TC17.2"
-        name = "Anchor Tuning NVS Persistence"
-        req = "FR-30"
-        start = time.time()
-        try:
-            r = requests.get(f"{self.base_url}/api/schedule", timeout=self.timeout)
-            latency = (time.time() - start) * 1000
-            data = r.json()
-            wake = data.get("weekday", {}).get("wake", {})
-            assert wake.get("hour") == 6 and wake.get("minute") == 45, "Hour/minute mismatch in GET"
-            assert wake.get("targets") == [22.1, 22.6, 21.9], "Targets mismatch in GET"
-            details = "NVS binary structure matches updated parameters"
-            return TestResult(test_id, name, req, "PASS", latency, details)
-        except Exception as e:
-            return TestResult(test_id, name, req, "FAIL", (time.time() - start)*1000, str(e))
-
-    def test_tc17_3_anchor_tuning_reset(self):
-        """SWE.5-TC17.3: Bio-Schedule Factory Reset Restoration (FR-30)"""
-        test_id = "SWE.5-TC17.3"
-        name = "Bio-Schedule Factory Reset Restoration"
-        req = "FR-30"
-        start = time.time()
-        try:
-            r = requests.post(f"{self.base_url}/api/schedule/reset", timeout=self.timeout)
-            latency = (time.time() - start) * 1000
-            assert r.status_code == 200, "Failed to reset schedule"
-            details = "Schedule restored to factory circadian defaults"
-            return TestResult(test_id, name, req, "PASS", latency, details)
-        except Exception as e:
-            return TestResult(test_id, name, req, "FAIL", (time.time() - start)*1000, str(e))
-
-    # ---------------------------------------------------------
-    # Group 18: Bio-Schedule Presets Engine (Factory & Custom Slots)
-    # ---------------------------------------------------------
-
-    def test_tc18_1_presets_catalog_discovery(self):
-        """SWE.5-TC18.1: Presets Catalog Discovery Contract (FR-31)"""
-        test_id = "SWE.5-TC18.1"
-        name = "Presets Catalog Discovery Contract"
+        name = "Invalid Schedule Input Rejection"
         req = "FR-31"
         start = time.time()
         try:
-            r = requests.get(f"{self.base_url}/api/schedule/presets", timeout=self.timeout)
+            r1 = requests.post(f"{self.base_url}/api/schedule/level?zone=1&level=party&temp=21", timeout=self.timeout)
+            r2 = requests.post(f"{self.base_url}/api/schedule/level?zone=9&level=day&temp=21", timeout=self.timeout)
+            r3 = requests.post(f"{self.base_url}/api/schedule/slots", data={"weekend": "0", "slots": "25:00=day"}, timeout=self.timeout)
             latency = (time.time() - start) * 1000
-            assert r.status_code == 200, f"Failed GET presets: {r.status_code}"
-            data = r.json()
-            self.orig_active_preset = data.get("activePreset", "default")
-            presets = {p["id"]: p for p in data.get("presets", [])}
-            assert "default" in presets, "Missing 'default' preset"
-            assert "eco" in presets, "Missing 'eco' preset"
-            assert "wfh" in presets, "Missing 'wfh' preset"
-            assert "custom1" in presets, "Missing 'custom1' slot"
-            details = f"Catalog verified: {len(presets)} slots discovered (default, eco, wfh, custom1, custom2)"
-            return TestResult(test_id, name, req, "PASS", latency, details)
-        except Exception as e:
-            return TestResult(test_id, name, req, "FAIL", (time.time() - start)*1000, str(e))
-
-    def test_tc18_2_preset_apply_eco(self):
-        """SWE.5-TC18.2: Preset Activation ('eco') (FR-31)"""
-        test_id = "SWE.5-TC18.2"
-        name = "Preset Activation ('eco')"
-        req = "FR-31"
-        start = time.time()
-        try:
-            r = requests.post(f"{self.base_url}/api/schedule/preset/apply?id=eco", timeout=self.timeout)
-            latency = (time.time() - start) * 1000
-            assert r.status_code == 200, f"Failed to apply 'eco': {r.status_code}"
-            data = r.json()
-            assert data.get("activePreset") == "eco", f"Expected activePreset='eco', got {data.get('activePreset')}"
-            eco_sleep = data.get("weekday", {}).get("sleep", {})
-            assert eco_sleep.get("targets") == [18.0, 18.5, 18.0], f"Unexpected eco targets: {eco_sleep.get('targets')}"
-            details = "Applied 'eco' preset (Sleep targets: [18.0, 18.5, 18.0]°C)"
-            return TestResult(test_id, name, req, "PASS", latency, details)
-        except Exception as e:
-            return TestResult(test_id, name, req, "FAIL", (time.time() - start)*1000, str(e))
-
-    def test_tc18_3_preset_save_custom_slot(self):
-        """SWE.5-TC18.3: Custom User Slot Save ('custom4') (FR-31)"""
-        test_id = "SWE.5-TC18.3"
-        name = "Custom User Slot Save ('custom4')"
-        req = "FR-31"
-        start = time.time()
-        try:
-            r = requests.post(f"{self.base_url}/api/schedule/preset/save?id=custom4&name=SWE5Test", timeout=self.timeout)
-            latency = (time.time() - start) * 1000
-            assert r.status_code == 200, f"Failed to save preset: {r.status_code}"
-            data = r.json()
-            custom4 = next((p for p in data.get("presets", []) if p["id"] == "custom4"), None)
-            assert custom4 and custom4.get("saved") is True, "custom4 slot was not saved"
-            assert custom4.get("name") == "SWE5Test", f"Expected name 'SWE5Test', got {custom4.get('name')}"
-            # Reset test slot to leave NVS clean
-            requests.post(f"{self.base_url}/api/schedule/preset/reset?id=custom4", timeout=self.timeout)
-            details = "Saved active schedule into NVS slot 'custom4' as 'SWE5Test' & cleanly reset"
-            return TestResult(test_id, name, req, "PASS", latency, details)
-        except Exception as e:
-            requests.post(f"{self.base_url}/api/schedule/preset/reset?id=custom4", timeout=self.timeout)
-            return TestResult(test_id, name, req, "FAIL", (time.time() - start)*1000, str(e))
-
-    def test_tc18_4_preset_restore_default(self):
-        """SWE.5-TC18.4: Default Preset Restoration ('default') (FR-31)"""
-        test_id = "SWE.5-TC18.4"
-        name = "Default Preset Restoration ('default')"
-        req = "FR-31"
-        start = time.time()
-        try:
-            r = requests.post(f"{self.base_url}/api/schedule/preset/apply?id=default", timeout=self.timeout)
-            latency = (time.time() - start) * 1000
-            assert r.status_code == 200, f"Failed to apply 'default': {r.status_code}"
-            data = r.json()
-            assert data.get("activePreset") == "default", f"Expected 'default', got {data.get('activePreset')}"
-            
-            # Non-destructive: Restore user's original active preset so test suite leaves system in original user state
-            orig = getattr(self, 'orig_active_preset', 'default')
-            if orig and orig != "default":
-                requests.post(f"{self.base_url}/api/schedule/preset/apply?id={orig}", timeout=self.timeout)
-                details = f"Verified 'default' preset apply and restored user preset '{orig}'"
-            else:
-                details = "Restored factory 'default' preset"
-            return TestResult(test_id, name, req, "PASS", latency, details)
-        except Exception as e:
-            return TestResult(test_id, name, req, "FAIL", (time.time() - start)*1000, str(e))
-
-    # ---------------------------------------------------------
-    # Group 19: Negative Validation & Boundary Constraints
-    # ---------------------------------------------------------
-
-    def test_tc19_1_invalid_anchor_rejection(self):
-        """SWE.5-TC19.1: Invalid Anchor Rejection (HTTP 400) (FR-8, FR-29)"""
-        test_id = "SWE.5-TC19.1"
-        name = "Invalid Anchor Rejection (HTTP 400)"
-        req = "FR-8, FR-29"
-        start = time.time()
-        try:
-            r = requests.post(f"{self.base_url}/api/schedule/anchor?anchor=invalid_anchor_xyz", timeout=self.timeout)
-            latency = (time.time() - start) * 1000
-            assert r.status_code == 400, f"Expected HTTP 400 for invalid anchor, got {r.status_code}"
-            data = r.json()
-            assert "Invalid anchor" in data.get("message", ""), f"Unexpected error message: {data}"
-            details = f"HTTP 400 rejected invalid anchor name: {data.get('message')}"
-            return TestResult(test_id, name, req, "PASS", latency, details)
+            assert (r1.status_code, r2.status_code, r3.status_code) == (400, 400, 400), \
+                f"Expected 400/400/400, got {r1.status_code}/{r2.status_code}/{r3.status_code}"
+            return TestResult(test_id, name, req, "PASS", latency, "Bad level, zone and slot time rejected with HTTP 400")
         except Exception as e:
             return TestResult(test_id, name, req, "FAIL", (time.time() - start)*1000, str(e))
 
@@ -1428,40 +1273,6 @@ class SystemTestSuite:
             data = r.json()
             assert "Invalid zone index" in data.get("error", ""), f"Unexpected error payload: {data}"
             details = f"HTTP 400 safely rejected zone index 99: {data.get('error')}"
-            return TestResult(test_id, name, req, "PASS", latency, details)
-        except Exception as e:
-            return TestResult(test_id, name, req, "FAIL", (time.time() - start)*1000, str(e))
-
-    def test_tc19_4_invalid_preset_apply_rejection(self):
-        """SWE.5-TC19.4: Invalid Preset Application Rejection (HTTP 400) (FR-31)"""
-        test_id = "SWE.5-TC19.4"
-        name = "Invalid Preset Application Rejection"
-        req = "FR-31"
-        start = time.time()
-        try:
-            r = requests.post(f"{self.base_url}/api/schedule/preset/apply?id=non_existent_preset_99", timeout=self.timeout)
-            latency = (time.time() - start) * 1000
-            assert r.status_code == 400, f"Expected HTTP 400 for invalid preset id, got {r.status_code}"
-            data = r.json()
-            assert "Preset not found or invalid" in data.get("message", ""), f"Unexpected message: {data}"
-            details = f"HTTP 400 rejected non-existent preset: {data.get('message')}"
-            return TestResult(test_id, name, req, "PASS", latency, details)
-        except Exception as e:
-            return TestResult(test_id, name, req, "FAIL", (time.time() - start)*1000, str(e))
-
-    def test_tc19_5_factory_preset_overwrite_protection(self):
-        """SWE.5-TC19.5: Invalid Preset Slot Rejection (HTTP 400) (FR-31)"""
-        test_id = "SWE.5-TC19.5"
-        name = "Invalid Preset Slot Rejection"
-        req = "FR-31"
-        start = time.time()
-        try:
-            r = requests.post(f"{self.base_url}/api/schedule/preset/save?id=invalid_slot_hack&name=Hacked", timeout=self.timeout)
-            latency = (time.time() - start) * 1000
-            assert r.status_code == 400, f"Expected HTTP 400 when attempting to save invalid slot id, got {r.status_code}"
-            data = r.json()
-            assert "Invalid preset slot id" in data.get("message", ""), f"Unexpected message: {data}"
-            details = f"HTTP 400 safely rejected invalid slot: {data.get('message')}"
             return TestResult(test_id, name, req, "PASS", latency, details)
         except Exception as e:
             return TestResult(test_id, name, req, "FAIL", (time.time() - start)*1000, str(e))
@@ -1941,30 +1752,6 @@ class SystemTestSuite:
         except Exception as e:
             return TestResult(test_id, name, req, "FAIL", (time.time() - start)*1000, str(e))
 
-    def test_tc27_4_preset_days_and_anchor_names(self):
-        """SWE.5-TC27.4: Schedule Preset Days Mask & Anchor Naming (FR-44)"""
-        test_id = "SWE.5-TC27.4"
-        name = "Preset Days Mask & Anchor Naming"
-        req = "FR-44"
-        start = time.time()
-        try:
-            r_anc = requests.post(f"{self.base_url}/api/schedule/anchor?profile=weekday&anchor=wake&name=Trezire%20Dimineata", timeout=self.timeout)
-            assert r_anc.status_code == 200, f"Anchor name post failed: {r_anc.status_code}"
-            anc_data = r_anc.json()
-            assert anc_data.get("weekday", {}).get("wake", {}).get("name") == "Trezire Dimineata", "Anchor name not updated"
-
-            r_pre = requests.get(f"{self.base_url}/api/schedule/presets", timeout=self.timeout)
-            assert r_pre.status_code == 200, f"Presets catalog query failed: {r_pre.status_code}"
-            pdata = r_pre.json()
-            for p in pdata.get("presets", []):
-                assert "daysMask" in p, f"Missing 'daysMask' in preset {p.get('id')}"
-
-            latency = (time.time() - start) * 1000
-            details = "Preset days mask (0..127) & custom anchor names ('Trezire Dimineata') validated"
-            return TestResult(test_id, name, req, "PASS", latency, details)
-        except Exception as e:
-            return TestResult(test_id, name, req, "FAIL", (time.time() - start)*1000, str(e))
-
     def test_tc27_5_console_command_and_clear_invariant(self):
         """SWE.5-TC27.5: Bidirectional Web Wi-Fi Console Execution & Clear Invariant (FR-45)"""
         test_id = "SWE.5-TC27.5"
@@ -1990,61 +1777,6 @@ class SystemTestSuite:
             return TestResult(test_id, name, req, "FAIL", (time.time() - start)*1000, str(e))
 
     # Group 28: Dynamic Time Blocks Engine & Hydraulic Isolation (FR-46, FR-14)
-    def test_tc28_1_dynamic_schedule_blocks_schema(self):
-        """SWE.5-TC28.1: Dynamic Schedule Blocks Schema (/api/schedule) (FR-46)"""
-        test_id = "SWE.5-TC28.1"
-        name = "Dynamic Schedule Blocks Schema"
-        req = "FR-46"
-        start = time.time()
-        try:
-            r = requests.get(f"{self.base_url}/api/schedule", timeout=self.timeout)
-            assert r.status_code == 200, f"Expected 200, got {r.status_code}"
-            data = r.json()
-            for prof in ["weekday", "weekend"]:
-                assert prof in data, f"Missing {prof} profile"
-                assert "blocks" in data[prof], f"Missing blocks array in {prof}"
-                blocks = data[prof]["blocks"]
-                assert len(blocks) >= 1, f"Expected >= 1 block, got {len(blocks)}"
-                for b in blocks:
-                    assert "name" in b and "hour" in b and "minute" in b and "targets" in b, f"Malformed block: {b}"
-            latency = (time.time() - start) * 1000
-            details = f"Verified blocks schema (weekday={len(data['weekday']['blocks'])}, weekend={len(data['weekend']['blocks'])})"
-            return TestResult(test_id, name, req, "PASS", latency, details)
-        except Exception as e:
-            return TestResult(test_id, name, req, "FAIL", (time.time() - start)*1000, str(e))
-
-    def test_tc28_2_dynamic_schedule_block_crud(self):
-        """SWE.5-TC28.2: Dynamic Schedule Block CRUD Mutations (FR-46)"""
-        test_id = "SWE.5-TC28.2"
-        name = "Schedule Block CRUD Mutations"
-        req = "FR-46"
-        start = time.time()
-        try:
-            # 1. Add Block
-            r_add = requests.post(f"{self.base_url}/api/schedule/block/add?profile=weekday&name=TestBlock&time=15:30&z1=22.5&z2=22.0&z3=21.5", timeout=self.timeout)
-            assert r_add.status_code == 200, f"Block add failed: {r_add.status_code}"
-            data_add = r_add.json()
-            blocks = data_add["weekday"]["blocks"]
-            added_idx = next((i for i, b in enumerate(blocks) if b.get("name") == "TestBlock"), -1)
-            assert added_idx != -1, "Added block not found in weekday profile"
-
-            # 2. Update Block
-            r_upd = requests.post(f"{self.base_url}/api/schedule/block/update?profile=weekday&index={added_idx}&name=UpdatedBlock&time=16:00&z1=23.0&z2=22.5&z3=22.0", timeout=self.timeout)
-            assert r_upd.status_code == 200, f"Block update failed: {r_upd.status_code}"
-            data_upd = r_upd.json()
-            upd_b = data_upd["weekday"]["blocks"][added_idx]
-            assert upd_b.get("name") == "UpdatedBlock" and upd_b.get("hour") == 16, f"Block update mismatch: {upd_b}"
-
-            # 3. Delete Block
-            r_del = requests.post(f"{self.base_url}/api/schedule/block/delete?profile=weekday&index={added_idx}", timeout=self.timeout)
-            assert r_del.status_code == 200, f"Block delete failed: {r_del.status_code}"
-
-            latency = (time.time() - start) * 1000
-            details = "Dynamic schedule block ADD, UPDATE, and DELETE cycles verified"
-            return TestResult(test_id, name, req, "PASS", latency, details)
-        except Exception as e:
-            return TestResult(test_id, name, req, "FAIL", (time.time() - start)*1000, str(e))
-
     def test_tc28_3_gpa_pump_isolation_default(self):
         """SWE.5-TC28.3: Hydraulic GPA Pump Isolation & Relay 4 Default Free (FR-14, FR-42)"""
         test_id = "SWE.5-TC28.3"
@@ -2072,15 +1804,6 @@ class SystemTestSuite:
         print(f"  Timestamp:      {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
         print(f"  Architecture:   Atomic SWE.5 Verification & Live Hardware Traceability")
         print("--------------------------------------------------------------------------")
-
-        # Capture user's live active preset before ANY schedule or preset tests execute
-        self.user_initial_preset = "default"
-        try:
-            r_init = requests.get(f"{self.base_url}/api/schedule/presets", timeout=self.timeout)
-            if r_init.status_code == 200:
-                self.user_initial_preset = r_init.json().get("activePreset", "default")
-        except Exception:
-            pass
 
         tests = [
             # Group 1: System Telemetry & Health
@@ -2148,26 +1871,14 @@ class SystemTestSuite:
             self.test_tc15_1_firmware_semver,
             self.test_tc15_2_build_timestamp_and_git,
             self.test_tc15_3_hardware_reset_reason,
-            # Group 16: Smart Bio-Schedule Contract
-            self.test_tc16_1_bio_schedule_4_anchors,
-            self.test_tc16_2_bio_schedule_predictive_preheat,
-            self.test_tc16_3_bio_schedule_open_window_guard,
-            self.test_tc16_4_bio_schedule_telemetry_integration,
-            # Group 17: Anchor Customization
-            self.test_tc17_1_anchor_tuning_execution,
-            self.test_tc17_2_anchor_tuning_nvs_persistence,
-            self.test_tc17_3_anchor_tuning_reset,
-            # Group 18: Presets Engine
-            self.test_tc18_1_presets_catalog_discovery,
-            self.test_tc18_2_preset_apply_eco,
-            self.test_tc18_3_preset_save_custom_slot,
-            self.test_tc18_4_preset_restore_default,
+            # Group 16: Schedule (day / night / away levels)
+            self.test_tc16_1_schedule_schema,
+            self.test_tc16_2_level_temp_roundtrip,
+            self.test_tc16_3_slots_roundtrip_sorted,
+            self.test_tc16_4_invalid_schedule_rejection,
             # Group 19: Negative Validation & Boundary Constraints
-            self.test_tc19_1_invalid_anchor_rejection,
             self.test_tc19_2_temperature_boundary_clamping,
             self.test_tc19_3_invalid_zone_index_handling,
-            self.test_tc19_4_invalid_preset_apply_rejection,
-            self.test_tc19_5_factory_preset_overwrite_protection,
             self.test_tc19_6_sparkline_trend_telemetry,
             # Group 20: LittleFS Flash Telemetry History Buffer (FR-34)
             self.test_tc20_1_history_schema_24h,
@@ -2194,11 +1905,7 @@ class SystemTestSuite:
             self.test_tc27_1_system_config_schema,
             self.test_tc27_2_system_config_mutation_persistence,
             self.test_tc27_3_relay_test_contract,
-            self.test_tc27_4_preset_days_and_anchor_names,
             self.test_tc27_5_console_command_and_clear_invariant,
-            # Group 28: Dynamic Time Blocks Engine & Hydraulic Isolation (FR-46, FR-14)
-            self.test_tc28_1_dynamic_schedule_blocks_schema,
-            self.test_tc28_2_dynamic_schedule_block_crud,
             self.test_tc28_3_gpa_pump_isolation_default,
         ]
 
@@ -2225,10 +1932,6 @@ class SystemTestSuite:
             requests.post(f"{self.base_url}/api/mode?mode=auto", timeout=self.timeout)
             requests.post(f"{self.base_url}/api/diag/clear", timeout=self.timeout)
             
-            # Reliably restore user's live preset captured at suite launch
-            if hasattr(self, 'user_initial_preset') and self.user_initial_preset:
-                requests.post(f"{self.base_url}/api/schedule/preset/apply?id={self.user_initial_preset}", timeout=self.timeout)
-
             # Wipe test execution debris so user's active console stays pristine
             requests.post(f"{self.base_url}/api/console/send?cmd=CLEAR", timeout=self.timeout)
         except Exception:

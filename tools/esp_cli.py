@@ -51,8 +51,10 @@ def cmd_status(args):
             print(f"Actuator Type:      {zdata.get('actuatorType', 'NC')} ({'Normally Closed' if zdata.get('actuatorType') == 'NC' else 'Normally Open'})")
             print(f"Circulation Pump:   {'RUNNING [ON]' if zdata.get('pumpActive') else 'IDLE [OFF]'} (Relay 4: {'ENABLED' if zdata.get('pumpEnabled') else 'DISABLED'})")
             print(f"Frost Guard:        {'ACTIVE (<12°C)' if zdata.get('frostGuardActive') else 'STANDBY'}")
-            if sdata.get('scheduleEnabled'):
-                print(f"Bio-Schedule:       ACTIVE ({sdata.get('activeAnchor')}) | Pre-Heat: {'ACTIVE' if sdata.get('preHeatActive') else 'STANDBY'}")
+            if sdata.get('away'):
+                print("Schedule:           AWAY MODE")
+            elif sdata.get('scheduleEnabled'):
+                print(f"Schedule:           ACTIVE ({sdata.get('activeLevel')}) | Pre-Heat: {'ACTIVE' if sdata.get('preHeatActive') else 'STANDBY'}")
             tout = sdata.get('sensorTimeoutSec', 600)
             print(f"Sensor Timeout:     {tout}s ({tout // 60} min)")
             print(f"Free Heap RAM:      {sdata.get('freeHeap', 0) // 1024} KB")
@@ -309,142 +311,10 @@ def cmd_timeout(args):
             print(f"[-] Error: {e}")
 
 def cmd_schedule(args):
-    """View or configure Smart Bio-Schedule & natural anchors."""
-    action = args.action
-    if isinstance(action, list):
-        action = " ".join(action) if len(action) > 0 else ""
-    elif action is None:
-        action = ""
-    action_lower = action.lower().strip()
-
-    if action_lower in ("on", "off"):
-        val = "true" if action_lower == "on" else "false"
-        url = f"http://{args.ip}:{args.port}/api/schedule/enable?enabled={val}"
-        try:
-            r = requests.post(url, timeout=DEFAULT_TIMEOUT)
-            print(f"[+] Bio-Schedule toggle ({action_lower}): HTTP {r.status_code}")
-        except Exception as e:
-            print(f"[-] Error: {e}")
-    elif action_lower in ("preheat-on", "preheat-off"):
-        val = "true" if action_lower == "preheat-on" else "false"
-        url = f"http://{args.ip}:{args.port}/api/schedule/enable?preheat={val}"
-        try:
-            r = requests.post(url, timeout=DEFAULT_TIMEOUT)
-            print(f"[+] Predictive Pre-Heat toggle ({action_lower}): HTTP {r.status_code}")
-        except Exception as e:
-            print(f"[-] Error: {e}")
-    elif action_lower in ("window-on", "window-off"):
-        val = "true" if action_lower == "window-on" else "false"
-        url = f"http://{args.ip}:{args.port}/api/schedule/enable?window={val}"
-        try:
-            r = requests.post(url, timeout=DEFAULT_TIMEOUT)
-            print(f"[+] Open Window Detection toggle ({action_lower}): HTTP {r.status_code}")
-        except Exception as e:
-            print(f"[-] Error: {e}")
-    elif action_lower == "reset":
-        try:
-            r = requests.post(f"http://{args.ip}:{args.port}/api/schedule/reset", timeout=DEFAULT_TIMEOUT)
-            print(f"[+] Bio-Schedule reset to factory DEFAULT preset: HTTP {r.status_code}")
-        except Exception as e:
-            print(f"[-] Error: {e}")
-    elif action_lower.startswith("preset"):
-        parts = action_lower.split()
-        subcmd = parts[1] if len(parts) > 1 else "list"
-        if subcmd == "list":
-            try:
-                r = requests.get(f"http://{args.ip}:{args.port}/api/schedule/presets", timeout=DEFAULT_TIMEOUT)
-                d = r.json()
-                print("==================================================")
-                print("  Bio-Schedule Presets Engine")
-                print("==================================================")
-                print(f"Active Preset: {d.get('activePreset', 'N/A').upper()}")
-                print("Available Presets:")
-                for p in d.get("presets", []):
-                    saved_tag = " (Saved)" if p.get("saved") else ""
-                    print(f"  - {p['id']:<10} : {p['name']} [{p['type'].upper()}]{saved_tag}")
-                print("==================================================")
-            except Exception as e:
-                print(f"[-] Error: {e}")
-        elif subcmd == "apply" and len(parts) > 2:
-            pid = parts[2]
-            try:
-                r = requests.post(f"http://{args.ip}:{args.port}/api/schedule/preset/apply?id={pid}", timeout=DEFAULT_TIMEOUT)
-                if r.status_code == 200:
-                    print(f"[+] Applied Bio-Schedule preset '{pid}' successfully.")
-                else:
-                    print(f"[-] Failed to apply preset '{pid}': HTTP {r.status_code} {r.text}")
-            except Exception as e:
-                print(f"[-] Error: {e}")
-        elif subcmd == "save" and len(parts) > 2:
-            pid = parts[2]
-            orig_parts = action.split()
-            pname = " ".join(orig_parts[3:]) if len(orig_parts) > 3 else pid
-            try:
-                r = requests.post(f"http://{args.ip}:{args.port}/api/schedule/preset/save?id={pid}&name={pname}", timeout=DEFAULT_TIMEOUT)
-                if r.status_code == 200:
-                    print(f"[+] Saved active schedule to preset '{pid}' ({pname}) successfully.")
-                else:
-                    print(f"[-] Failed to save preset: HTTP {r.status_code} {r.text}")
-            except Exception as e:
-                print(f"[-] Error: {e}")
-        else:
-            print("[-] Usage: schedule preset <list | apply <id> | save <id> [name]>")
-    elif action_lower.startswith("set"):
-        parts = action_lower.split()
-        if len(parts) >= 4:
-            # schedule set <weekday|weekend> <anchor> <HH:MM> [z1] [z2] [z3]
-            prof, anc, tm = parts[1], parts[2], parts[3]
-            url = f"http://{args.ip}:{args.port}/api/schedule/anchor?profile={prof}&anchor={anc}&time={tm}"
-            if len(parts) > 4: url += f"&z1={parts[4]}"
-            if len(parts) > 5: url += f"&z2={parts[5]}"
-            if len(parts) > 6: url += f"&z3={parts[6]}"
-            try:
-                r = requests.post(url, timeout=DEFAULT_TIMEOUT)
-                if r.status_code == 200:
-                    print(f"[+] Updated anchor {anc.upper()} ({prof}) at {tm}: HTTP 200 OK")
-                else:
-                    print(f"[-] Failed to update anchor: HTTP {r.status_code} {r.text}")
-            except Exception as e:
-                print(f"[-] Error: {e}")
-        else:
-            print("[-] Usage: schedule set <weekday|weekend> <anchor> <HH:MM> [z1] [z2] [z3]")
-    else:
-        try:
-            r = requests.get(f"http://{args.ip}:{args.port}/api/schedule", timeout=DEFAULT_TIMEOUT)
-            d = r.json()
-            print("==================================================")
-            print("  Smart Bio-Schedule & Natural Anchors")
-            print("==================================================")
-            print(f"Schedule Engine:     {'ENABLED' if d.get('enabled') else 'DISABLED'}")
-            print(f"Active Preset:       {d.get('activePreset', 'default').upper()}")
-            print(f"Active Anchor:       {d.get('activeAnchor', 'NONE')}")
-            print(f"Next Anchor:         {d.get('nextAnchor', 'NONE')} in {d.get('minsToNextAnchor', 0)} min")
-            print(f"Predictive Pre-Heat: {'ACTIVE (Pre-Warming)' if d.get('preHeatActive') else ('ENABLED' if d.get('preHeatEnabled') else 'DISABLED')}")
-            print(f"Open Window Guard:   {'ARMED (>1.2°C drop in 5m)' if d.get('windowDetectionEnabled') else 'DISABLED'}")
-            print("--------------------------------------------------")
-            print("Weekday Profile (Mon-Fri):")
-            wd = d.get("weekday", {})
-            if isinstance(wd, dict):
-                for name, anc in wd.items():
-                    t_str = " | ".join(f"Z{idx+1}: {t:.1f}°C" for idx, t in enumerate(anc.get("targets", [])))
-                    print(f"  - {name.upper():<6} @ {anc.get('hour', 0):02d}:{anc.get('minute', 0):02d} -> {t_str}")
-            elif isinstance(wd, list):
-                for anc in wd:
-                    t_str = " | ".join(f"Z{idx+1}: {t:.1f}°C" for idx, t in enumerate(anc.get("targets", [])))
-                    print(f"  - {anc.get('name', 'ANCHOR'):<6} @ {anc.get('hour', 0):02d}:{anc.get('minute', 0):02d} -> {t_str}")
-            print("Weekend Profile (Sat-Sun):")
-            we = d.get("weekend", {})
-            if isinstance(we, dict):
-                for name, anc in we.items():
-                    t_str = " | ".join(f"Z{idx+1}: {t:.1f}°C" for idx, t in enumerate(anc.get("targets", [])))
-                    print(f"  - {name.upper():<6} @ {anc.get('hour', 0):02d}:{anc.get('minute', 0):02d} -> {t_str}")
-            elif isinstance(we, list):
-                for anc in we:
-                    t_str = " | ".join(f"Z{idx+1}: {t:.1f}°C" for idx, t in enumerate(anc.get("targets", [])))
-                    print(f"  - {anc.get('name', 'ANCHOR'):<6} @ {anc.get('hour', 0):02d}:{anc.get('minute', 0):02d} -> {t_str}")
-            print("==================================================")
-        except Exception as e:
-            print(f"[-] Error: {e}")
+    """Schedule (day/night/away levels): forwards to the firmware SCHEDULE console command."""
+    action = " ".join(args.action) if isinstance(args.action, list) else (args.action or "")
+    args.cmd = f"SCHEDULE {action}".strip()
+    cmd_exec(args)
 
 def cmd_exec(args):
     """Executes any arbitrary command via the 2-way Network Console API."""
@@ -524,7 +394,7 @@ def cmd_interactive_shell(args):
                 print("  diag                   - Diagnostic trouble codes & health score")
                 print("  selftest               - Run diagnostic self-test suite")
                 print("  clear                  - Clear active diagnostic trouble codes (DTCs)")
-                print("  schedule [action]      - Bio-Schedule (actions: on, off, preheat-on, window-on)")
+                print("  schedule [args]        - Schedule (on, off, level <z> <day|night|away> <t>, slots <weekday|weekend> <spec>, reset)")
                 print("  location [lat,lon]     - Get or set location for outdoor weather")
                 print("  time                   - System time, NTP & outdoor weather")
                 print("  pump [on|off]          - GPA circulation pump relay toggle")
@@ -642,8 +512,8 @@ def main():
     p_exec = sub.add_parser("exec", help="Execute arbitrary command string via Network Console")
     p_exec.add_argument("cmd", help="Command string (e.g. STATUS, HELP, ON, OFF)")
 
-    p_sched = sub.add_parser("schedule", help="View or configure Smart Bio-Schedule")
-    p_sched.add_argument("action", nargs="*", help="Action to perform (on, off, reset, preset list/apply/save, set)")
+    p_sched = sub.add_parser("schedule", help="View or configure the day/night/away schedule")
+    p_sched.add_argument("action", nargs="*", help="on | off | level <z> <day|night|away> <t> | slots <weekday|weekend> <HH:MM=level,...> | reset")
 
     p_test = sub.add_parser("test", help="Run automated ASPICE SWE.5 verification test suite against ESP32")
     p_test.add_argument("--report", default="docs/system_test_report.md", help="Path to write markdown test report")
