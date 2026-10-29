@@ -3,7 +3,6 @@
 Generates:
     - include/dashboard_html_gz.h (from web/index.html)
     - include/setup_html_gz.h     (from web/setup.html)
-    - include/console_html_gz.h   (from web/console.html)
 
 Can be run automatically via PlatformIO (extra_scripts = pre:tools/build_web.py)
 or standalone: python tools/build_web.py
@@ -29,12 +28,6 @@ PAGES = [
         "dst": os.path.join(PROJECT_DIR, "include", "setup_html_gz.h"),
         "var": "SETUP_HTML_GZ",
         "len_var": "SETUP_HTML_GZ_LEN",
-    },
-    {
-        "src": os.path.join(PROJECT_DIR, "web", "console.html"),
-        "dst": os.path.join(PROJECT_DIR, "include", "console_html_gz.h"),
-        "var": "CONSOLE_HTML_GZ",
-        "len_var": "CONSOLE_HTML_GZ_LEN",
     },
 ]
 

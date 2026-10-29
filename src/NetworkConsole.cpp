@@ -1,5 +1,4 @@
 #include "NetworkConsole.h"
-#include "console_html_gz.h"
 #include <time.h>
 
 NetworkConsole netConsole;
@@ -221,7 +220,6 @@ void NetworkConsole::update() {
 }
 
 void NetworkConsole::setupWebRoutes() {
-    _webServer->on("/console", HTTP_GET, std::bind(&NetworkConsole::handleWebConsolePage, this));
     _webServer->on("/api/console/logs", HTTP_GET, std::bind(&NetworkConsole::handleApiConsoleLogs, this));
     _webServer->on("/api/console/send", HTTP_POST, std::bind(&NetworkConsole::handleApiConsoleSend, this));
     _webServer->on("/api/console/cmd", HTTP_POST, std::bind(&NetworkConsole::handleApiConsoleSend, this));
@@ -280,12 +278,4 @@ void NetworkConsole::handleApiConsoleSend() {
     _webServer->sendHeader("Access-Control-Expose-Headers", "X-Log-Seq");
     _webServer->sendHeader("Access-Control-Allow-Origin", "*");
     _webServer->send(200, "text/plain; charset=utf-8", output);
-}
-
-void NetworkConsole::handleWebConsolePage() {
-    _webServer->sendHeader("Access-Control-Allow-Origin", "*");
-    _webServer->sendHeader("Content-Encoding", "gzip");
-    _webServer->sendHeader("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0");
-    _webServer->sendHeader("Pragma", "no-cache");
-    _webServer->send_P(200, "text/html", (const char*)CONSOLE_HTML_GZ, CONSOLE_HTML_GZ_LEN);
 }

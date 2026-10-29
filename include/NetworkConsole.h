@@ -23,7 +23,6 @@ public:
     virtual size_t write(const uint8_t *buffer, size_t size) override;
 
     // Web handlers
-    void handleWebConsolePage();
     void handleApiConsoleLogs();
     void handleApiConsoleSend();
 

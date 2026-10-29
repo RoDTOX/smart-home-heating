@@ -2149,7 +2149,7 @@ void setup() {
 
   setupWifi();
 
-  // Initialize 2-Way Network Console (Telnet :23 and Web /console)
+  // Initialize 2-Way Network Console (Telnet :23 and /api/console)
   netConsole.begin(&server);
   netConsole.setCommandHandler(handleSerialCommand);
 

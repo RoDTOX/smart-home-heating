@@ -160,8 +160,6 @@ class LocalDevHandler(http.server.SimpleHTTPRequestHandler):
             return
         if self.path == '/' or self.path == '':
             self.path = '/index.html'
-        elif self.path == '/console' or self.path == '/console/':
-            self.path = '/console.html'
         elif self.path == '/setup' or self.path == '/setup/':
             self.path = '/setup.html'
         super().do_GET()
@@ -191,7 +189,6 @@ def main():
     print(f"[*] Director local servit: {WEB_DIR}")
     print(f"[*] Target Hardware ESP32: http://{ESP32_HOST}/")
     print(f"[*] Adresă locală:        http://localhost:{PORT}/index.html")
-    print(f"[*] Consolă locală:       http://localhost:{PORT}/console.html")
     print(f"[*] Proxy activ:          /api/* -> http://{ESP32_HOST}/api/*")
     print(f"[*] Modifici HTML/CSS/JS -> Salvezi -> Dai F5 în browser!")
     print(f"[*] ZERO flash pe ESP32, ZERO risc de blocare, iterare instantanee.")
