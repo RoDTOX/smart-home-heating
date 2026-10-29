@@ -160,8 +160,6 @@ class LocalDevHandler(http.server.SimpleHTTPRequestHandler):
             return
         if self.path == '/' or self.path == '':
             self.path = '/index.html'
-        elif self.path == '/setup' or self.path == '/setup/':
-            self.path = '/setup.html'
         super().do_GET()
 
     def do_POST(self):

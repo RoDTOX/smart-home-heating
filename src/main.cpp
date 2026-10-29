@@ -8,7 +8,6 @@
 #include "TimeAndWeatherService.h"
 #include "Version.h"
 #include "dashboard_html_gz.h"
-#include "setup_html_gz.h"
 #include <Arduino.h>
 #include <ArduinoJson.h>
 #include <HTTPUpdateServer.h>
@@ -574,13 +573,6 @@ void handleApiBleSensors() {
   json += "]}";
   server.sendHeader("Access-Control-Allow-Origin", "*");
   server.send(200, "application/json", json);
-}
-
-void handleSetup() {
-  server.sendHeader("Access-Control-Allow-Origin", "*");
-  server.sendHeader("Content-Encoding", "gzip");
-  server.sendHeader("Cache-Control", "no-cache");
-  server.send_P(200, "text/html", (const char*)SETUP_HTML_GZ, SETUP_HTML_GZ_LEN);
 }
 
 void handleApiSetupLocation() {
@@ -1695,7 +1687,6 @@ void setup() {
 
   // Web Server routes
   server.on("/", HTTP_GET, handleRoot);
-  server.on("/setup", HTTP_GET, handleSetup);
   server.on("/api/setup/location", handleApiSetupLocation);
   server.on("/api/setup/discovered-sensors", HTTP_GET,
             handleApiSetupDiscoveredSensors);
