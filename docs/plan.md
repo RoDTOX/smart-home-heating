@@ -28,12 +28,15 @@ Details: [`hardware_esp32_relay.md`](hardware_esp32_relay.md),
 ## Phases
 
 - [x] **1. Repo cleanup** — removed sales/SaaS/fleet docs, Home Assistant, nginx/portal tooling, unused web pages.
-- [ ] **2. Firmware lean** — inventory every feature/endpoint, drop what does nothing, plain naming
-      (e.g. "bio-schedule/anchors" → "schedule"), split `main.cpp`. Build + tests must pass.
-- [ ] **3. UI** — one simple page: status per zone, comfort targets, schedule, alarms.
-- [ ] **4. Predictive control** — weather-compensated demand, pre-heat before schedule changes,
-      valve PWM instead of pure hysteresis, per-zone learned model (gain, floor lag, heat loss)
-      seeded from installer hints, manual override.
+- [x] **2. Firmware lean** — removed Service Mode / forced start, PWA, web console, DevicePassport (→ location),
+      PubSubClient; bio-schedule + presets → day/night/away levels with one weekday/weekend slot list.
+- [x] **3. UI** — one page (222 lines): family view + `#admin`. Setup page removed.
+- [x] **4. Control (first step)** — TPI valve control with learned base duty, weather-shifted pre-heat,
+      sensor calibration offsets.
+- [ ] **Verify on the board** — build locally with `secrets.h`, `tools/ota_upload.py`, `tools/test_system.py`,
+      watch TPI logs / room temps for a few days.
+- [ ] **Next** — split `main.cpp` (~1.7k lines), persist learned duty in NVS, sensor-loss fallback duty
+      instead of full close (needs a decision: frost risk vs. runaway), UI on LittleFS with version check.
 
 ## Design direction (for phases 2–4)
 

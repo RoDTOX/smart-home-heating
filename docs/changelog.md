@@ -5,13 +5,26 @@ Corelat cu planul activ: [`docs/plan.md`](file:///c:/Users/BSeceleanu/.github_re
 
 
 
-## [29.10.2026] - Lean phase 2 (in progress): firmware removals
+## [29.10.2026] - Level schedule, new UI, TPI control
+
+- **Schedule:** bio-schedule, presets, anchors and named blocks replaced by day/night/away levels per zone,
+  one weekday and one weekend slot list for all zones, global away mode. New API `/api/schedule/level`,
+  `/api/schedule/slots`, `away` on `/api/schedule/enable`; console `SCHEDULE LEVEL`, `SCHEDULE SLOTS`, `AWAY`.
+  NVS `sched/cfg2`; legacy schedule keeps only its on/off flags, legacy keys and `presets` namespace cleared.
+- **UI:** `web/index.html` rewritten (4886 → 222 lines): room cards, timed boost (16–22.5 °C, 0.5 °C), Away,
+  alerts, `#admin` view. `web/setup.html` and `/setup` removed. Checked in headless Chromium against a mock API.
+- **Control:** TPI (60 min cycle, min 10 min, band 1.5 °C, learned base duty 0–60 %, hysteresis = overshoot cut),
+  weather-dependent pre-heat lead (45 min–4 h), per-zone sensor offset (`OFFSET`, map-zone `offset`).
+- **Tools:** `ota_upload.py` reads OTA credentials from `secrets.h` and refuses to flash without it;
+  `esp_cli.py schedule` forwards to the console; test suite group 16 rewritten for the level schedule.
+- Docs: README and API reference rewritten for the current firmware.
+
+## [29.10.2026] - Lean phase 2: firmware removals
 
 - **Safety:** removed Service Mode and forced boiler START (both bypassed the anti-short-cycling guard). Forced STOP kept.
 - Removed PWA (manifest, service worker, icons), web console page (`/console`; Telnet and `/api/console/*` kept), unused `PubSubClient`.
 - Replaced `DevicePassport` with a plain weather location setting (`/api/setup/location`, console `LOCATION`), migrated from the old NVS namespace.
 - Added GitHub Actions firmware build (`.github/workflows/build.yml`).
-- Known: `web/index.html` / `web/setup.html` still call removed endpoints until phase 3.
 
 ## [29.10.2026] - Lean phase 1: repository cleanup
 
