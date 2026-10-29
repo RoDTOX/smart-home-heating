@@ -3,7 +3,7 @@
 
 #include <Arduino.h>
 
-// FR-17 Timing Thresholds & Safety Limits (Defaults)
+// Timing Thresholds & Safety Limits [SWE-REQ-006, SWE-REQ-008, SWE-REQ-009]
 #define RF_MIN_COOLDOWN_MS       3000UL   // FR-17.2: Min 3s silence between any consecutive RF bursts
 #define BOILER_MIN_RUN_TIME_MS   180000UL // FR-17.3: Min 180s burn duration before turning OFF allowed
 #define BOILER_MIN_PAUSE_TIME_MS 180000UL // FR-17.3: Min 180s rest duration before turning ON allowed
@@ -18,10 +18,10 @@ enum PendingBoilerAction {
 class BoilerRadioTrigger {
 public:
     BoilerRadioTrigger();
-    void begin(uint8_t dataPin = 5);
+    void begin(uint8_t dataPin = 5); // [SWE-REQ-010 Power-Up Failsafe Burst]
     void update();
 
-    // FR-17: Returns true if burst transmitted or idempotent no-op; false if rate-limited
+    // [SWE-REQ-006, SWE-REQ-007, SWE-REQ-008] Returns true if burst transmitted or idempotent no-op
     bool sendBoilerOn(bool force = false);
     bool sendBoilerOff(bool force = false);
 

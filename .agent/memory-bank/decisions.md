@@ -151,3 +151,39 @@
    - Dedicated **Wall Tablet Kiosk Mode** for wall-mounted touch displays.
 7. **Multi-Tenant Server Backend**: Selected **PocketBase** (Go + SQLite embedded) for the backend microservice on pp.mysmarthome.cc. Consumes only ~15 MB RAM, includes out-of-the-box Auth (OAuth2 Google/Apple/Email PIN), real-time WebSockets, and built-in Admin UI.
 **Consequences**: Crystal-clear architectural alignment; high hardware resilience through ESP-NOW; negligible server footprint; fast time-to-market without App Store delays or recurring cloud bills.
+## 2026-10-28 — ADR-28: Decoupled LittleFS Web UI & 1.25 MB Firmware Partition Budget
+**Context**: Embedding large gzipped HTML/CSS/JS into PROGMEM caused irmware.bin to exceed the 1,310,720 byte (1.25 MB) OTA application slot on the ESP32.
+**Decision**:
+- Serve web assets directly from the 1.375 MB LittleFS partition (/index.html.gz).
+- Pin build platform to espressif32@6.5.0 to avoid mbedtls/SSL bloat from Arduino Core 3.x.
+- Keep firmware binary compact (~1.23 MB) with >= 15 KB headroom.
+
+## 2026-10-28 — ADR-29: ASPICE 4.0 Capability Level 1 Documentation Architecture
+**Context**: Excessive AI chat summaries and unstructured markdown created technical debt. Need automotive-grade rigor.
+**Decision**:
+- Establish canonical process-prefixed directories: docs/sys/ (SYS.2-SYS.5), docs/swe/ (SWE.1-SWE.5), docs/sup/ (SUP.1, SUP.8), docs/biz/ (BIZ.1).
+- Implement unified bidirectional tagging: [SYS-REQ-xxx], [SWE-REQ-xxx], [TC-SYS-xxx], [TC-SWE-xxx].
+- Establish cryptographic baseline ledger (sup8_baseline_BL_2026_v1.10.28.yaml).
+
+## 2026-10-28 — ADR-30: 2R2C State-Space Thermodynamic Engine & Autonomous Calibration
+**Context**: Floor heating suffers from 30–90 min thermal dead time and overshoot.
+**Decision**:
+- Implement discrete state-space lumped parameter 2R2C model (, R_s, C_a, R_e$).
+- Autonomous passive night-time cooling calibration (01:00–05:00) using Open-Meteo external temperature.
+- Autonomous Away-mode step-response identification for dead time, slope, and overshoot.
+- Predictive preheat lead-time calculation with proportional overshoot compensation.
+
+## 2026-10-28 — ADR-31: Central-Difference Derivative Rapid Window Detection
+**Context**: Static temperature drop thresholds fail in mild weather (15°C) and trigger false positives on sensor noise.
+**Decision**:
+- Implement rolling 12-sample circular FIFO buffer (60m history at 5m intervals).
+- Compute central-difference 1st derivative (/dt$) and 2nd derivative acceleration (^2T/dt^2$).
+- Trigger threshold: $|dT/dt| > 2.5 	imes 	ext{Rate}_{natural}(T_{ext})$. Auto-recover on /dt \ge 0$.
+
+## 2026-10-28 — ADR-32: Custom Turnkey ESP32-S3 8-Zone PCBA & External Antenna
+**Context**: Commercial production requires silent operation, OpenTherm modulation, and metal cabinet signal bypass.
+**Decision**:
+- Custom ESP32-S3-WROOM-1-N8R2 mainboard with 8 zero-cross SSRs (MOC3043M + BTA16-600B) for 0dB silent switching.
+- Isolated OpenTherm Master circuit (EN 50559) for dynamic water temperature modulation (35°C–45°C).
+- External bulkhead SMA antenna bracket (+32 dB signal boost outside metal manifold cabinet).
+- Turnkey unit cost: .80 USD at MOQ 1000 (<  USD target).

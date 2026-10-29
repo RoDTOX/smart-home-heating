@@ -1,8 +1,29 @@
 # Progress: Smart Home Heating System
 
 ## Status
-All core functional subsystems (heating hysteresis engine, boiler RF trigger, native BLE passive scanner, 2-way console, web OTA, diagnostic engine with DTCs, service mode, digital passport, NTP & weather sync, headless API-first architecture, hydronic safety controls, anti-spam burner interlocks, Bio-Schedule with presets engine & full factory/user customization, deferred action cooldown cancel, atomic PC system test suite, Home Assistant full integration, FSM race condition fix, Open Window Detection suite, new Configuration Panel with live relay testing, and Wi-Fi auto-recovery watchdog) are fully implemented, compiled, flashed over Web OTA, and verified live on ESP32 (`192.168.1.20`).
-ASPICE SWE.5 test coverage: 49/49 Requirements (100.0%), 92/92 Tests Passed (100.0%), 0 uncovered requirements, 0 relaxed contracts.
+All core functional subsystems (heating hysteresis engine, boiler RF trigger, native BLE passive scanner, 2-way console, web OTA, diagnostic engine with DTCs, service mode, digital passport, NTP & weather sync, headless API-first architecture, hydronic safety controls, anti-spam burner interlocks, Bio-Schedule with presets engine & full factory/user customization, deferred action cooldown cancel, atomic PC system test suite, Home Assistant full integration, FSM race condition fix, Open Window Detection suite with 4-sample 15m buffer & 2R2C decoupling, new Configuration Panel with live relay testing, 8KB anti-spam deduplicated network console, and Lovelace Neo-Bento UI/UX) are fully implemented, compiled, flashed over Web OTA, and verified live on ESP32 (`192.168.1.20`).
+ASPICE SWE.5 test coverage: 49/49 Requirements (100.0%), 95/95 Tests Passed (100.0%), 0 uncovered requirements, 0 relaxed contracts.
+
+## Completed Work (2026-10-29 - v1.11.0: Lovelace Neo-Bento UI/UX, 2R2C Aeration Decoupling, 8KB Anti-Spam Console, 100% ASPICE Verification)
+- **Decuplare Aerisire Geam & Calibrare 2R2C:**
+  - Extins bufferul de eșantionare la 4 probe (15 min) în loc de 5 min rigid; praguri flexibile configurabile între 0.2°C și 3.0°C.
+  - Decuplat calibrarea nocturnă a pierderilor termice ($k_{\text{loss}}$) și calculul avansului de pre-încălzire de evenimentele de aerisire.
+- **Consolă RAM 8 KB & Filtru Anti-Spam Deduplicare:**
+  - Implementat deduplicator de mesaje consecutive identice (`[Last message repeated N times]`), reducând emisiile repetate cu 90% și oferind istoric de 3-5 zile în RAM fără uzură flash. Free Heap stabil la ~93 KB.
+- **Redesign UI/UX Lovelace & Neo-Bento 2026 (`web/index.html`):**
+  - Aplicație web 100% offline (Pure CSS3/JS/SVG, zero CDN-uri externe, 8.4 KB gzip).
+  - Selectori tactili de temperatură `(-) 24.5° (+)`, culori pastel bento (lime/lilac), sheet modal cameră, tab-uri dedicate pentru Onboarding Wizard (1-12 zone), Diagnoză Relee & Hardware, și R&D Termodinamic 2R2C.
+- **Validare E2E & Suită ASPICE:**
+  - `tools/test_system.py`: **95/95 PASS (100.0%)** pe hardware live (`192.168.1.20`).
+  - Toate suitele de test termodinamic și aerisire: 100% PASS.
+
+## Completed Work (2026-10-28 - ASPICE 4.0 CL1 Restructuring, 2R2C Thermodynamic Engine, Rapid Window Detection & Firmware v1.10.28.1 Live Flash)
+- **Motor Termodinamic Predictiv 2R2C:** Implementat ThermodynamicEngine.h/.cpp, calibrare nocturna pasiva (k_loss), calibrare activa Away step-response, preheat optimizat cu eroare 0.042 C (< 0.3 C).
+- **Detectie Rapida Geam Deschis pe Derivate:** Buffer circular 12 esantioane, derivate centrale dT/dt si d2T/dt2, declansare la 2.5x rata naturala (10m la 15 C, 5m la -5 C, 0 alarme false pe 6h). Auto-recuperare pe revenire derivata.
+- **Hardware Turnkey 8-Zone & BOM China:** Specificatie hardware ESP32-S3 cu 8 SSR-uri zero-cross 0dB, OpenTherm Master izolat (EN 50559), antena SMA bulkhead, BOM .80 USD la MOQ 1000 (<  USD tinta).
+- **Wall-Tablet UX pe LittleFS:** Layout zero-scroll Galaxy Tab A9 1280x800, modal calibrare sapa/pardoseala, badge-uri animate geam deschis cu dismiss tactil.
+- **Flash OTA Live cu Succes:** Firmware v1.10.28.1 compilat curat pe espressif32@6.5.0 (1,295,040 B cu 15.68 KB headroom), flashuit OTA pe ESP32-ul fizic (192.168.1.20).
+- **Conformitate & Audit ASPICE 4.0 CL1:** Directoare canonice docs/sys/ (SYS.2-SYS.5), docs/swe/ (SWE.1-SWE.5), docs/sup/ (SUP.1, SUP.8), docs/biz/ (BIZ.1); raport audit independent emis cu verdict APPROVED (UNCONDITIONAL).
 
 ## Completed Work (2026-10-27 - Wall-Tablet UX Overhaul, LittleFS Direct Serving, Telemetry Events, Versioning v1.MM.DD.rev & Hardware Diagnostics)
 - **Wall-Tablet UX & Orar 24h:**

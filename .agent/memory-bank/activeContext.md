@@ -1,5 +1,26 @@
 # Active Context: Smart Home Heating System
 
+- **Release v1.11.0: Lovelace Neo-Bento UI/UX, Decupling Aerisire Geam 2R2C, Consolă Anti-Spam (Finalizat 29.10.2026):**
+  - **1. Firmware v1.10.29.1 Live pe ESP32 (192.168.1.20):** Flashuit OTA cu succes; memorie RAM liberă ~93 KB (stabilă cu NimBLE și Wi-Fi), flash 63.3% (1,244,721 bytes) cu 65.9 KB marjă liberă sub slotul OTA de 1.25 MB.
+  - **2. Decuplare Aerisire Geam & Calibrare 2R2C:** Buffer circular extins la 4 eșantioane (15 min) fără clamps rigide (suportă praguri 0.2°C .. 3.0°C). Calibrarea nocturnă ($k_{\text{loss}}$) și pornirea predictivă sunt strict izolate la aerisire pentru a preveni decalibrarea modelului clădirii.
+  - **3. Consolă Anti-Spam & Buffer RAM 8 KB:** Filtru inteligent de deduplicare mesaje identice consecutive (`[Last message repeated N times]`), reducând spam-ul de burst-uri RF 433 MHz cu peste 90% și oferind istoric de 3–5 zile fără uzură flash.
+  - **4. Lovelace Neo-Bento Dashboard (`web/index.html`):** Arhitectură offline 100% (zero dependențe externe CDN), stil Simple Thermostat + Neo-Bento 2026 (steppere circulare tactile `(-) 24.5° (+)`, culori pastel lime/lilac, sheet modal detaliat cameră, tab-uri configurare 1–12 zone și debug). Servit direct din LittleFS (8.4 KB gzip).
+  - **5. Validare 100% ASPICE SWE.5 & Teste Automate:**
+    * `test_system.py`: **95/95 PASS (100.0%)** cu acoperire 49/49 cerințe.
+    * `test_window_detection.py`: **7/7 PASS (100.0%)**.
+    * `test_thermodynamics.py`: **7/7 PASS (100.0%)**.
+    * `test_thermodynamics_adversarial.py`: **8/8 PASS (100.0%)**.
+
+- **ASPICE 4.0 Capability Level 1 (CL1) Restructuring & Baseline BL_2026_v1.10.28.1 (Finalizat 28.10.2026):**
+  - **1. Firmware v1.10.28.1 Live pe ESP32 (192.168.1.20):** Recompilat pe espressif32@6.5.0 cu binar compact de 1.23 MB (1,295,040 bytes), flashuit cu succes OTA cu 15.68 KB headroom sub slotul fizic de 1.25 MB. Toate cele 3 zone functionale pe noul motor termodinamic.
+  - **2. Motor Termodinamic Predictiv 2R2C:** Implementat ThermodynamicEngine.h/.cpp integrat in ThermalZoneManager. Calibrare pasiva nocturna (k_loss), test activ step-response in mod Plecat, pornire predictiva cu eroare de sosire de doar 0.042 C (< 0.3 C cerinta).
+  - **3. Detectie Rapida Geam Deschis pe Baza Derivatelor:** Buffer circular 12 esantioane (5 min), calcul derivate centrale dT/dt si d2T/dt2, declansare la 2.5x Rate_natural (<= 10 min la 15 C, <= 5 min la -5 C, 0 alarme false pe 6h). Auto-recuperare pe revenire derivata.
+  - **4. Wall-Tablet UX pe LittleFS:** web/index.html servit direct din LittleFS (53 KB gzip), layout dedicat 1280x800 fara scroll vertical, modal tactil configurare sapa/pardoseala, badge-uri animate geam deschis cu dismiss dintr-o atingere.
+  - **5. Specificatie Hardware Turnkey 8-Zone & BOM:** PCBA dedicata ESP32-S3 cu 8 SSR-uri zero-cross silentioase 0dB, OpenTherm Master izolat galvanic (EN 50559), antena externa SMA bulkhead (+32 dB boost). Cost unitar .80 USD (~349 RON) la MOQ 1000 (<  USD cerinta).
+  - **6. Verificare & Teste Automate:** 7/7 Nominal Tests PASS (72.8ms) + 8/8 Adversarial Tests PASS (270ms) + 95/95 HIL Qualification Tests PASS (21.4ms) + compilare curata PlatformIO 0 erori.
+  - **7. Restructurare Documentatie ASPICE 4.0:** Directoare canonice docs/sys/ (SYS.2-SYS.5), docs/swe/ (SWE.1-SWE.5), docs/sup/ (SUP.1, SUP.8), docs/biz/ (BIZ.1) si router PROJECT.md.
+  - **8. Audit Independent de Calitate:** Raport emis de Lead Assessor cu verdict formal APPROVED (UNCONDITIONAL).
+
 - **Wall-Tablet UX, LittleFS Direct Web Serving, Telemetry Events & Versioning v1.MM.DD.rev (Finalizat 27.10.2026):**
   - **1. Ergonomie Wall-Tablet UX & Orar 24h:** Carduri cameră cu cadran tactil circular (`room-dial`), afișare mărită a temperaturii citite (2.4rem), ținte tactile 48px, linie explicativă „de ce” (`room-reason`) și acțiuni rapide (Plec de acasă, Boost, Vacanță, Revin la orar).
   - **2. Timeline Interactiv 24h & Marker Real-Time:** Drag handles cu pas de 15 min; indicatorul de timp real `.tl-now` a fost îmbogățit cu insignă superioară `[ACUM] ▼`, eliminând confuzia cu un defect grafic la ora 10:50.

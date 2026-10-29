@@ -433,7 +433,7 @@ void handleApiBoilerResetRuntime() {
 
 void handleApiZones() {
   String json;
-  json.reserve(2560);
+  json.reserve(3584);
   json = "{";
   json +=
       "\"autoMode\":" + String(thermalZones.isAutoMode() ? "true" : "false") +
@@ -477,6 +477,14 @@ void handleApiZones() {
   for (size_t i = 0; i < thermalZones.getZoneCount(); i++) {
     const ThermalZoneConfig &cfg = thermalZones.getConfig(i);
     const ThermalZoneStatus &st = thermalZones.getStatus(i);
+    const CalibratedMetrics &m = thermalZones.getCalibratedMetrics(i);
+    float curTemp = (st.currentTemp > 5.0f && st.currentTemp < 35.0f) ? st.currentTemp : cfg.targetTemp;
+    float deltaExt = timeAndWeather.isWeatherValid() ? (curTemp - timeAndWeather.getOutdoorTemperature()) : 11.2f;
+    if (deltaExt < 2.0f) deltaExt = 11.2f;
+    float coolingSlope = -(m.naturalLossRate * deltaExt);
+    uint32_t leadMin = m.preheatLeadMin > 0 ? m.preheatLeadMin : thermalZones.getPreheatLeadMin(i);
+    if (leadMin == 0) leadMin = 45;
+
     if (i > 0)
       json += ",";
     json += "{";
@@ -506,6 +514,19 @@ void handleApiZones() {
         "\"lastWindowEpoch\":" + String(thermalZones.getWindowLastDetectionEpoch(i)) + ",";
     json +=
         "\"lastWindowDurationSec\":" + String(thermalZones.getWindowLastDetectionDurationSec(i)) + ",";
+    json += "\"floorType\":\"" + String(ThermodynamicEngine::floorTypeToStr(thermalZones.getFloorType(i))) + "\",";
+    json += "\"screedThicknessCm\":" + String(thermalZones.getScreedThicknessCm(i), 1) + ",";
+    json += "\"insulationLevel\":\"" + String(ThermodynamicEngine::insulationLevelToStr(thermalZones.getInsulationLevel(i))) + "\",";
+    json += "\"tDeadMin\":" + String(m.tDeadMin, 1) + ",";
+    json += "\"coolingSlope\":" + String(coolingSlope, 2) + ",";
+    json += "\"preheatLeadMin\":" + String(leadMin) + ",";
+    json += "\"kLoss\":" + String(m.naturalLossRate, 4) + ",";
+    json += "\"rLoss\":" + String(m.naturalLossRate > 0.0001f ? (1.0f / m.naturalLossRate) : 40.0f, 1) + ",";
+    json += "\"heatingSlope\":" + String(m.heatingSlope, 2) + ",";
+    json += "\"overshootDelta\":" + String(m.overshootDelta, 2) + ",";
+    json += "\"windowOpen\":" + String(thermalZones.isWindowOpen(i) ? "true" : "false") + ",";
+    json += "\"windowDropRate\":" + String(thermalZones.getWindowDropRate(i), 2) + ",";
+    json += "\"windowSecondDerivative\":" + String(thermalZones.getWindowSecondDerivative(i), 3) + ",";
     json += "\"demand\":" + String(st.demand ? "true" : "false") + ",";
     json +=
         "\"relayEngaged\":" + String(st.relayEngaged ? "true" : "false") + ",";
@@ -541,6 +562,88 @@ void handleApiZones() {
 
   server.sendHeader("Access-Control-Allow-Origin", "*");
   server.send(200, "application/json", json);
+}
+
+void handleApiZoneCalibration() {
+  server.sendHeader("Access-Control-Allow-Origin", "*");
+
+  bool hasJson = false;
+  StaticJsonDocument<512> doc;
+  if (server.hasArg("plain")) {
+    DeserializationError err = deserializeJson(doc, server.arg("plain"));
+    if (!err) hasJson = true;
+  }
+
+  int idVal = -1;
+  if (hasJson && doc.containsKey("id")) {
+    idVal = doc["id"].as<int>();
+  } else if (server.hasArg("id")) {
+    idVal = server.arg("id").toInt();
+  } else if (server.hasArg("zone")) {
+    idVal = server.arg("zone").toInt();
+  }
+
+  if (idVal < 1 || idVal > (int)thermalZones.getZoneCount()) {
+    server.send(400, "application/json", F("{\"error\":\"Invalid or missing zone id (allowed: 1..3)\"}"));
+    return;
+  }
+  size_t idx = (size_t)(idVal - 1);
+
+  String floorStr = "";
+  if (hasJson && doc.containsKey("floor")) {
+    floorStr = doc["floor"].as<String>();
+  } else if (server.hasArg("floor")) {
+    floorStr = server.arg("floor");
+  } else {
+    floorStr = ThermodynamicEngine::floorTypeToStr(thermalZones.getFloorType(idx));
+  }
+
+  float screed = -1.0f;
+  if (hasJson && doc.containsKey("screed")) {
+    screed = doc["screed"].as<float>();
+  } else if (server.hasArg("screed")) {
+    screed = server.arg("screed").toFloat();
+  } else {
+    screed = thermalZones.getScreedThicknessCm(idx);
+  }
+
+  if (screed < 2.0f || screed > 15.0f) {
+    server.send(422, "application/json", F("{\"error\":\"Screed thickness out of bounds (allowed: 2.0 to 15.0 cm)\"}"));
+    return;
+  }
+
+  String insStr = "";
+  if (hasJson && doc.containsKey("insulation")) {
+    insStr = doc["insulation"].as<String>();
+  } else if (server.hasArg("insulation")) {
+    insStr = server.arg("insulation");
+  } else {
+    insStr = ThermodynamicEngine::insulationLevelToStr(thermalZones.getInsulationLevel(idx));
+  }
+
+  thermalZones.setCalibration(idx, floorStr.c_str(), screed, insStr.c_str());
+
+  const CalibratedMetrics& m = thermalZones.getCalibratedMetrics(idx);
+  const ThermalZoneConfig& cfg = thermalZones.getConfig(idx);
+  const ThermalZoneStatus& st = thermalZones.getStatus(idx);
+
+  float curTemp = (st.currentTemp > 5.0f && st.currentTemp < 35.0f) ? st.currentTemp : cfg.targetTemp;
+  float deltaExt = timeAndWeather.isWeatherValid() ? (curTemp - timeAndWeather.getOutdoorTemperature()) : 11.2f;
+  if (deltaExt < 2.0f) deltaExt = 11.2f;
+  float coolingSlope = -(m.naturalLossRate * deltaExt);
+
+  uint32_t leadMin = m.preheatLeadMin > 0 ? m.preheatLeadMin : thermalZones.getPreheatLeadMin(idx);
+  if (leadMin == 0) leadMin = 45;
+
+  String resp = "{";
+  resp += "\"status\":\"ok\",";
+  resp += "\"zone\":" + String(idVal) + ",";
+  resp += "\"tDeadMin\":" + String(m.tDeadMin, 1) + ",";
+  resp += "\"coolingSlope\":" + String(coolingSlope, 2) + ",";
+  resp += "\"preheatLeadMin\":" + String(leadMin);
+  resp += "}";
+
+  server.send(200, "application/json", resp);
 }
 
 void handleApiZoneSetpoint() {
@@ -655,9 +758,9 @@ void handleApiZoneWindowThreshold() {
   }
   int idVal = server.arg("id").toInt();
   float thresh = server.arg("threshold").toFloat();
-  if (thresh < 0.8f || thresh > 2.0f) {
+  if (thresh < 0.2f || thresh > 3.0f) {
     server.send(400, "application/json",
-                F("{\"error\":\"Threshold out of bounds (allowed: 0.8 to 2.0 C)\"}"));
+                F("{\"error\":\"Threshold out of bounds (allowed: 0.2 to 3.0 C)\"}"));
     return;
   }
   size_t idx = (idVal >= 1 && idVal <= (int)thermalZones.getZoneCount())
@@ -2440,6 +2543,7 @@ void setup() {
   server.on("/api/zones/window/clear", HTTP_POST, handleApiZoneWindowClear);
   server.on("/api/zones/window/threshold", HTTP_POST, handleApiZoneWindowThreshold);
   server.on("/api/zones/sensor", HTTP_POST, handleApiZoneSensor);
+  server.on("/api/zones/calibration", HTTP_POST, handleApiZoneCalibration);
   server.on("/api/mode", HTTP_POST, handleApiMode);
   server.on("/api/ble/sensors", HTTP_GET, handleApiBleSensors);
   server.on("/api/diag/status", HTTP_GET, handleApiDiagStatus);
