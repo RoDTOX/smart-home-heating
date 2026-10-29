@@ -15,7 +15,7 @@ no manual parameter tweaking after commissioning.
 | Relay 1 `GPIO32` | Z1 Living + Kitchen (circuits 1, 2, 3) |
 | Relay 2 `GPIO33` | Z2 Kids bedroom (circuits 6, 7) |
 | Relay 3 `GPIO25` | Z3 Master bedroom (circuits 4, 5) |
-| Relay 4 `GPIO26` | Spare / GPA pump (optional, `pumpControlEnabled`) |
+| Relay 4 `GPIO26` | Unused (no GPA pump installed) |
 | `GPIO19` | 433.92 MHz OOK TX → boiler receiver (dry contact ON/OFF) |
 | `GPIO23` | Status LED |
 | Boiler | Immergas Victrix Tera 24 (condensing) — tier A (ON/OFF only) |
