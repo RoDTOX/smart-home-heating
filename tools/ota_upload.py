@@ -1,3 +1,5 @@
+import base64
+import re
 import socket
 import time
 import os
@@ -13,9 +15,20 @@ HOST = "192.168.1.20"
 PORT = 80
 BIN_PATH = ".pio/build/esp32dev/firmware.bin"
 
+SECRETS_PATH = "include/secrets.h"
+
 if not os.path.exists(BIN_PATH):
-    print(f"Error: {BIN_PATH} not found")
+    print(f"Error: {BIN_PATH} not found (run 'pio run' first)")
     sys.exit(1)
+
+# A build without secrets.h has placeholder Wi-Fi credentials and would drop the board off the network
+if not os.path.exists(SECRETS_PATH):
+    print(f"Error: {SECRETS_PATH} not found - refusing to flash a build without real Wi-Fi/OTA credentials")
+    sys.exit(1)
+
+with open(SECRETS_PATH, encoding="utf-8") as f:
+    secrets = dict(re.findall(r'#define\s+(\w+)\s+"([^"]*)"', f.read()))
+ota_auth = base64.b64encode(f"{secrets.get('OTA_USER', 'admin')}:{secrets.get('OTA_PASS', 'admin123')}".encode()).decode()
 
 bin_size = os.path.getsize(BIN_PATH)
 print(f"Firmware binary: {bin_size} bytes ({bin_size / 1024:.1f} KB)")
@@ -36,7 +49,7 @@ total_content_len = len(header_part) + bin_size + len(footer_part)
 req_headers = (
     f"POST /update HTTP/1.1\r\n"
     f"Host: {HOST}\r\n"
-    f"Authorization: Basic YWRtaW46MjEwNTE5OTA=\r\n"
+    f"Authorization: Basic {ota_auth}\r\n"
     f"Content-Type: multipart/form-data; boundary={boundary}\r\n"
     f"Content-Length: {total_content_len}\r\n"
     f"Connection: close\r\n\r\n"
