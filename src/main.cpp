@@ -132,42 +132,6 @@ static uint32_t getAntiSeizeNextDays(uint32_t epoch) {
   return 0;
 }
 
-void printSchedulePresets() {
-  netConsole.println(F("===================================================================================================="));
-  netConsole.printf("                   BIO-SCHEDULE PRESETS CATALOG (Active: %s)\n",
-                    thermalZones.getActivePresetId());
-  netConsole.println(F("===================================================================================================="));
-  netConsole.println(F("  ID          Type      Status       Name / Description"));
-  netConsole.println(F("  ----------  --------  -----------  --------------------------------------------------------------"));
-  netConsole.printf("  %-10s  FACTORY   %-11s  Standard / Confort (Balanced Circadian)\n",
-                    "default", strcmp(thermalZones.getActivePresetId(), "default") == 0 ? "[ACTIVE]" : "Ready");
-  netConsole.printf("  %-10s  FACTORY   %-11s  Vacanta / Eco (18.0 C all zones, 19.0 C wake)\n",
-                    "eco", strcmp(thermalZones.getActivePresetId(), "eco") == 0 ? "[ACTIVE]" : "Ready");
-  netConsole.printf("  %-10s  FACTORY   %-11s  Home Office (22.5 C daytime comfort)\n",
-                    "wfh", strcmp(thermalZones.getActivePresetId(), "wfh") == 0 ? "[ACTIVE]" : "Ready");
-
-  Preferences prefs;
-  if (prefs.begin("presets", true)) {
-    const char* slots[] = {"custom1", "custom2"};
-    for (int i = 0; i < 2; i++) {
-      char keyCfg[16];
-      char keyName[16];
-      snprintf(keyCfg, sizeof(keyCfg), "%s_cfg", slots[i]);
-      snprintf(keyName, sizeof(keyName), "%s_name", slots[i]);
-      bool saved = prefs.isKey(keyCfg);
-      String name = saved ? prefs.getString(keyName, slots[i]) : String("Slot Liber (") + slots[i] + ")";
-      const char* activeTag = (strcmp(thermalZones.getActivePresetId(), slots[i]) == 0) ? "[ACTIVE]" : (saved ? "Saved" : "Empty");
-      netConsole.printf("  %-10s  USER      %-11s  %s\n", slots[i], activeTag, name.c_str());
-    }
-    prefs.end();
-  }
-  netConsole.println(F("----------------------------------------------------------------------------------------------------"));
-  netConsole.println(F("  Usage: SCHEDULE PRESET <id>                   -> Apply preset (e.g. SCHEDULE PRESET eco)"));
-  netConsole.println(F("         SCHEDULE SAVE <custom1|custom2> [name] -> Save current schedule to NVS slot"));
-  netConsole.println(F("         SCHEDULE RESET                         -> Restore factory default preset"));
-  netConsole.println(F("===================================================================================================="));
-}
-
 void printHelp() {
   netConsole.print(F(
       "\r\n--- Smart Heating Command Manual ---\r\n"
@@ -180,14 +144,13 @@ void printHelp() {
       "  PUMP <ENABLE|DISABLE> -> Enable / disable automatic pump interlock & overrun\r\n"
       "  ACTUATOR <NC|NO>      -> Set thermal actuator polarity (Normally Closed vs Open)\r\n"
       "  EXERCISE              -> Run 20-second anti-seize cycle for pump and valves\r\n\r\n"
-      "[Smart Bio-Schedule & Presets]\r\n"
-      "  SCHEDULE              -> Display current bio-schedule, active preset & anchors\r\n"
-      "  SCHEDULE <ON|OFF>     -> Enable or disable circadian bio-schedule engine\r\n"
-      "  SCHEDULE PRESETS      -> List all available factory and user-saved presets (or: PRESETS)\r\n"
-      "  SCHEDULE PRESET <id>  -> Apply preset (e.g. default, eco, wfh, custom1, custom2)\r\n"
-      "  SCHEDULE SAVE <id> [n]-> Save current schedule into NVS slot (custom1/custom2)\r\n"
-      "  SCHEDULE SET ...      -> Tune anchor: SCHEDULE SET <weekday|weekend> <anchor> <HH:MM> [z1] [z2] [z3]\r\n"
-      "  SCHEDULE RESET        -> Reset all circadian anchors and setpoints to factory default\r\n"
+      "[Schedule: day / night / away levels]\r\n"
+      "  SCHEDULE              -> Show levels per zone, weekday/weekend slots and current level\r\n"
+      "  SCHEDULE <ON|OFF>     -> Enable or disable the schedule (OFF = fixed targets)\r\n"
+      "  SCHEDULE LEVEL <z> <day|night|away> <temp> -> Set level temperature for zone (e.g. SCHEDULE LEVEL 2 night 19)\r\n"
+      "  SCHEDULE SLOTS <weekday|weekend> <HH:MM=level,...> -> e.g. SCHEDULE SLOTS weekday 06:30=day,22:30=night\r\n"
+      "  SCHEDULE RESET        -> Restore factory default schedule\r\n"
+      "  AWAY <ON|OFF>         -> Global away mode (all zones at away level)\r\n"
       "  SCHEDULE PREHEAT <ON|OFF> -> Predictive pre-heating with thermal inertia calculation\r\n"
       "  SCHEDULE WINDOW <ON|OFF>  -> Rapid temperature drop open window detection guard\r\n\r\n"
       "[Telemetry, Sensors & Diagnostics]\r\n"
@@ -351,10 +314,10 @@ void handleApiZones() {
   json += "\"sensorTimeoutSec\":" + String(thermalZones.getSensorTimeoutSec()) + ",";
   json += "\"lastAntiSeizeEpoch\":" + String(thermalZones.getLastAntiSeizeEpoch()) + ",";
   json += "\"scheduleEnabled\":" + String(thermalZones.isScheduleEnabled() ? "true" : "false") + ",";
-  json += "\"activePreset\":\"" + String(thermalZones.getActivePresetId()) + "\",";
-  json += "\"activeAnchor\":\"" + String(thermalZones.getActiveAnchorName()) + "\",";
-  json += "\"nextAnchor\":\"" + String(thermalZones.getAnchorName(thermalZones.getNextAnchor())) + "\",";
-  json += "\"minsToNextAnchor\":" + String(thermalZones.getMinutesToNextAnchor()) + ",";
+  json += "\"away\":" + String(thermalZones.isAway() ? "true" : "false") + ",";
+  json += "\"activeLevel\":\"" + String(ThermalZoneManager::getLevelName(thermalZones.getActiveLevel())) + "\",";
+  json += "\"nextLevel\":\"" + String(ThermalZoneManager::getLevelName(thermalZones.getNextLevel())) + "\",";
+  json += "\"minsToNextSlot\":" + String(thermalZones.getMinutesToNextSlot()) + ",";
   json += "\"preHeatActive\":" + String(thermalZones.isPreHeatActive() ? "true" : "false") + ",";
   json += "\"boilerRuntime\":{";
   json += "\"totalSec\":" + String(boilerRadio.getRuntimeTotalSec()) + ",";
@@ -424,7 +387,6 @@ void handleApiZones() {
     }
     json += "\"openSec\":" + String(openSec) + ",";
     json += "\"isManualHold\":" + String(st.isManualHold ? "true" : "false") + ",";
-    json += "\"holdAnchor\":\"" + String(thermalZones.getAnchorName(st.holdAnchor)) + "\",";
     json += "\"state\":\"" + String(thermalZones.getStateStr(st.state)) + "\"";
     json += "}";
   }
@@ -863,14 +825,11 @@ void handleApiStatus() {
           String(thermalZones.getLastAntiSeizeEpoch()) + ",";
   json += "\"scheduleEnabled\":" +
           String(thermalZones.isScheduleEnabled() ? "true" : "false") + ",";
-  json += "\"activePreset\":\"" +
-          String(thermalZones.getActivePresetId()) + "\",";
-  json += "\"activeAnchor\":\"" +
-          String(thermalZones.getActiveAnchorName()) + "\",";
-  json += "\"nextAnchor\":\"" +
-          String(thermalZones.getAnchorName(thermalZones.getNextAnchor())) + "\",";
-  json += "\"minsToNextAnchor\":" +
-          String(thermalZones.getMinutesToNextAnchor()) + ",";
+  json += "\"away\":" + String(thermalZones.isAway() ? "true" : "false") + ",";
+  json += "\"activeLevel\":\"" +
+          String(ThermalZoneManager::getLevelName(thermalZones.getActiveLevel())) + "\",";
+  json += "\"minsToNextSlot\":" +
+          String(thermalZones.getMinutesToNextSlot()) + ",";
   json += "\"preHeatActive\":" +
           String(thermalZones.isPreHeatActive() ? "true" : "false") + ",";
   json += "\"boilerRuntime\":{";
@@ -911,98 +870,11 @@ void handleApiScheduleGet() {
   server.send(200, "application/json", thermalZones.getScheduleJson());
 }
 
-void handleApiSchedulePost() {
-  server.sendHeader("Access-Control-Allow-Origin", "*");
-
-  if (server.hasArg("plain") && server.arg("plain").length() > 0) {
-    JsonDocument doc;
-    DeserializationError err = deserializeJson(doc, server.arg("plain"));
-    if (!err) {
-      if (doc["enabled"].is<bool>()) {
-        thermalZones.setScheduleEnabled(doc["enabled"].as<bool>());
-      }
-      if (doc["preHeatEnabled"].is<bool>()) {
-        thermalZones.setPreHeatEnabled(doc["preHeatEnabled"].as<bool>());
-      }
-      if (doc["windowDetectionEnabled"].is<bool>()) {
-        thermalZones.setWindowDetectionEnabled(doc["windowDetectionEnabled"].as<bool>());
-      }
-
-      const char* anchorKeys[] = {"sleep", "wake", "away", "home"};
-      // Parse weekday
-      if (doc["weekday"].is<JsonObject>()) {
-        JsonObject wd = doc["weekday"].as<JsonObject>();
-        for (int a = 0; a < BIO_ANCHORS_COUNT; a++) {
-          if (wd[anchorKeys[a]].is<JsonObject>()) {
-            JsonObject obj = wd[anchorKeys[a]].as<JsonObject>();
-            uint8_t h = obj["hour"] | 255;
-            uint8_t m = obj["minute"] | 255;
-            float targets[MAX_THERMAL_ZONES];
-            bool hasTargets = false;
-            if (obj["targets"].is<JsonArray>()) {
-              JsonArray arr = obj["targets"].as<JsonArray>();
-              for (size_t i = 0; i < MAX_THERMAL_ZONES && i < arr.size(); i++) {
-                targets[i] = arr[i].as<float>();
-              }
-              hasTargets = true;
-            }
-            if (h <= 23 && m <= 59) {
-              thermalZones.updateAnchor(false, (BioAnchorId)a, h, m, hasTargets ? targets : nullptr);
-            }
-          }
-        }
-      }
-      // Parse weekend
-      if (doc["weekend"].is<JsonObject>()) {
-        JsonObject we = doc["weekend"].as<JsonObject>();
-        for (int a = 0; a < BIO_ANCHORS_COUNT; a++) {
-          if (we[anchorKeys[a]].is<JsonObject>()) {
-            JsonObject obj = we[anchorKeys[a]].as<JsonObject>();
-            uint8_t h = obj["hour"] | 255;
-            uint8_t m = obj["minute"] | 255;
-            float targets[MAX_THERMAL_ZONES];
-            bool hasTargets = false;
-            if (obj["targets"].is<JsonArray>()) {
-              JsonArray arr = obj["targets"].as<JsonArray>();
-              for (size_t i = 0; i < MAX_THERMAL_ZONES && i < arr.size(); i++) {
-                targets[i] = arr[i].as<float>();
-              }
-              hasTargets = true;
-            }
-            if (h <= 23 && m <= 59) {
-              thermalZones.updateAnchor(true, (BioAnchorId)a, h, m, hasTargets ? targets : nullptr);
-            }
-          }
-        }
-      }
-      server.send(200, "application/json", thermalZones.getScheduleJson());
-      return;
-    }
-  }
-
-  // Fallback to query/form parameters
-  if (server.hasArg("enabled")) {
-    bool en = (server.arg("enabled") == "true" || server.arg("enabled") == "1");
-    thermalZones.setScheduleEnabled(en);
-  }
-  if (server.hasArg("preheat")) {
-    bool ph = (server.arg("preheat") == "true" || server.arg("preheat") == "1");
-    thermalZones.setPreHeatEnabled(ph);
-  }
-  if (server.hasArg("window")) {
-    bool wd = (server.arg("window") == "true" || server.arg("window") == "1");
-    thermalZones.setWindowDetectionEnabled(wd);
-  }
-  server.send(200, "application/json", thermalZones.getScheduleJson());
-}
-
 void handleApiScheduleEnable() {
   server.sendHeader("Access-Control-Allow-Origin", "*");
-  bool en = true;
   if (server.hasArg("enabled")) {
-    en = (server.arg("enabled") == "true" || server.arg("enabled") == "1");
+    thermalZones.setScheduleEnabled(server.arg("enabled") == "true" || server.arg("enabled") == "1");
   }
-  thermalZones.setScheduleEnabled(en);
   if (server.hasArg("preheat")) {
     bool pre = (server.arg("preheat") == "true" || server.arg("preheat") == "1");
     thermalZones.setPreHeatEnabled(pre);
@@ -1011,256 +883,32 @@ void handleApiScheduleEnable() {
     bool win = (server.arg("window") == "true" || server.arg("window") == "1");
     thermalZones.setWindowDetectionEnabled(win);
   }
+  if (server.hasArg("away")) {
+    thermalZones.setAway(server.arg("away") == "true" || server.arg("away") == "1");
+  }
   server.send(200, "application/json", thermalZones.getScheduleJson());
 }
 
-void handleApiScheduleAnchor() {
+void handleApiScheduleLevel() {
   server.sendHeader("Access-Control-Allow-Origin", "*");
-
-  bool weekend = false;
-  if (server.hasArg("profile")) {
-    String prof = server.arg("profile");
-    prof.toLowerCase();
-    weekend = (prof == "weekend" || prof == "we" || prof == "1");
-  } else if (server.hasArg("weekend")) {
-    String we = server.arg("weekend");
-    we.toLowerCase();
-    weekend = (we == "true" || we == "1");
-  }
-
-  BioAnchorId anchorId = BIO_ANCHORS_COUNT;
-  if (server.hasArg("anchor")) {
-    anchorId = ThermalZoneManager::parseAnchorId(server.arg("anchor").c_str());
-  }
-
-  // Support JSON payload in POST body
-  bool hasJson = false;
-  JsonDocument doc;
-  if (server.hasArg("plain") && server.arg("plain").length() > 0) {
-    if (!deserializeJson(doc, server.arg("plain"))) {
-      hasJson = true;
-      if (doc["profile"].is<const char*>()) {
-        String p = doc["profile"].as<const char*>();
-        p.toLowerCase();
-        weekend = (p == "weekend" || p == "we" || p == "1");
-      }
-      if (doc["anchor"].is<const char*>()) {
-        anchorId = ThermalZoneManager::parseAnchorId(doc["anchor"].as<const char*>());
-      }
-    }
-  }
-
-  if (anchorId >= BIO_ANCHORS_COUNT) {
-    server.send(400, "application/json", F("{\"status\":\"error\",\"message\":\"Invalid anchor. Use sleep, wake, away, or home.\"}"));
-    return;
-  }
-
-  const BioScheduleConfig& cur = thermalZones.getScheduleConfig();
-  const BioAnchorConfig* curProf = weekend ? cur.weekend : cur.weekday;
-  uint8_t h = curProf[anchorId].hour;
-  uint8_t m = curProf[anchorId].minute;
-
-  String timeStr = "";
-  if (hasJson && doc["time"].is<const char*>()) {
-    timeStr = doc["time"].as<const char*>();
-  } else if (server.hasArg("time")) {
-    timeStr = server.arg("time");
-  }
-
-  if (timeStr.length() > 0) {
-    timeStr.trim();
-    int colon = timeStr.indexOf(':');
-    if (colon > 0) {
-      h = (uint8_t)timeStr.substring(0, colon).toInt();
-      m = (uint8_t)timeStr.substring(colon + 1).toInt();
-      String tUpper = timeStr;
-      tUpper.toUpperCase();
-      if (tUpper.indexOf("PM") != -1 && h < 12) h += 12;
-      else if (tUpper.indexOf("AM") != -1 && h == 12) h = 0;
-    }
-  } else {
-    if (server.hasArg("hour")) h = (uint8_t)server.arg("hour").toInt();
-    if (server.hasArg("minute")) m = (uint8_t)server.arg("minute").toInt();
-  }
-
-  float targets[MAX_THERMAL_ZONES];
-  for (size_t i = 0; i < MAX_THERMAL_ZONES; i++) {
-    targets[i] = curProf[anchorId].targets[i];
-  }
-
-  if (hasJson) {
-    if (doc["z1"].is<float>()) targets[0] = doc["z1"].as<float>();
-    if (doc["z2"].is<float>()) targets[1] = doc["z2"].as<float>();
-    if (doc["z3"].is<float>()) targets[2] = doc["z3"].as<float>();
-    if (doc["targets"].is<JsonArray>()) {
-      JsonArray arr = doc["targets"].as<JsonArray>();
-      for (size_t i = 0; i < MAX_THERMAL_ZONES && i < arr.size(); i++) {
-        targets[i] = arr[i].as<float>();
-      }
-    }
-  }
-
-  if (server.hasArg("z1")) targets[0] = server.arg("z1").toFloat();
-  if (server.hasArg("z2")) targets[1] = server.arg("z2").toFloat();
-  if (server.hasArg("z3")) targets[2] = server.arg("z3").toFloat();
-  if (server.hasArg("z0")) targets[0] = server.arg("z0").toFloat();
-
-  if (server.hasArg("target")) {
-    float t = server.arg("target").toFloat();
-    for (size_t i = 0; i < MAX_THERMAL_ZONES; i++) targets[i] = t;
-  }
-
-  if (hasJson && doc["name"].is<const char*>()) {
-    thermalZones.setAnchorName(weekend, anchorId, doc["name"].as<const char*>());
-  } else if (server.hasArg("name")) {
-    thermalZones.setAnchorName(weekend, anchorId, server.arg("name").c_str());
-  }
-
-  bool ok = thermalZones.updateAnchor(weekend, anchorId, h, m, targets);
-  if (!ok) {
-    server.send(400, "application/json", F("{\"status\":\"error\",\"message\":\"Failed to update anchor parameters.\"}"));
+  int zone = server.arg("zone").toInt();
+  int level = ThermalZoneManager::parseLevel(server.arg("level").c_str());
+  if (zone < 1 || level < 0 ||
+      !thermalZones.setLevelTemp(zone - 1, (ComfortLevel)level, server.arg("temp").toFloat())) {
+    server.send(400, "application/json", F("{\"status\":\"error\",\"error\":\"Use zone=1..3, level=day|night|away, temp=5..30\"}"));
     return;
   }
   server.send(200, "application/json", thermalZones.getScheduleJson());
 }
 
-
-void handleApiScheduleBlockAdd() {
+void handleApiScheduleSlots() {
   server.sendHeader("Access-Control-Allow-Origin", "*");
-  bool weekend = server.hasArg("profile") && server.arg("profile").equalsIgnoreCase("weekend");
-  String name = server.hasArg("name") ? server.arg("name") : "Interval";
-  uint8_t h = 12, m = 0;
-  if (server.hasArg("time")) {
-    String t = server.arg("time");
-    int colon = t.indexOf(':');
-    if (colon > 0) {
-      h = t.substring(0, colon).toInt();
-      m = t.substring(colon + 1).toInt();
-    }
-  } else if (server.hasArg("hour")) {
-    h = server.arg("hour").toInt();
-    if (server.hasArg("minute")) m = server.arg("minute").toInt();
-  }
-  float targets[MAX_THERMAL_ZONES] = {21.0f, 21.0f, 21.0f};
-  if (server.hasArg("z1")) targets[0] = server.arg("z1").toFloat();
-  if (server.hasArg("z2")) targets[1] = server.arg("z2").toFloat();
-  if (server.hasArg("z3")) targets[2] = server.arg("z3").toFloat();
-
-  bool ok = thermalZones.addBlock(weekend, name.c_str(), h, m, targets);
-  if (!ok) {
-    server.send(400, "application/json", F("{\"status\":\"error\",\"message\":\"Failed to add schedule block (max 8 reached or invalid time).\"}"));
+  bool weekend = server.arg("weekend") == "true" || server.arg("weekend") == "1";
+  if (!thermalZones.setSlots(weekend, server.arg("slots").c_str())) {
+    server.send(400, "application/json", F("{\"status\":\"error\",\"error\":\"Use slots=HH:MM=day|night|away,... (max 8)\"}"));
     return;
   }
   server.send(200, "application/json", thermalZones.getScheduleJson());
-}
-
-void handleApiScheduleBlockUpdate() {
-  server.sendHeader("Access-Control-Allow-Origin", "*");
-  bool weekend = server.hasArg("profile") && server.arg("profile").equalsIgnoreCase("weekend");
-  if (!server.hasArg("index")) {
-    server.send(400, "application/json", F("{\"status\":\"error\",\"message\":\"Missing 'index' parameter.\"}"));
-    return;
-  }
-  size_t idx = (size_t)server.arg("index").toInt();
-  String name = server.hasArg("name") ? server.arg("name") : "";
-  uint8_t h = 12, m = 0;
-  if (server.hasArg("time")) {
-    String t = server.arg("time");
-    int colon = t.indexOf(':');
-    if (colon > 0) {
-      h = t.substring(0, colon).toInt();
-      m = t.substring(colon + 1).toInt();
-    }
-  } else if (server.hasArg("hour")) {
-    h = server.arg("hour").toInt();
-    if (server.hasArg("minute")) m = server.arg("minute").toInt();
-  }
-  float targets[MAX_THERMAL_ZONES];
-  const ScheduleBlockConfig* blks = thermalZones.getBlocks(weekend);
-  uint8_t count = thermalZones.getBlockCount(weekend);
-  if (idx < count) {
-    for (size_t i = 0; i < MAX_THERMAL_ZONES; i++) targets[i] = blks[idx].targets[i];
-  } else {
-    for (size_t i = 0; i < MAX_THERMAL_ZONES; i++) targets[i] = 21.0f;
-  }
-  if (server.hasArg("z1")) targets[0] = server.arg("z1").toFloat();
-  if (server.hasArg("z2")) targets[1] = server.arg("z2").toFloat();
-  if (server.hasArg("z3")) targets[2] = server.arg("z3").toFloat();
-
-  bool ok = thermalZones.updateBlock(weekend, idx, name.length() > 0 ? name.c_str() : nullptr, h, m, targets);
-  if (!ok) {
-    server.send(400, "application/json", F("{\"status\":\"error\",\"message\":\"Failed to update block (invalid index or time).\"}"));
-    return;
-  }
-  server.send(200, "application/json", thermalZones.getScheduleJson());
-}
-
-void handleApiScheduleBlockDelete() {
-  server.sendHeader("Access-Control-Allow-Origin", "*");
-  bool weekend = server.hasArg("profile") && server.arg("profile").equalsIgnoreCase("weekend");
-  if (!server.hasArg("index")) {
-    server.send(400, "application/json", F("{\"status\":\"error\",\"message\":\"Missing 'index' parameter.\"}"));
-    return;
-  }
-  size_t idx = (size_t)server.arg("index").toInt();
-  bool ok = thermalZones.deleteBlock(weekend, idx);
-  if (!ok) {
-    server.send(400, "application/json", F("{\"status\":\"error\",\"message\":\"Failed to delete block (must retain at least 1 block).\"}"));
-    return;
-  }
-  server.send(200, "application/json", thermalZones.getScheduleJson());
-}
-
-void handleApiSchedulePresets() {
-  server.sendHeader("Access-Control-Allow-Origin", "*");
-  server.send(200, "application/json", thermalZones.getPresetsJson());
-}
-
-void handleApiSchedulePresetApply() {
-  server.sendHeader("Access-Control-Allow-Origin", "*");
-  if (!server.hasArg("id")) {
-    server.send(400, "application/json", F("{\"status\":\"error\",\"message\":\"Missing 'id' parameter.\"}"));
-    return;
-  }
-  String id = server.arg("id");
-  bool ok = thermalZones.applyPreset(id.c_str());
-  if (!ok) {
-    server.send(400, "application/json", F("{\"status\":\"error\",\"message\":\"Preset not found or invalid.\"}"));
-    return;
-  }
-  server.send(200, "application/json", thermalZones.getScheduleJson());
-}
-
-void handleApiSchedulePresetSave() {
-  server.sendHeader("Access-Control-Allow-Origin", "*");
-  if (!server.hasArg("id")) {
-    server.send(400, "application/json", F("{\"status\":\"error\",\"message\":\"Missing 'id' parameter (e.g. default, eco, wfh, custom1..custom4).\"}"));
-    return;
-  }
-  String id = server.arg("id");
-  String name = server.hasArg("name") ? server.arg("name") : id;
-  uint8_t daysMask = server.hasArg("days") ? (uint8_t)server.arg("days").toInt() : 0x7F;
-  bool ok = thermalZones.savePreset(id.c_str(), name.c_str(), daysMask);
-  if (!ok) {
-    server.send(400, "application/json", F("{\"status\":\"error\",\"message\":\"Invalid preset slot id. Valid slots: default, eco, wfh, custom1..custom4.\"}"));
-    return;
-  }
-  server.send(200, "application/json", thermalZones.getPresetsJson());
-}
-
-void handleApiSchedulePresetReset() {
-  server.sendHeader("Access-Control-Allow-Origin", "*");
-  if (!server.hasArg("id")) {
-    server.send(400, "application/json", F("{\"status\":\"error\",\"message\":\"Missing 'id' parameter.\"}"));
-    return;
-  }
-  String id = server.arg("id");
-  bool ok = thermalZones.resetPreset(id.c_str());
-  if (!ok) {
-    server.send(400, "application/json", F("{\"status\":\"error\",\"message\":\"Failed to reset preset.\"}"));
-    return;
-  }
-  server.send(200, "application/json", thermalZones.getPresetsJson());
 }
 
 void handleApiScheduleReset() {
@@ -1540,30 +1188,32 @@ void handleSerialCommand(String cmd) {
     netConsole.println(F("----------------------------------------------------------------------------------------------------"));
     netConsole.println();
 
-    netConsole.println(F("[D. SMART BIO-SCHEDULE & PRE-HEAT]"));
+    netConsole.println(F("[D. SCHEDULE & PRE-HEAT]"));
     netConsole.println(F("----------------------------------------------------------------------------------------------------"));
-    char schedStateBuf[48], curAnchorBuf[48], preHeatBuf[48], nextAnchorBuf[48];
-    if (thermalZones.isScheduleEnabled()) {
-      snprintf(schedStateBuf, sizeof(schedStateBuf), "ACTIVE (%s Profile)", timeAndWeather.isWeekend() ? "Weekend" : "Weekday");
-      snprintf(curAnchorBuf, sizeof(curAnchorBuf), "%s", thermalZones.getActiveAnchorName());
-      snprintf(preHeatBuf, sizeof(preHeatBuf), "%s", thermalZones.isPreHeatActive() ? "ACTIVE (Pre-Warming)" : (thermalZones.isPreHeatEnabled() ? "STANDBY (Inertia Guard)" : "DISABLED"));
-      snprintf(nextAnchorBuf, sizeof(nextAnchorBuf), "%s (In %um)",
-               thermalZones.getAnchorName(thermalZones.getNextAnchor()),
-               (unsigned int)thermalZones.getMinutesToNextAnchor());
+    char schedStateBuf[48], curLevelBuf[48], preHeatBuf[48], nextLevelBuf[48];
+    if (thermalZones.isAway()) {
+      snprintf(schedStateBuf, sizeof(schedStateBuf), "AWAY MODE (all zones at away level)");
+      snprintf(curLevelBuf, sizeof(curLevelBuf), "away");
+      snprintf(preHeatBuf, sizeof(preHeatBuf), "N/A");
+      snprintf(nextLevelBuf, sizeof(nextLevelBuf), "N/A");
+    } else if (thermalZones.isScheduleEnabled()) {
+      snprintf(schedStateBuf, sizeof(schedStateBuf), "ACTIVE (%s)", timeAndWeather.isWeekend() ? "Weekend" : "Weekday");
+      snprintf(curLevelBuf, sizeof(curLevelBuf), "%s", ThermalZoneManager::getLevelName(thermalZones.getActiveLevel()));
+      snprintf(preHeatBuf, sizeof(preHeatBuf), "%s", thermalZones.isPreHeatActive() ? "ACTIVE (Pre-Warming)" : (thermalZones.isPreHeatEnabled() ? "STANDBY" : "DISABLED"));
+      snprintf(nextLevelBuf, sizeof(nextLevelBuf), "%s (In %um)",
+               ThermalZoneManager::getLevelName(thermalZones.getNextLevel()),
+               (unsigned int)thermalZones.getMinutesToNextSlot());
     } else {
       snprintf(schedStateBuf, sizeof(schedStateBuf), "DISABLED (Fixed Setpoints)");
-      snprintf(curAnchorBuf, sizeof(curAnchorBuf), "NONE (Static Targets)");
+      snprintf(curLevelBuf, sizeof(curLevelBuf), "NONE (Static Targets)");
       snprintf(preHeatBuf, sizeof(preHeatBuf), "%s", thermalZones.isPreHeatEnabled() ? "STANDBY" : "DISABLED");
-      snprintf(nextAnchorBuf, sizeof(nextAnchorBuf), "N/A");
+      snprintf(nextLevelBuf, sizeof(nextLevelBuf), "N/A");
     }
-    char winGuardBuf[48], presetBuf[48];
+    char winGuardBuf[48];
     snprintf(winGuardBuf, sizeof(winGuardBuf), "%s", thermalZones.isWindowDetectionEnabled() ? "ARMED (>1.2\xC2\xB0""C in 5m Pause)" : "DISABLED");
-    snprintf(presetBuf, sizeof(presetBuf), "%s (%s)",
-             thermalZones.getActivePresetId(),
-             thermalZones.isScheduleEnabled() ? "Dynamic Bio" : "Static Manual");
-    printTwoCols("Bio-Schedule:", schedStateBuf, "Active Anchor:", curAnchorBuf);
-    printTwoCols("Active Preset:", presetBuf, "Next Anchor:", nextAnchorBuf);
-    printTwoCols("Pre-Heat Mode:", preHeatBuf, "Window Guard:", winGuardBuf);
+    printTwoCols("Schedule:", schedStateBuf, "Active Level:", curLevelBuf);
+    printTwoCols("Next Level:", nextLevelBuf, "Pre-Heat Mode:", preHeatBuf);
+    netConsole.printf("  * %-18s %s\n", "Window Guard:", winGuardBuf);
     netConsole.println(F("----------------------------------------------------------------------------------------------------"));
     netConsole.println();
 
@@ -1608,7 +1258,7 @@ void handleSerialCommand(String cmd) {
       char targetStr[32];
       float effTarget = thermalZones.getEffectiveTargetTemp(i);
       if (thermalZones.isScheduleEnabled()) {
-        snprintf(targetStr, sizeof(targetStr), "%.1f \xC2\xB0""C (%s)", effTarget, thermalZones.isPreHeatActive() ? "PRE-HEAT" : thermalZones.getActiveAnchorName());
+        snprintf(targetStr, sizeof(targetStr), "%.1f \xC2\xB0""C (%s)", effTarget, thermalZones.isPreHeatActive() ? "PRE-HEAT" : ThermalZoneManager::getLevelName(thermalZones.getActiveLevel()));
       } else {
         snprintf(targetStr, sizeof(targetStr), "%.1f \xC2\xB0""C", cfg.targetTemp);
       }
@@ -1789,120 +1439,34 @@ void handleSerialCommand(String cmd) {
     netConsole.printf("  Status:   %s (Fetched %u s ago)\n",
                       timeAndWeather.isWeatherValid() ? "VALID" : "PENDING",
                       timeAndWeather.getWeatherAgeSec());
-  } else if (upperCmd == "PRESETS" || upperCmd == "SCHEDULE PRESETS") {
-    printSchedulePresets();
-  } else if (upperCmd.startsWith("PRESET ") || upperCmd.startsWith("SCHEDULE PRESET ")) {
-    int offset = upperCmd.startsWith("SCHEDULE PRESET ") ? 16 : 7;
-    String pid = cmd.substring(offset);
-    pid.trim();
-    pid.toLowerCase();
-    if (thermalZones.applyPreset(pid.c_str())) {
-      netConsole.printf("[SCHEDULE] Applied preset '%s'. Dynamic circadian anchors updated.\n", pid.c_str());
-    } else {
-      netConsole.printf("[SCHEDULE] Preset '%s' not found or invalid. Type 'PRESETS' for list.\n", pid.c_str());
+  } else if (upperCmd == "AWAY ON" || upperCmd == "AWAY OFF") {
+    thermalZones.setAway(upperCmd == "AWAY ON");
+  } else if (upperCmd.startsWith("SCHEDULE LEVEL ")) {
+    char lvl[8];
+    unsigned z;
+    float t;
+    int level = -1;
+    if (sscanf(cmd.c_str() + 15, "%u %7s %f", &z, lvl, &t) == 3) level = ThermalZoneManager::parseLevel(lvl);
+    if (level < 0 || z < 1 || !thermalZones.setLevelTemp(z - 1, (ComfortLevel)level, t)) {
+      netConsole.println(F("[SCHEDULE] Syntax: SCHEDULE LEVEL <zone 1..3> <day|night|away> <temp 5..30>"));
     }
-  } else if (upperCmd.startsWith("SCHEDULE SAVE ")) {
-    String args = cmd.substring(14);
+  } else if (upperCmd.startsWith("SCHEDULE SLOTS ")) {
+    String args = cmd.substring(15);
     args.trim();
     int sp = args.indexOf(' ');
-    String slot = (sp > 0) ? args.substring(0, sp) : args;
-    String name = (sp > 0) ? args.substring(sp + 1) : slot;
-    slot.toLowerCase();
-    name.trim();
-
-    if (slot != "custom1" && slot != "custom2") {
-      netConsole.println(F("[SCHEDULE] Invalid slot. Use 'custom1' or 'custom2'."));
-    } else {
-      if (thermalZones.savePreset(slot.c_str(), name.c_str())) {
-        netConsole.printf("[SCHEDULE] Active Bio-Schedule saved to slot '%s' as '%s'.\n",
-                          slot.c_str(), name.c_str());
-      } else {
-        netConsole.printf("[SCHEDULE] Failed to save preset '%s'.\n", slot.c_str());
-      }
-    }
-  } else if (upperCmd.startsWith("SCHEDULE SET ")) {
-    // Syntax: SCHEDULE SET <weekday|weekend> <sleep|wake|away|home> <HH:MM> [z1] [z2] [z3]
-    String args = cmd.substring(13);
-    args.trim();
-    int p1 = args.indexOf(' ');
-    if (p1 < 0) {
-      netConsole.println(F("[SCHEDULE] Syntax: SCHEDULE SET <weekday|weekend> <sleep|wake|away|home> <HH:MM> [z1] [z2] [z3]"));
-    } else {
-      String profStr = args.substring(0, p1);
-      profStr.toLowerCase();
-      bool weekend = (profStr == "weekend" || profStr == "we" || profStr == "1");
-
-      String rem1 = args.substring(p1 + 1);
-      rem1.trim();
-      int p2 = rem1.indexOf(' ');
-      if (p2 < 0) {
-        netConsole.println(F("[SCHEDULE] Syntax: SCHEDULE SET <weekday|weekend> <sleep|wake|away|home> <HH:MM> [z1] [z2] [z3]"));
-      } else {
-        String ancStr = rem1.substring(0, p2);
-        BioAnchorId ancId = ThermalZoneManager::parseAnchorId(ancStr.c_str());
-        if (ancId >= BIO_ANCHORS_COUNT) {
-          netConsole.printf("[SCHEDULE] Invalid anchor '%s'. Use sleep, wake, away, or home.\n", ancStr.c_str());
-        } else {
-          String rem2 = rem1.substring(p2 + 1);
-          rem2.trim();
-          int p3 = rem2.indexOf(' ');
-          String timeStr = (p3 > 0) ? rem2.substring(0, p3) : rem2;
-          int colon = timeStr.indexOf(':');
-          if (colon <= 0) {
-            netConsole.println(F("[SCHEDULE] Invalid time format. Use HH:MM (e.g. 06:30)."));
-          } else {
-            uint8_t h = (uint8_t)timeStr.substring(0, colon).toInt();
-            uint8_t m = (uint8_t)timeStr.substring(colon + 1).toInt();
-
-            const BioScheduleConfig& cur = thermalZones.getScheduleConfig();
-            const BioAnchorConfig* curProf = weekend ? cur.weekend : cur.weekday;
-            float targets[MAX_THERMAL_ZONES];
-            for (size_t i = 0; i < MAX_THERMAL_ZONES; i++) {
-              targets[i] = curProf[ancId].targets[i];
-            }
-
-            if (p3 > 0) {
-              String tempArgs = rem2.substring(p3 + 1);
-              tempArgs.trim();
-              int tp1 = tempArgs.indexOf(' ');
-              if (tp1 < 0) {
-                float t = tempArgs.toFloat();
-                for (size_t i = 0; i < MAX_THERMAL_ZONES; i++) targets[i] = t;
-              } else {
-                targets[0] = tempArgs.substring(0, tp1).toFloat();
-                String tempRem = tempArgs.substring(tp1 + 1);
-                tempRem.trim();
-                int tp2 = tempRem.indexOf(' ');
-                if (tp2 < 0) {
-                  targets[1] = tempRem.toFloat();
-                } else {
-                  targets[1] = tempRem.substring(0, tp2).toFloat();
-                  String t3Str = tempRem.substring(tp2 + 1);
-                  t3Str.trim();
-                  targets[2] = t3Str.toFloat();
-                }
-              }
-            }
-
-            if (thermalZones.updateAnchor(weekend, ancId, h, m, targets)) {
-              netConsole.printf("[SCHEDULE] Updated %s anchor %s to %02u:%02u (Z1: %.1f C, Z2: %.1f C, Z3: %.1f C).\n",
-                                weekend ? "Weekend" : "Weekday",
-                                thermalZones.getAnchorName(ancId),
-                                h, m, targets[0], targets[1], targets[2]);
-            } else {
-              netConsole.println(F("[SCHEDULE] Failed to update anchor. Check hour (0-23) and minute (0-59)."));
-            }
-          }
-        }
-      }
+    String prof = sp > 0 ? args.substring(0, sp) : "";
+    prof.toLowerCase();
+    if ((prof != "weekday" && prof != "weekend") ||
+        !thermalZones.setSlots(prof == "weekend", args.substring(sp + 1).c_str())) {
+      netConsole.println(F("[SCHEDULE] Syntax: SCHEDULE SLOTS <weekday|weekend> 06:30=day,08:30=away,17:00=day,22:30=night"));
     }
   } else if (upperCmd.startsWith("SCHEDULE")) {
     if (upperCmd == "SCHEDULE ON") {
       thermalZones.setScheduleEnabled(true);
-      netConsole.println(F("[SCHEDULE] Smart Bio-Schedule ENABLED (Dynamic Life Anchors Active)."));
+      netConsole.println(F("[SCHEDULE] Schedule ENABLED."));
     } else if (upperCmd == "SCHEDULE OFF") {
       thermalZones.setScheduleEnabled(false);
-      netConsole.println(F("[SCHEDULE] Smart Bio-Schedule DISABLED (Static Setpoints Active)."));
+      netConsole.println(F("[SCHEDULE] Schedule DISABLED (fixed targets)."));
     } else if (upperCmd == "SCHEDULE PREHEAT ON") {
       thermalZones.setPreHeatEnabled(true);
       netConsole.println(F("[SCHEDULE] Predictive Pre-Heat ENABLED."));
@@ -1917,46 +1481,24 @@ void handleSerialCommand(String cmd) {
       netConsole.println(F("[SCHEDULE] Open Window Detection DISABLED."));
     } else if (upperCmd == "SCHEDULE RESET") {
       thermalZones.resetScheduleToDefault();
-      netConsole.println(F("[SCHEDULE] Bio-Schedule reset to factory DEFAULT preset."));
     } else {
-      const BioScheduleConfig& sc = thermalZones.getScheduleConfig();
+      const ScheduleConfig& sc = thermalZones.getScheduleConfig();
       netConsole.println(F("===================================================================================================="));
-      netConsole.println(F("                                  SMART BIO-SCHEDULE & ANCHORS                                      "));
-      netConsole.println(F("===================================================================================================="));
-      netConsole.printf("  * Schedule Engine:     %s\n", sc.enabled ? "ENABLED (Dynamic Life Anchors Active)" : "DISABLED (Static Setpoints Active)");
-      netConsole.printf("  * Active Preset:       %s\n", thermalZones.getActivePresetId());
-      netConsole.printf("  * Current Anchor:      %s\n", sc.enabled ? thermalZones.getActiveAnchorName() : "N/A");
-      netConsole.printf("  * Next Anchor Event:   %s in %u min\n",
-                        thermalZones.getAnchorName(thermalZones.getNextAnchor()),
-                        thermalZones.getMinutesToNextAnchor());
-      netConsole.printf("  * Pre-Heat Engine:     %s (Advance: %s)\n",
-                        sc.preHeatEnabled ? "ENABLED" : "DISABLED",
-                        thermalZones.isPreHeatActive() ? "ACTIVE (Pre-Warming)" : "STANDBY");
-      netConsole.printf("  * Open Window Guard:   %s (>1.2 C drop in <5 min -> 30 min pause)\n",
-                        sc.windowDetectionEnabled ? "ENABLED" : "DISABLED");
-      netConsole.println(F("----------------------------------------------------------------------------------------------------"));
-      netConsole.println(F("  [WEEKDAY PROFILE (Mon-Fri)]"));
-      for (int a = 0; a < BIO_ANCHORS_COUNT; a++) {
-        const BioAnchorConfig& anc = sc.weekday[a];
-        netConsole.printf("    - %-6s at %02d:%02d -> Z1: %.1f C | Z2: %.1f C | Z3: %.1f C\n",
-                          thermalZones.getAnchorName((BioAnchorId)a), anc.hour, anc.minute,
-                          anc.targets[0], anc.targets[1], anc.targets[2]);
+      netConsole.printf("  Schedule:   %s | Away: %s | Pre-Heat: %s | Window Guard: %s\n",
+                        sc.enabled ? "ON" : "OFF (fixed targets)", sc.away ? "ON" : "OFF",
+                        sc.preHeatEnabled ? (thermalZones.isPreHeatActive() ? "ACTIVE" : "ON") : "OFF",
+                        sc.windowDetectionEnabled ? "ON" : "OFF");
+      netConsole.printf("  Now:        %s -> next %s in %u min\n",
+                        ThermalZoneManager::getLevelName(thermalZones.getActiveLevel()),
+                        ThermalZoneManager::getLevelName(thermalZones.getNextLevel()),
+                        (unsigned int)thermalZones.getMinutesToNextSlot());
+      netConsole.printf("  Weekday:    %s\n", thermalZones.getSlotsString(false).c_str());
+      netConsole.printf("  Weekend:    %s\n", thermalZones.getSlotsString(true).c_str());
+      netConsole.println(F("  Zone                        Day     Night   Away"));
+      for (size_t i = 0; i < thermalZones.getZoneCount(); i++) {
+        netConsole.printf("  %u %-25s %5.1f   %5.1f   %5.1f\n", (unsigned int)(i + 1), thermalZones.getConfig(i).name,
+                          sc.levelTemps[LEVEL_DAY][i], sc.levelTemps[LEVEL_NIGHT][i], sc.levelTemps[LEVEL_AWAY][i]);
       }
-      netConsole.println(F("  [WEEKEND PROFILE (Sat-Sun)]"));
-      for (int a = 0; a < BIO_ANCHORS_COUNT; a++) {
-        const BioAnchorConfig& anc = sc.weekend[a];
-        netConsole.printf("    - %-6s at %02d:%02d -> Z1: %.1f C | Z2: %.1f C | Z3: %.1f C\n",
-                          thermalZones.getAnchorName((BioAnchorId)a), anc.hour, anc.minute,
-                          anc.targets[0], anc.targets[1], anc.targets[2]);
-      }
-      netConsole.println(F("----------------------------------------------------------------------------------------------------"));
-      netConsole.println(F("  Quick Commands:"));
-      netConsole.println(F("    SCHEDULE <ON|OFF>            -> Toggle bio-schedule engine"));
-      netConsole.println(F("    PRESETS or SCHEDULE PRESETS  -> List available presets catalog"));
-      netConsole.println(F("    PRESET <id>                  -> Apply preset (e.g. PRESET eco, PRESET default)"));
-      netConsole.println(F("    SCHEDULE SAVE <id> [name]    -> Save current schedule to NVS slot (custom1/custom2)"));
-      netConsole.println(F("    SCHEDULE SET <prof> <anc> <HH:MM> [targets] -> Tune anchor (e.g. SCHEDULE SET weekday wake 06:45 22.0)"));
-      netConsole.println(F("    SCHEDULE RESET               -> Restore factory default preset"));
       netConsole.println(F("===================================================================================================="));
     }
   } else if (upperCmd == "BOILER RESET RUNTIME" || upperCmd == "RESET RUNTIME") {
@@ -2181,16 +1723,9 @@ void setup() {
   server.on("/api/setup/pump", handleApiSetupPump);
   server.on("/api/setup/sensor-timeout", handleApiSetupSensorTimeout);
   server.on("/api/schedule", HTTP_GET, handleApiScheduleGet);
-  server.on("/api/schedule", HTTP_POST, handleApiSchedulePost);
   server.on("/api/schedule/enable", HTTP_POST, handleApiScheduleEnable);
-  server.on("/api/schedule/anchor", HTTP_POST, handleApiScheduleAnchor);
-  server.on("/api/schedule/block/add", HTTP_POST, handleApiScheduleBlockAdd);
-  server.on("/api/schedule/block/update", HTTP_POST, handleApiScheduleBlockUpdate);
-  server.on("/api/schedule/block/delete", HTTP_POST, handleApiScheduleBlockDelete);
-  server.on("/api/schedule/presets", HTTP_GET, handleApiSchedulePresets);
-  server.on("/api/schedule/preset/apply", HTTP_POST, handleApiSchedulePresetApply);
-  server.on("/api/schedule/preset/save", HTTP_POST, handleApiSchedulePresetSave);
-  server.on("/api/schedule/preset/reset", HTTP_POST, handleApiSchedulePresetReset);
+  server.on("/api/schedule/level", HTTP_POST, handleApiScheduleLevel);
+  server.on("/api/schedule/slots", HTTP_POST, handleApiScheduleSlots);
   server.on("/api/schedule/reset", HTTP_POST, handleApiScheduleReset);
   server.on("/api/history", HTTP_GET, handleApiHistory);
   server.on("/api/history/clear", HTTP_POST, handleApiHistoryClear);

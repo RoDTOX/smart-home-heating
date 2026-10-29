@@ -4,13 +4,15 @@
 #include "DiagnosticEngine.h"
 #include "TimeAndWeatherService.h"
 #include <time.h>
+#include <algorithm>
 
 ThermalZoneManager thermalZones;
 
 ThermalZoneManager::ThermalZoneManager()
-    : _activeAnchor(BIO_ANCHOR_HOME),
-      _nextAnchor(BIO_ANCHOR_SLEEP),
-      _minsToNextAnchor(0),
+    : _activeSlotKey(-1),
+      _activeLevel(LEVEL_DAY),
+      _nextLevel(LEVEL_DAY),
+      _minsToNextSlot(0),
       _preHeatActive(false),
       _lastScheduleEvalMs(0),
       _autoMode(true),
@@ -39,7 +41,6 @@ ThermalZoneManager::ThermalZoneManager()
 
     _scheduleConfig = getFactoryDefaultSchedule();
     _scheduleConfig.enabled = false;
-    strncpy(_activePresetId, "default", sizeof(_activePresetId));
 
     for (size_t i = 0; i < MAX_THERMAL_ZONES; i++) {
         _windowStates[i].baselineTemp = -999.0f;
@@ -95,7 +96,6 @@ ThermalZoneManager::ThermalZoneManager()
         _statuses[i].relayEngaged = false;
         _statuses[i].stateChangedMs = 0;
         _statuses[i].isManualHold = false;
-        _statuses[i].holdAnchor = BIO_ANCHOR_HOME;
     }
 }
 
@@ -176,23 +176,23 @@ void ThermalZoneManager::loadSchedulePreferences() {
     if (!prefs.begin("sched", true)) {
         return;
     }
-    if (prefs.isKey("cfg")) {
-        BioScheduleConfig loaded;
-        size_t len = prefs.getBytes("cfg", &loaded, sizeof(loaded));
-        if (len == sizeof(loaded) && loaded.weekdayCount > 0 && loaded.weekdayCount <= MAX_SCHEDULE_BLOCKS) {
-            _scheduleConfig = loaded;
-            Serial.println(F("[Thermal] Smart Schedule loaded from NVS."));
-        } else {
-            _scheduleConfig = getFactoryDefaultSchedule();
-            Serial.println(F("[Thermal] Schedule initialized to modern factory blocks."));
+    ScheduleConfig loaded;
+    bool valid = prefs.getBytes("cfg2", &loaded, sizeof(loaded)) == sizeof(loaded) &&
+                 loaded.weekdayCount >= 1 && loaded.weekdayCount <= MAX_SCHEDULE_SLOTS &&
+                 loaded.weekendCount >= 1 && loaded.weekendCount <= MAX_SCHEDULE_SLOTS;
+    if (valid) {
+        _scheduleConfig = loaded;
+        Serial.println(F("[Thermal] Schedule loaded from NVS."));
+    } else if (prefs.isKey("cfg")) {
+        // Legacy bio-schedule: keep only its on/off flags (first 3 bytes), slots reset to defaults
+        uint8_t legacy[1024];
+        size_t len = prefs.getBytesLength("cfg");
+        if (len >= 3 && len <= sizeof(legacy) && prefs.getBytes("cfg", legacy, len) == len) {
+            _scheduleConfig.enabled = legacy[0];
+            _scheduleConfig.preHeatEnabled = legacy[1];
+            _scheduleConfig.windowDetectionEnabled = legacy[2];
         }
-    }
-    if (prefs.isKey("act_preset")) {
-        String act = prefs.getString("act_preset", "default");
-        strncpy(_activePresetId, act.c_str(), sizeof(_activePresetId) - 1);
-        _activePresetId[sizeof(_activePresetId) - 1] = '\0';
-    } else {
-        strncpy(_activePresetId, "default", sizeof(_activePresetId));
+        Serial.println(F("[Thermal] Legacy bio-schedule replaced by default level schedule."));
     }
     prefs.end();
 }
@@ -204,15 +204,21 @@ void ThermalZoneManager::saveSchedulePreferences() {
         return;
     }
     // Only write if changed to avoid NVS flash wear
-    BioScheduleConfig currentSaved;
-    size_t len = prefs.getBytes("cfg", &currentSaved, sizeof(currentSaved));
+    ScheduleConfig currentSaved;
+    size_t len = prefs.getBytes("cfg2", &currentSaved, sizeof(currentSaved));
     if (len != sizeof(currentSaved) || memcmp(&currentSaved, &_scheduleConfig, sizeof(_scheduleConfig)) != 0) {
-        prefs.putBytes("cfg", &_scheduleConfig, sizeof(_scheduleConfig));
-        Serial.println(F("[Thermal] Smart Bio-Schedule persisted to NVS."));
+        prefs.putBytes("cfg2", &_scheduleConfig, sizeof(_scheduleConfig));
+        Serial.println(F("[Thermal] Schedule persisted to NVS."));
     }
-    String oldPreset = prefs.getString("act_preset", "");
-    if (oldPreset != _activePresetId) {
-        prefs.putString("act_preset", _activePresetId);
+    // One-time cleanup of the legacy bio-schedule and presets
+    if (prefs.isKey("cfg")) {
+        prefs.remove("cfg");
+        prefs.remove("act_preset");
+        Preferences presets;
+        if (presets.begin("presets", false)) {
+            presets.clear();
+            presets.end();
+        }
     }
     prefs.end();
 }
@@ -337,13 +343,11 @@ void ThermalZoneManager::setTargetTemperature(size_t index, float target) {
             _nvsSavePendingMs = millis() + 3000;
         }
 
-        // If Bio-Schedule is active, mark as Temporary Hold (holds until next anchor transition)
-        // Does NOT overwrite the schedule preset!
+        // If the schedule is active, mark as Temporary Hold (holds until next slot)
         if (_scheduleConfig.enabled && timeAndWeather.isTimeSynced()) {
             _statuses[index].isManualHold = true;
-            _statuses[index].holdAnchor = _activeAnchor;
-            netConsole.printf("[Thermal] Zone %u (%s) TEMPORARY HOLD set to %.1f C (holds until next anchor: %s)\n",
-                _configs[index].id, _configs[index].name, target, getAnchorName(_nextAnchor));
+            netConsole.printf("[Thermal] Zone %u (%s) TEMPORARY HOLD set to %.1f C (holds until next slot: %s in %u min)\n",
+                _configs[index].id, _configs[index].name, target, getLevelName(_nextLevel), _minsToNextSlot);
         } else {
             _statuses[index].isManualHold = false;
             netConsole.printf("[Thermal] Zone %u (%s) new target temp: %.1f C\n",
@@ -356,11 +360,7 @@ void ThermalZoneManager::clearManualHold(size_t index) {
     if (index >= MAX_THERMAL_ZONES) return;
     _statuses[index].isManualHold = false;
     if (_scheduleConfig.enabled && timeAndWeather.isTimeSynced()) {
-        bool weekend = timeAndWeather.isWeekend();
-        const BioAnchorConfig* profile = weekend ? _scheduleConfig.weekend : _scheduleConfig.weekday;
-        BioAnchorId anc = _preHeatActive ? _nextAnchor : _activeAnchor;
-        if (anc >= BIO_ANCHORS_COUNT) anc = BIO_ANCHOR_HOME;
-        _configs[index].targetTemp = profile[anc].targets[index];
+        _configs[index].targetTemp = getEffectiveTargetTemp(index);
         _nvsSavePending = true;
         _nvsSavePendingMs = millis() + 3000;
         netConsole.printf("[Thermal] Zone %u (%s) manual hold CLEARED. Reverted to schedule target %.1f C\n",
@@ -478,41 +478,6 @@ void ThermalZoneManager::setPumpRelayPin(uint8_t pin) {
     _pumpRelayPin = pin;
 }
 
-bool ThermalZoneManager::setAnchorName(bool weekend, BioAnchorId anchor, const char* name) {
-    uint8_t count = weekend ? _scheduleConfig.weekendCount : _scheduleConfig.weekdayCount;
-    size_t idx = (size_t)anchor;
-    ScheduleBlockConfig* profile = weekend ? _scheduleConfig.weekend : _scheduleConfig.weekday;
-    if (idx < count && name) {
-        strncpy(profile[idx].name, name, sizeof(profile[idx].name) - 1);
-        profile[idx].name[sizeof(profile[idx].name) - 1] = 0;
-        saveSchedulePreferences();
-        return true;
-    }
-    return false;
-}
-
-uint8_t ThermalZoneManager::getPresetDays(const char* presetId) const {
-    if (!presetId || strlen(presetId) == 0) return 0x7F;
-    Preferences prefs;
-    if (!const_cast<Preferences&>(prefs).begin("presets", true)) return 0x7F;
-    char keyDays[16];
-    snprintf(keyDays, sizeof(keyDays), "%s_days", presetId);
-    uint8_t d = prefs.getUChar(keyDays, 0x7F);
-    prefs.end();
-    return d;
-}
-
-bool ThermalZoneManager::setPresetDays(const char* presetId, uint8_t daysMask) {
-    if (!presetId || strlen(presetId) == 0) return false;
-    Preferences prefs;
-    if (!prefs.begin("presets", false)) return false;
-    char keyDays[16];
-    snprintf(keyDays, sizeof(keyDays), "%s_days", presetId);
-    prefs.putUChar(keyDays, daysMask);
-    prefs.end();
-    return true;
-}
-
 void ThermalZoneManager::setAutoMode(bool autoMode) {
     _autoMode = autoMode;
     saveToPreferences();
@@ -564,456 +529,109 @@ const char* ThermalZoneManager::getStateStr(ZoneState state) const {
     }
 }
 
-const char* ThermalZoneManager::getAnchorName(BioAnchorId id) const {
-    switch (id) {
-        case BIO_ANCHOR_SLEEP: return "SLEEP";
-        case BIO_ANCHOR_WAKE:  return "WAKE";
-        case BIO_ANCHOR_AWAY:  return "AWAY";
-        case BIO_ANCHOR_HOME:  return "HOME";
-        default:               return "UNKNOWN";
+const char* ThermalZoneManager::getLevelName(uint8_t level) {
+    switch (level) {
+        case LEVEL_DAY:   return "day";
+        case LEVEL_NIGHT: return "night";
+        case LEVEL_AWAY:  return "away";
+        default:          return "unknown";
     }
 }
 
-BioScheduleConfig ThermalZoneManager::getFactoryDefaultSchedule() {
-    BioScheduleConfig cfg;
+int ThermalZoneManager::parseLevel(const char* name) {
+    if (!name) return -1;
+    for (uint8_t l = 0; l < LEVEL_COUNT; l++) {
+        if (strcasecmp(name, getLevelName(l)) == 0) return l;
+    }
+    return -1;
+}
+
+ScheduleConfig ThermalZoneManager::getFactoryDefaultSchedule() {
+    ScheduleConfig cfg;
     memset(&cfg, 0, sizeof(cfg));
     cfg.enabled = true;
     cfg.preHeatEnabled = true;
     cfg.windowDetectionEnabled = true;
-
-    // Weekday: 4 standard blocks
-    cfg.weekdayCount = 4;
-    strncpy(cfg.weekday[0].name, "Dimineata", sizeof(cfg.weekday[0].name) - 1);
-    cfg.weekday[0].hour = 6;
-    cfg.weekday[0].minute = 30;
-    cfg.weekday[0].targets[0] = 22.0f;
-    cfg.weekday[0].targets[1] = 22.0f;
-    cfg.weekday[0].targets[2] = 22.0f;
-
-    strncpy(cfg.weekday[1].name, "Zi / Serviciu", sizeof(cfg.weekday[1].name) - 1);
-    cfg.weekday[1].hour = 8;
-    cfg.weekday[1].minute = 30;
-    cfg.weekday[1].targets[0] = 20.0f;
-    cfg.weekday[1].targets[1] = 20.0f;
-    cfg.weekday[1].targets[2] = 20.0f;
-
-    strncpy(cfg.weekday[2].name, "Seara / Acasa", sizeof(cfg.weekday[2].name) - 1);
-    cfg.weekday[2].hour = 17;
-    cfg.weekday[2].minute = 0;
-    cfg.weekday[2].targets[0] = 22.5f;
-    cfg.weekday[2].targets[1] = 22.5f;
-    cfg.weekday[2].targets[2] = 22.0f;
-
-    strncpy(cfg.weekday[3].name, "Noapte", sizeof(cfg.weekday[3].name) - 1);
-    cfg.weekday[3].hour = 22;
-    cfg.weekday[3].minute = 30;
-    cfg.weekday[3].targets[0] = 20.0f;
-    cfg.weekday[3].targets[1] = 20.0f;
-    cfg.weekday[3].targets[2] = 20.0f;
-
-    // Weekend: 4 blocks
-    cfg.weekendCount = 4;
-    strncpy(cfg.weekend[0].name, "Dimineata", sizeof(cfg.weekend[0].name) - 1);
-    cfg.weekend[0].hour = 8;
-    cfg.weekend[0].minute = 0;
-    cfg.weekend[0].targets[0] = 22.5f;
-    cfg.weekend[0].targets[1] = 22.5f;
-    cfg.weekend[0].targets[2] = 22.0f;
-
-    strncpy(cfg.weekend[1].name, "Zi", sizeof(cfg.weekend[1].name) - 1);
-    cfg.weekend[1].hour = 12;
-    cfg.weekend[1].minute = 0;
-    cfg.weekend[1].targets[0] = 22.5f;
-    cfg.weekend[1].targets[1] = 22.5f;
-    cfg.weekend[1].targets[2] = 22.0f;
-
-    strncpy(cfg.weekend[2].name, "Seara", sizeof(cfg.weekend[2].name) - 1);
-    cfg.weekend[2].hour = 18;
-    cfg.weekend[2].minute = 0;
-    cfg.weekend[2].targets[0] = 22.5f;
-    cfg.weekend[2].targets[1] = 22.5f;
-    cfg.weekend[2].targets[2] = 22.0f;
-
-    strncpy(cfg.weekend[3].name, "Noapte", sizeof(cfg.weekend[3].name) - 1);
-    cfg.weekend[3].hour = 23;
-    cfg.weekend[3].minute = 0;
-    cfg.weekend[3].targets[0] = 20.5f;
-    cfg.weekend[3].targets[1] = 20.5f;
-    cfg.weekend[3].targets[2] = 20.0f;
-
-    return cfg;
-}
-
-BioScheduleConfig ThermalZoneManager::getFactoryEcoSchedule() {
-    BioScheduleConfig cfg = getFactoryDefaultSchedule();
-    for (uint8_t i = 0; i < cfg.weekdayCount; i++) {
-        cfg.weekday[i].targets[0] = 18.0f;
-        cfg.weekday[i].targets[1] = 18.5f;
-        cfg.weekday[i].targets[2] = 18.0f;
-    }
-    for (uint8_t i = 0; i < cfg.weekendCount; i++) {
-        cfg.weekend[i].targets[0] = 18.0f;
-        cfg.weekend[i].targets[1] = 18.5f;
-        cfg.weekend[i].targets[2] = 18.0f;
-    }
-    return cfg;
-}
-
-BioScheduleConfig ThermalZoneManager::getFactoryWfhSchedule() {
-    BioScheduleConfig cfg = getFactoryDefaultSchedule();
-    for (uint8_t i = 0; i < cfg.weekdayCount; i++) {
-        if (cfg.weekday[i].hour >= 8 && cfg.weekday[i].hour < 22) {
-            cfg.weekday[i].targets[0] = 22.5f;
-            cfg.weekday[i].targets[1] = 22.5f;
-            cfg.weekday[i].targets[2] = 22.0f;
-        }
-    }
-    return cfg;
-}
-
-BioAnchorId ThermalZoneManager::parseAnchorId(const char* name) {
-    if (!name) return BIO_ANCHORS_COUNT;
-    if (strcasecmp(name, "sleep") == 0 || strcmp(name, "0") == 0) return BIO_ANCHOR_SLEEP;
-    if (strcasecmp(name, "wake") == 0  || strcmp(name, "1") == 0) return BIO_ANCHOR_WAKE;
-    if (strcasecmp(name, "away") == 0  || strcmp(name, "2") == 0) return BIO_ANCHOR_AWAY;
-    if (strcasecmp(name, "home") == 0  || strcmp(name, "3") == 0) return BIO_ANCHOR_HOME;
-    return BIO_ANCHORS_COUNT;
-}
-
-
-bool ThermalZoneManager::addBlock(bool weekend, const char* name, uint8_t hour, uint8_t minute, const float targets[MAX_THERMAL_ZONES]) {
-    if (hour > 23 || minute > 59) return false;
-    uint8_t& count = weekend ? _scheduleConfig.weekendCount : _scheduleConfig.weekdayCount;
-    if (count >= MAX_SCHEDULE_BLOCKS) return false;
-
-    ScheduleBlockConfig* profile = weekend ? _scheduleConfig.weekend : _scheduleConfig.weekday;
-    size_t newIdx = count;
-    strncpy(profile[newIdx].name, (name && strlen(name) > 0) ? name : "Interval", sizeof(profile[newIdx].name) - 1);
-    profile[newIdx].name[sizeof(profile[newIdx].name) - 1] = 0;
-    profile[newIdx].hour = hour;
-    profile[newIdx].minute = minute;
     for (size_t i = 0; i < MAX_THERMAL_ZONES; i++) {
-        profile[newIdx].targets[i] = targets ? targets[i] : 21.0f;
+        cfg.levelTemps[LEVEL_DAY][i] = 22.0f;
+        cfg.levelTemps[LEVEL_NIGHT][i] = 20.0f;
+        cfg.levelTemps[LEVEL_AWAY][i] = 16.0f;
     }
-    count++;
+    cfg.weekdayCount = 2;
+    cfg.weekday[0] = {6, 30, LEVEL_DAY};
+    cfg.weekday[1] = {22, 30, LEVEL_NIGHT};
+    cfg.weekendCount = 2;
+    cfg.weekend[0] = {8, 0, LEVEL_DAY};
+    cfg.weekend[1] = {23, 0, LEVEL_NIGHT};
+    return cfg;
+}
 
+bool ThermalZoneManager::setLevelTemp(size_t index, ComfortLevel level, float temp) {
+    if (index >= MAX_THERMAL_ZONES || level >= LEVEL_COUNT || temp < 5.0f || temp > 30.0f) return false;
+    _scheduleConfig.levelTemps[level][index] = temp;
     saveSchedulePreferences();
     evaluateSchedule(millis());
-    netConsole.printf("[Thermal] Added Schedule Block '%s' (%s) at %02u:%02u (total: %u)\n",
-                      profile[newIdx].name, weekend ? "Weekend" : "Weekday", hour, minute, count);
+    netConsole.printf("[Thermal] Zone %u (%s) %s level set to %.1f C\n",
+                      _configs[index].id, _configs[index].name, getLevelName(level), temp);
     return true;
 }
 
-bool ThermalZoneManager::updateBlock(bool weekend, size_t index, const char* name, uint8_t hour, uint8_t minute, const float targets[MAX_THERMAL_ZONES]) {
-    uint8_t count = weekend ? _scheduleConfig.weekendCount : _scheduleConfig.weekdayCount;
-    if (index >= count || hour > 23 || minute > 59) return false;
-
-    ScheduleBlockConfig* profile = weekend ? _scheduleConfig.weekend : _scheduleConfig.weekday;
-    if (name && strlen(name) > 0) {
-        strncpy(profile[index].name, name, sizeof(profile[index].name) - 1);
-        profile[index].name[sizeof(profile[index].name) - 1] = 0;
+bool ThermalZoneManager::setSlots(bool weekend, const char* spec) {
+    if (!spec) return false;
+    ScheduleSlot parsed[MAX_SCHEDULE_SLOTS];
+    uint8_t n = 0;
+    char buf[160];
+    strlcpy(buf, spec, sizeof(buf));
+    for (char* tok = strtok(buf, ", "); tok; tok = strtok(nullptr, ", ")) {
+        unsigned h, m;
+        char lvl[8];
+        if (n >= MAX_SCHEDULE_SLOTS || sscanf(tok, "%u:%u=%7s", &h, &m, lvl) != 3 || h > 23 || m > 59) return false;
+        int level = parseLevel(lvl);
+        if (level < 0) return false;
+        parsed[n++] = {(uint8_t)h, (uint8_t)m, (uint8_t)level};
     }
-    profile[index].hour = hour;
-    profile[index].minute = minute;
-    if (targets) {
-        for (size_t i = 0; i < MAX_THERMAL_ZONES; i++) {
-            if (targets[i] >= 5.0f && targets[i] <= 35.0f) {
-                profile[index].targets[i] = targets[i];
-            }
-        }
-    }
-
+    if (n == 0) return false;
+    std::sort(parsed, parsed + n, [](const ScheduleSlot& a, const ScheduleSlot& b) {
+        return a.hour * 60 + a.minute < b.hour * 60 + b.minute;
+    });
+    memcpy(weekend ? _scheduleConfig.weekend : _scheduleConfig.weekday, parsed, n * sizeof(ScheduleSlot));
+    (weekend ? _scheduleConfig.weekendCount : _scheduleConfig.weekdayCount) = n;
     saveSchedulePreferences();
     evaluateSchedule(millis());
-    netConsole.printf("[Thermal] Updated Schedule Block #%u '%s' (%s): %02u:%02u [%.1f, %.1f, %.1f]\n",
-                      (unsigned int)index, profile[index].name, weekend ? "Weekend" : "Weekday",
-                      hour, minute, profile[index].targets[0], profile[index].targets[1], profile[index].targets[2]);
+    netConsole.printf("[Thermal] %s slots: %s\n", weekend ? "Weekend" : "Weekday", getSlotsString(weekend).c_str());
     return true;
 }
 
-bool ThermalZoneManager::deleteBlock(bool weekend, size_t index) {
-    uint8_t& count = weekend ? _scheduleConfig.weekendCount : _scheduleConfig.weekdayCount;
-    if (index >= count || count <= 1) return false;
-
-    ScheduleBlockConfig* profile = weekend ? _scheduleConfig.weekend : _scheduleConfig.weekday;
-    for (size_t i = index; i < (size_t)count - 1; i++) {
-        profile[i] = profile[i + 1];
-    }
-    count--;
-
-    saveSchedulePreferences();
-    evaluateSchedule(millis());
-    netConsole.printf("[Thermal] Deleted Schedule Block #%u (%s) (remaining: %u)\n",
-                      (unsigned int)index, weekend ? "Weekend" : "Weekday", count);
-    return true;
-}
-
-const char* ThermalZoneManager::getActiveBlockName() const {
-    bool weekend = timeAndWeather.isWeekend();
+String ThermalZoneManager::getSlotsString(bool weekend) const {
     uint8_t count = weekend ? _scheduleConfig.weekendCount : _scheduleConfig.weekdayCount;
-    if (count == 0) return "Standard";
-    const ScheduleBlockConfig* profile = weekend ? _scheduleConfig.weekend : _scheduleConfig.weekday;
-    size_t idx = _activeBlockIdx < count ? _activeBlockIdx : 0;
-    return profile[idx].name;
-}
-
-const char* ThermalZoneManager::getNextBlockName() const {
-    bool weekend = timeAndWeather.isWeekend();
-    uint8_t count = weekend ? _scheduleConfig.weekendCount : _scheduleConfig.weekdayCount;
-    if (count == 0) return "Standard";
-    const ScheduleBlockConfig* profile = weekend ? _scheduleConfig.weekend : _scheduleConfig.weekday;
-    size_t idx = _nextBlockIdx < count ? _nextBlockIdx : 0;
-    return profile[idx].name;
-}
-
-bool ThermalZoneManager::updateAnchor(bool weekend, BioAnchorId anchor, uint8_t hour, uint8_t minute, const float targets[MAX_THERMAL_ZONES]) {
-    uint8_t count = weekend ? _scheduleConfig.weekendCount : _scheduleConfig.weekdayCount;
-    size_t idx = (size_t)anchor;
-    ScheduleBlockConfig* profile = weekend ? _scheduleConfig.weekend : _scheduleConfig.weekday;
-    const char* currentName = (idx < count && strlen(profile[idx].name) > 0) ? profile[idx].name : getAnchorName(anchor);
-    if (idx >= count && count < MAX_SCHEDULE_BLOCKS) {
-        return addBlock(weekend, currentName, hour, minute, targets);
+    const ScheduleSlot* slots = weekend ? _scheduleConfig.weekend : _scheduleConfig.weekday;
+    String out;
+    char buf[16];
+    for (uint8_t i = 0; i < count; i++) {
+        snprintf(buf, sizeof(buf), "%s%02u:%02u=%s", i ? "," : "", slots[i].hour, slots[i].minute, getLevelName(slots[i].level));
+        out += buf;
     }
-    return updateBlock(weekend, idx, currentName, hour, minute, targets);
+    return out;
 }
 
-
-bool ThermalZoneManager::setAnchorTime(bool weekend, BioAnchorId anchor, uint8_t hour, uint8_t minute) {
-    return updateAnchor(weekend, anchor, hour, minute, nullptr);
-}
-
-bool ThermalZoneManager::setAnchorTargets(bool weekend, BioAnchorId anchor, const float targets[MAX_THERMAL_ZONES]) {
-    if (anchor >= BIO_ANCHORS_COUNT) return false;
-    BioAnchorConfig* profile = weekend ? _scheduleConfig.weekend : _scheduleConfig.weekday;
-    return updateAnchor(weekend, anchor, profile[anchor].hour, profile[anchor].minute, targets);
-}
-
-bool ThermalZoneManager::setAnchorTarget(bool weekend, BioAnchorId anchor, size_t zoneIndex, float target) {
-    if (anchor >= BIO_ANCHORS_COUNT || zoneIndex >= MAX_THERMAL_ZONES || target < 5.0f || target > 35.0f) return false;
-    BioAnchorConfig* profile = weekend ? _scheduleConfig.weekend : _scheduleConfig.weekday;
-    profile[anchor].targets[zoneIndex] = target;
-    strncpy(_activePresetId, "custom", sizeof(_activePresetId) - 1);
-    _activePresetId[sizeof(_activePresetId) - 1] = '\0';
-    saveSchedulePreferences();
-    evaluateSchedule(millis());
-    netConsole.printf("[Thermal] Anchor %s (%s) Zone %u set to %.1f C\n",
-                      getAnchorName(anchor), weekend ? "Weekend" : "Weekday", (unsigned int)(zoneIndex + 1), target);
-    return true;
-}
-
-String ThermalZoneManager::getPresetsJson() const {
-    String json;
-    json.reserve(1024);
-    json = "{";
-    json += "\"status\":\"ok\",";
-    json += "\"activePreset\":\"" + String(_activePresetId) + "\",";
-    json += "\"presets\":[";
-
-    Preferences prefs;
-    bool prefsOpen = prefs.begin("presets", true);
-
-    struct FactoryPresetDef {
-        const char* id;
-        const char* defaultName;
-    };
-    FactoryPresetDef factories[] = {
-        {"default", "Standard / Confort"},
-        {"eco", "Vacan\xC8\x9B\xC4\x83 / Eco"},
-        {"wfh", "Home Office"}
-    };
-
-    for (size_t i = 0; i < 3; i++) {
-        if (i > 0) json += ",";
-        char keyCfg[16], keyName[16];
-        snprintf(keyCfg, sizeof(keyCfg), "%s_cfg", factories[i].id);
-        snprintf(keyName, sizeof(keyName), "%s_name", factories[i].id);
-        bool saved = prefsOpen && prefs.isKey(keyCfg);
-        String name = (saved && prefs.isKey(keyName)) ? prefs.getString(keyName, factories[i].defaultName) : String(factories[i].defaultName);
-        json += "{\"id\":\"" + String(factories[i].id) + "\",\"name\":\"" + name + "\",\"type\":\"factory\",\"saved\":" + (saved ? "true" : "false") + ",\"daysMask\":" + String(getPresetDays(factories[i].id)) + "}";
-    }
-
-    const char* slots[] = {"custom1", "custom2", "custom3", "custom4"};
-    for (int i = 0; i < 4; i++) {
-        char keyCfg[16], keyName[16];
-        snprintf(keyCfg, sizeof(keyCfg), "%s_cfg", slots[i]);
-        snprintf(keyName, sizeof(keyName), "%s_name", slots[i]);
-        bool saved = prefsOpen && prefs.isKey(keyCfg);
-        String name = (saved && prefs.isKey(keyName)) ? prefs.getString(keyName, slots[i]) : (String("Slot Liber (") + slots[i] + ")");
-        json += ",{\"id\":\"" + String(slots[i]) + "\",\"name\":\"" + name + "\",\"type\":\"user\",\"saved\":" + (saved ? "true" : "false") + ",\"daysMask\":" + String(getPresetDays(slots[i])) + "}";
-    }
-
-    if (prefsOpen) prefs.end();
-    json += "]}";
-    return json;
-}
-
-bool ThermalZoneManager::applyPreset(const char* presetId) {
-    if (!presetId || strlen(presetId) == 0) return false;
-    BioScheduleConfig targetCfg;
-    bool found = false;
-
-    // Check if customized version exists in NVS for this preset (including default, eco, wfh, custom1..custom4)
-    Preferences prefs;
-    if (prefs.begin("presets", true)) {
-        char keyCfg[16];
-        snprintf(keyCfg, sizeof(keyCfg), "%s_cfg", presetId);
-        if (prefs.isKey(keyCfg)) {
-            size_t len = prefs.getBytes(keyCfg, &targetCfg, sizeof(targetCfg));
-            if (len == sizeof(targetCfg)) {
-                found = true;
-            }
-        }
-        prefs.end();
-    }
-
-    // If not found in NVS, fallback to factory schedule if it's one of the built-ins
-    if (!found) {
-        if (strcasecmp(presetId, "default") == 0) {
-            targetCfg = getFactoryDefaultSchedule();
-            found = true;
-        } else if (strcasecmp(presetId, "eco") == 0) {
-            targetCfg = getFactoryEcoSchedule();
-            found = true;
-        } else if (strcasecmp(presetId, "wfh") == 0) {
-            targetCfg = getFactoryWfhSchedule();
-            found = true;
-        }
-    }
-
-    if (!found) return false;
-
-    bool currentEn = _scheduleConfig.enabled;
-    char oldPreset[32];
-    strncpy(oldPreset, _activePresetId, sizeof(oldPreset) - 1);
-    oldPreset[sizeof(oldPreset) - 1] = '\0';
-
-    _scheduleConfig = targetCfg;
-    _scheduleConfig.enabled = currentEn;
-    strncpy(_activePresetId, presetId, sizeof(_activePresetId) - 1);
-    _activePresetId[sizeof(_activePresetId) - 1] = '\0';
-    saveSchedulePreferences();
-    evaluateSchedule(millis());
-
-    // Synchronize individual zone targetTemps to match the new preset's active block targets
-    bool weekend = timeAndWeather.isTimeSynced() ? timeAndWeather.isWeekend() : false;
-    uint8_t count = weekend ? _scheduleConfig.weekendCount : _scheduleConfig.weekdayCount;
-    const ScheduleBlockConfig* prof = weekend ? _scheduleConfig.weekend : _scheduleConfig.weekday;
-    size_t blkIdx = (_activeBlockIdx < count) ? _activeBlockIdx : 0;
-    bool zChanged = false;
+void ThermalZoneManager::setAway(bool away) {
+    if (_scheduleConfig.away == away) return;
+    _scheduleConfig.away = away;
     for (size_t i = 0; i < MAX_THERMAL_ZONES; i++) {
-        float newT = prof[blkIdx].targets[i];
-        if (fabsf(_configs[i].targetTemp - newT) > 0.05f) {
-            _configs[i].targetTemp = newT;
-            zChanged = true;
-        }
+        _statuses[i].isManualHold = false;
     }
-    if (zChanged) {
-        saveToPreferences();
-    }
-
-    netConsole.printf("[Schedule][PRESET] Preset switched: '%s' -> '%s'\n", oldPreset, presetId);
-    return true;
-}
-
-bool ThermalZoneManager::savePreset(const char* presetId, const char* name, uint8_t daysMask) {
-    if (!presetId || strlen(presetId) == 0) return false;
-
-    // Permit valid preset slots: default, eco, wfh, custom1..custom4
-    if (strcasecmp(presetId, "default") != 0 &&
-        strcasecmp(presetId, "eco") != 0 &&
-        strcasecmp(presetId, "wfh") != 0 &&
-        strcasecmp(presetId, "custom1") != 0 &&
-        strcasecmp(presetId, "custom2") != 0 &&
-        strcasecmp(presetId, "custom3") != 0 &&
-        strcasecmp(presetId, "custom4") != 0) {
-        return false;
-    }
-
-    Preferences prefs;
-    if (!prefs.begin("presets", false)) return false;
-
-    char keyCfg[16];
-    char keyName[16];
-    snprintf(keyCfg, sizeof(keyCfg), "%s_cfg", presetId);
-    snprintf(keyName, sizeof(keyName), "%s_name", presetId);
-
-    prefs.putBytes(keyCfg, &_scheduleConfig, sizeof(_scheduleConfig));
-    if (name && strlen(name) > 0) {
-        prefs.putString(keyName, name);
-    } else {
-        prefs.putString(keyName, presetId);
-    }
-    char keyDays[16];
-    snprintf(keyDays, sizeof(keyDays), "%s_days", presetId);
-    prefs.putUChar(keyDays, daysMask);
-    prefs.end();
-
-    strncpy(_activePresetId, presetId, sizeof(_activePresetId) - 1);
-    _activePresetId[sizeof(_activePresetId) - 1] = '\0';
     saveSchedulePreferences();
-    netConsole.printf("[Thermal] Saved active Bio-Schedule to preset '%s' (%s)\n", presetId, name ? name : presetId);
-    return true;
-}
-
-bool ThermalZoneManager::resetPreset(const char* presetId) {
-    if (!presetId || strlen(presetId) == 0) return false;
-
-    Preferences prefs;
-    if (prefs.begin("presets", false)) {
-        char keyCfg[16];
-        char keyName[16];
-        snprintf(keyCfg, sizeof(keyCfg), "%s_cfg", presetId);
-        snprintf(keyName, sizeof(keyName), "%s_name", presetId);
-        prefs.remove(keyCfg);
-        prefs.remove(keyName);
-        prefs.end();
-    }
-
-    // If currently active preset was reset, reload it (which falls back to factory default if built-in, or default if custom)
-    if (strcasecmp(_activePresetId, presetId) == 0) {
-        if (strcasecmp(presetId, "default") == 0 || strcasecmp(presetId, "eco") == 0 || strcasecmp(presetId, "wfh") == 0) {
-            applyPreset(presetId);
-        } else {
-            resetScheduleToDefault();
-        }
-    }
-
-    netConsole.printf("[Thermal] Reset preset '%s' (NVS custom override removed)\n", presetId);
-    return true;
+    evaluateSchedule(millis());
+    netConsole.printf("[Thermal] Away mode %s\n", away ? "ON (all zones at away level)" : "OFF (back to schedule)");
 }
 
 void ThermalZoneManager::resetScheduleToDefault() {
     bool en = _scheduleConfig.enabled;
     _scheduleConfig = getFactoryDefaultSchedule();
     _scheduleConfig.enabled = en;
-    strncpy(_activePresetId, "default", sizeof(_activePresetId) - 1);
-    _activePresetId[sizeof(_activePresetId) - 1] = '\0';
     saveSchedulePreferences();
     evaluateSchedule(millis());
-
-    bool weekend = timeAndWeather.isTimeSynced() ? timeAndWeather.isWeekend() : false;
-    const BioAnchorConfig* prof = weekend ? _scheduleConfig.weekend : _scheduleConfig.weekday;
-    BioAnchorId anc = _activeAnchor;
-    if (anc >= BIO_ANCHORS_COUNT) anc = BIO_ANCHOR_HOME;
-    bool zChanged = false;
-    for (size_t i = 0; i < MAX_THERMAL_ZONES; i++) {
-        float newT = prof[anc].targets[i];
-        if (fabsf(_configs[i].targetTemp - newT) > 0.05f) {
-            _configs[i].targetTemp = newT;
-            zChanged = true;
-        }
-    }
-    if (zChanged) {
-        saveToPreferences();
-    }
-
-    netConsole.println(F("[Thermal] Bio-Schedule reset to factory DEFAULT preset."));
-}
-
-void ThermalZoneManager::setScheduleConfig(const BioScheduleConfig& cfg) {
-    _scheduleConfig = cfg;
-    saveSchedulePreferences();
-    evaluateSchedule(millis());
+    netConsole.println(F("[Thermal] Schedule reset to factory default."));
 }
 
 void ThermalZoneManager::setScheduleEnabled(bool enabled) {
@@ -1021,24 +639,7 @@ void ThermalZoneManager::setScheduleEnabled(bool enabled) {
         _scheduleConfig.enabled = enabled;
         saveSchedulePreferences();
         evaluateSchedule(millis());
-        if (enabled && timeAndWeather.isTimeSynced()) {
-            bool weekend = timeAndWeather.isWeekend();
-            const BioAnchorConfig* prof = weekend ? _scheduleConfig.weekend : _scheduleConfig.weekday;
-            BioAnchorId anc = _activeAnchor;
-            if (anc >= BIO_ANCHORS_COUNT) anc = BIO_ANCHOR_HOME;
-            bool zChanged = false;
-            for (size_t i = 0; i < MAX_THERMAL_ZONES; i++) {
-                float newT = prof[anc].targets[i];
-                if (fabsf(_configs[i].targetTemp - newT) > 0.05f) {
-                    _configs[i].targetTemp = newT;
-                    zChanged = true;
-                }
-            }
-            if (zChanged) {
-                saveToPreferences();
-            }
-        }
-        netConsole.printf("[Thermal] Smart Bio-Schedule %s\n", enabled ? "ENABLED" : "DISABLED");
+        netConsole.printf("[Thermal] Schedule %s\n", enabled ? "ENABLED" : "DISABLED");
     }
 }
 
@@ -1060,96 +661,59 @@ void ThermalZoneManager::setWindowDetectionEnabled(bool enabled) {
 }
 
 void ThermalZoneManager::evaluateSchedule(uint32_t now) {
+    (void)now;
     if (!timeAndWeather.isTimeSynced()) return;
-
-    // Day of week auto-switching based on preset daysMask
-    int wday = timeAndWeather.getDayOfWeekIndex();
-    uint8_t currentDayBit = (wday == 0) ? (1 << 6) : (1 << (wday - 1));
-    uint8_t activePresetDays = getPresetDays(_activePresetId);
-    if ((activePresetDays & currentDayBit) == 0) {
-        const char* candidatePresets[] = {"default", "wfh", "eco", "custom1", "custom2", "custom3", "custom4"};
-        for (size_t p = 0; p < sizeof(candidatePresets)/sizeof(candidatePresets[0]); p++) {
-            if (getPresetDays(candidatePresets[p]) & currentDayBit) {
-                applyPreset(candidatePresets[p]);
-                break;
-            }
-        }
-    }
 
     bool weekend = timeAndWeather.isWeekend();
     uint8_t count = weekend ? _scheduleConfig.weekendCount : _scheduleConfig.weekdayCount;
-    if (count == 0) count = 1;
-    const ScheduleBlockConfig* blocks = weekend ? _scheduleConfig.weekend : _scheduleConfig.weekday;
+    if (count == 0) return;
+    const ScheduleSlot* slots = weekend ? _scheduleConfig.weekend : _scheduleConfig.weekday;
+    uint32_t curMinutes = timeAndWeather.getHour() * 60 + timeAndWeather.getMinute();
 
-    int curHour = timeAndWeather.getHour();
-    int curMin = timeAndWeather.getMinute();
-    uint32_t curMinutes = curHour * 60 + curMin;
-
-    // Find active block (latest block where blockMinutes <= curMinutes)
-    size_t activeIdx = 0;
-    bool found = false;
-    for (int i = (int)count - 1; i >= 0; i--) {
-        uint32_t blkMinutes = blocks[i].hour * 60 + blocks[i].minute;
-        if (curMinutes >= blkMinutes) {
-            activeIdx = (size_t)i;
-            found = true;
-            break;
-        }
+    // Active slot = latest slot at or before now (slots are sorted); before the first one, the last carries over
+    size_t activeIdx = count - 1;
+    for (size_t i = 0; i < count; i++) {
+        if (curMinutes >= (uint32_t)(slots[i].hour * 60 + slots[i].minute)) activeIdx = i;
     }
-    if (!found) {
-        activeIdx = count - 1;
-    }
-
     size_t nextIdx = (activeIdx + 1) % count;
-    uint32_t nextMinutes = blocks[nextIdx].hour * 60 + blocks[nextIdx].minute;
-    if (nextMinutes <= curMinutes) {
-        _minsToNextAnchor = (1440 - curMinutes) + nextMinutes;
-    } else {
-        _minsToNextAnchor = nextMinutes - curMinutes;
-    }
+    uint32_t nextMinutes = slots[nextIdx].hour * 60 + slots[nextIdx].minute;
+    _minsToNextSlot = (nextMinutes > curMinutes) ? nextMinutes - curMinutes : 1440 - curMinutes + nextMinutes;
+    _activeLevel = slots[activeIdx].level;
+    _nextLevel = slots[nextIdx].level;
 
-    size_t prevBlock = _activeBlockIdx;
-    _activeBlockIdx = activeIdx;
-    _nextBlockIdx = nextIdx;
-    _activeAnchor = (BioAnchorId)(activeIdx < BIO_ANCHORS_COUNT ? activeIdx : 3);
-    _nextAnchor = (BioAnchorId)(nextIdx < BIO_ANCHORS_COUNT ? nextIdx : 0);
-
-    // Pre-Heat calculation (45 mins anticipative underfloor heating)
+    // Pre-Heat: start 45 min early if the next level is warmer in any zone
     _preHeatActive = false;
-    if (_scheduleConfig.preHeatEnabled && _minsToNextAnchor <= 45) {
+    if (_scheduleConfig.preHeatEnabled && _minsToNextSlot <= 45) {
         for (size_t i = 0; i < MAX_THERMAL_ZONES; i++) {
-            if (blocks[nextIdx].targets[i] > blocks[activeIdx].targets[i] + 0.2f) {
+            if (_scheduleConfig.levelTemps[_nextLevel][i] > _scheduleConfig.levelTemps[_activeLevel][i] + 0.2f) {
                 _preHeatActive = true;
                 break;
             }
         }
     }
 
-    // Block transition: clear manual holds
-    if (prevBlock != _activeBlockIdx) {
-        netConsole.printf("[Thermal][SCHEDULE] Block transition: %s -> %s (Profile: %s, Time: %02d:%02d)\n",
-            blocks[prevBlock].name, blocks[_activeBlockIdx].name,
-            weekend ? "Weekend" : "Weekday", curHour, curMin);
-
+    // Slot transition: manual holds expire
+    int16_t key = (weekend ? 16 : 0) + (int16_t)activeIdx;
+    if (key != _activeSlotKey) {
+        if (_activeSlotKey >= 0) {
+            netConsole.printf("[Thermal][SCHEDULE] Slot %02u:%02u -> level %s (%s)\n",
+                slots[activeIdx].hour, slots[activeIdx].minute, getLevelName(_activeLevel), weekend ? "Weekend" : "Weekday");
+        }
+        _activeSlotKey = key;
         for (size_t i = 0; i < MAX_THERMAL_ZONES; i++) {
             if (_statuses[i].isManualHold) {
                 _statuses[i].isManualHold = false;
-                netConsole.printf("[Thermal] Zone %u (%s) Temporary Hold expired naturally at block change.\n",
+                netConsole.printf("[Thermal] Zone %u (%s) Temporary Hold expired at slot change.\n",
                     (unsigned int)_configs[i].id, _configs[i].name);
             }
         }
     }
 
-    // Synchronize static targets
-    if (_scheduleConfig.enabled) {
-        const ScheduleBlockConfig* prof = weekend ? _scheduleConfig.weekend : _scheduleConfig.weekday;
-        size_t blkToUse = _preHeatActive ? _nextBlockIdx : _activeBlockIdx;
+    // Keep static targets in sync (shown in status, used if the schedule is turned off)
+    if (_scheduleConfig.enabled || _scheduleConfig.away) {
         for (size_t i = 0; i < MAX_THERMAL_ZONES; i++) {
             if (!_statuses[i].isManualHold) {
-                float target = prof[blkToUse].targets[i];
-                if (fabsf(_configs[i].targetTemp - target) > 0.05f) {
-                    _configs[i].targetTemp = target;
-                }
+                _configs[i].targetTemp = getEffectiveTargetTemp(i);
             }
         }
     }
@@ -1157,18 +721,10 @@ void ThermalZoneManager::evaluateSchedule(uint32_t now) {
 
 float ThermalZoneManager::getEffectiveTargetTemp(size_t index) const {
     if (index >= MAX_THERMAL_ZONES) return DEFAULT_SETPOINT_TEMP;
-    if (_statuses[index].isManualHold) {
-        return _configs[index].targetTemp;
-    }
-    if (!_scheduleConfig.enabled || !timeAndWeather.isTimeSynced()) {
-        return _configs[index].targetTemp;
-    }
-    bool weekend = timeAndWeather.isWeekend();
-    uint8_t count = weekend ? _scheduleConfig.weekendCount : _scheduleConfig.weekdayCount;
-    if (count == 0) return _configs[index].targetTemp;
-    const ScheduleBlockConfig* prof = weekend ? _scheduleConfig.weekend : _scheduleConfig.weekday;
-    size_t blkToUse = _preHeatActive ? (_nextBlockIdx % count) : (_activeBlockIdx % count);
-    return prof[blkToUse].targets[index];
+    if (_statuses[index].isManualHold) return _configs[index].targetTemp;
+    if (_scheduleConfig.away) return _scheduleConfig.levelTemps[LEVEL_AWAY][index];
+    if (!_scheduleConfig.enabled || !timeAndWeather.isTimeSynced()) return _configs[index].targetTemp;
+    return _scheduleConfig.levelTemps[_preHeatActive ? _nextLevel : _activeLevel][index];
 }
 
 void ThermalZoneManager::evaluateWindowDetection(size_t index, float currentTemp, uint32_t now) {
@@ -1289,23 +845,20 @@ uint32_t ThermalZoneManager::getWindowLastDetectionDurationSec(size_t index) con
 
 String ThermalZoneManager::getScheduleJson() const {
     String json;
-    json.reserve(2560);
+    json.reserve(1536);
     json = "{";
     json += "\"status\":\"ok\",";
     json += "\"enabled\":" + String(_scheduleConfig.enabled ? "true" : "false") + ",";
+    json += "\"away\":" + String(_scheduleConfig.away ? "true" : "false") + ",";
     json += "\"preHeatEnabled\":" + String(_scheduleConfig.preHeatEnabled ? "true" : "false") + ",";
     json += "\"windowDetectionEnabled\":" + String(_scheduleConfig.windowDetectionEnabled ? "true" : "false") + ",";
-    json += "\"activePreset\":\"" + String(_activePresetId) + "\",";
-    json += "\"activeBlockIndex\":" + String(_activeBlockIdx) + ",";
-    json += "\"activeBlockName\":\"" + String(getActiveBlockName()) + "\",";
-    json += "\"nextBlockIndex\":" + String(_nextBlockIdx) + ",";
-    json += "\"nextBlockName\":\"" + String(getNextBlockName()) + "\",";
-    json += "\"minsToNextBlock\":" + String(_minsToNextAnchor) + ",";
-    json += "\"activeAnchor\":\"" + String(getActiveBlockName()) + "\",";
-    json += "\"nextAnchor\":\"" + String(getNextBlockName()) + "\",";
-    json += "\"minsToNextAnchor\":" + String(_minsToNextAnchor) + ",";
+    json += "\"activeLevel\":\"" + String(getLevelName(_activeLevel)) + "\",";
+    json += "\"nextLevel\":\"" + String(getLevelName(_nextLevel)) + "\",";
+    json += "\"minsToNextSlot\":" + String(_minsToNextSlot) + ",";
     json += "\"preHeatActive\":" + String(_preHeatActive ? "true" : "false") + ",";
     json += "\"isWeekend\":" + String(timeAndWeather.isWeekend() ? "true" : "false") + ",";
+    json += "\"weekday\":\"" + getSlotsString(false) + "\",";
+    json += "\"weekend\":\"" + getSlotsString(true) + "\",";
     json += "\"openLoopBypass\":" + String(_openLoopBypass ? "true" : "false") + ",";
     json += "\"interlockDelaySec\":" + String(_interlockDelayMs / 1000) + ",";
     json += "\"boilerDelaySec\":" + String(_boilerDelayMs / 1000) + ",";
@@ -1319,47 +872,16 @@ String ThermalZoneManager::getScheduleJson() const {
         json += "{";
         json += "\"id\":" + String(_configs[i].id) + ",";
         json += "\"name\":\"" + String(_configs[i].name) + "\",";
+        for (uint8_t l = 0; l < LEVEL_COUNT; l++) {
+            json += "\"" + String(getLevelName(l)) + "\":" + String(_scheduleConfig.levelTemps[l][i], 1) + ",";
+        }
         json += "\"effectiveTarget\":" + String(getEffectiveTargetTemp(i), 1) + ",";
-        json += "\"staticTarget\":" + String(_configs[i].targetTemp, 1) + ",";
         json += "\"isManualHold\":" + String(_statuses[i].isManualHold ? "true" : "false") + ",";
         json += "\"windowPauseActive\":" + String(isWindowPauseActive(i) ? "true" : "false") + ",";
         json += "\"windowPauseRemainingSec\":" + String(getWindowPauseRemainingSec(i));
         json += "}";
     }
-    json += "],";
-
-    auto serializeProfile = [&](const ScheduleBlockConfig* blocks, uint8_t count, const char* profName) {
-        String s = "\"" + String(profName) + "\":{";
-        s += "\"count\":" + String(count) + ",";
-        s += "\"blocks\":[";
-        for (uint8_t i = 0; i < count; i++) {
-            if (i > 0) s += ",";
-            s += "{";
-            s += "\"index\":" + String(i) + ",";
-            s += "\"name\":\"" + String(blocks[i].name) + "\",";
-            s += "\"hour\":" + String(blocks[i].hour) + ",";
-            s += "\"minute\":" + String(blocks[i].minute) + ",";
-            s += "\"targets\":[" + String(blocks[i].targets[0], 1) + "," + String(blocks[i].targets[1], 1) + "," + String(blocks[i].targets[2], 1) + "]";
-            s += "}";
-        }
-        s += "]";
-
-        const char* legacyKeys[] = {"sleep", "wake", "away", "home"};
-        for (uint8_t i = 0; i < 4 && i < count; i++) {
-            s += ",\"" + String(legacyKeys[i]) + "\":{";
-            s += "\"name\":\"" + String(blocks[i].name) + "\",";
-            s += "\"hour\":" + String(blocks[i].hour) + ",";
-            s += "\"minute\":" + String(blocks[i].minute) + ",";
-            s += "\"targets\":[" + String(blocks[i].targets[0], 1) + "," + String(blocks[i].targets[1], 1) + "," + String(blocks[i].targets[2], 1) + "]";
-            s += "}";
-        }
-        s += "}";
-        return s;
-    };
-
-    json += serializeProfile(_scheduleConfig.weekday, _scheduleConfig.weekdayCount, "weekday") + ",";
-    json += serializeProfile(_scheduleConfig.weekend, _scheduleConfig.weekendCount, "weekend");
-    json += "}";
+    json += "]}";
     return json;
 }
 
@@ -1455,7 +977,7 @@ void ThermalZoneManager::update(BoilerRadioTrigger& boiler) {
         return; // Don't run standard logic during exercise
     }
 
-    // Periodic Bio-Schedule evaluation (every 10s)
+    // Periodic schedule evaluation (every 10s)
     if (_scheduleConfig.enabled && (now - _lastScheduleEvalMs >= 10000UL || _lastScheduleEvalMs == 0)) {
         _lastScheduleEvalMs = now;
         evaluateSchedule(now);
@@ -1556,7 +1078,7 @@ void ThermalZoneManager::update(BoilerRadioTrigger& boiler) {
                                 target - _configs[i].hysteresis,
                                 target,
                                 _configs[i].hysteresis,
-                                _scheduleConfig.enabled ? (_preHeatActive ? ", PRE-HEAT" : ", BIO") : "");
+                                _scheduleConfig.enabled ? (_preHeatActive ? ", PRE-HEAT" : ", SCHED") : "");
                         }
                     } else {
                         if (_statuses[i].currentTemp >= (target + _configs[i].hysteresis)) {
@@ -1569,7 +1091,7 @@ void ThermalZoneManager::update(BoilerRadioTrigger& boiler) {
                                 target,
                                 _configs[i].hysteresis,
                                 _statuses[i].isManualHold ? ", HOLD" : "",
-                                _scheduleConfig.enabled ? (_preHeatActive ? ", PRE-HEAT" : ", BIO") : "");
+                                _scheduleConfig.enabled ? (_preHeatActive ? ", PRE-HEAT" : ", SCHED") : "");
                         }
                     }
                 }

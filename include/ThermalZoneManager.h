@@ -19,33 +19,33 @@ enum ZoneState {
     ZONE_WINDOW_PAUSE   // Smart pause: open window detected (>1.2C drop in <5 min)
 };
 
-#define MAX_SCHEDULE_BLOCKS 8
+// Comfort levels: each zone has one temperature per level
+enum ComfortLevel : uint8_t {
+    LEVEL_DAY = 0,
+    LEVEL_NIGHT,
+    LEVEL_AWAY,
+    LEVEL_COUNT
+};
 
-struct ScheduleBlockConfig {
-    char name[32];
+#define MAX_SCHEDULE_SLOTS 8
+
+// From hour:minute on, all zones follow `level`
+struct ScheduleSlot {
     uint8_t hour;
     uint8_t minute;
-    float targets[MAX_THERMAL_ZONES];
+    uint8_t level;
 };
 
-typedef ScheduleBlockConfig BioAnchorConfig;
-
-enum BioAnchorId {
-    BIO_ANCHOR_SLEEP = 0,
-    BIO_ANCHOR_WAKE  = 1,
-    BIO_ANCHOR_AWAY  = 2,
-    BIO_ANCHOR_HOME  = 3,
-    BIO_ANCHORS_COUNT = 4
-};
-
-struct BioScheduleConfig {
+struct ScheduleConfig {
     bool enabled;
     bool preHeatEnabled;
     bool windowDetectionEnabled;
+    bool away;  // Global away override (ignores slots)
+    float levelTemps[LEVEL_COUNT][MAX_THERMAL_ZONES];
     uint8_t weekdayCount;
-    ScheduleBlockConfig weekday[MAX_SCHEDULE_BLOCKS];
+    ScheduleSlot weekday[MAX_SCHEDULE_SLOTS];
     uint8_t weekendCount;
-    ScheduleBlockConfig weekend[MAX_SCHEDULE_BLOCKS];
+    ScheduleSlot weekend[MAX_SCHEDULE_SLOTS];
 };
 
 struct WindowDetectionState {
@@ -81,7 +81,6 @@ struct ThermalZoneStatus {
     bool relayEngaged;
     uint32_t stateChangedMs;
     bool isManualHold;
-    BioAnchorId holdAnchor;
 };
 
 class ThermalZoneManager {
@@ -159,7 +158,7 @@ public:
     void setPumpOverrunMs(uint32_t ms);
     void setMinBoilerOffMs(uint32_t ms);
 
-    // Manual Hold (Temporary Override until next anchor)
+    // Manual Hold (Temporary Override until next schedule slot)
     bool isManualHoldActive(size_t index) const {
         if (index >= MAX_THERMAL_ZONES) return false;
         return _statuses[index].isManualHold;
@@ -171,54 +170,27 @@ public:
     void setPumpManual(bool on);
     void setBoilerManual(BoilerRadioTrigger& boiler, bool on);
 
-    // Smart Bio-Schedule & Natural Anchors
-    const BioScheduleConfig& getScheduleConfig() const { return _scheduleConfig; }
-    void setScheduleConfig(const BioScheduleConfig& cfg);
+    // Schedule: same slots for all zones, each slot selects a comfort level
+    const ScheduleConfig& getScheduleConfig() const { return _scheduleConfig; }
     void setScheduleEnabled(bool enabled);
     bool isScheduleEnabled() const { return _scheduleConfig.enabled; }
     void setPreHeatEnabled(bool enabled);
     bool isPreHeatEnabled() const { return _scheduleConfig.preHeatEnabled; }
     void setWindowDetectionEnabled(bool enabled);
     bool isWindowDetectionEnabled() const { return _scheduleConfig.windowDetectionEnabled; }
-
-    // Dynamic Time Block Management (Tado / Honeywell Style)
-    uint8_t getBlockCount(bool weekend) const { return weekend ? _scheduleConfig.weekendCount : _scheduleConfig.weekdayCount; }
-    const ScheduleBlockConfig* getBlocks(bool weekend) const { return weekend ? _scheduleConfig.weekend : _scheduleConfig.weekday; }
-    bool addBlock(bool weekend, const char* name, uint8_t hour, uint8_t minute, const float targets[MAX_THERMAL_ZONES]);
-    bool updateBlock(bool weekend, size_t index, const char* name, uint8_t hour, uint8_t minute, const float targets[MAX_THERMAL_ZONES]);
-    bool deleteBlock(bool weekend, size_t index);
-    size_t getActiveBlockIndex() const { return _activeBlockIdx; }
-    size_t getNextBlockIndex() const { return _nextBlockIdx; }
-    const char* getActiveBlockName() const;
-    const char* getNextBlockName() const;
-
-    // Bio-Schedule Customization (Backward compatibility)
-    bool updateAnchor(bool weekend, BioAnchorId anchor, uint8_t hour, uint8_t minute, const float targets[MAX_THERMAL_ZONES]);
-    bool setAnchorTime(bool weekend, BioAnchorId anchor, uint8_t hour, uint8_t minute);
-    bool setAnchorTargets(bool weekend, BioAnchorId anchor, const float targets[MAX_THERMAL_ZONES]);
-    bool setAnchorTarget(bool weekend, BioAnchorId anchor, size_t zoneIndex, float target);
-    bool setAnchorName(bool weekend, BioAnchorId anchor, const char* name);
-
-    // Presets Engine
-    String getPresetsJson() const;
-    bool applyPreset(const char* presetId);
-    bool savePreset(const char* presetId, const char* name, uint8_t daysMask = 0x7F);
-    bool resetPreset(const char* presetId);
+    void setAway(bool away);
+    bool isAway() const { return _scheduleConfig.away; }
+    bool setLevelTemp(size_t index, ComfortLevel level, float temp);
+    bool setSlots(bool weekend, const char* spec);  // e.g. "06:30=day,22:30=night"
+    String getSlotsString(bool weekend) const;
     void resetScheduleToDefault();
-    const char* getActivePresetId() const { return _activePresetId; }
-    uint8_t getPresetDays(const char* presetId) const;
-    bool setPresetDays(const char* presetId, uint8_t daysMask);
+    static ScheduleConfig getFactoryDefaultSchedule();
+    static const char* getLevelName(uint8_t level);
+    static int parseLevel(const char* name);  // -1 if invalid
 
-    static BioScheduleConfig getFactoryDefaultSchedule();
-    static BioScheduleConfig getFactoryEcoSchedule();
-    static BioScheduleConfig getFactoryWfhSchedule();
-    static BioAnchorId parseAnchorId(const char* name);
-
-    BioAnchorId getActiveAnchor() const { return _activeAnchor; }
-    BioAnchorId getNextAnchor() const { return _nextAnchor; }
-    uint32_t getMinutesToNextAnchor() const { return _minsToNextAnchor; }
-    const char* getAnchorName(BioAnchorId id) const;
-    const char* getActiveAnchorName() const { return getAnchorName(_activeAnchor); }
+    uint8_t getActiveLevel() const { return _activeLevel; }
+    uint8_t getNextLevel() const { return _nextLevel; }
+    uint32_t getMinutesToNextSlot() const { return _minsToNextSlot; }
     bool isPreHeatActive() const { return _preHeatActive; }
 
     // Open Window Detection State
@@ -230,7 +202,7 @@ public:
     uint32_t getWindowLastDetectionEpoch(size_t index) const;
     uint32_t getWindowLastDetectionDurationSec(size_t index) const;
 
-    // Effective Target (considers BioSchedule & Pre-Heat)
+    // Effective Target (considers hold, away, schedule & pre-heat)
     float getEffectiveTargetTemp(size_t index) const;
 
     // Schedule JSON Serialization
@@ -247,14 +219,12 @@ private:
     ThermalZoneConfig _configs[MAX_THERMAL_ZONES];
     ThermalZoneStatus _statuses[MAX_THERMAL_ZONES];
 
-    // Bio-Schedule & Climate State
-    BioScheduleConfig _scheduleConfig;
-    char _activePresetId[16];
-    size_t _activeBlockIdx;
-    size_t _nextBlockIdx;
-    BioAnchorId _activeAnchor;
-    BioAnchorId _nextAnchor;
-    uint32_t _minsToNextAnchor;
+    // Schedule State
+    ScheduleConfig _scheduleConfig;
+    int16_t _activeSlotKey;  // weekend * 16 + slot index, -1 = none
+    uint8_t _activeLevel;
+    uint8_t _nextLevel;
+    uint32_t _minsToNextSlot;
     bool _preHeatActive;
     WindowDetectionState _windowStates[MAX_THERMAL_ZONES];
     uint32_t _lastScheduleEvalMs;
