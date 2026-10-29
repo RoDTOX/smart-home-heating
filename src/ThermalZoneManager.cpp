@@ -51,6 +51,8 @@ ThermalZoneManager::ThermalZoneManager()
         _windowStates[i].dropInsightLogged = false;
         _windowStates[i].lastDetectionEpoch = 0;
         _windowStates[i].lastDetectionDurationSec = 0;
+        _tpi[i] = {0, 0, 0.0f, 0.0f, 0.0f};
+        _configs[i].tempOffset = 0.0f;
     }
 
     // Default Zone 1
@@ -128,6 +130,7 @@ void ThermalZoneManager::loadFromPreferences() {
         _configs[i].hysteresis = prefs.getFloat((p + "hyst").c_str(), _configs[i].hysteresis);
         _configs[i].enabled = prefs.getBool((p + "en").c_str(), _configs[i].enabled);
         _configs[i].windowDropThreshold = prefs.getFloat((p + "wdrop").c_str(), 1.2f);
+        _configs[i].tempOffset = prefs.getFloat((p + "ofs").c_str(), 0.0f);
     }
     prefs.end();
 
@@ -166,6 +169,7 @@ void ThermalZoneManager::saveToPreferences() {
         prefs.putFloat((p + "hyst").c_str(), _configs[i].hysteresis);
         prefs.putBool((p + "en").c_str(), _configs[i].enabled);
         prefs.putFloat((p + "wdrop").c_str(), _configs[i].windowDropThreshold);
+        prefs.putFloat((p + "ofs").c_str(), _configs[i].tempOffset);
     }
     prefs.end();
     Serial.println(F("[Thermal] Zone configs successfully persisted to NVS."));
@@ -435,6 +439,16 @@ void ThermalZoneManager::setRelayPin(size_t index, uint8_t pin) {
     }
 }
 
+bool ThermalZoneManager::setTempOffset(size_t index, float offset) {
+    if (index >= MAX_THERMAL_ZONES || offset < -3.0f || offset > 3.0f) return false;
+    if (fabsf(_configs[index].tempOffset - offset) > 0.01f) {
+        _configs[index].tempOffset = offset;
+        saveToPreferences();
+    }
+    netConsole.printf("[Thermal] Zone %u (%s) sensor offset %+.1f C\n", _configs[index].id, _configs[index].name, offset);
+    return true;
+}
+
 void ThermalZoneManager::mapZone(size_t index, const char* name, const char* sensorMac, const char* sensorName, uint8_t relayPin, float targetTemp, float hysteresis, bool enabled) {
     if (index < MAX_THERMAL_ZONES) {
         if (name && strlen(name) > 0) strncpy(_configs[index].name, name, sizeof(_configs[index].name) - 1);
@@ -681,9 +695,9 @@ void ThermalZoneManager::evaluateSchedule(uint32_t now) {
     _activeLevel = slots[activeIdx].level;
     _nextLevel = slots[nextIdx].level;
 
-    // Pre-Heat: start 45 min early if the next level is warmer in any zone
+    // Pre-Heat: start early (weather-dependent lead) if the next level is warmer in any zone
     _preHeatActive = false;
-    if (_scheduleConfig.preHeatEnabled && _minsToNextSlot <= 45) {
+    if (_scheduleConfig.preHeatEnabled && _minsToNextSlot <= getPreHeatLeadMinutes()) {
         for (size_t i = 0; i < MAX_THERMAL_ZONES; i++) {
             if (_scheduleConfig.levelTemps[_nextLevel][i] > _scheduleConfig.levelTemps[_activeLevel][i] + 0.2f) {
                 _preHeatActive = true;
@@ -717,6 +731,45 @@ void ThermalZoneManager::evaluateSchedule(uint32_t now) {
             }
         }
     }
+}
+
+uint32_t ThermalZoneManager::getPreHeatLeadMinutes() const {
+    // Screed needs hours: 2 h at 5 C outdoors, 3.5 h at -5 C (45 min .. 4 h); 90 min without weather data
+    if (!timeAndWeather.isWeatherValid()) return 90;
+    int lead = 120 + (int)((5.0f - timeAndWeather.getOutdoorTemperature()) * 9.0f);
+    return (uint32_t)constrain(lead, 45, 240);
+}
+
+bool ThermalZoneManager::evaluateTpi(size_t index, float target, uint32_t now) {
+    TpiState& t = _tpi[index];
+    float temp = _statuses[index].currentTemp;
+    float err = target - temp;
+    bool cycleDone = t.cycleStartMs != 0 && now - t.cycleStartMs >= TPI_CYCLE_MS;
+
+    // New cycle every hour, or immediately when the target moves (schedule level change, boost)
+    if (t.cycleStartMs == 0 || cycleDone || fabsf(target - t.target) > 0.4f) {
+        // Learn the base duty that holds the target; only near target so big setpoint jumps do not wind it up
+        if (cycleDone && fabsf(err) < 1.0f) {
+            t.integral = constrain(t.integral + TPI_KI * err, 0.0f, TPI_MAX_INTEGRAL);
+        }
+        t.duty = constrain(err / TPI_BAND_C + t.integral, 0.0f, 1.0f);
+        uint32_t onMs = (uint32_t)(t.duty * TPI_CYCLE_MS);
+        if (onMs < TPI_MIN_ON_MS) onMs = 0;
+        else if (TPI_CYCLE_MS - onMs < TPI_MIN_ON_MS) onMs = TPI_CYCLE_MS;
+        t.cycleStartMs = now;
+        t.onMs = onMs;
+        t.target = target;
+        netConsole.printf("[Thermal][TPI] Zone %u (%s): %.2f C -> target %.1f C, duty %u%% (learned %u%%), valve %u min/h\n",
+            _configs[index].id, _configs[index].name, temp, target,
+            (unsigned int)(t.duty * 100), (unsigned int)(t.integral * 100), (unsigned int)(onMs / 60000UL));
+    }
+
+    // Overshoot cut: stop for the rest of the cycle once above target + hysteresis (e.g. solar gain)
+    uint32_t elapsed = now - t.cycleStartMs;
+    if (temp >= target + _configs[index].hysteresis && elapsed < t.onMs) {
+        t.onMs = elapsed;
+    }
+    return elapsed < t.onMs;
 }
 
 float ThermalZoneManager::getEffectiveTargetTemp(size_t index) const {
@@ -998,7 +1051,7 @@ void ThermalZoneManager::update(BoilerRadioTrigger& boiler) {
         if (strlen(_configs[i].sensorMac) > 0) {
             const BleSensorData* ble = bleScanner.findSensorByMac(_configs[i].sensorMac);
             if (ble && ble->valid && (millis() - ble->lastSeenMs < timeoutMs)) {
-                currentTemp = ble->temperature;
+                currentTemp = ble->temperature + _configs[i].tempOffset;
                 found = true;
             }
         }
@@ -1006,7 +1059,7 @@ void ThermalZoneManager::update(BoilerRadioTrigger& boiler) {
         if (!found && strlen(_configs[i].sensorName) > 0) {
             const BleSensorData* ble = bleScanner.findSensorByName(_configs[i].sensorName);
             if (ble && ble->valid && (millis() - ble->lastSeenMs < timeoutMs)) {
-                currentTemp = ble->temperature;
+                currentTemp = ble->temperature + _configs[i].tempOffset;
                 found = true;
             }
         }
@@ -1062,38 +1115,13 @@ void ThermalZoneManager::update(BoilerRadioTrigger& boiler) {
                 _statuses[i].frostActive = false;
             }
 
-            // Normal Hysteresis loop (only if autoMode and not forced by frost guard)
+            // Time-proportional control (only if autoMode and not forced by frost guard)
             if (_autoMode && !_statuses[i].frostActive) {
                 if (_windowStates[i].pauseActive) {
                     _statuses[i].demand = false;
                     _statuses[i].state = ZONE_WINDOW_PAUSE;
                 } else {
-                    float target = getEffectiveTargetTemp(i);
-                    if (!_statuses[i].demand) {
-                        if (_statuses[i].currentTemp <= (target - _configs[i].hysteresis)) {
-                            _statuses[i].demand = true;
-                            netConsole.printf("[Thermal] Zone %u (%s) heat demand: current %.2f C <= start threshold %.2f C (target: %.1f C, hyst: +/-%.2f C%s)\n",
-                                _configs[i].id, _configs[i].name,
-                                _statuses[i].currentTemp,
-                                target - _configs[i].hysteresis,
-                                target,
-                                _configs[i].hysteresis,
-                                _scheduleConfig.enabled ? (_preHeatActive ? ", PRE-HEAT" : ", SCHED") : "");
-                        }
-                    } else {
-                        if (_statuses[i].currentTemp >= (target + _configs[i].hysteresis)) {
-                            _statuses[i].demand = false;
-                            // Note: State transition to ZONE_IDLE and relay cut-off are safely executed in Step 2 below
-                            netConsole.printf("[Thermal] Zone %u (%s) target reached: current %.2f C >= stop threshold %.2f C (target: %.1f C, hyst: +/-%.2f C%s%s)\n",
-                                _configs[i].id, _configs[i].name,
-                                _statuses[i].currentTemp,
-                                target + _configs[i].hysteresis,
-                                target,
-                                _configs[i].hysteresis,
-                                _statuses[i].isManualHold ? ", HOLD" : "",
-                                _scheduleConfig.enabled ? (_preHeatActive ? ", PRE-HEAT" : ", SCHED") : "");
-                        }
-                    }
+                    _statuses[i].demand = evaluateTpi(i, getEffectiveTargetTemp(i), now);
                 }
             }
         } else {

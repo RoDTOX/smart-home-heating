@@ -143,13 +143,16 @@ function renderAdmin() {
       `<tr><td>${esc(z.name)}</td>${LEVELS.map(l => `<td><input class="n" type="number" step="0.5" min="5" max="30" data-z="${i + 1}" data-l="${l}" value="${z[l].toFixed(1)}"></td>`).join("")}</tr>`).join("");
   }
   const opts = Z.zones.map((z, i) => `<option value="${i}">${esc(z.name)}</option>`).join("");
-  $("sensors").innerHTML = "<tr><th>Nume</th><th>MAC</th><th>°C</th><th>%</th><th>Bat</th><th>RSSI</th><th>Văzut</th><th>Zonă</th></tr>" + B.map(s => {
+  // Do not re-render a table while one of its inputs is focused (typing / open dropdown)
+  const busy = id => $(id).contains(document.activeElement);
+  if (!busy("sensors")) $("sensors").innerHTML = "<tr><th>Nume</th><th>MAC</th><th>°C</th><th>%</th><th>Bat</th><th>RSSI</th><th>Văzut</th><th>Zonă</th></tr>" + B.map(s => {
     const zi = Z.zones.findIndex(z => (z.sensorMac || "").toUpperCase() === s.mac.toUpperCase());
     return `<tr><td>${esc(s.name)}</td><td>${esc(s.mac)}</td><td>${s.temp.toFixed(1)}</td><td>${Math.round(s.hum)}</td><td>${s.bat}%</td><td>${s.rssi}</td><td>${s.ageSec}s</td>
       <td><select data-mac="${esc(s.mac)}"><option value="">–</option>${opts}</select></td></tr>`.replace(`value="${zi}"`, `value="${zi}" selected`);
   }).join("");
-  $("zones").innerHTML = "<tr><th>Zonă</th><th>Stare</th><th>Robinet</th><th>Cerere</th><th>Țintă</th></tr>" + Z.zones.map(z =>
-    `<tr><td>${esc(z.name)}</td><td>${esc(z.state)}</td><td>${z.relayEngaged ? "deschis " + Math.round(z.openSec / 60) + " min" : "închis"}</td><td>${z.demand ? "da" : "nu"}</td><td>${z.effectiveTarget.toFixed(1)}°</td></tr>`).join("");
+  if (!busy("zones")) $("zones").innerHTML = "<tr><th>Zonă</th><th>Stare</th><th>Robinet</th><th>Duty (învățat)</th><th>Țintă</th><th>Offset senzor</th></tr>" + Z.zones.map((z, i) =>
+    `<tr><td>${esc(z.name)}</td><td>${esc(z.state)}</td><td>${z.relayEngaged ? "deschis " + Math.round(z.openSec / 60) + " min" : "închis"}</td><td>${z.duty}% (${z.learnedDuty}%)</td><td>${z.effectiveTarget.toFixed(1)}°</td>
+     <td><input class="n" type="number" step="0.1" min="-3" max="3" data-ofs="${i}" value="${z.tempOffset.toFixed(1)}"></td></tr>`).join("");
   const rt = Z.boilerRuntime || {};
   const rows = ST ? [["Firmware", `${ST.firmwareVersion} (${ST.gitCommit})`], ["Uptime", Math.round(ST.uptimeSec / 3600) + " h"], ["Heap liber", Math.round(ST.freeHeap / 1024) + " KB"],
     ["Wi-Fi", ST.rssi + " dBm"], ["Sănătate", (D ? D.healthScore : "--") + "%"], ["Ardere azi", Math.round((rt.todaySec || 0) / 60) + " min"], ["Ardere luna aceasta", Math.round((rt.thisMonthSec || 0) / 3600) + " h"]] : [];
@@ -192,6 +195,10 @@ schedForm.addEventListener("focusin", () => editing = true);
 schedForm.addEventListener("focusout", e => { if (!schedForm.contains(e.relatedTarget)) editing = false; });
 $("admin").addEventListener("change", async e => {
   const el = e.target;
+  if (el.dataset.ofs !== undefined) {
+    await api("/api/setup/map-zone", {zone: el.dataset.ofs, offset: el.value});
+    return refresh();
+  }
   if (el.dataset.mac !== undefined && el.value !== "") {
     await api("/api/setup/map-zone", {zone: el.value, mac: el.dataset.mac});
     refresh();

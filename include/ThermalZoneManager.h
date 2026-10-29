@@ -8,6 +8,22 @@
 
 #define MAX_THERMAL_ZONES 3
 
+// Time-proportional (TPI) control: each hour the valve is open for duty * cycle.
+// Floor screed reacts in hours, so dosing energy beats ON/OFF hysteresis (no overshoot).
+#define TPI_CYCLE_MS      (60UL * 60UL * 1000UL)
+#define TPI_MIN_ON_MS     (10UL * 60UL * 1000UL)  // Wax actuators need 3-5 min just to open
+#define TPI_BAND_C        1.5f                     // 1.5 C below target -> 100 %
+#define TPI_KI            0.05f                    // Learned duty change per hour per C of error
+#define TPI_MAX_INTEGRAL  0.6f
+
+struct TpiState {
+    uint32_t cycleStartMs;
+    uint32_t onMs;
+    float target;
+    float duty;      // Duty of the current cycle (0..1)
+    float integral;  // Learned base duty that holds the target (heat loss)
+};
+
 enum ZoneState {
     ZONE_DISABLED = 0,
     ZONE_IDLE,          // Target reached, valve closed
@@ -69,6 +85,7 @@ struct ThermalZoneConfig {
     float hysteresis;
     bool enabled;
     float windowDropThreshold; // Drop in <=5m to trigger pause (0.8 - 2.0 C, default 1.2 C)
+    float tempOffset;          // Sensor calibration offset added to the reading (-3..+3 C)
 };
 
 struct ThermalZoneStatus {
@@ -152,6 +169,12 @@ public:
     void setSensorName(size_t index, const char* sensorName);
     void setSensorMac(size_t index, const char* sensorMac);
     void setRelayPin(size_t index, uint8_t pin);
+    bool setTempOffset(size_t index, float offset);
+
+    // TPI control state (for diagnostics)
+    float getDuty(size_t index) const { return index < MAX_THERMAL_ZONES ? _tpi[index].duty : 0.0f; }
+    float getLearnedDuty(size_t index) const { return index < MAX_THERMAL_ZONES ? _tpi[index].integral : 0.0f; }
+    uint32_t getPreHeatLeadMinutes() const;
     void mapZone(size_t index, const char* name, const char* sensorMac, const char* sensorName, uint8_t relayPin, float targetTemp, float hysteresis, bool enabled);
     void setAutoMode(bool autoMode);
     void setInterlockDelayMs(uint32_t ms);
@@ -227,6 +250,7 @@ private:
     uint32_t _minsToNextSlot;
     bool _preHeatActive;
     WindowDetectionState _windowStates[MAX_THERMAL_ZONES];
+    TpiState _tpi[MAX_THERMAL_ZONES];
     uint32_t _lastScheduleEvalMs;
 
     bool _autoMode;
@@ -265,6 +289,7 @@ private:
     void checkAntiSeizeSchedule(uint32_t now);
     void evaluateSchedule(uint32_t now);
     void evaluateWindowDetection(size_t index, float currentTemp, uint32_t now);
+    bool evaluateTpi(size_t index, float target, uint32_t now);
 };
 
 extern ThermalZoneManager thermalZones;

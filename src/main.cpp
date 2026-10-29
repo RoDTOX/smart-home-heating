@@ -150,6 +150,7 @@ void printHelp() {
       "  SCHEDULE SLOTS <weekday|weekend> <HH:MM=level,...> -> e.g. SCHEDULE SLOTS weekday 06:30=day,22:30=night\r\n"
       "  SCHEDULE RESET        -> Restore factory default schedule\r\n"
       "  AWAY <ON|OFF>         -> Global away mode (all zones at away level)\r\n"
+      "  OFFSET <z> <C>        -> Sensor calibration offset for zone (e.g. OFFSET 2 -0.3)\r\n"
       "  SCHEDULE PREHEAT <ON|OFF> -> Predictive pre-heating with thermal inertia calculation\r\n"
       "  SCHEDULE WINDOW <ON|OFF>  -> Rapid temperature drop open window detection guard\r\n\r\n"
       "[Telemetry, Sensors & Diagnostics]\r\n"
@@ -386,6 +387,9 @@ void handleApiZones() {
     }
     json += "\"openSec\":" + String(openSec) + ",";
     json += "\"isManualHold\":" + String(st.isManualHold ? "true" : "false") + ",";
+    json += "\"duty\":" + String((int)(thermalZones.getDuty(i) * 100)) + ",";
+    json += "\"learnedDuty\":" + String((int)(thermalZones.getLearnedDuty(i) * 100)) + ",";
+    json += "\"tempOffset\":" + String(cfg.tempOffset, 1) + ",";
     json += "\"state\":\"" + String(thermalZones.getStateStr(st.state)) + "\"";
     json += "}";
   }
@@ -650,6 +654,9 @@ void handleApiSetupMapZone() {
 
   thermalZones.mapZone(z, name.c_str(), mac.c_str(), sname.c_str(), pin, target,
                        hyst, en);
+  if (server.hasArg("offset")) {
+    thermalZones.setTempOffset(z, server.arg("offset").toFloat());
+  }
   server.sendHeader("Access-Control-Allow-Origin", "*");
   server.send(200, "application/json",
               F("{\"status\":\"ok\",\"message\":\"Zone configuration updated "
@@ -1431,6 +1438,12 @@ void handleSerialCommand(String cmd) {
     netConsole.printf("  Status:   %s (Fetched %u s ago)\n",
                       timeAndWeather.isWeatherValid() ? "VALID" : "PENDING",
                       timeAndWeather.getWeatherAgeSec());
+  } else if (upperCmd.startsWith("OFFSET ")) {
+    unsigned z;
+    float ofs;
+    if (sscanf(cmd.c_str() + 7, "%u %f", &z, &ofs) != 2 || z < 1 || !thermalZones.setTempOffset(z - 1, ofs)) {
+      netConsole.println(F("[OFFSET] Syntax: OFFSET <zone 1..3> <-3.0..+3.0>  (added to sensor reading)"));
+    }
   } else if (upperCmd == "AWAY ON" || upperCmd == "AWAY OFF") {
     thermalZones.setAway(upperCmd == "AWAY ON");
   } else if (upperCmd.startsWith("SCHEDULE LEVEL ")) {
