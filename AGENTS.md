@@ -28,7 +28,7 @@ The repo grew in every direction. Work happens in phases on a branch:
 ## 3. Engineering rules
 
 - **Smallest change that works.** Reuse existing modules before writing new ones.
-- **No new libraries** without user confirmation. Vendored: `ArduinoJson`, `PubSubClient`, `NimBLE-Arduino`.
+- **No new libraries** without user confirmation. Vendored: `ArduinoJson`, `NimBLE-Arduino`.
 - **Never cut safety corners:**
   - actuator opening interlock (120–180 s) before boiler ON
   - pump overrun (180 s)
