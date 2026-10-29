@@ -73,6 +73,9 @@ ThermalZoneManager::ThermalZoneManager()
     _configs[0].hysteresis = DEFAULT_HYSTERESIS;
     _configs[0].enabled = true;
     _configs[0].windowDropThreshold = 1.2f;
+    _configs[0].floorType = FLOOR_TILES;
+    _configs[0].screedThicknessCm = 5.0f;
+    _configs[0].insulation = INSULATION_MEDIUM;
 
     // Default Zone 2
     _configs[1].id = 2;
@@ -84,6 +87,9 @@ ThermalZoneManager::ThermalZoneManager()
     _configs[1].hysteresis = DEFAULT_HYSTERESIS;
     _configs[1].enabled = true;
     _configs[1].windowDropThreshold = 1.2f;
+    _configs[1].floorType = FLOOR_TILES;
+    _configs[1].screedThicknessCm = 5.0f;
+    _configs[1].insulation = INSULATION_MEDIUM;
 
     // Default Zone 3
     _configs[2].id = 3;
@@ -95,6 +101,9 @@ ThermalZoneManager::ThermalZoneManager()
     _configs[2].hysteresis = DEFAULT_HYSTERESIS;
     _configs[2].enabled = true;
     _configs[2].windowDropThreshold = 1.2f;
+    _configs[2].floorType = FLOOR_PARQUET;
+    _configs[2].screedThicknessCm = 5.0f;
+    _configs[2].insulation = INSULATION_MEDIUM;
 
     for (size_t i = 0; i < MAX_THERMAL_ZONES; i++) {
         _statuses[i].state = ZONE_IDLE;
@@ -109,6 +118,14 @@ ThermalZoneManager::ThermalZoneManager()
         _statuses[i].holdAnchor = BIO_ANCHOR_HOME;
         _statuses[i].holdUntilMs = 0;
         _statuses[i].holdRestoreTemp = DEFAULT_SETPOINT_TEMP;
+        const CalibratedMetrics& m = _thermoEngine.getMetrics(i);
+        _statuses[i].tDeadMin = m.tDeadMin;
+        _statuses[i].heatingSlope = m.heatingSlope;
+        _statuses[i].naturalLossRate = m.naturalLossRate;
+        _statuses[i].overshootDelta = m.overshootDelta;
+        _statuses[i].preheatLeadMin = m.preheatLeadMin;
+        _statuses[i].windowOpen = false;
+        _statuses[i].windowDropRate = 0.0f;
     }
     _awayPrevPreset[0] = '\0';
 }
@@ -148,6 +165,22 @@ void ThermalZoneManager::loadFromPreferences() {
         _configs[i].hysteresis = prefs.getFloat((p + "hyst").c_str(), _configs[i].hysteresis);
         _configs[i].enabled = prefs.getBool((p + "en").c_str(), _configs[i].enabled);
         _configs[i].windowDropThreshold = prefs.getFloat((p + "wdrop").c_str(), 1.2f);
+    }
+    _thermoEngine.loadFromPreferences(prefs);
+    for (size_t i = 0; i < MAX_THERMAL_ZONES; i++) {
+        const RoomCalibrationConfig& r = _thermoEngine.getRoomConfig(i);
+        _configs[i].floorType = r.floorType;
+        _configs[i].screedThicknessCm = r.screedThicknessCm;
+        _configs[i].insulation = r.insulation;
+        const CalibratedMetrics& m = _thermoEngine.getMetrics(i);
+        _statuses[i].tDeadMin = m.tDeadMin;
+        _statuses[i].heatingSlope = m.heatingSlope;
+        _statuses[i].naturalLossRate = m.naturalLossRate;
+        _statuses[i].overshootDelta = m.overshootDelta;
+        _statuses[i].preheatLeadMin = m.preheatLeadMin;
+        _statuses[i].windowOpen = _thermoEngine.isWindowOpen(i);
+        _statuses[i].windowDropRate = _thermoEngine.getWindowFirstDerivative(i);
+        _thermoEngine.setWindowDropThreshold(i, _configs[i].windowDropThreshold);
     }
     prefs.end();
 
@@ -193,6 +226,7 @@ void ThermalZoneManager::saveToPreferences() {
         prefs.putBool((p + "en").c_str(), _configs[i].enabled);
         prefs.putFloat((p + "wdrop").c_str(), _configs[i].windowDropThreshold);
     }
+    _thermoEngine.saveToPreferences(prefs);
     prefs.end();
     Serial.println(F("[Thermal] Zone configs successfully persisted to NVS."));
 }
@@ -264,6 +298,7 @@ void ThermalZoneManager::applyRelay(uint8_t pin, bool active) {
 void ThermalZoneManager::begin() {
     loadFromPreferences();
     loadSchedulePreferences();
+    _thermoEngine.begin();
     evaluateSchedule(millis());
 
     _bootWarmupActive = true;
@@ -1246,13 +1281,23 @@ void ThermalZoneManager::evaluateSchedule(uint32_t now) {
     _activeAnchor = (BioAnchorId)(activeIdx < BIO_ANCHORS_COUNT ? activeIdx : 3);
     _nextAnchor = (BioAnchorId)(nextIdx < BIO_ANCHORS_COUNT ? nextIdx : 0);
 
-    // Pre-Heat calculation (anticipative underfloor heating)
+    // Dynamic Pre-Heat calculation (Requirement R1: 2R2C model anticipative preheat)
     _preHeatActive = false;
-    if (_scheduleConfig.preHeatEnabled && _minsToNextAnchor <= PREHEAT_LEAD_MIN) {
+    if (_scheduleConfig.preHeatEnabled) {
+        float outdoor = timeAndWeather.isWeatherValid() ? timeAndWeather.getOutdoorTemperature() : 5.0f;
+        bool weatherValid = timeAndWeather.isWeatherValid();
         for (size_t i = 0; i < MAX_THERMAL_ZONES; i++) {
-            if (blocks[nextIdx].targets[i] > blocks[activeIdx].targets[i] + 0.2f) {
+            if (!_configs[i].enabled) continue;
+            float targetNext = blocks[nextIdx].targets[i];
+            float targetActive = blocks[activeIdx].targets[i];
+            float curTemp = _statuses[i].sensorValid ? _statuses[i].currentTemp : targetActive;
+            if (_windowStates[i].pauseActive && _windowStates[i].baselineTemp > 0.0f) {
+                curTemp = _windowStates[i].baselineTemp;
+            }
+            uint32_t leadMin = _thermoEngine.calculatePreheatLeadMin(i, curTemp, targetNext, outdoor, weatherValid);
+            _statuses[i].preheatLeadMin = leadMin;
+            if (!_windowStates[i].pauseActive && targetNext > targetActive + 0.2f && _minsToNextAnchor <= leadMin) {
                 _preHeatActive = true;
-                break;
             }
         }
     }
@@ -1308,75 +1353,71 @@ void ThermalZoneManager::evaluateWindowDetection(size_t index, float currentTemp
     if (index >= MAX_THERMAL_ZONES) return;
     if (!_scheduleConfig.windowDetectionEnabled) {
         _windowStates[index].pauseActive = false;
+        _thermoEngine.clearWindowPause(index, now);
         return;
     }
 
-    float dropThreshold = (_configs[index].windowDropThreshold >= 0.5f) ? _configs[index].windowDropThreshold : 1.2f;
+    float outdoorTemp = timeAndWeather.isWeatherValid() ? timeAndWeather.getOutdoorTemperature() : 10.0f;
+    bool outdoorValid = timeAndWeather.isWeatherValid();
 
-    if (!_windowStates[index].pauseActive) {
-        if (_windowStates[index].baselineMs == 0 || (now - _windowStates[index].baselineMs > 300000UL)) {
-            _windowStates[index].baselineTemp = currentTemp;
-            _windowStates[index].baselineMs = now;
-            _windowStates[index].dropInsightLogged = false;
-        } else if (currentTemp > _windowStates[index].baselineTemp) {
-            _windowStates[index].baselineTemp = currentTemp;
-            _windowStates[index].baselineMs = now;
-            _windowStates[index].dropInsightLogged = false;
-        } else if ((_windowStates[index].baselineTemp - currentTemp) >= dropThreshold) {
-            _windowStates[index].pauseActive = true;
-            _windowStates[index].pauseStartMs = now;
-            _windowStates[index].pauseMinTemp = currentTemp;
-            time_t nowEpoch = time(nullptr);
-            _windowStates[index].lastDetectionEpoch = (nowEpoch >= 1700000000) ? (uint32_t)nowEpoch : (now / 1000);
-            netConsole.printf("[Thermal][WINDOW] Open window detected on Zone %u (%s): temp dropped %.2f \xC2\xB0""C in %us! (threshold: %.1f C). Suspending heating for 30m.\n",
-                              _configs[index].id, _configs[index].name,
-                              _windowStates[index].baselineTemp - currentTemp,
-                              (now - _windowStates[index].baselineMs) / 1000,
-                              dropThreshold);
-        } else if ((_windowStates[index].baselineTemp - currentTemp) >= 0.35f && !_windowStates[index].dropInsightLogged) {
-            _windowStates[index].dropInsightLogged = true;
-            netConsole.printf("[Thermal][INSIGHT] Rapid cooling detected on Zone %u (%s): %.2f C -> %.2f C (-%.2f C in %us, possible aeration)\n",
-                              _configs[index].id, _configs[index].name,
-                              _windowStates[index].baselineTemp, currentTemp,
-                              _windowStates[index].baselineTemp - currentTemp,
-                              (now - _windowStates[index].baselineMs) / 1000);
+    float dropThreshold = (_configs[index].windowDropThreshold >= 0.2f && _configs[index].windowDropThreshold <= 3.0f)
+                              ? _configs[index].windowDropThreshold
+                              : 1.2f;
+    _thermoEngine.setWindowDropThreshold(index, dropThreshold);
+    _thermoEngine.evaluateWindow(index, currentTemp, outdoorTemp, outdoorValid, now);
+
+    bool wasActive = _windowStates[index].pauseActive;
+    bool nowActive = _thermoEngine.isWindowOpen(index);
+    _windowStates[index].pauseActive = nowActive;
+    _windowStates[index].lastDetectionEpoch = _thermoEngine.getWindowLastDetectionEpoch(index);
+    _windowStates[index].lastDetectionDurationSec = _thermoEngine.getWindowLastDetectionDurationSec(index);
+
+    if (!wasActive && nowActive) {
+        _windowStates[index].pauseStartMs = now;
+        _windowStates[index].pauseMinTemp = currentTemp;
+        _windowStates[index].baselineTemp = currentTemp;
+        diagEngine.raiseDtc("DTC-301", "Open window detected - heating paused", SEV_WARNING);
+        netConsole.printf("[Thermal][WINDOW] Open window detected on Zone %u (%s): drop rate %.3f C/min, d2T/dt2=%.4f! Suspending heating for 30m.\n",
+                          _configs[index].id, _configs[index].name,
+                          _thermoEngine.getWindowFirstDerivative(index),
+                          _thermoEngine.getWindowSecondDerivative(index));
+    } else if (wasActive && !nowActive) {
+        if (_statuses[index].state == ZONE_WINDOW_PAUSE) {
+            _statuses[index].state = ZONE_IDLE;
+            _statuses[index].stateChangedMs = now;
         }
-    } else {
-        if (currentTemp < _windowStates[index].pauseMinTemp) {
-            _windowStates[index].pauseMinTemp = currentTemp;
+        bool anyWindowPause = false;
+        for (size_t z = 0; z < MAX_THERMAL_ZONES; z++) {
+            if (_windowStates[z].pauseActive) {
+                anyWindowPause = true;
+                break;
+            }
         }
-        bool timeoutExpired = (now - _windowStates[index].pauseStartMs >= 1800000UL); // 30 min
-        bool rebounded = (currentTemp >= _windowStates[index].pauseMinTemp + 0.6f);
-        if (timeoutExpired || rebounded) {
-            _windowStates[index].lastDetectionDurationSec = (now - _windowStates[index].pauseStartMs) / 1000;
-            _windowStates[index].pauseActive = false;
-            _windowStates[index].baselineTemp = currentTemp;
-            _windowStates[index].baselineMs = now;
-            netConsole.printf("[Thermal][WINDOW] Zone %u (%s) window pause cleared (%s, lasted %us). Resuming normal thermostat loop.\n",
-                              _configs[index].id, _configs[index].name,
-                              timeoutExpired ? "30 min timeout" : "temp rebounded +0.6 \xC2\xB0""C",
-                              _windowStates[index].lastDetectionDurationSec);
+        if (!anyWindowPause) {
+            diagEngine.clearDtc("DTC-301");
         }
+        netConsole.printf("[Thermal][WINDOW] Zone %u (%s) window pause cleared (%us duration). Resuming normal thermostat loop.\n",
+                          _configs[index].id, _configs[index].name,
+                          _windowStates[index].lastDetectionDurationSec);
     }
 }
 
 bool ThermalZoneManager::isWindowPauseActive(size_t index) const {
     if (index >= MAX_THERMAL_ZONES) return false;
-    return _windowStates[index].pauseActive;
+    return _thermoEngine.isWindowOpen(index);
 }
 
 uint32_t ThermalZoneManager::getWindowPauseRemainingSec(size_t index) const {
-    if (index >= MAX_THERMAL_ZONES || !_windowStates[index].pauseActive) return 0;
-    uint32_t elapsed = millis() - _windowStates[index].pauseStartMs;
-    if (elapsed >= 1800000UL) return 0;
-    return (1800000UL - elapsed) / 1000;
+    if (index >= MAX_THERMAL_ZONES) return 0;
+    return _thermoEngine.getWindowPauseRemainingSec(index, millis());
 }
 
 bool ThermalZoneManager::clearWindowPause(size_t index) {
     if (index >= MAX_THERMAL_ZONES) return false;
     uint32_t now = millis();
-    if (_windowStates[index].pauseActive) {
-        _windowStates[index].lastDetectionDurationSec = (now - _windowStates[index].pauseStartMs) / 1000;
+    bool cleared = _thermoEngine.clearWindowPause(index, now);
+    if (cleared || _windowStates[index].pauseActive) {
+        _windowStates[index].lastDetectionDurationSec = _thermoEngine.getWindowLastDetectionDurationSec(index);
         _windowStates[index].pauseActive = false;
         _windowStates[index].baselineTemp = _statuses[index].currentTemp;
         _windowStates[index].baselineMs = now;
@@ -1384,10 +1425,19 @@ bool ThermalZoneManager::clearWindowPause(size_t index) {
             _statuses[index].state = ZONE_IDLE;
             _statuses[index].stateChangedMs = now;
         }
-        netConsole.printf("[Thermal][WINDOW] Zone %u (%s) window pause MANUALLY CLEARED (lasted %us). Re-armed baseline at %.2f C.\n",
+        bool anyWindowPause = false;
+        for (size_t z = 0; z < MAX_THERMAL_ZONES; z++) {
+            if (_windowStates[z].pauseActive) {
+                anyWindowPause = true;
+                break;
+            }
+        }
+        if (!anyWindowPause) {
+            diagEngine.clearDtc("DTC-301");
+        }
+        netConsole.printf("[Thermal][WINDOW] Zone %u (%s) window pause MANUALLY CLEARED. Re-armed baseline at %.2f C.\n",
                           _configs[index].id, _configs[index].name,
-                          _windowStates[index].lastDetectionDurationSec,
-                          _windowStates[index].baselineTemp);
+                          _statuses[index].currentTemp);
         return true;
     }
     return false;
@@ -1395,10 +1445,11 @@ bool ThermalZoneManager::clearWindowPause(size_t index) {
 
 void ThermalZoneManager::setWindowDropThreshold(size_t index, float threshold) {
     if (index >= MAX_THERMAL_ZONES) return;
-    if (threshold < 0.8f) threshold = 0.8f;
-    if (threshold > 2.0f) threshold = 2.0f;
+    if (threshold < 0.2f) threshold = 0.2f;
+    if (threshold > 3.0f) threshold = 3.0f;
     if (fabsf(_configs[index].windowDropThreshold - threshold) > 0.05f) {
         _configs[index].windowDropThreshold = threshold;
+        _thermoEngine.setWindowDropThreshold(index, threshold);
         saveToPreferences();
         netConsole.printf("[Thermal] Zone %u (%s) window drop threshold set to %.1f C\n",
                           _configs[index].id, _configs[index].name, threshold);
@@ -1407,17 +1458,84 @@ void ThermalZoneManager::setWindowDropThreshold(size_t index, float threshold) {
 
 float ThermalZoneManager::getWindowDropThreshold(size_t index) const {
     if (index >= MAX_THERMAL_ZONES) return 1.2f;
-    return (_configs[index].windowDropThreshold >= 0.8f && _configs[index].windowDropThreshold <= 2.0f) ? _configs[index].windowDropThreshold : 1.2f;
+    return (_configs[index].windowDropThreshold >= 0.2f && _configs[index].windowDropThreshold <= 3.0f) ? _configs[index].windowDropThreshold : 1.2f;
 }
 
 uint32_t ThermalZoneManager::getWindowLastDetectionEpoch(size_t index) const {
     if (index >= MAX_THERMAL_ZONES) return 0;
-    return _windowStates[index].lastDetectionEpoch;
+    return _thermoEngine.getWindowLastDetectionEpoch(index);
 }
 
 uint32_t ThermalZoneManager::getWindowLastDetectionDurationSec(size_t index) const {
     if (index >= MAX_THERMAL_ZONES) return 0;
-    return _windowStates[index].lastDetectionDurationSec;
+    return _thermoEngine.getWindowLastDetectionDurationSec(index);
+}
+
+bool ThermalZoneManager::setCalibration(size_t index, FloorType floor, float screedThicknessCm, InsulationLevel insulation) {
+    if (index >= MAX_THERMAL_ZONES) return false;
+    float clampedScreed = (screedThicknessCm >= 3.0f && screedThicknessCm <= 10.0f) ? screedThicknessCm : 5.0f;
+
+    bool changed = (_configs[index].floorType != floor) ||
+                   (fabsf(_configs[index].screedThicknessCm - clampedScreed) > 0.05f) ||
+                   (_configs[index].insulation != insulation);
+
+    if (!changed) {
+        return true; // No mutation, skip redundant NVS write
+    }
+
+    _configs[index].floorType = floor;
+    _configs[index].screedThicknessCm = clampedScreed;
+    _configs[index].insulation = insulation;
+
+    RoomCalibrationConfig r = {_configs[index].floorType, _configs[index].screedThicknessCm, _configs[index].insulation};
+    _thermoEngine.setRoomConfig(index, r);
+    saveToPreferences();
+    return true;
+}
+
+bool ThermalZoneManager::setCalibration(size_t index, const char* floorStr, float screedThicknessCm, const char* insulationStr) {
+    if (index >= MAX_THERMAL_ZONES) return false;
+    FloorType f = ThermodynamicEngine::parseFloorType(floorStr);
+    InsulationLevel ins = ThermodynamicEngine::parseInsulationLevel(insulationStr);
+    return setCalibration(index, f, screedThicknessCm, ins);
+}
+
+FloorType ThermalZoneManager::getFloorType(size_t index) const {
+    if (index >= MAX_THERMAL_ZONES) return FLOOR_TILES;
+    return _configs[index].floorType;
+}
+
+float ThermalZoneManager::getScreedThicknessCm(size_t index) const {
+    if (index >= MAX_THERMAL_ZONES) return 5.0f;
+    return _configs[index].screedThicknessCm;
+}
+
+InsulationLevel ThermalZoneManager::getInsulationLevel(size_t index) const {
+    if (index >= MAX_THERMAL_ZONES) return INSULATION_MEDIUM;
+    return _configs[index].insulation;
+}
+
+const CalibratedMetrics& ThermalZoneManager::getCalibratedMetrics(size_t index) const {
+    return _thermoEngine.getMetrics(index);
+}
+
+uint32_t ThermalZoneManager::getPreheatLeadMin(size_t index) const {
+    if (index >= MAX_THERMAL_ZONES) return 45;
+    return _statuses[index].preheatLeadMin;
+}
+
+bool ThermalZoneManager::isWindowOpen(size_t index) const {
+    return isWindowPauseActive(index);
+}
+
+float ThermalZoneManager::getWindowDropRate(size_t index) const {
+    if (index >= MAX_THERMAL_ZONES) return 0.0f;
+    return _thermoEngine.getWindowFirstDerivative(index);
+}
+
+float ThermalZoneManager::getWindowSecondDerivative(size_t index) const {
+    if (index >= MAX_THERMAL_ZONES) return 0.0f;
+    return _thermoEngine.getWindowSecondDerivative(index);
 }
 
 String ThermalZoneManager::getScheduleJson() const {
@@ -1658,6 +1776,16 @@ void ThermalZoneManager::update(BoilerRadioTrigger& boiler) {
             // Evaluate Open Window Detection
             evaluateWindowDetection(i, currentTemp, now);
 
+            // Synchronize thermodynamic metrics and window status
+            const CalibratedMetrics& m = _thermoEngine.getMetrics(i);
+            _statuses[i].tDeadMin = m.tDeadMin;
+            _statuses[i].heatingSlope = m.heatingSlope;
+            _statuses[i].naturalLossRate = m.naturalLossRate;
+            _statuses[i].overshootDelta = m.overshootDelta;
+            _statuses[i].preheatLeadMin = m.preheatLeadMin;
+            _statuses[i].windowOpen = _thermoEngine.isWindowOpen(i);
+            _statuses[i].windowDropRate = _thermoEngine.getWindowFirstDerivative(i);
+
             // Transition from warmup, timeout or re-enabled to normal state
             if (_statuses[i].state == ZONE_WARMUP || _statuses[i].state == ZONE_DISABLED) {
                 _statuses[i].state = _statuses[i].demand ? ZONE_HEATING : ZONE_IDLE;
@@ -1770,6 +1898,42 @@ void ThermalZoneManager::update(BoilerRadioTrigger& boiler) {
         // zones still waiting for BLE sensors stay safe in ZONE_WARMUP (valves closed).
     }
 
+    // 1.1 Autonomous Night-Time Calibration (01:00 - 05:00) & Away Step Response Test (Requirement R1)
+    int curHour = timeAndWeather.getHour();
+    int curMin = timeAndWeather.getMinute();
+    time_t nowEpoch = time(nullptr);
+    float outdoorTemp = timeAndWeather.isWeatherValid() ? timeAndWeather.getOutdoorTemperature() : 10.0f;
+    bool outdoorValid = timeAndWeather.isWeatherValid();
+
+    for (size_t i = 0; i < MAX_THERMAL_ZONES; i++) {
+        if (!_configs[i].enabled || !_statuses[i].sensorValid) continue;
+        bool isZoneIdle = (!_statuses[i].demand && !_statuses[i].relayEngaged);
+
+        StepTestState prevState = _thermoEngine.getStepTestState(i);
+        float prevLossRate = _thermoEngine.getMetrics(i).naturalLossRate;
+
+        _thermoEngine.evaluateNightCalibration(i, _statuses[i].currentTemp, outdoorTemp, outdoorValid,
+                                               isZoneIdle, curHour, curMin, now, nowEpoch,
+                                               _windowStates[i].pauseActive);
+
+        _thermoEngine.updateAwayStepTest(i, _statuses[i].currentTemp, _awayActive, now);
+        if (_thermoEngine.isStepTestDemandingHeat(i)) {
+            _statuses[i].demand = true;
+        }
+
+        // Schedule deferred NVS save if night calibration updated loss rate or step test completed
+        float newLossRate = _thermoEngine.getMetrics(i).naturalLossRate;
+        if (fabsf(newLossRate - prevLossRate) > 0.0001f) {
+            _nvsSavePending = true;
+            _nvsSavePendingMs = now + 5000;
+        }
+        StepTestState newState = _thermoEngine.getStepTestState(i);
+        if (prevState != STEP_COMPLETE && newState == STEP_COMPLETE) {
+            _nvsSavePending = true;
+            _nvsSavePendingMs = now + 5000;
+        }
+    }
+
     if (!_autoMode && !_frostProtectionActive) {
         return; // In manual mode without frost emergency, skip automatic actuator & boiler sequencing
     }
@@ -1783,7 +1947,7 @@ void ThermalZoneManager::update(BoilerRadioTrigger& boiler) {
 
         if (_statuses[i].demand) {
             anyZoneDemanding = true;
-            if (_statuses[i].state == ZONE_IDLE || _statuses[i].state == ZONE_FAULT_TIMEOUT) {
+            if (_statuses[i].state == ZONE_IDLE || _statuses[i].state == ZONE_FAULT_TIMEOUT || _statuses[i].state == ZONE_WINDOW_PAUSE) {
                 // Begin actuator warm-up
                 _statuses[i].state = ZONE_WARMING_UP;
                 _statuses[i].stateChangedMs = now;

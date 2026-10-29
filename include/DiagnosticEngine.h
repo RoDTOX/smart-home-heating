@@ -4,6 +4,7 @@
 #include <Arduino.h>
 #include "Config.h"
 
+// Automotive-Grade DTC Fault Register [SWE-REQ-019]
 #define MAX_DTC_ENTRIES 16
 
 enum DtcSeverity {

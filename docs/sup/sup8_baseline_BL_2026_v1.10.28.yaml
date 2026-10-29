@@ -1,0 +1,56 @@
+# [SUP.8] Configuration Management Baseline Ledger
+# Standard: ASPICE 4.0 PAM — Process SUP.8 (Configuration Management)
+# Baseline ID: BL_2026_v1.10.28.1
+# Release Date: 2026-10-28T23:45:00+02:00
+
+baseline:
+  id: "BL_2026_v1.10.28.1"
+  version: "v1.10.28.1"
+  status: "RELEASED"
+  aspice_level: "Capability Level 1 (CL1)"
+
+source_control:
+  repository: "smart-home-heating"
+  base_commit: "8ac3a9401022a4cdac2be6251630b12bdd13fe4d"
+  branch: "feat/wall-tablet-ux"
+
+target_hardware:
+  primary_bench:
+    model: "ESP32-Relay X4 V1.1 (DOIT ESP32-32E N4)"
+    mac: "20:50:0d:1a:72:14"
+    static_ip: "192.168.1.20"
+    flash_size_bytes: 4194304
+    ota_slot_bytes: 1310720
+  future_commercial:
+    model: "Custom ESP32-S3 8-Zone SSR PCBA"
+    soc: "ESP32-S3-WROOM-1-N8R2"
+    flash_size_bytes: 8388608
+    psram_size_bytes: 2097152
+
+build_artifacts:
+  firmware_binary:
+    path: ".pio/build/esp32dev/firmware.bin"
+    size_bytes: 1295040
+    ota_headroom_bytes: 15680
+    sha256: "0193B2FCC32A68B3B05D204D4EE940B37C0FCEC8EB3254EA9DEBF400B947E284"
+  web_assets:
+    path: "web/index.html"
+    sha256: "B58A7DE10099B1E95C746ED2CBDD52C694837A97702F98F313E97F426B19C782"
+    littlefs_target: "/index.html.gz"
+    size_compressed_bytes: 53069
+
+verification_evidence:
+  system_qualification_test:
+    suite: "tools/test_system.py"
+    total_tests: 95
+    passed: 95
+    failed: 0
+    pass_rate_percent: 100.0
+  thermodynamic_unit_tests:
+    nominal_suite: "tools/test_thermodynamics.py"
+    nominal_tests: 7
+    nominal_passed: 7
+    adversarial_suite: "tools/test_thermodynamics_adversarial.py"
+    adversarial_tests: 8
+    adversarial_passed: 8
+  independent_audit_verdict: "APPROVED (UNCONDITIONAL)"

@@ -384,15 +384,15 @@ String TelemetryHistoryManager::getEventsJson(uint16_t limit) {
 }
 
 String TelemetryHistoryManager::getHistoryJson(const String& range) {
-    bool is7d = (range == "7d");
-    size_t count = is7d ? TELEMETRY_7D_POINTS : TELEMETRY_24H_POINTS;
-    uint32_t stepSec = is7d ? 1800 : 300;
+    bool isLongTerm = (range == "7d" || range == "5d");
+    size_t count = isLongTerm ? TELEMETRY_7D_POINTS : TELEMETRY_24H_POINTS;
+    uint32_t stepSec = isLongTerm ? 1800 : 300;
 
     String json;
-    json.reserve(is7d ? 4500 : 4000);
+    json.reserve(isLongTerm ? 4500 : 4000);
 
     json = "{\"range\":\"";
-    json += is7d ? "7d" : "24h";
+    json += isLongTerm ? range : "24h";
     json += "\",\"stepSec\":";
     json += String(stepSec);
     json += ",\"currentSlot\":";
@@ -401,7 +401,7 @@ String TelemetryHistoryManager::getHistoryJson(const String& range) {
 
     size_t written = 0;
 
-    if (is7d) {
+    if (isLongTerm) {
         for (size_t i = 0; i < count; i++) {
             size_t idx = (_head7d + i) % TELEMETRY_7D_POINTS;
             const TelemetryPoint& pt = _ring7d[idx];

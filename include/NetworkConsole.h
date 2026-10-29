@@ -45,6 +45,15 @@ private:
     size_t _count;
     uint32_t _totalBytes;
     bool _atLineStart;
+    char _lineAccum[256];
+    size_t _lineAccumLen;
+    char _prevLine[256];
+    uint16_t _repeatCount;
+    uint32_t _lastRepeatFlushMs;
+    uint32_t _lastCharMs;
+
+    void flushRepeatedCount();
+    void processCompletedLine();
 
     void appendToRing(char c);
     void appendToRing(const uint8_t *data, size_t size);

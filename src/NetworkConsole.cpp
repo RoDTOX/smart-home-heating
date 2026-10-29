@@ -87,34 +87,70 @@ void NetworkConsole::rawWrite(const uint8_t *buffer, size_t size) {
     }
 }
 
+void NetworkConsole::flushRepeatedCount() {
+    if (_repeatCount > 0) {
+        if (_count > 0) {
+            printTimestamp();
+            char repMsg[64];
+            snprintf(repMsg, sizeof(repMsg), "[Last message repeated %u times]\r\n", _repeatCount);
+            rawWrite((const uint8_t*)repMsg, strlen(repMsg));
+        }
+        _repeatCount = 0;
+        _lastRepeatFlushMs = millis();
+    }
+}
+
+void NetworkConsole::processCompletedLine() {
+    _lineAccum[_lineAccumLen] = '\0';
+
+    if (_lineAccumLen == 0) {
+        flushRepeatedCount();
+        rawWrite((const uint8_t*)"\r\n", 2);
+        _prevLine[0] = '\0';
+        return;
+    }
+
+    if (_prevLine[0] != '\0' && strcmp(_lineAccum, _prevLine) == 0) {
+        _repeatCount++;
+        if (_repeatCount >= 1000 || (millis() - _lastRepeatFlushMs >= 1800000UL)) {
+            flushRepeatedCount();
+        }
+    } else {
+        flushRepeatedCount();
+        strncpy(_prevLine, _lineAccum, sizeof(_prevLine) - 1);
+        _prevLine[sizeof(_prevLine) - 1] = '\0';
+        _lastRepeatFlushMs = millis();
+
+        printTimestamp();
+        rawWrite((const uint8_t*)_lineAccum, _lineAccumLen);
+        rawWrite((const uint8_t*)"\r\n", 2);
+    }
+
+    _lineAccumLen = 0;
+}
+
 size_t NetworkConsole::write(uint8_t c) {
     return write(&c, 1);
 }
 
 size_t NetworkConsole::write(const uint8_t *buffer, size_t size) {
     if (!buffer || size == 0) return 0;
-    size_t start = 0;
-    while (start < size) {
-        if (_atLineStart && buffer[start] != '\r' && buffer[start] != '\n') {
-            _atLineStart = false;
-            printTimestamp();
+    _lastCharMs = millis();
+    for (size_t i = 0; i < size; i++) {
+        char ch = (char)buffer[i];
+        if (ch == '\r') {
+            continue;
         }
-
-        size_t end = start;
-        while (end < size && buffer[end] != '\n') {
-            end++;
+        if (ch == '\n') {
+            processCompletedLine();
+        } else {
+            if (_lineAccumLen < sizeof(_lineAccum) - 1) {
+                _lineAccum[_lineAccumLen++] = ch;
+            } else {
+                processCompletedLine();
+                _lineAccum[_lineAccumLen++] = ch;
+            }
         }
-
-        if (end < size && buffer[end] == '\n') {
-            end++;
-            _atLineStart = true;
-        }
-
-        size_t chunkSize = end - start;
-        if (chunkSize > 0) {
-            rawWrite(buffer + start, chunkSize);
-        }
-        start = end;
     }
     return size;
 }
@@ -132,6 +168,8 @@ bool NetworkConsole::hasTelnetClient() {
 static const char CMD_SEP[] = "--------------------------------------------------";
 
 void NetworkConsole::executeCommand(const String& cmd) {
+
+    flushRepeatedCount();
     String cleanCmd = cmd;
     cleanCmd.trim();
     if (cleanCmd.length() == 0) return;
@@ -171,6 +209,8 @@ void NetworkConsole::clear() {
     _count = 0;
     _totalBytes = 0;
     _atLineStart = true;
+    _repeatCount = 0;
+    _prevLine[0] = '\0';
     memset(_logRing, 0, sizeof(_logRing));
     Serial.print("\033[2J\033[H");
     if (_telnetClient && _telnetClient.connected()) {
@@ -229,6 +269,8 @@ void NetworkConsole::setupWebRoutes() {
 }
 
 String NetworkConsole::getLogsSince(uint32_t since) {
+
+    flushRepeatedCount();
     size_t delta = 0;
     if (since == 0 || since > _totalBytes || (_totalBytes - since) >= _count) {
         delta = _count;

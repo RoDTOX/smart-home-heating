@@ -5,9 +5,11 @@
 #include <Preferences.h>
 #include "Config.h"
 #include "BoilerRadioTrigger.h"
+#include "ThermodynamicEngine.h"
 
 #define MAX_THERMAL_ZONES 3
 
+// Multi-Zone FSM States [SWE-REQ-001]
 enum ZoneState {
     ZONE_DISABLED = 0,
     ZONE_IDLE,          // Target reached, valve closed
@@ -16,7 +18,7 @@ enum ZoneState {
     ZONE_FAULT_TIMEOUT, // Sensor missing > timeout, zone shut down for safety
     ZONE_FROST_GUARD,   // Emergency frost protection active (<12C)
     ZONE_WARMUP,        // Boot grace period: acquiring sensor beacons (max 5 min)
-    ZONE_WINDOW_PAUSE   // Smart pause: open window detected (>1.2C drop in <5 min)
+    ZONE_WINDOW_PAUSE   // Smart pause: open window detected (>1.2C drop in <5 min or derivative trigger)
 };
 
 #define MAX_SCHEDULE_BLOCKS 8
@@ -68,7 +70,10 @@ struct ThermalZoneConfig {
     float targetTemp;
     float hysteresis;
     bool enabled;
-    float windowDropThreshold; // Drop in <=5m to trigger pause (0.8 - 2.0 C, default 1.2 C)
+    float windowDropThreshold; // Drop in <=5m to trigger pause (0.2 - 3.0 C, default 1.2 C)
+    FloorType floorType;       // FLOOR_TILES (0) or FLOOR_PARQUET (1)
+    float screedThicknessCm;   // 4.0 - 8.0 cm (default 5.0)
+    InsulationLevel insulation;// Poor, Medium, Good, Passive
 };
 
 struct ThermalZoneStatus {
@@ -84,6 +89,13 @@ struct ThermalZoneStatus {
     BioAnchorId holdAnchor;
     uint32_t holdUntilMs;    // 0 = hold until next block, else timed boost expiry (millis)
     float holdRestoreTemp;   // static target restored when a boost expires with the schedule off
+    float tDeadMin;          // Dynamic dead time (minutes)
+    float heatingSlope;      // Rising rate (°C/h)
+    float naturalLossRate;   // Natural cooling rate k_loss (°C/(h*K))
+    float overshootDelta;    // Expected overshoot (°C)
+    uint32_t preheatLeadMin; // Dynamic calculated preheat lead time (minutes)
+    bool windowOpen;         // Rapid derivative open-window flag
+    float windowDropRate;    // 1st derivative dT/dt (°C/min)
 };
 
 class ThermalZoneManager {
@@ -117,12 +129,12 @@ public:
     uint8_t getPumpRelayPin() const { return _pumpRelayPin; }
     void setPumpRelayPin(uint8_t pin);
 
-    // Pump Control (Relay 4 on PIN_RELAY_SPARE / GPIO26)
+    // Pump Control (Relay 4 on PIN_RELAY_SPARE / GPIO26) [SWE-REQ-005]
     bool isPumpControlEnabled() const { return _pumpControlEnabled; }
     bool isPumpActive() const { return _pumpActive; }
     void setPumpControlEnabled(bool enabled);
 
-    // Actuator Type (NC vs NO)
+    // Actuator Type (NC vs NO) [SWE-REQ-002]
     bool isActuatorNormallyClosed() const { return _actuatorNormallyClosed; }
     void setActuatorNormallyClosed(bool nc);
 
@@ -136,11 +148,11 @@ public:
     bool isAntiSeizeRunning() const { return _antiSeizeRunning; }
     uint32_t getLastAntiSeizeEpoch() const { return _lastAntiSeizeEpoch; }
 
-    // Sensor Ingestion Failsafe Timeout (default 600s / 10min)
+    // Sensor Ingestion Failsafe Timeout (default 600s / 10min) [SWE-REQ-013]
     uint32_t getSensorTimeoutSec() const { return _sensorTimeoutSec; }
     void setSensorTimeoutSec(uint32_t sec);
 
-    // Boot Sensor Warmup (Grace period: max 300s / 5min)
+    // Boot Sensor Warmup (Grace period: max 300s / 5min) [SWE-REQ-012]
     bool isBootWarmupActive() const { return _bootWarmupActive; }
     uint32_t getBootWarmupElapsedSec() const;
     uint32_t getBootWarmupRemainingSec() const;
@@ -157,8 +169,8 @@ public:
     void setRelayPin(size_t index, uint8_t pin);
     void mapZone(size_t index, const char* name, const char* sensorMac, const char* sensorName, uint8_t relayPin, float targetTemp, float hysteresis, bool enabled);
     void setAutoMode(bool autoMode);
-    void setInterlockDelayMs(uint32_t ms);
-    void setPumpOverrunMs(uint32_t ms);
+    void setInterlockDelayMs(uint32_t ms); // [SWE-REQ-004]
+    void setPumpOverrunMs(uint32_t ms); // [SWE-REQ-005]
     void setMinBoilerOffMs(uint32_t ms);
 
     // Manual Hold (Temporary Override until next anchor)
@@ -253,6 +265,20 @@ public:
     // Helpers
     const char* getStateStr(ZoneState state) const;
 
+    // Thermodynamic Engine & Calibration (R1 & R2)
+    ThermodynamicEngine& getThermodynamicEngine() { return _thermoEngine; }
+    const ThermodynamicEngine& getThermodynamicEngine() const { return _thermoEngine; }
+    bool setCalibration(size_t index, FloorType floor, float screedThicknessCm, InsulationLevel insulation);
+    bool setCalibration(size_t index, const char* floorStr, float screedThicknessCm, const char* insulationStr);
+    FloorType getFloorType(size_t index) const;
+    float getScreedThicknessCm(size_t index) const;
+    InsulationLevel getInsulationLevel(size_t index) const;
+    const CalibratedMetrics& getCalibratedMetrics(size_t index) const;
+    uint32_t getPreheatLeadMin(size_t index) const;
+    bool isWindowOpen(size_t index) const;
+    float getWindowDropRate(size_t index) const;
+    float getWindowSecondDerivative(size_t index) const;
+
 private:
     ThermalZoneConfig _configs[MAX_THERMAL_ZONES];
     ThermalZoneStatus _statuses[MAX_THERMAL_ZONES];
@@ -270,6 +296,7 @@ private:
     uint32_t _minsToNextAnchor;
     bool _preHeatActive;
     WindowDetectionState _windowStates[MAX_THERMAL_ZONES];
+    ThermodynamicEngine _thermoEngine;
     uint32_t _lastScheduleEvalMs;
 
     bool _autoMode;
