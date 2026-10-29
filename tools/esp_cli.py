@@ -141,24 +141,13 @@ def cmd_selftest(args):
     except Exception as e:
         print(f"[-] Error: {e}")
 
-def cmd_passport(args):
-    url = f"http://{args.ip}:{args.port}/api/setup/passport"
+def cmd_location(args):
+    url = f"http://{args.ip}:{args.port}/api/setup/location"
     try:
-        r = requests.get(url, timeout=DEFAULT_TIMEOUT)
+        coords = getattr(args, 'coords', None)
+        r = requests.post(url, data={"coords": coords}, timeout=DEFAULT_TIMEOUT) if coords else requests.get(url, timeout=DEFAULT_TIMEOUT)
         if r.status_code == 200:
-            d = r.json()
-            print("==================================================")
-            print("  Device Installation Passport (NVS)")
-            print("==================================================")
-            print(f"Serial Number:  {d.get('serialNumber')}")
-            print(f"MAC Address:    {d.get('macAddress')}")
-            print(f"Commissioned:   {'YES' if d.get('isCommissioned') else 'NO (Factory Default)'}")
-            print(f"Customer Name:  {d.get('customerName') or 'Unassigned'}")
-            print(f"Address:        {d.get('customerAddress') or 'Unassigned'}")
-            print(f"GPS Coords:     {d.get('locationCoords') or 'Unassigned'}")
-            print(f"Installed Date: {d.get('commissionDate') or 'N/A'} ({d.get('ageDays', 0)} days active)")
-            print(f"Notes:          {d.get('installerNotes') or 'None'}")
-            print("==================================================")
+            print(f"Location (lat,lon): {r.json().get('coords') or 'Unassigned'}")
         else:
             print(f"[-] HTTP Error: {r.status_code}")
     except Exception as e:
@@ -536,7 +525,7 @@ def cmd_interactive_shell(args):
                 print("  selftest               - Run diagnostic self-test suite")
                 print("  clear                  - Clear active diagnostic trouble codes (DTCs)")
                 print("  schedule [action]      - Bio-Schedule (actions: on, off, preheat-on, window-on)")
-                print("  passport               - Device identity, hardware serial, MAC")
+                print("  location [lat,lon]     - Get or set location for outdoor weather")
                 print("  time                   - System time, NTP & outdoor weather")
                 print("  pump [on|off]          - GPA circulation pump relay toggle")
                 print("  actuator [nc|no]       - Thermal actuator electrical polarity")
@@ -573,8 +562,9 @@ def cmd_interactive_shell(args):
             elif cmd == "schedule":
                 args.action = parts[1:] if len(parts) > 1 else None
                 cmd_schedule(args)
-            elif cmd == "passport":
-                cmd_passport(args)
+            elif cmd == "location":
+                args.coords = parts[1] if len(parts) > 1 else None
+                cmd_location(args)
             elif cmd == "time":
                 cmd_time(args)
             elif cmd == "pump":
@@ -624,7 +614,8 @@ def main():
     sub.add_parser("sensors", help="Alias for ble command")
     sub.add_parser("diag", help="Show system diagnostics and active DTC codes")
     sub.add_parser("selftest", help="Run comprehensive onboard self-test suite")
-    sub.add_parser("passport", help="View device commissioning passport and metadata")
+    p_loc = sub.add_parser("location", help="Get or set location (lat,lon) for outdoor weather")
+    p_loc.add_argument("coords", nargs="?", default=None)
     sub.add_parser("time", help="View NTP calendar, season and outdoor weather")
     p_on = sub.add_parser("on", help="Trigger boiler START via RF 433MHz")
     p_off = sub.add_parser("off", help="Trigger boiler STOP via RF 433MHz")
@@ -671,8 +662,8 @@ def main():
         cmd_diag(args)
     elif args.command == "selftest":
         cmd_selftest(args)
-    elif args.command == "passport":
-        cmd_passport(args)
+    elif args.command == "location":
+        cmd_location(args)
     elif args.command == "time":
         cmd_time(args)
     elif args.command == "pump":

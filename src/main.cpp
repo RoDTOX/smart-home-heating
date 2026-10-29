@@ -1,7 +1,6 @@
 #include "BleSensorScanner.h"
 #include "BoilerRadioTrigger.h"
 #include "Config.h"
-#include "DevicePassport.h"
 #include "DiagnosticEngine.h"
 #include "NetworkConsole.h"
 #include "ThermalZoneManager.h"
@@ -65,9 +64,6 @@ void printBootBannerAndSelfTest() {
   netConsole.printf("  Build: %s %s | Git: %s\n", APP_BUILD_DATE, APP_BUILD_TIME, APP_GIT_COMMIT);
   netConsole.printf("  Boot Time: %s\n", bootTimeBuf);
   netConsole.printf("  Reset Cause: %s\n", getResetReasonStr(rstReason));
-  netConsole.printf("  Serial: %s | Commissioned: %s\n",
-                    devicePassport.getSerialNumber(),
-                    devicePassport.isCommissioned() ? "YES" : "NO");
   netConsole.println(F("=================================================="));
 
   bool wifiOk = (WiFi.status() == WL_CONNECTED);
@@ -202,7 +198,7 @@ void printHelp() {
       "  DIAG [SELFTEST]       -> System health score, active DTCs or full 6-subsystem test\r\n"
       "  DIAG CLEAR            -> Clear active Trouble Codes (DTCs) and restore 100% health\r\n"
       "  HISTORY [CLEAR]       -> Flash telemetry ring buffer status (24h/5d) or clear\r\n"
-      "  PASSPORT              -> Device passport: commissioning date, serial, customer, address\r\n"
+      "  LOCATION [lat,lon]    -> Get or set location used for outdoor weather\r\n"
       "  CLEAR or CLS          -> Clear console terminal buffer\r\n"
       "------------------------------------\r\n\r\n"));
 }
@@ -625,21 +621,14 @@ void handleSetup() {
   server.send_P(200, "text/html", (const char*)SETUP_HTML_GZ, SETUP_HTML_GZ_LEN);
 }
 
-void handleApiSetupPassport() {
-  if (server.method() == HTTP_POST) {
-    String cust = server.arg("customer");
-    String addr = server.arg("address");
-    String notes = server.arg("notes");
-    String city = server.arg("city");
-    String coords = server.arg("coords");
-    devicePassport.commission(cust.c_str(), addr.c_str(), notes.c_str(),
-                              city.c_str(), coords.c_str());
-    if (coords.length() > 3) {
-      timeAndWeather.forceWeatherUpdate();
-    }
+void handleApiSetupLocation() {
+  if (server.method() == HTTP_POST && server.arg("coords").length() > 3) {
+    timeAndWeather.setLocation(server.arg("coords").c_str());
+    timeAndWeather.forceWeatherUpdate();
   }
   server.sendHeader("Access-Control-Allow-Origin", "*");
-  server.send(200, "application/json", devicePassport.toJson());
+  server.send(200, "application/json",
+              String("{\"coords\":\"") + timeAndWeather.getLocation() + "\"}");
 }
 
 void handleApiSetupDiscoveredSensors() {
@@ -843,10 +832,6 @@ void handleApiStatus() {
   json += "\"uptimeSec\":" + String(millis() / 1000) + ",";
   json += "\"wifiWatchdog\":\"active\",";
   json += "\"healthScore\":" + String(diagEngine.calculateHealthScore()) + ",";
-  json +=
-      "\"serialNumber\":\"" + String(devicePassport.getSerialNumber()) + "\",";
-  json += "\"isCommissioned\":" +
-          String(devicePassport.isCommissioned() ? "true" : "false") + ",";
   json += "\"time\":\"" + timeAndWeather.getFormattedTime() + "\",";
   json += "\"date\":\"" + timeAndWeather.getFormattedDate() + "\",";
   json += "\"season\":\"" + timeAndWeather.getSeason() + "\",";
@@ -1511,7 +1496,7 @@ void handleSerialCommand(String cmd) {
     snprintf(imgBuf, sizeof(imgBuf), "%.2f MB (%.2f MB OTA)", ESP.getSketchSize() / 1048576.0f, ESP.getFreeSketchSpace() / 1048576.0f);
 
     printTwoCols("Firmware:", fwBuf, "Git Commit:", APP_GIT_COMMIT);
-    printTwoCols("Device Serial:", (String(devicePassport.getSerialNumber()) + " (OK)").c_str(), "Boot Cause:", getResetReasonStr(esp_reset_reason()));
+    printTwoCols("MAC Address:", WiFi.macAddress().c_str(), "Boot Cause:", getResetReasonStr(esp_reset_reason()));
     printTwoCols("Processor:", procBuf, "System Uptime:", uptimeBuf);
     printTwoCols("Silicon Die:", dieBuf, "Free Memory:", memBuf);
     printTwoCols("Flash Memory:", flashBuf, "Firmware Size:", imgBuf);
@@ -1772,23 +1757,14 @@ void handleSerialCommand(String cmd) {
             F("  No active diagnostic trouble codes. All subsystems nominal!"));
       }
     }
-  } else if (upperCmd == "PASSPORT") {
-    netConsole.printf("[PASSPORT] Serial: %s | MAC: %s\n",
-                      devicePassport.getSerialNumber(),
-                      WiFi.macAddress().c_str());
-    netConsole.printf("  Status:     %s\n",
-                      devicePassport.isCommissioned()
-                          ? "COMMISSIONED (Customer Active)"
-                          : "UNCOMMISSIONED (Factory Default)");
-    netConsole.printf("  Customer:   %s\n", devicePassport.getCustomerName());
-    netConsole.printf("  Address:    %s (%s)\n",
-                      devicePassport.getCustomerAddress(),
-                      devicePassport.getLocationCity());
-    netConsole.printf("  Coords:     %s\n", devicePassport.getLocationCoords());
-    netConsole.printf("  Installed:  %s (%u days ago)\n",
-                      devicePassport.getCommissionDate(),
-                      devicePassport.getInstallationAgeDays());
-    netConsole.printf("  Notes:      %s\n", devicePassport.getInstallerNotes());
+  } else if (upperCmd.startsWith("LOCATION")) {
+    String arg = cmd.substring(8);
+    arg.trim();
+    if (arg.length() > 3) {
+      timeAndWeather.setLocation(arg.c_str());
+      timeAndWeather.forceWeatherUpdate();
+    }
+    netConsole.printf("[LOCATION] %s\n", timeAndWeather.getLocation());
   } else if (upperCmd == "TIME") {
     netConsole.printf("[TIME] %s, %s %s (Timezone: Europe/Bucharest)\n",
                       timeAndWeather.getDayOfWeek().c_str(),
@@ -2164,8 +2140,6 @@ void setup() {
     yield();
   }
 
-  // Initialize Device Passport (NVS commissioning metadata)
-  devicePassport.begin();
 
 
   // Initialize Native Passive BLE Scanner (Xiaomi BTHome v2 & PVVX)
@@ -2180,7 +2154,7 @@ void setup() {
   // Web Server routes
   server.on("/", HTTP_GET, handleRoot);
   server.on("/setup", HTTP_GET, handleSetup);
-  server.on("/api/setup/passport", handleApiSetupPassport);
+  server.on("/api/setup/location", handleApiSetupLocation);
   server.on("/api/setup/discovered-sensors", HTTP_GET,
             handleApiSetupDiscoveredSensors);
   server.on("/api/setup/map-zone", HTTP_POST, handleApiSetupMapZone);

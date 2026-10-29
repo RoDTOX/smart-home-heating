@@ -1,6 +1,6 @@
 #include "TimeAndWeatherService.h"
 #include "NetworkConsole.h"
-#include "DevicePassport.h"
+#include <Preferences.h>
 #include <HTTPClient.h>
 #include <WiFi.h>
 #include <ArduinoJson.h>
@@ -17,13 +17,38 @@ TimeAndWeatherService::TimeAndWeatherService()
       _weatherValid(false),
       _lastWeatherSuccessMs(0),
       _ntpAnnounced(false),
-      _weatherAnnounced(false) {}
+      _weatherAnnounced(false) {
+    _location[0] = '\0';
+}
 
 void TimeAndWeatherService::begin() {
     Serial.println(F("[Time] Configuring NTP synchronization (Timezone: Europe/Bucharest)..."));
     // Standard Romania POSIX Timezone with daylight saving auto-transition
     configTzTime("EET-2EEST,M3.5.0/3,M10.5.0/4", "pool.ntp.org", "time.google.com", "time.cloudflare.com");
     _ntpConfigured = true;
+
+    Preferences prefs;
+    if (prefs.begin("location", true)) {
+        prefs.getString("coords", _location, sizeof(_location));
+        prefs.end();
+    }
+    if (_location[0] == '\0' && prefs.begin("passport", true)) {
+        // One-time migration from the removed DevicePassport namespace
+        char legacy[32] = "";
+        prefs.getString("coords", legacy, sizeof(legacy));
+        prefs.end();
+        if (legacy[0] != '\0') setLocation(legacy);
+    }
+}
+
+void TimeAndWeatherService::setLocation(const char* coords) {
+    if (!coords || strcmp(coords, _location) == 0) return;
+    strlcpy(_location, coords, sizeof(_location));
+    Preferences prefs;
+    if (prefs.begin("location", false)) {
+        prefs.putString("coords", _location);
+        prefs.end();
+    }
 }
 
 bool TimeAndWeatherService::isTimeSynced() const {
@@ -146,9 +171,8 @@ void TimeAndWeatherService::fetchWeather() {
     String lat = "45.6579";
     String lon = "25.6012";
 
-    const char* coords = devicePassport.getLocationCoords();
-    if (coords && strlen(coords) > 3) {
-        String s = String(coords);
+    if (strlen(_location) > 3) {
+        String s = String(_location);
         int comma = s.indexOf(',');
         if (comma > 0) {
             lat = s.substring(0, comma);

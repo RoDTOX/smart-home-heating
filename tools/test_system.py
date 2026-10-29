@@ -73,7 +73,7 @@ SWE1_REQUIREMENTS = {
     "FR-10": "Diagnostic Engine, DTC Trouble Codes & Self-Test",
     "FR-11": "Dynamic Sensor Mapping & Setup Wizard",
     "FR-12": "NTP Time Synchronization & Bucharest POSIX Clock",
-    "FR-13": "Device Commissioning Passport & NVS Identity",
+    "FR-13": "Weather Location Setting (NVS)",
     "FR-14": "Hydraulic GPA Secondary Pump Controller & Relay 4",
     "FR-15": "Universal Actuator Polarity Support (NC vs NO)",
     "FR-16": "Emergency Frost Guard (<12°C) & DTC-101 Isolation",
@@ -237,77 +237,22 @@ class SystemTestSuite:
         except Exception as e:
             return TestResult(test_id, name, req, "FAIL", (time.time() - start)*1000, str(e))
 
-    # Group 2: Device Commissioning Passport
+    # Group 2: Weather Location Setting
     # ---------------------------------------------------------
 
-    def test_tc02_1_passport_serial_prefix(self):
-        """SWE.5-TC02.1: Device Passport Serial Number Prefix (FR-13)"""
+    def test_tc02_1_location_contract(self):
+        """SWE.5-TC02.1: Weather Location Setting Contract (FR-13)"""
         test_id = "SWE.5-TC02.1"
-        name = "Device Passport Serial Prefix"
+        name = "Weather Location Contract"
         req = "FR-13"
         start = time.time()
         try:
-            r = requests.get(f"{self.base_url}/api/setup/passport", timeout=self.timeout)
+            r = requests.get(f"{self.base_url}/api/setup/location", timeout=self.timeout)
             latency = (time.time() - start) * 1000
-            data = r.json()
-            serial = data.get("serialNumber", "")
-            assert serial.startswith("SH-"), f"Invalid serial prefix: {serial}"
-            details = f"Device Serial: {serial}"
-            return TestResult(test_id, name, req, "PASS", latency, details)
-        except Exception as e:
-            return TestResult(test_id, name, req, "FAIL", (time.time() - start)*1000, str(e))
-
-    def test_tc02_2_passport_mac_format(self):
-        """SWE.5-TC02.2: Device Passport MAC Address Format (FR-13)"""
-        test_id = "SWE.5-TC02.2"
-        name = "Device Passport MAC Address Format"
-        req = "FR-13"
-        start = time.time()
-        try:
-            r = requests.get(f"{self.base_url}/api/setup/passport", timeout=self.timeout)
-            latency = (time.time() - start) * 1000
-            data = r.json()
-            mac = data.get("macAddress", "")
-            parts = mac.split(":")
-            assert len(parts) == 6 and all(len(p) == 2 for p in parts), f"Invalid MAC format: {mac}"
-            details = f"Hardware MAC: {mac}"
-            return TestResult(test_id, name, req, "PASS", latency, details)
-        except Exception as e:
-            return TestResult(test_id, name, req, "FAIL", (time.time() - start)*1000, str(e))
-
-    def test_tc02_3_passport_commissioning_date(self):
-        """SWE.5-TC02.3: Device Commissioning Status & NVS Date (FR-13)"""
-        test_id = "SWE.5-TC02.3"
-        name = "Commissioning Status & NVS Date"
-        req = "FR-13"
-        start = time.time()
-        try:
-            r = requests.get(f"{self.base_url}/api/setup/passport", timeout=self.timeout)
-            latency = (time.time() - start) * 1000
-            data = r.json()
-            assert data.get("isCommissioned") is True, "Device is not commissioned"
-            date = data.get("commissionDate", "")
-            assert len(date) > 0, "Missing commissionDate"
-            details = f"Commissioned: {date}, Installer Notes Available: {bool(data.get('notes'))}"
-            return TestResult(test_id, name, req, "PASS", latency, details)
-        except Exception as e:
-            return TestResult(test_id, name, req, "FAIL", (time.time() - start)*1000, str(e))
-
-    def test_tc02_4_passport_metadata_fields(self):
-        """SWE.5-TC02.4: Setup Passport Metadata Contract (FR-11, FR-13)"""
-        test_id = "SWE.5-TC02.4"
-        name = "Setup Passport Metadata Contract"
-        req = "FR-11, FR-13"
-        start = time.time()
-        try:
-            r = requests.get(f"{self.base_url}/api/setup/passport", timeout=self.timeout)
-            latency = (time.time() - start) * 1000
-            data = r.json()
-            assert "customerName" in data, "Missing customerName"
-            assert "locationCity" in data, "Missing locationCity"
-            assert "installerNotes" in data, "Missing installerNotes"
-            details = f"Customer: '{data.get('customerName')}', City: '{data.get('locationCity')}', Age: {data.get('ageDays')} days"
-            return TestResult(test_id, name, req, "PASS", latency, details)
+            assert r.status_code == 200, f"HTTP {r.status_code}"
+            coords = r.json().get("coords", None)
+            assert coords is not None, "Missing 'coords' field"
+            return TestResult(test_id, name, req, "PASS", latency, f"Location: '{coords}'")
         except Exception as e:
             return TestResult(test_id, name, req, "FAIL", (time.time() - start)*1000, str(e))
 
@@ -2144,11 +2089,8 @@ class SystemTestSuite:
             self.test_tc01_3_zero_bloatware_no_mqtt,
             self.test_tc01_4_hardware_telemetry_rssi,
             self.test_tc01_5_wifi_watchdog_supervisor,
-            # Group 2: Device Passport
-            self.test_tc02_1_passport_serial_prefix,
-            self.test_tc02_2_passport_mac_format,
-            self.test_tc02_3_passport_commissioning_date,
-            self.test_tc02_4_passport_metadata_fields,
+            # Group 2: Weather Location
+            self.test_tc02_1_location_contract,
             # Group 3: BLE Sensing
             self.test_tc03_1_ble_scanner_running,
             self.test_tc03_2_xiaomi_bthome_direct,

@@ -32,6 +32,10 @@ public:
     uint32_t getWeatherAgeSec() const;
     void forceWeatherUpdate();
 
+    // Location for weather ("lat,lon"), persisted in NVS
+    const char* getLocation() const { return _location; }
+    void setLocation(const char* coords);
+
     String toJson() const;
 
 private:
@@ -45,6 +49,7 @@ private:
     uint32_t _lastWeatherSuccessMs;
     bool _ntpAnnounced;
     bool _weatherAnnounced;
+    char _location[32];
 
     void fetchWeather();
 };
