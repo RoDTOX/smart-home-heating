@@ -202,7 +202,6 @@ void printHelp() {
       "  TIMEOUT [sec]         -> Get or set BLE sensor offline failsafe timeout (default 600s)\r\n"
       "  DIAG [SELFTEST]       -> System health score, active DTCs or full 6-subsystem test\r\n"
       "  DIAG CLEAR            -> Clear active Trouble Codes (DTCs) and restore 100% health\r\n"
-      "  DIAG SERVICE <ON|OFF> -> Engineer Service Mode (bypasses RF anti-short-cycling guard)\r\n"
       "  HISTORY [CLEAR]       -> Flash telemetry ring buffer status (24h/5d) or clear\r\n"
       "  PASSPORT              -> Device passport: commissioning date, serial, customer, address\r\n"
       "  CLEAR or CLS          -> Clear console terminal buffer\r\n"
@@ -309,7 +308,6 @@ void handleAppIcon() {
 
 
 void handleApiOn() {
-  bool force = (server.hasArg("force") && server.arg("force") == "true") || diagEngine.isServiceMode();
   uint32_t waitSec = 0;
   bool isIdempotent = false;
 
@@ -323,13 +321,13 @@ void handleApiOn() {
   }
 
   // 1. Check idempotency (FR-17.1)
-  if (!force && boilerRadio.hasTransmittedOnce() && boilerRadio.isLastCommandOn()) {
+  if (boilerRadio.hasTransmittedOnce() && boilerRadio.isLastCommandOn()) {
     server.send(200, "application/json", F("{\"status\":\"ok\",\"boiler\":\"ON\",\"idempotent\":true}"));
     return;
   }
 
   // 2. Pre-validate against anti-short-cycling guard & RF cooldown (FR-17.2, FR-17.3, FR-17.4)
-  if (!force && !boilerRadio.canTransmit(true, &waitSec, &isIdempotent)) {
+  if (!boilerRadio.canTransmit(true, &waitSec, &isIdempotent)) {
     boilerRadio.recordSpamAttempt();
     // Schedule deferred startup if not already running
     if (!boilerRadio.isLastCommandOn()) {
@@ -346,7 +344,7 @@ void handleApiOn() {
   }
 
   blinkLed(1, 40);
-  bool success = boilerRadio.sendBoilerOn(force);
+  bool success = boilerRadio.sendBoilerOn();
   blinkLed(1, 40);
 
   if (success) {
@@ -359,7 +357,8 @@ void handleApiOn() {
 }
 
 void handleApiOff() {
-  bool force = (server.hasArg("force") && server.arg("force") == "true") || diagEngine.isServiceMode();
+  // Forcing a stop is always safe; forcing a start is never allowed.
+  bool force = server.hasArg("force") && server.arg("force") == "true";
   uint32_t waitSec = 0;
   bool isIdempotent = false;
 
@@ -819,8 +818,6 @@ void handleApiDiagStatus() {
   String json;
   json.reserve(1024);
   json = "{";
-  json += "\"serviceMode\":" +
-          String(diagEngine.isServiceMode() ? "true" : "false") + ",";
   json += "\"healthScore\":" + String(diagEngine.calculateHealthScore()) + ",";
   json += "\"dtcCount\":" + String(diagEngine.getDtcCount()) + ",";
   json += "\"dtcs\":[";
@@ -857,20 +854,6 @@ void handleApiDiagClear() {
   server.sendHeader("Access-Control-Allow-Origin", "*");
   server.send(200, "application/json",
               F("{\"status\":\"ok\",\"message\":\"All DTC codes cleared\"}"));
-}
-
-void handleApiDiagService() {
-  if (server.hasArg("enable")) {
-    String val = server.arg("enable");
-    val.toLowerCase();
-    bool enable = (val == "true" || val == "1");
-    diagEngine.setServiceMode(enable);
-  }
-  server.sendHeader("Access-Control-Allow-Origin", "*");
-  server.send(200, "application/json",
-              diagEngine.isServiceMode()
-                  ? F("{\"status\":\"ok\",\"serviceMode\":true}")
-                  : F("{\"status\":\"ok\",\"serviceMode\":false}"));
 }
 
 void handleApiSetupActuatorType() {
@@ -953,8 +936,6 @@ void handleApiStatus() {
   json += "\"uptimeSec\":" + String(millis() / 1000) + ",";
   json += "\"wifiWatchdog\":\"active\",";
   json += "\"healthScore\":" + String(diagEngine.calculateHealthScore()) + ",";
-  json += "\"serviceMode\":" +
-          String(diagEngine.isServiceMode() ? "true" : "false") + ",";
   json +=
       "\"serialNumber\":\"" + String(devicePassport.getSerialNumber()) + "\",";
   json += "\"isCommissioned\":" +
@@ -1864,16 +1845,9 @@ void handleSerialCommand(String cmd) {
       netConsole.print(diagEngine.runSelfTest());
     } else if (upperCmd == "DIAG CLEAR") {
       diagEngine.clearAllDtcs();
-    } else if (upperCmd == "DIAG SERVICE ON") {
-      diagEngine.setServiceMode(true);
-    } else if (upperCmd == "DIAG SERVICE OFF") {
-      diagEngine.setServiceMode(false);
     } else {
-      netConsole.printf("[DIAG] System Health Score: %u%% | Service Mode: %s | "
-                        "Active DTCs: %u\n",
+      netConsole.printf("[DIAG] System Health Score: %u%% | Active DTCs: %u\n",
                         diagEngine.calculateHealthScore(),
-                        diagEngine.isServiceMode() ? "ACTIVE (Engineer Engaged)"
-                                                   : "NORMAL",
                         diagEngine.getDtcCount());
       size_t activeCount = 0;
       for (size_t i = 0; i < diagEngine.getDtcCount(); i++) {
@@ -2290,7 +2264,7 @@ void setup() {
   // Initialize Native Passive BLE Scanner (Xiaomi BTHome v2 & PVVX)
   bleScanner.begin();
 
-  // Initialize Diagnostic Engine & Service Mode
+  // Initialize Diagnostic Engine
   diagEngine.begin();
 
   // Initialize Flash Telemetry History Manager (LittleFS wear-leveling ring buffer)
@@ -2326,7 +2300,6 @@ void setup() {
   server.on("/api/diag/status", HTTP_GET, handleApiDiagStatus);
   server.on("/api/diag/selftest", HTTP_GET, handleApiDiagSelfTest);
   server.on("/api/diag/clear", HTTP_POST, handleApiDiagClear);
-  server.on("/api/diag/service", HTTP_POST, handleApiDiagService);
   server.on("/api/diag/exercise", HTTP_POST, handleApiDiagExercise);
   server.on("/api/setup/actuator-type", handleApiSetupActuatorType);
   server.on("/api/setup/pump", handleApiSetupPump);

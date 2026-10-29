@@ -8,7 +8,7 @@
 DiagnosticEngine diagEngine;
 
 DiagnosticEngine::DiagnosticEngine()
-    : _dtcCount(0), _serviceMode(false), _lastEvaluationMs(0) {
+    : _dtcCount(0), _lastEvaluationMs(0) {
   for (size_t i = 0; i < MAX_DTC_ENTRIES; i++) {
     _dtcRecords[i].code[0] = '\0';
     _dtcRecords[i].message[0] = '\0';
@@ -21,23 +21,7 @@ DiagnosticEngine::DiagnosticEngine()
 }
 
 void DiagnosticEngine::begin() {
-  Serial.println(F("[DIAG] Diagnostic Engine & Service Mode initialized."));
-}
-
-void DiagnosticEngine::setServiceMode(bool enable) {
-  _serviceMode = enable;
-  if (_serviceMode) {
-    netConsole.println(
-        F("[DIAG] **************************************************"));
-    netConsole.println(F("[DIAG] * SERVICE MODE ACTIVATED BY ENGINEER *"));
-    netConsole.println(
-        F("[DIAG] * Manual overrides enabled. Health monitor active*"));
-    netConsole.println(
-        F("[DIAG] **************************************************"));
-  } else {
-    netConsole.println(
-        F("[DIAG] Service mode deactivated. Resuming normal autonomy."));
-  }
+  Serial.println(F("[DIAG] Diagnostic Engine initialized."));
 }
 
 void DiagnosticEngine::raiseDtc(const char *code, const char *message,
@@ -264,8 +248,6 @@ String DiagnosticEngine::runSelfTest() {
          String(health >= 90 ? "EXCELLENT"
                              : (health >= 70 ? "GOOD" : "DEGRADED")) +
          "]\n";
-  out += "Service Mode Status:      " +
-         String(_serviceMode ? "ACTIVE (Engineer Engaged)" : "NORMAL") + "\n";
 
   // Active DTCs
   size_t activeCount = 0;

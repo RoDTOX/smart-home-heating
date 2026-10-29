@@ -38,10 +38,6 @@ public:
     size_t getDtcCount() const { return _dtcCount; }
     const DtcRecord* getDtc(size_t index) const;
 
-    // Service Mode
-    bool isServiceMode() const { return _serviceMode; }
-    void setServiceMode(bool enable);
-
     // Health & Self-Test
     uint8_t calculateHealthScore() const;
     String runSelfTest();
@@ -51,7 +47,6 @@ public:
 private:
     DtcRecord _dtcRecords[MAX_DTC_ENTRIES];
     size_t _dtcCount;
-    bool _serviceMode;
     uint32_t _lastEvaluationMs;
 
     void evaluateSensors();

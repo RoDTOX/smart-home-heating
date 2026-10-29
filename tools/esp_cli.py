@@ -118,12 +118,10 @@ def cmd_diag(args):
         if r.status_code == 200:
             d = r.json()
             score = d.get('healthScore', 100)
-            sm = d.get('serviceMode', False)
             dtcs = d.get('dtcs', [])
             print("==================================================")
             print(f"  ESP32 Health & Diagnostics (Score: {score}%)")
             print("==================================================")
-            print(f"Service Mode:       {'ACTIVE (Engineer Connected)' if sm else 'NORMAL'}")
             print(f"Active DTC Codes:   {len(dtcs)}")
             if not dtcs:
                 print("  [OK] All subsystems nominal. Zero active trouble codes.")
@@ -212,7 +210,8 @@ def cmd_boiler(args, action):
                 cur = d.get('boiler', 'UNKNOWN')
                 print(f"[!] Comanda respinsa de siguranta (HTTP 429): {err}")
                 print(f"    Stare curenta cazan: {cur} | Timp minim ramas pana la deblocare: {wait} secunde.")
-                print(f"    (Sugestie: Foloseste optiunea '--force' daca doresti suprascrierea de urgenta).")
+                if action == "off":
+                    print(f"    (Sugestie: Foloseste optiunea '--force' pentru oprire imediata).")
             except Exception:
                 print(f"[!] Respins de siguranta (HTTP 429): {r.text}")
         else:
@@ -529,7 +528,7 @@ def cmd_interactive_shell(args):
                 print("\nInteractive Shell Commands:")
                 print("  status                 - Live telemetry status report")
                 print("  sensors / ble          - List discovered BLE room thermometers")
-                print("  on [--force]           - Turn gas boiler ON via RF 433MHz")
+                print("  on                     - Turn gas boiler ON via RF 433MHz")
                 print("  off [--force]          - Turn gas boiler OFF via RF 433MHz")
                 print("  mode <auto|manual>     - Set controller operating mode")
                 print("  set <zone_id> <temp>   - Set zone target temperature (e.g. set 1 22.5)")
@@ -559,7 +558,7 @@ def cmd_interactive_shell(args):
                 args.action = "clear"
                 cmd_diag(args)
             elif cmd in ("on", "off"):
-                args.force = "--force" in parts
+                args.force = cmd == "off" and "--force" in parts
                 cmd_boiler(args, cmd)
             elif cmd == "mode" and len(parts) > 1:
                 args.mode = parts[1].lower()
@@ -628,9 +627,8 @@ def main():
     sub.add_parser("passport", help="View device commissioning passport and metadata")
     sub.add_parser("time", help="View NTP calendar, season and outdoor weather")
     p_on = sub.add_parser("on", help="Trigger boiler START via RF 433MHz")
-    p_on.add_argument("--force", action="store_true", help="Force transmission bypassing anti-short-cycling guard")
     p_off = sub.add_parser("off", help="Trigger boiler STOP via RF 433MHz")
-    p_off.add_argument("--force", action="store_true", help="Force transmission bypassing anti-short-cycling guard")
+    p_off.add_argument("--force", action="store_true", help="Force immediate STOP bypassing minimum run time")
 
     p_pump = sub.add_parser("pump", help="View or configure circulation pump (Relay 4)")
     p_pump.add_argument("action", nargs="?", choices=["enable", "disable", "on", "off"], help="enable or disable pump control")
