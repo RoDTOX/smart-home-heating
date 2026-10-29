@@ -7,7 +7,7 @@
 **Decision**:
 - Acquired custom domain `mysmarthome.cc` managed via Cloudflare authoritative nameservers (`devin` / `elisabeth.ns.cloudflare.com`).
 - Deployed a permanent outbound Cloudflare Tunnel (`cloudflared.service` via QUIC) eliminating port forwarding, dynamic DNS issues, and public IP vulnerability.
-- Enforced edge Basic Authentication (`seceleanu:bogdan`) in front of the local Nginx proxy (`127.0.0.1:8088`).
+- Enforced edge Basic Authentication (credentials kept outside the repo) in front of the local Nginx proxy (`127.0.0.1:8088`).
 - Formally decided to migrate central infrastructure onto a dedicated Lenovo ThinkPad L590 (Intel Core i7 Gen 8) running Linux + Docker Compose. The laptop's battery acts as an integrated UPS, providing uninterrupted operations during power cuts, while freeing the ESP32 to focus strictly on real-time hardware safety, relays, and its headless REST API.
 **Consequences**: Solid multi-tiered architecture: ESP32 remains hard real-time edge controller; ThinkPad L590 serves as durable 24/7 Home Server; Cloudflare delivers globally cached, encrypted, and bot-protected access.
 

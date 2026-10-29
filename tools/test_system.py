@@ -14,7 +14,6 @@ import time
 import json
 import argparse
 from datetime import datetime
-import yaml
 
 try:
     import requests
@@ -1699,61 +1698,6 @@ class SystemTestSuite:
             return TestResult(test_id, name, req, "FAIL", (time.time() - start)*1000, str(e))
 
     # ---------------------------------------------------------
-    # Group 22: Home Assistant Full REST Package (FR-36)
-    # ---------------------------------------------------------
-
-    def test_tc22_1_ha_package_syntax_and_modern_template(self):
-        """SWE.5-TC22.1: Home Assistant Package Syntax & Modern Template Integration (FR-36)"""
-        test_id = "SWE.5-TC22.1"
-        name = "HA Package Syntax & Modern Template"
-        req = "FR-36"
-        start = time.time()
-        try:
-            pkg_path = "homeassistant/packages/smart_heating.yaml"
-            assert os.path.isfile(pkg_path), f"Package file not found: {pkg_path}"
-            with open(pkg_path, "r", encoding="utf-8") as f:
-                content = f.read()
-                data = yaml.safe_load(content)
-
-            assert "button" not in data or not any(isinstance(b, dict) and b.get("platform") == "template" for b in data.get("button", [])), \
-                "Found deprecated 'platform: template' under 'button:'"
-            assert "switch" not in data or not any(isinstance(s, dict) and s.get("platform") == "template" for s in data.get("switch", [])), \
-                "Found deprecated 'platform: template' under 'switch:'"
-            assert "template" in data, "Missing top-level 'template:' modern key in Home Assistant package"
-
-            assert "rest" in data or "sensor" in data, "Missing REST data ingestion in package"
-            assert "climate" in data, "Missing climate entities in package"
-            details = f"Verified valid YAML in {pkg_path} using modern template: syntax (zero deprecation warnings)"
-            latency = (time.time() - start) * 1000
-            return TestResult(test_id, name, req, "PASS", latency, details)
-        except Exception as e:
-            return TestResult(test_id, name, req, "FAIL", (time.time() - start)*1000, str(e))
-
-    def test_tc22_2_ha_dashboard_structure(self):
-        """SWE.5-TC22.2: Home Assistant Lovelace Dashboard Architecture (FR-36)"""
-        test_id = "SWE.5-TC22.2"
-        name = "HA Dashboard Structure & Cards"
-        req = "FR-36"
-        start = time.time()
-        try:
-            dash_path = "homeassistant/dashboards/smart_heating.yaml"
-            assert os.path.isfile(dash_path), f"Dashboard file not found: {dash_path}"
-            with open(dash_path, "r", encoding="utf-8") as f:
-                content = f.read()
-                data = yaml.safe_load(content)
-
-            views = data.get("views", [])
-            assert len(views) >= 1, "Dashboard must contain at least 1 view"
-            assert "cards" in views[0], "Primary view missing cards"
-            assert "conditional" in content, "Dashboard must support conditional alert cards"
-
-            details = f"Verified Lovelace dashboard structure with {len(views)} views and conditional warning cards"
-            latency = (time.time() - start) * 1000
-            return TestResult(test_id, name, req, "PASS", latency, details)
-        except Exception as e:
-            return TestResult(test_id, name, req, "FAIL", (time.time() - start)*1000, str(e))
-
-    # ---------------------------------------------------------
     # Group 23: FSM Actuator Hardware Safety Invariant (FR-37)
     # ---------------------------------------------------------
 
@@ -2291,9 +2235,6 @@ class SystemTestSuite:
             # Group 21: Thermal Gas Consumption Model & Telemetry (FR-35)
             self.test_tc21_1_gas_model_schema,
             self.test_tc21_2_gas_model_calculations,
-            # Group 22: Home Assistant Package & Entities Contract (FR-36)
-            self.test_tc22_1_ha_package_syntax_and_modern_template,
-            self.test_tc22_2_ha_dashboard_structure,
             # Group 23: FSM Relay Decoupling & Safety Invariant (FR-37)
             self.test_tc23_1_fsm_instant_warmup_abort_contract,
             self.test_tc23_2_orphaned_relay_safety_invariant,

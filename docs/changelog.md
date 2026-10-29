@@ -5,6 +5,14 @@ Corelat cu planul activ: [`docs/plan.md`](file:///c:/Users/BSeceleanu/.github_re
 
 
 
+## [29.10.2026] - Lean phase 1: repository cleanup
+
+- Removed docs outside current scope: market/ROI, sales plan, multi-tenant SaaS architecture, remote fleet, session summary, generated test report.
+- Removed Home Assistant integration (`homeassistant/`) and its tests (TC22.x), nginx/portal/docker tooling, browser review scripts.
+- Removed unused web pages `web/index_v2.html`, `web/public_landing.html` (not compiled into firmware).
+- Rewrote `AGENTS.md` and `docs/plan.md` as short, phase-based documents.
+- Firmware (`src/`, `include/`) untouched.
+
 ## [21.10.2026] - Remediere 6 Probleme Majore, Overhaul UI/UX FSM, Suită Nouă Configurare Hardware & Hardening Firmware (100% ASPICE SWE.5)
 
 ### 1. Remediere Cele 6 Probleme Majore Raportate de Utilizator

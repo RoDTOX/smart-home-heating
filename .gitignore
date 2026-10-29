@@ -33,12 +33,5 @@ scratch/
 __pycache__/
 *.pyc
 
-# Home Assistant runtime artifacts
-homeassistant/*.db*
-homeassistant/*.log*
-homeassistant/.HA_VERSION
-homeassistant/.ha_run.lock
-homeassistant/.cloud/
-homeassistant/deps/
-homeassistant/tts/
-homeassistant/.storage/
+# Generated test report (tools/test_system.py --report)
+docs/system_test_report.md
