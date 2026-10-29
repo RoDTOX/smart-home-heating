@@ -41,3 +41,11 @@ Details: [`hardware_esp32_relay.md`](hardware_esp32_relay.md),
 - Heat source has a capability tier: **A** = ON/OFF (relay/RF), **B** = OpenTherm (adds flow setpoint).
   Same control core for both.
 - Condensing boiler on tier A: keep flow temperature low on the boiler, system controls *when / how long*.
+
+## Decisions (29.10.2026)
+
+- Phase order: lean first (2), then UI (3), then control (4) — each step testable on the board.
+- UI: own page served by the ESP32 (no Home Assistant). Family view + hidden admin view.
+- Alerts: shown in the page only (no push channel for now).
+- Control target: TPI with ~1 h cycle, min ON time ≥ 10–15 min (wax actuator lag 3–5 min),
+  weather-shifted early start, per-sensor calibration offsets, timed boost overrides (16–22.5 °C, 0.5 °C steps).
