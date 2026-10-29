@@ -9,7 +9,6 @@
 #include "TimeAndWeatherService.h"
 #include "Version.h"
 #include "dashboard_html_gz.h"
-#include "pwa_icons.h"
 #include "setup_html_gz.h"
 #include <Arduino.h>
 #include <ArduinoJson.h>
@@ -214,98 +213,6 @@ void handleRoot() {
   server.sendHeader("Cache-Control", "no-cache");
   server.send_P(200, "text/html", (const char*)DASHBOARD_HTML_GZ, DASHBOARD_HTML_GZ_LEN);
 }
-
-void handleManifest() {
-  server.sendHeader("Access-Control-Allow-Origin", "*");
-  server.sendHeader("Cache-Control", "public, max-age=86400");
-  static const char PROGMEM MANIFEST_JSON[] =
-      "{\n"
-      "  \"name\": \"Smart Heating Controller\",\n"
-      "  \"short_name\": \"SmartHeating\",\n"
-      "  \"description\": \"Autonomous Multi-Zone Heating & Boiler Controller\",\n"
-      "  \"id\": \"/\",\n"
-      "  \"start_url\": \"/\",\n"
-      "  \"scope\": \"/\",\n"
-      "  \"display\": \"standalone\",\n"
-      "  \"orientation\": \"any\",\n"
-      "  \"background_color\": \"#080c14\",\n"
-      "  \"theme_color\": \"#080c14\",\n"
-      "  \"icons\": [\n"
-      "    {\n"
-      "      \"src\": \"/icon-192.png\",\n"
-      "      \"sizes\": \"192x192\",\n"
-      "      \"type\": \"image/png\",\n"
-      "      \"purpose\": \"any\"\n"
-      "    },\n"
-      "    {\n"
-      "      \"src\": \"/icon-512.png\",\n"
-      "      \"sizes\": \"512x512\",\n"
-      "      \"type\": \"image/png\",\n"
-      "      \"purpose\": \"any\"\n"
-      "    },\n"
-      "    {\n"
-      "      \"src\": \"/icon-512.png\",\n"
-      "      \"sizes\": \"512x512\",\n"
-      "      \"type\": \"image/png\",\n"
-      "      \"purpose\": \"maskable\"\n"
-      "    }\n"
-      "  ]\n"
-      "}";
-  server.send_P(200, "application/manifest+json", MANIFEST_JSON);
-}
-
-void handleIcon192() {
-  server.sendHeader("Access-Control-Allow-Origin", "*");
-  server.sendHeader("Cache-Control", "public, max-age=604800");
-  server.send_P(200, "image/png", (const char*)ICON_192_PNG, ICON_192_PNG_LEN);
-}
-
-void handleIcon512() {
-  server.sendHeader("Access-Control-Allow-Origin", "*");
-  server.sendHeader("Cache-Control", "public, max-age=604800");
-  server.send_P(200, "image/png", (const char*)ICON_512_PNG, ICON_512_PNG_LEN);
-}
-
-void handleServiceWorker() {
-  server.sendHeader("Access-Control-Allow-Origin", "*");
-  server.sendHeader("Service-Worker-Allowed", "/");
-  server.sendHeader("Cache-Control", "no-cache, no-store, must-revalidate");
-  static const char PROGMEM SW_JS[] =
-      "self.addEventListener('install', () => self.skipWaiting());\n"
-      "self.addEventListener('activate', e => {\n"
-      "  e.waitUntil(\n"
-      "    caches.keys().then(keys => Promise.all(keys.map(k => caches.delete(k))))\n"
-      "      .then(() => self.registration.unregister())\n"
-      "      .then(() => self.clients.claim())\n"
-      "  );\n"
-      "});\n";
-  server.send_P(200, "application/javascript", SW_JS);
-}
-
-void handleAppIcon() {
-  server.sendHeader("Access-Control-Allow-Origin", "*");
-  server.sendHeader("Cache-Control", "public, max-age=604800");
-  static const char PROGMEM ICON_SVG[] =
-      "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 512 512\">\n"
-      "  <defs>\n"
-      "    <linearGradient id=\"bg\" x1=\"0%\" y1=\"0%\" x2=\"100%\" y2=\"100%\">\n"
-      "      <stop offset=\"0%\" stop-color=\"#0b1329\"/>\n"
-      "      <stop offset=\"100%\" stop-color=\"#030712\"/>\n"
-      "    </linearGradient>\n"
-      "    <linearGradient id=\"flame\" x1=\"0%\" y1=\"100%\" x2=\"0%\" y2=\"0%\">\n"
-      "      <stop offset=\"0%\" stop-color=\"#ef4444\"/>\n"
-      "      <stop offset=\"40%\" stop-color=\"#f97316\"/>\n"
-      "      <stop offset=\"80%\" stop-color=\"#eab308\"/>\n"
-      "      <stop offset=\"100%\" stop-color=\"#38bdf8\"/>\n"
-      "    </linearGradient>\n"
-      "  </defs>\n"
-      "  <rect width=\"512\" height=\"512\" rx=\"112\" fill=\"url(#bg)\" stroke=\"#1e293b\" stroke-width=\"16\"/>\n"
-      "  <path d=\"M256 70c14 42 38 78 70 106 38 34 66 78 66 130 0 88-61 146-136 146s-136-58-136-146c0-62 36-118 78-154 8 26 24 50 48 64 6-40 24-100 10-146z\" fill=\"url(#flame)\"/>\n"
-      "  <path d=\"M256 260c22 24 34 50 34 80 0 44-31 70-70 70s-70-26-70-70c0-34 20-64 44-84 4 14 12 28 26 36 4-22 14-56 36-32z\" fill=\"#ffffff\" opacity=\"0.85\"/>\n"
-      "</svg>";
-  server.send_P(200, "image/svg+xml", ICON_SVG);
-}
-
 
 void handleApiOn() {
   uint32_t waitSec = 0;
@@ -2272,11 +2179,6 @@ void setup() {
 
   // Web Server routes
   server.on("/", HTTP_GET, handleRoot);
-  server.on("/manifest.json", HTTP_GET, handleManifest);
-  server.on("/sw.js", HTTP_GET, handleServiceWorker);
-  server.on("/icon.svg", HTTP_GET, handleAppIcon);
-  server.on("/icon-192.png", HTTP_GET, handleIcon192);
-  server.on("/icon-512.png", HTTP_GET, handleIcon512);
   server.on("/setup", HTTP_GET, handleSetup);
   server.on("/api/setup/passport", handleApiSetupPassport);
   server.on("/api/setup/discovered-sensors", HTTP_GET,
