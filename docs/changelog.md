@@ -5,6 +5,14 @@ Corelat cu planul activ: [`docs/plan.md`](file:///c:/Users/BSeceleanu/.github_re
 
 
 
+## [29.10.2026] - Lean phase 2 (in progress): firmware removals
+
+- **Safety:** removed Service Mode and forced boiler START (both bypassed the anti-short-cycling guard). Forced STOP kept.
+- Removed PWA (manifest, service worker, icons), web console page (`/console`; Telnet and `/api/console/*` kept), unused `PubSubClient`.
+- Replaced `DevicePassport` with a plain weather location setting (`/api/setup/location`, console `LOCATION`), migrated from the old NVS namespace.
+- Added GitHub Actions firmware build (`.github/workflows/build.yml`).
+- Known: `web/index.html` / `web/setup.html` still call removed endpoints until phase 3.
+
 ## [29.10.2026] - Lean phase 1: repository cleanup
 
 - Removed docs outside current scope: market/ROI, sales plan, multi-tenant SaaS architecture, remote fleet, session summary, generated test report.

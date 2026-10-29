@@ -8,7 +8,7 @@ Firmware for autonomous multi-zone underfloor heating — **install once, calibr
 
 - **Hardware:** ESP32-WROOM-32E on ESP32-Relay X4 V1.1 (`192.168.1.20`).
 - **Inputs:** Xiaomi BLE room sensors (NimBLE passive scan), Open-Meteo outdoor temperature.
-- **Outputs:** 230V NC thermal actuators (relays), GPA pump (relay 4), gas boiler ON/OFF via 433.92 MHz OOK.
+- **Outputs:** 230V NC thermal actuators (relays), optional GPA pump (relay 4, unused in reference install), gas boiler ON/OFF via 433.92 MHz OOK.
 - **Interface:** headless REST/JSON API + CLI ([`tools/esp_cli.py`](tools/esp_cli.py)). UI is secondary.
 
 Reference install: Immergas Victrix Tera 24, 7 circuits → 3 zones (Z1 living+kitchen, Z2 kids bedroom, Z3 master bedroom).
@@ -40,7 +40,7 @@ The repo grew in every direction. Work happens in phases on a branch:
 
 ## 4. Verification before flashing
 
-1. `pio run` builds clean.
+1. `pio run` builds clean (also runs on GitHub Actions for every push).
 2. `python tools/test_system.py` passes against the board.
 3. Read your own `git diff` for debug leftovers and the safety list above.
 
