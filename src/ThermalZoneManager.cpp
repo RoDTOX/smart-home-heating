@@ -51,7 +51,7 @@ ThermalZoneManager::ThermalZoneManager()
         _windowStates[i].dropInsightLogged = false;
         _windowStates[i].lastDetectionEpoch = 0;
         _windowStates[i].lastDetectionDurationSec = 0;
-        _tpi[i] = {0, 0, 0.0f, 0.0f, 0.0f};
+        _tpi[i] = {0, 0, 0.0f, 0.0f, 0.0f, 0.0f};
         _configs[i].tempOffset = 0.0f;
     }
 
@@ -131,6 +131,7 @@ void ThermalZoneManager::loadFromPreferences() {
         _configs[i].enabled = prefs.getBool((p + "en").c_str(), _configs[i].enabled);
         _configs[i].windowDropThreshold = prefs.getFloat((p + "wdrop").c_str(), 1.2f);
         _configs[i].tempOffset = prefs.getFloat((p + "ofs").c_str(), 0.0f);
+        _tpi[i].integral = _tpi[i].savedIntegral = prefs.getFloat((p + "tpi").c_str(), 0.0f);
     }
     prefs.end();
 
@@ -751,6 +752,15 @@ bool ThermalZoneManager::evaluateTpi(size_t index, float target, uint32_t now) {
         // Learn the base duty that holds the target; only near target so big setpoint jumps do not wind it up
         if (cycleDone && fabsf(err) < 1.0f) {
             t.integral = constrain(t.integral + TPI_KI * err, 0.0f, TPI_MAX_INTEGRAL);
+            // Keep the learning across reboots; write only on a meaningful change (NVS wear)
+            if (fabsf(t.integral - t.savedIntegral) >= 0.05f) {
+                Preferences prefs;
+                if (prefs.begin("zones", false)) {
+                    prefs.putFloat(("z" + String(index) + "_tpi").c_str(), t.integral);
+                    prefs.end();
+                    t.savedIntegral = t.integral;
+                }
+            }
         }
         t.duty = constrain(err / TPI_BAND_C + t.integral, 0.0f, 1.0f);
         uint32_t onMs = (uint32_t)(t.duty * TPI_CYCLE_MS);

@@ -22,6 +22,7 @@ struct TpiState {
     float target;
     float duty;      // Duty of the current cycle (0..1)
     float integral;  // Learned base duty that holds the target (heat loss)
+    float savedIntegral;  // Last value written to NVS
 };
 
 enum ZoneState {
