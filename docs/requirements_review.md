@@ -332,3 +332,22 @@ a test or a fix after the baseline is approved.
 | C11 | API messages in Romanian. | `WebApi.cpp:33,49,82` | confirmed |
 | C12 | DTCs are kept in RAM only; FR-22 claims DTC-101 is stored in NVS. | `DiagnosticEngine.cpp` (no `Preferences`) | confirmed by grep |
 | C13 | No authentication on any REST write endpoint; CORS `*`. | `WebApi.cpp` | confirmed by grep |
+
+## 6. Observations from the architecture (01.11.2026)
+
+Raised by the architecture chat in [`architecture.md`](architecture.md) §16 (O-1…O-11), decided by the owner on
+01.11.2026 and applied to baseline v2 by the requirements chat.
+
+| # | Requirement | Decision | Applied to |
+|---|---|---|---|
+| O-1 | FR-3, FR-37 | ✅ owner: the overrun valve stays open while the boiler is ON or `PENDING_OFF`, then for `overrun`; the boiler never burns with all zone valves closed (AR-11) | FR-3 |
+| O-2 | FR-16.1, FR-51, FR-64 | ✅ owner: in global OFF (and for a disabled zone) a zone in sensor FAULT runs its fault duty while outdoor < `faultFrostOutdoor` = **5 °C** (owner chose 5 °C over the proposed 0 °C) or outdoor unknown | FR-51, FR-64, §6 |
+| O-3 | NFR-3.2 | ✅ owner: modules are those of `architecture.md` | NFR-3.2 |
+| O-4 | §6 | ✅ owner: missing configuration items added with the reference-install defaults | §6 |
+| O-5 | FR-54 | ✅ owner: the flow-limit OFF is forced, it does not wait for the burner minimum run | FR-54 |
+| O-6 | FR-12.2 | ✅ owner: the 12 h safety net only in season mode AUTO | FR-12.2 |
+| O-7 | NFR-1.4 | ✅ owner: "enters the boot warmup" (zones with readings may heat during warmup, FR-22) | NFR-1.4 |
+| O-8 | FR-62 | ✅ owner: events kept in RAM until reboot when the store cannot be written | FR-62 |
+| O-9 | FR-47, FR-51 | ✅ owner: learned base duty per zone and outdoor band of 5 °C (7 bands) (AR-12) | FR-47 |
+| O-10 | FR-69 | ✅ owner: outputs of a failed expansion count as closed, DTC-208 `ERR_OUTPUT_EXPANSION_FAULT` | FR-69, §5 |
+| O-11 | FR-58 | ✅ owner: MANUAL mode and fault injection require authentication | FR-58 |

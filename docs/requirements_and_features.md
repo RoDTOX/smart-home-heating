@@ -69,7 +69,8 @@ one example:
 - **FR-47 (Time-proportional valve control):** *[now]* Each zone is controlled by time-proportional control (TPI):
   - cycle 60 min; ON time per cycle = duty × cycle;
   - duty = (target − room temperature) / 1.5 °C + learned base duty, limited to 0–100 %;
-  - learned base duty 0–60 %, adapted per zone and stored in NVS when it changes by ≥ 5 % (NFR-2.9);
+  - learned base duty 0–60 %, adapted per zone and per outdoor band of 5 °C (7 bands), stored in NVS when it
+    changes by ≥ 5 % (NFR-2.9);
   - minimum valve ON time and OFF time 10 min each (wax actuators need 3–5 min to open);
   - a new cycle starts when the target changes by more than 0.4 °C;
   - the valve closes when the room exceeds target + `hysteresis`.
@@ -98,6 +99,8 @@ one example:
   duty for the current outdoor temperature (bounded by NFR-5.3); if nothing is learned, with `faultDuty`.
   Frost protection (FR-16.1), interlock (FR-2) and burner guards (FR-4) stay active. Normal control resumes on the
   first accepted reading.
+  - In global OFF (FR-64) and for a disabled zone, the zone runs this duty only while the outdoor temperature is
+    below `faultFrostOutdoor` or unknown (a lost sensor must not remove frost safety; safety > economy).
   - *Reports:* DTC-101 `ERR_SENSOR_TIMEOUT`, zone state FAULT in the page.
 
 ### 3.2 Hydraulic safety (FR-2, FR-3, FR-4, FR-14, FR-37)
@@ -105,9 +108,9 @@ one example:
 - **FR-2 (Actuator opening interlock):** *[now]* Boiler ON is commanded only after at least one zone valve has been
   energised (opened) for ≥ `interlockDelay` (default 180 s). Values below the range in §6 are rejected.
   - *Fallback:* this is the safe state; if the demand ends during the interlock, FR-37 applies.
-- **FR-3 (Overrun after flame OFF):** *[now]* After a boiler OFF that followed a lit flame, the last zone valve that
-  was open stays open for `overrun` (default 180 s), independent of the pump setting, so the boiler can dissipate
-  residual heat.
+- **FR-3 (Overrun after flame OFF):** *[now]* The last zone valve that was open stays open while the boiler is ON
+  or `PENDING_OFF` (FR-32), and after a boiler OFF that followed a lit flame for `overrun` (default 180 s),
+  independent of the pump setting. The boiler never burns with all zone valves closed.
   - **FR-3.2 (No overrun without flame):** If the flame was never lit (start cancelled during the interlock), the
     overrun is 0 s and valves without demand close at once.
 - ~~**FR-38 (Flame-conditioned pump overrun):** retired, merged into FR-3 / FR-3.2.~~
@@ -214,7 +217,8 @@ one example:
   - *Fallback:* no outdoor or humidity data → FR-40.
 - **FR-54 (Flow temperature limit):** *[now; sensors optional]* Optional flow and return temperature sensors at the
   manifold, enabled in configuration (`flowSensors`). If the flow exceeds `flowMax` for more than 2 min, the boiler
-  is switched OFF until the flow is 5 °C below `flowMax`, then normal control resumes with all guards (no lockout).
+  is switched OFF without waiting for the burner minimum run (forced OFF, FR-17.3) until the flow is 5 °C below
+  `flowMax`, then normal control resumes with all guards (no lockout). The 2 min filter prevents chatter.
   - *Reports:* DTC-205 `ERR_FLOW_OVER_LIMIT`; flow / return values in status.
   - *Fallback:* sensors absent or implausible → function disabled, DTC-206 `WARN_FLOW_SENSOR_FAULT`; protection
     relies on the boiler setpoint (§2 preconditions).
@@ -242,12 +246,14 @@ one example:
 - **FR-61 (No valid time):** *[now]* Without valid time, each zone keeps the last active schedule level (stored in NVS
   on level change) until NTP succeeds.
   - *Reports:* DTC-302 `WARN_TIME_NOT_SET`, 'time not set' in the page.
-- **FR-64 (Global OFF):** *[now]* Global OFF mode: no heating except frost protection (FR-16.1) and valve exercise
-  (FR-19). Entered manually or by the season logic (FR-12.2).
+- **FR-64 (Global OFF):** *[now]* Global OFF mode: no heating except frost protection (FR-16.1), valve exercise
+  (FR-19) and zones in sensor FAULT when it is cold outside (FR-51). Entered manually or by the season logic (FR-12.2).
 - **FR-12.2 (Heating season):** *[now]* Season mode AUTO / ON / OFF; season OFF = global OFF (FR-64).
   - AUTO switches ON when the daily mean outdoor temperature is below `heatLimit` for `seasonOnDays` consecutive
     days, and OFF when it is above `heatLimit` + 2 °C for `seasonOffDays` consecutive days.
-  - Safety net: in season OFF, if any zone stays below its night level for 12 h, the season switches ON.
+  - Safety net (season mode AUTO only): in season OFF, if an enabled zone with accepted readings stays below its
+    night level for 12 h, the season switches ON. A season OFF chosen by hand is kept; frost protection covers
+    safety.
   - *Fallback:* no weather data → season state unchanged. Every change is logged.
 - ~~**FR-12.3 (Open-Meteo weather):** retired, merged into FR-9.~~
 - ~~**FR-12.4 (City search, county list, GPS button):** retired, replaced by FR-9.2.~~
@@ -268,7 +274,7 @@ one example:
 - **FR-70 (Solar gain throttling):** *[phase 4]* For zones flagged `solarGain`, if the Open-Meteo irradiance forecast
   for the next 3 h exceeds `solarLimit`, the TPI duty is reduced by `solarReduction`. Values are set from recorded data.
   - *Fallback:* no forecast → no reduction.
-- **FR-71 (Humidity compensation):** *[nice to have]* Per-zone opt-in: at relative humidity ≥ 60 % the control target
+- **FR-71 (Humidity compensation):** *[nice to have]* Per-zone opt-in (`humidityComp`): at relative humidity ≥ 60 % the control target
   is lowered by up to 0.5 °C; the effective target is shown in the admin view.
   - *Fallback:* no humidity reading → no compensation.
 
@@ -281,6 +287,7 @@ one example:
 - **FR-62 (Event history and alarms):** *[now]* The last 50 safety events (DTC raised / cleared, frost, FAULT,
   watchdog reset, controlled restart) are kept across reboots with time stamp (uptime if time is not set), written
   only when an event occurs. Alarms are shown in the page and `/api/status`; there is no push channel.
+  - *Fallback:* event store cannot be written → events are kept in RAM until reboot, with a log line.
 - **FR-21 (Firmware identity):** *[now]* Version, build date and time, git commit and reset reason are reported in
   status, console `STATUS` and the boot message.
 - **FR-23 (Console status):** *[now]* `STATUS` shows zones, sensors, boiler, protections, heap (free, minimum, largest
@@ -325,7 +332,7 @@ one example:
 - **FR-50 (Setup access point):** *[now]* If the configured Wi-Fi is not joined at boot, the controller opens access
   point `SmartHeating-Setup`; control continues.
 - **FR-58 (Authentication):** *[now]* Write endpoints that change safety timings, polarity, relays, boiler state or
-  credentials require authentication (same credentials as OTA). CORS is limited to the controller's own origin.
+  credentials, MANUAL mode or fault injection (NFR-5.5) require authentication (same credentials as OTA). CORS is limited to the controller's own origin.
   - *Fallback:* unauthenticated request → HTTP 401, no change.
 - **FR-59 (Credentials):** *[now]* The first flash may use universal default credentials (OTA, access point, Wi-Fi).
   Credentials are changed via API or console without re-flashing and stored in NVS.
@@ -359,6 +366,8 @@ one example:
 - **FR-69 (Number of zones):** *[now: configuration; hardware later]* 1–32 zones, each with name, sensor and output.
   The number of outputs is limited by the configured hardware; a zone without an output is rejected. Memory for
   32 zones is reserved statically (NFR-2.6). Relay 4 is a zone or the pump.
+  - *Fallback:* an output expansion that stops responding → its outputs count as closed (their unpowered state),
+    DTC-208 `ERR_OUTPUT_EXPANSION_FAULT`; other zones continue. Details are fixed with the expansion hardware.
 
 ### 3.11 Retired requirements (IDs reserved)
 
@@ -376,7 +385,7 @@ one example:
 - **NFR-1.1 (Local autonomy):** Loss of Wi-Fi, router or internet does not stop heating control; all decisions run on
   the controller.
 - **NFR-1.4 (Safe boot):** At every boot the controller drives all zone valves to closed (per FR-15.1), sends one
-  boiler OFF, and runs the boot warmup (FR-22) before any heating command.
+  boiler OFF, and enters the boot warmup (FR-22) before any heating command.
 - **NFR-1.5 (Task watchdog):** A 90 s task watchdog on `loop()` resets the controller on a software hang.
 - ~~**NFR-1.2 (Sensor failsafe):** retired, merged into FR-16.2.~~
 - ~~**NFR-1.3 (Frost protection):** retired, merged into FR-16.1.~~
@@ -402,9 +411,8 @@ one example:
 
 - **NFR-3.1 (Language):** Code, identifiers, API messages, logs and documentation in English. The family view of the
   page is available in Romanian and English (configurable).
-- **NFR-3.2 (Modules):** Firmware is split into modules with one responsibility each: `ThermalZoneManager`,
-  `BoilerRadioTrigger`, `BleSensorScanner`, `DiagnosticEngine`, `TimeAndWeatherService`, `NetworkConsole`,
-  `TelemetryHistoryManager`, `WebApi`, `ConsoleCommands`.
+- **NFR-3.2 (Modules):** Firmware is split into the modules of [`architecture.md`](architecture.md), one
+  responsibility each.
 
 ### 4.4 Comfort (NFR-4)
 
@@ -445,6 +453,7 @@ one example:
 | `DTC-205`: `ERR_FLOW_OVER_LIMIT` | flow above `flowMax` > 2 min | FR-54 | flow 5 °C below `flowMax` |
 | `DTC-206`: `WARN_FLOW_SENSOR_FAULT` | flow / return sensor missing or implausible | FR-54 | valid readings for 10 min |
 | `DTC-207`: `WARN_BOILER_LINK_NOT_FAILSAFE` | heartbeat disabled | FR-55 | heartbeat enabled |
+| `DTC-208`: `ERR_OUTPUT_EXPANSION_FAULT` | output expansion not responding | FR-69 | expansion responds for 1 min |
 | `DTC-301`: `WARN_LEARNING_RESET` | learned value discarded, default used | NFR-5.3 | manual clear |
 | `DTC-302`: `WARN_TIME_NOT_SET` | no valid time | FR-61 | NTP success |
 | `DTC-303`: `ERR_OTA_ROLLBACK` | new image failed its checks, previous image restored | FR-60 | manual clear |
@@ -491,6 +500,18 @@ Set via API and console, stored in NVS (written on change only). Out-of-range va
 | `solarGain`, `solarLimit`, `solarReduction` | off / from data | per zone, bounded | FR-70 |
 | zone levels day / night / away | 23 / 21 / 18 °C | 5–30 °C | FR-29 |
 | sensor offset | 0.0 °C | −3.0…+3.0 °C | FR-49 |
+| `faultFrostOutdoor` | 5 °C | −10…+10 °C | FR-51, FR-64 |
+| `actuatorType` | NC | NC / NO | FR-15.1 |
+| `pumpOutput` | none | none / one relay output | FR-14.1 |
+| `boilerLinkType` | `rf433` | `rf433` / `wired` / `receiver` (ESP32-class, link open) | FR-55 |
+| `seasonMode` | AUTO | AUTO / ON / OFF | FR-12.2 |
+| `location` | not set (commissioning) | latitude −90…90, longitude −180…180 | FR-9.2 |
+| `pageLanguage` | `ro` | `ro` / `en` | FR-8.1, NFR-3.1 |
+| credentials (OTA, access point, Wi-Fi) | universal default | 8–63 characters | FR-59 |
+| number of zones | 3 | 1–32 | FR-69 |
+| zone mapping (name, sensor MAC, output) | empty (commissioning) | one per zone | FR-11.3, FR-69 |
+| `circuits` per zone | 1 (reference: 3 / 2 / 2) | 1–16 | FR-63 |
+| `humidityComp` | off | on / off per zone | FR-71 |
 
 ---
 
