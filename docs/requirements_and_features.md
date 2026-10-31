@@ -1,416 +1,503 @@
-# Specificație de Cerințe de Sistem & Funcționalități (Requirements & Features)
+# System and Software Requirements — Smart Home Heating
 
-**Proiect:** Sistem Inteligent Autonom de Încălzire Multi-Zonă (Smart Home Heating)
-**Data elaborării:** 07 Octombrie 2026
-**Status:** În dezvoltare activă (Hardware & Software de bază validate live)
-**Documente corelate:**
-- Plan & Roadmap: [`docs/plan.md`](file:///c:/Users/BSeceleanu/.github_repos/smart-heating/docs/plan.md)
-- Jurnal Modificări: [`docs/changelog.md`](file:///c:/Users/BSeceleanu/.github_repos/smart-heating/docs/changelog.md)
-- Documentație Hardware: [`docs/hardware_esp32_relay.md`](file:///c:/Users/BSeceleanu/.github_repos/smart-heating/docs/hardware_esp32_relay.md)
-- Evidență Piese & Costuri (BOM): [`docs/bom_hardware_costs.md`](file:///c:/Users/BSeceleanu/.github_repos/smart-heating/docs/bom_hardware_costs.md)
+**Baseline:** v2, 31.10.2026 — derived from the owner-approved review [`requirements_review.md`](requirements_review.md).
+**Replaces:** the Romanian specification of 07.10.2026 (v1). IDs are kept where the meaning did not change.
+**Related:** [`plan.md`](plan.md), [`changelog.md`](changelog.md), [`hardware_esp32_relay.md`](hardware_esp32_relay.md),
+[`underfloor_heating_hydraulics_and_failsafes.md`](underfloor_heating_hydraulics_and_failsafes.md), [`api_reference.md`](api_reference.md).
 
 ---
 
-## 1. Scopul și Viziunea Sistemului (Product Vision & Problem Statement)
+## 0. How to read this document
 
-### 1.1. Problema Reală
-În instalațiile rezidențiale clasice de încălzire în pardoseală, un singur termostat de cameră (de regulă plasat în living) dictează pornirea și oprirea întregii centrale termice pe gaz. Acest lucru generează două deficiențe majore:
-1. **Dezechilibru termic sever între camere:** În timp ce livingul atinge temperatura dorită și oprește centrala, dormitoarele rămân reci; invers, dacă termostatul este mutat în dormitor, livingul devine supraîncălzit.
-2. **Defecțiunea termostatului wireless original:** În cazul defectării unității de emisie a vechiului termostat fără fir, utilizatorul este forțat să comande manual centrala sau să cumpere un kit comercial scump.
-3. **Costul prohibitiv al soluțiilor comerciale multi-zonă:** Sistemele consacrate de la Tado, Honeywell Evohome, Netatmo sau Danfoss Ally pentru 3–5 zone depășesc cu ușurință 2.500 – 4.500 RON și depind obligatoriu de servere cloud externe și abonamente lunare.
-
-### 1.2. Soluția & Viziunea Noastră
-Construirea unui sistem autonom, fiabil și cu costuri minime, capabil să:
-- Regleze independent temperatura în fiecare cameră a apartamentului prin acționarea electrotermică a celor 7 circuite de încălzire în pardoseală de pe distribuitor.
-- Comande wireless centrala termică pe gaz prin emițătorul radio de 433.92 MHz (semnal decodificat și reprodus fidel pe microcontroler).
-- Funcționeze **100% local și autonom**, independent de internet, cloud extern sau de funcționarea routerului Wi-Fi.
-- Ofere interfață web modernă, acces la distanță prin VPN privat (Tailscale) și consolă virtuală serială prin rețea pentru depanare fără cabluri.
+- `- **FR-x (Title):**` defines a requirement. Struck-through items (`~~`) are retired and keep their ID reserved.
+- **Phase tag** after the title says *when* it is implemented, not *whether* it is required:
+  `[now]` current phase · `[phase 4]` predictive control · `[later]` after phase 4 · `[nice to have]` optional.
+- Every functional requirement states its **inputs**, its **fallback** when an input is missing or implausible,
+  and what it **reports** (NFR-5.2). Fallbacks stay inside the comfort and safety zone; the occupants shall not
+  notice a fault — it is only logged and raised as a DTC (NFR-5.1).
+- Configuration parameters are written as `name`. Their default, allowed range and storage are defined once,
+  in §6. A value outside its range is rejected (HTTP 400 / console error) and never stored.
+- DTC codes are defined once, in §5.
 
 ---
 
-## 2. Topologia Apartamentului, Zone Termice & Circuite Hidraulice
+## 1. Purpose and scope
 
-Distribuitorul de încălzire conține **7 robineți termostatabili** pe tur/retur, mapați pe **3 zone termice distincte** + 2 băi cu calorifere libere (fără pardoseală):
+Autonomous multi-zone underfloor heating: **install once, calibrate once, forget it.** Every occupied room stays
+at its target (NFR-4.1) without manual tuning after commissioning (FR-68).
 
-```text
-                                [ DISTRIBUITOR CENTRAL 7 ROBINEȚI ]
-                                                │
-         ┌──────────────────────────────┬───────┴──────────────────────┬────────────────────────┐
-         ▼                              ▼                              ▼                        ▼
-     [ ZONA 1 ]                     [ ZONA 2 ]                     [ ZONA 3 ]              [ BYPASS ]
-  Living & Bucătărie             Camera Copilului             Dormitor Matrimonial         2x Băi
-  Robineții: #1, #2, #3          Robineții: #6, #7            Robineții: #4, #5       Calorifere libere
-  3 actuatoare NC (Paralel)      2 actuatoare NC (Paralel)    2 actuatoare NC (Paralel) (Fără pardoseală)
-  Comandate de RELEUL 1          Comandate de RELEUL 2        Comandate de RELEUL 3     Bypass natural
-  Senzor: Living Room BLE        Senzor: Kids Room BLE        Senzor: Matrimonial BLE   permanent
+- **Controller:** ESP32-WROOM-32E on ESP32-Relay X4 V1.1 (4 relay outputs; more outputs need an expansion, FR-69).
+- **Inputs:** BLE room sensors (Xiaomi LYWSD03MMC with PVVX / BTHome firmware), Open-Meteo weather, optional
+  flow / return temperature sensors (FR-54).
+- **Outputs:** 230 V thermal actuators (NC or NO), optional circulation pump, boiler ON/OFF via the boiler link.
+- **Interface:** local REST/JSON API, console (Serial, Telnet, HTTP), one web page.
+- **All control runs on the controller** (NFR-1.1).
+
+**Out of scope:** cloud services, remote fleet management, Home Assistant integration, kiosk / wall-tablet UI,
+floor cooling (no dew-point logic), push notifications (alarms are page-only, FR-62).
+
+---
+
+## 2. Reference installation (example configuration)
+
+Zones, circuits, relays, sensors and boiler interface are configuration (FR-11, FR-69). The reference install is
+one example:
+
+| Item | Reference value |
+|---|---|
+| Boiler | Immergas Victrix Tera 24 (condensing), ON/OFF only (tier A) |
+| Boiler link | 433.92 MHz OOK transmitter on GPIO19 → receiver dry contact (to be replaced by a fail-safe receiver, FR-55) |
+| Zone 1 — living + kitchen | circuits 1, 2, 3 · relay 1 (GPIO32) · NC actuators |
+| Zone 2 — kids bedroom | circuits 6, 7 · relay 2 (GPIO33) · NC actuators |
+| Zone 3 — master bedroom | circuits 4, 5 · relay 3 (GPIO25) · NC actuators |
+| Relay 4 (GPIO26) | unused (no pump installed) |
+| Bypass | bathroom towel radiators, always open |
+| Mixing valve | none — boiler water goes straight into the screed |
+
+**Installation preconditions** (checked at commissioning, FR-68):
+
+- An always-open bypass (radiator or differential-pressure valve) exists, so the boiler pump never runs against
+  closed valves.
+- Without a mixing valve, the boiler central-heating flow setpoint is set on the boiler to at most 45 °C.
+
+---
+
+## 3. Functional requirements
+
+### 3.1 Room control (FR-1, FR-47, FR-48, FR-51, FR-52)
+
+- **FR-47 (Time-proportional valve control):** *[now]* Each zone is controlled by time-proportional control (TPI):
+  - cycle 60 min; ON time per cycle = duty × cycle;
+  - duty = (target − room temperature) / 1.5 °C + learned base duty, limited to 0–100 %;
+  - learned base duty 0–60 %, adapted per zone and stored in NVS when it changes by ≥ 5 % (NFR-2.9);
+  - minimum valve ON time and OFF time 10 min each (wax actuators need 3–5 min to open);
+  - a new cycle starts when the target changes by more than 0.4 °C;
+  - the valve closes when the room exceeds target + `hysteresis`.
+  - *Inputs:* room temperature (accepted readings, FR-53), target. *Fallback:* sensor lost → FR-51; learned duty
+    out of bounds → default (NFR-5.3). *Reports:* duty per zone in the admin view (FR-8.1).
+  - Acceptance examples: 1.5 °C below target → 100 %; 0.2 °C below target → 13 % with zero base duty, 25 % with
+    a learned base duty of 12 % (blueprint example).
+- ~~**FR-1.1 (Hysteresis ON/OFF loop):** retired, replaced by FR-47; hysteresis remains only as overshoot cut.~~
+- **FR-1.2 (Boost):** *[now]* A boost raises one zone's target above its current schedule level by 0.5–2.0 °C in
+  0.5 °C steps; it never lowers the target (to cool use away, FR-44). Firmware enforces the limits for every
+  source (page, API, console). The boost ends as defined in FR-39.
+  - *Fallback:* request outside the limits → rejected, current target kept.
+- **FR-39 (Boost end):** *[now]* A boost ends at the first of: `boostDuration` elapsed, next schedule slot change,
+  `POST /api/zones/hold/clear`. The schedule level is never modified by a boost.
+  - *Fallback:* no valid time → the boost ends after `boostDuration` measured on uptime.
+- **FR-1.3 (Operating modes):** *[now]* AUTO: zones and boiler follow FR-47. MANUAL: relays and boiler are commanded
+  by the user (maintenance, tests). In MANUAL, boiler ON requires at least one valve open for ≥ `interlockDelay`
+  (FR-2), unless `openLoopBypass` is set. Frost protection (FR-16.1) and burner guards (FR-4) apply in both modes.
+- **FR-52 (Manual mode timeout):** *[now]* MANUAL returns to AUTO after `manualTimeout`. While MANUAL is active,
+  the page shows a warning with the remaining time.
+- **FR-48 (Weather-shifted pre-heat):** *[now]* If the next schedule slot has a higher level, it starts early by
+  120 + 9 × (5 − outdoor °C) min, limited to 45–240 min (2 h at +5 °C, 3.5 h at −5 °C).
+  - *Inputs:* outdoor temperature (FR-9), schedule. *Fallback:* outdoor value older than 6 h or missing → 90 min.
+    Replaced by the learned model when FR-67 is available. *Reports:* lead time in the admin view.
+- **FR-51 (Zone without sensor):** *[now]* A zone whose sensor is in timeout (FR-16.2) keeps heating with its learned
+  duty for the current outdoor temperature (bounded by NFR-5.3); if nothing is learned, with `faultDuty`.
+  Frost protection (FR-16.1), interlock (FR-2) and burner guards (FR-4) stay active. Normal control resumes on the
+  first accepted reading.
+  - *Reports:* DTC-101 `ERR_SENSOR_TIMEOUT`, zone state FAULT in the page.
+
+### 3.2 Hydraulic safety (FR-2, FR-3, FR-4, FR-14, FR-37)
+
+- **FR-2 (Actuator opening interlock):** *[now]* Boiler ON is commanded only after at least one zone valve has been
+  energised (opened) for ≥ `interlockDelay` (default 180 s). Values below the range in §6 are rejected.
+  - *Fallback:* this is the safe state; if the demand ends during the interlock, FR-37 applies.
+- **FR-3 (Overrun after flame OFF):** *[now]* After a boiler OFF that followed a lit flame, the last zone valve that
+  was open stays open for `overrun` (default 180 s), independent of the pump setting, so the boiler can dissipate
+  residual heat.
+  - **FR-3.2 (No overrun without flame):** If the flame was never lit (start cancelled during the interlock), the
+    overrun is 0 s and valves without demand close at once.
+- ~~**FR-38 (Flame-conditioned pump overrun):** retired, merged into FR-3 / FR-3.2.~~
+- **FR-4 (Burner anti-short-cycling):** *[now]* Burner minimum run time 180 s and minimum pause 180 s, applied to
+  every ON/OFF source (automatic, API, console). Values below the range in §6 are rejected.
+  - *Fallback:* a request inside the guard is deferred (FR-32), never dropped silently.
+- **FR-37 (Valve follows demand):** *[now]* A zone without demand has its valve de-energised (closed, per FR-15)
+  within one control cycle (1 s), except the overrun valve of FR-3. If demand drops during the interlock, the valve
+  closes and no boiler ON is sent for that zone.
+- **FR-14.1 (Optional circulation pump):** *[now]* One relay may be configured as circulation pump; disabled by
+  default.
+- **FR-14.2 (Pump interlock):** *[now]* The pump starts only after a valve has been open for ≥ `interlockDelay`.
+- **FR-14.3 (Pump overrun):** *[now]* The pump runs during the overrun of FR-3.
+- **FR-14.5 (No pump against closed valves):** *[now]* The pump runs only while at least one valve is open, or during
+  the overrun with the overrun valve open.
+- ~~**FR-14.4 (Weekly anti-seize 20 s):** retired, replaced by FR-19.~~
+
+### 3.3 Boiler link (FR-5, FR-17, FR-32, FR-55)
+
+- **FR-5.1 (Radio frame):** *[now]* The 433.92 MHz OOK frame reproduces the original thermostat: 409 level
+  transitions, 65 ms silence before and after the data train.
+- **FR-5.2 (Radio range):** *[now]* The boiler receiver switches the burner ON and OFF on command from the
+  controller's installed position — verified at commissioning (FR-68).
+- **FR-55 (Fail-safe boiler link):** *[now; receiver hardware later]* Loss of the controller shall switch the boiler
+  OFF:
+  - wireless link: the controller sends its state every `hbInterval`; the receiver opens the boiler contact if no
+    valid frame arrives within 3 × `hbInterval`;
+  - wired link: the boiler contact is a dry normally-open relay contact on the controller (no power = OFF).
+  - The heartbeat can be disabled (`boilerLinkHeartbeat` = off) for receivers without timeout.
+  - *Reports:* while disabled, DTC-207 `WARN_BOILER_LINK_NOT_FAILSAFE` is active.
+  - Note: the reference receiver has no timeout and will be replaced by an ESP32-class receiver (link type open).
+- **FR-17.1 (Idempotent command):** *[now]* An ON request while ON (or OFF while OFF) sends no radio frame and returns
+  HTTP 200 with `"idempotent":true`.
+- **FR-17.2 (Radio cooldown):** *[now]* At least 3 s between two radio frames; a frame requested earlier is rejected
+  by the driver.
+- **FR-17.3 (Manual boiler requests):** *[now]* Manual ON/OFF requests are subject to FR-4. Only OFF may be forced
+  (`force=true`), which stops the burner at once. No mechanism starts the burner inside the guard.
+- **FR-17.4 (Rejected request response):** *[now]* A request rejected by the guard returns HTTP 429 with
+  `status` = `rate_limited` or `pending`, the remaining `waitSec` and the current boiler state.
+- **FR-17.5 (Request spam):** *[now]* More than 3 rejected requests within 10 s raise DTC-201 `WARN_BOILER_SPAM_DETECTED`.
+- **FR-17.6 (Radio timing):** *[now]* One radio frame blocks `loop()` for ≤ 300 ms with interrupts disabled for
+  ≤ 150 ms; rejected requests send no frame.
+- **FR-17.7 (State repeat / heartbeat):** *[now]* While no command is pending, the controller re-sends the current
+  boiler state every `hbInterval`, so a lost OFF is repeated and FR-55 has its heartbeat.
+- **FR-32 (Deferred boiler request):** *[now]* A request rejected by FR-4 is queued (`PENDING_ON` / `PENDING_OFF`)
+  and executed when the guard expires. An opposite request or `POST /api/boiler/cancel` cancels it.
+
+### 3.4 Sensors (FR-6, FR-11, FR-20, FR-22, FR-28, FR-49, FR-53)
+
+- **FR-6.1 (Supported sensors):** *[now]* Xiaomi LYWSD03MMC with PVVX / ATC firmware, BTHome v2 or ATC format.
+- **FR-6.2 (Sensor values):** *[now]* Temperature (0.1 °C), relative humidity (1 %), battery (%), RSSI (dBm).
+- **FR-6.3 (Passive scan):** *[now]* Sensors are received by passive BLE scan on the controller (NimBLE).
+- **FR-28 (Scan duty):** *[now]* BLE passive scan at ≥ 90 % duty cycle.
+- **FR-49 (Sensor offset):** *[now]* Per-zone offset −3.0…+3.0 °C added to the reading, stored in NVS.
+- **FR-53 (Reading plausibility):** *[now]* Only accepted readings drive control and window detection:
+  - a reading outside `validMin`–`validMax` is ignored and raises DTC-103 `ERR_TEMP_OUT_OF_BOUNDS`;
+  - a reading differing from the last accepted one by more than `maxJump` is held and accepted only if the next
+    reading confirms it within 0.5 °C, otherwise discarded and counted;
+  - 3 discarded readings within 1 h raise DTC-104 `WARN_SENSOR_SUSPECT`.
+  - A real temperature drop (open window) repeats in consecutive readings and therefore passes.
+  - *Fallback:* the last accepted reading is used until the sensor timeout (FR-16.2).
+  - Optional later: per-sensor BTHome encryption key; unencrypted adverts ignored when a key is set.
+- **FR-20 (Link quality):** *[now]* Each sensor is classed by RSSI: EXCELLENT ≥ −72 dBm, GOOD −73…−82 dBm,
+  MARGINAL −83…−88 dBm, POOR < −88 dBm; shown via API and console.
+- **FR-22 (Boot warmup):** *[now]* After every boot, automatic heating waits up to 300 s for zone sensors. The warmup
+  ends early when all mapped sensors were received. Zones whose sensors were received control normally during the
+  warmup. At the end, each zone still without reading enters FR-51 and raises DTC-101 `ERR_SENSOR_TIMEOUT`.
+  Frost protection is active during the warmup.
+- **FR-11.1 (No installation data in firmware):** *[now]* The firmware ships without sensor MAC addresses or zone
+  names; they are set at commissioning and stored in NVS.
+- **FR-11.3 (Zone mapping):** *[now]* Each zone maps to a name, one sensor (MAC), one relay output and a target;
+  set via API (`/api/setup/...`) and console. `/api/setup/discovered-sensors` lists received sensors by RSSI.
+- **FR-11.4 (Persistence):** *[now]* Mapping, names and settings are stored in NVS and survive reboot and power loss.
+- ~~**FR-11.2 (Setup wizard page `/setup`):** retired, page removed; discovery kept in FR-11.3.~~
+- **FR-72 (Additional BLE receivers):** *[nice to have]* Optional extra ESP32 receivers forward sensor adverts to the
+  controller over the LAN; the controller uses the most recent accepted reading.
+  - Interim: a sensor below −90 dBm for 1 h raises DTC-105 `WARN_SENSOR_WEAK_SIGNAL`.
+
+### 3.5 Protections and fault detection (FR-16, FR-18, FR-40, FR-54, FR-56, FR-57)
+
+- **FR-16.1 (Frost protection):** *[now]* If any zone — enabled or disabled — with an accepted reading is below
+  `frostTemp` (default 12 °C), that zone heats in any mode (AUTO, MANUAL, global OFF) until it reaches
+  `frostTemp` + 1.5 °C. Interlock (FR-2) and burner guards (FR-4) still apply.
+- **FR-16.2 (Sensor timeout):** *[now]* A zone with no accepted reading for longer than `sensorTimeout`
+  (default 20 min) enters FAULT, raises DTC-101 `ERR_SENSOR_TIMEOUT` and continues with FR-51. Normal control
+  resumes on the first accepted reading.
+- **FR-18 (Sensor timeout setting):** *[now]* `sensorTimeout` is set via API and console, stored in NVS; one value
+  is used for control and for DTC-101 `ERR_SENSOR_TIMEOUT`.
+- **FR-40 (Window detection, simple rule):** *[now]* One global `windowThreshold` for all zones: a drop of at least
+  the threshold within 5 min closes that zone's valve for 30 min, or until the temperature rebounds by 0.6 °C from
+  the minimum, or until `POST /api/zones/window/clear`. Per-zone thresholds are removed.
+  - Used whenever FR-40.2 lacks outdoor or humidity data.
+  - *Fallback:* a false detection ends after 30 min at most; frost protection overrides the pause.
+- **FR-40.2 (Smart window detection):** *[phase 4]* Each zone evaluates a sliding window of ≥ 3 accepted readings
+  (default 5 min). A window-open event is declared when
+  - the temperature slope ≤ −`windowK` × (room − outdoor) °C/min **and** absolute humidity (from temperature and
+    relative humidity) drops by ≥ `windowAhDrop` g/m³ in the same window, or
+  - the temperature drop alone exceeds 2 × `windowThreshold`.
+  - Detection is suspended while room − outdoor < 5 °C (an open window does not cool the room noticeably).
+  - The event ends when the slope stays ≥ 0 and absolute humidity recovers for 3 readings, or after 30 min.
+  - Parameters are global; `windowK` and `windowAhDrop` are set from recorded traces.
+  - Acceptance on recorded traces of the reference install: ≥ 90 % of openings longer than 3 min detected within
+    5 min; ≤ 1 false event per zone per week.
+  - *Fallback:* no outdoor or humidity data → FR-40.
+- **FR-54 (Flow temperature limit):** *[now; sensors optional]* Optional flow and return temperature sensors at the
+  manifold, enabled in configuration (`flowSensors`). If the flow exceeds `flowMax` for more than 2 min, the boiler
+  is switched OFF until the flow is 5 °C below `flowMax`, then normal control resumes with all guards (no lockout).
+  - *Reports:* DTC-205 `ERR_FLOW_OVER_LIMIT`; flow / return values in status.
+  - *Fallback:* sensors absent or implausible → function disabled, DTC-206 `WARN_FLOW_SENSOR_FAULT`; protection
+    relies on the boiler setpoint (§2 preconditions).
+  - Sensor type is open (wired DS18B20 would need new libraries — owner approval per AGENTS.md).
+- **FR-56 (Zone overheat):** *[phase 4]* If a zone is above target + `overheatMargin` and still rising for
+  `overheatTime` with its valve commanded closed, DTC-203 `ERR_ZONE_OVERHEAT` is raised (valve stuck open or wrong
+  NC/NO setting). Other zones continue normally.
+- **FR-57 (Heating without effect):** *[phase 4]*
+  - A zone with duty ≥ `noEffectDuty` for `noEffectTime` that rises less than `noEffectRise` raises
+    DTC-202 `ERR_ZONE_NO_EFFECT`.
+  - If all demanding zones show it, or the flow temperature (FR-54) does not rise within 15 min of boiler ON, the
+    controller re-sends ON once; if there is still no effect after another 15 min, DTC-204 `ERR_BOILER_NOT_HEATING`
+    is raised.
+  - Other functions continue.
+
+### 3.6 Schedule, modes and season (FR-12, FR-29, FR-30, FR-31, FR-44, FR-61, FR-64)
+
+- **FR-29 (Levels):** *[now]* Each zone has three levels: day, night, away (5–30 °C; factory 23 / 21 / 18 °C).
+- **FR-30 (Level storage):** *[now]* Level temperatures are stored in NVS, written only on change.
+- **FR-31 (Schedule):** *[now]* One weekday and one weekend list of up to 8 slots `HH:MM=level`, kept sorted.
+- **FR-44 (Away):** *[now]* Global away sets every zone's target to its away level and ends boosts; switching away off
+  returns to the schedule.
+- **FR-12.1 (Time):** *[now]* Time from NTP with the Romanian time zone (`EET-2EEST,M3.5.0/3,M10.5.0/4`), including
+  daylight-saving changes.
+- **FR-61 (No valid time):** *[now]* Without valid time, each zone keeps the last active schedule level (stored in NVS
+  on level change) until NTP succeeds.
+  - *Reports:* DTC-302 `WARN_TIME_NOT_SET`, 'time not set' in the page.
+- **FR-64 (Global OFF):** *[now]* Global OFF mode: no heating except frost protection (FR-16.1) and valve exercise
+  (FR-19). Entered manually or by the season logic (FR-12.2).
+- **FR-12.2 (Heating season):** *[now]* Season mode AUTO / ON / OFF; season OFF = global OFF (FR-64).
+  - AUTO switches ON when the daily mean outdoor temperature is below `heatLimit` for `seasonOnDays` consecutive
+    days, and OFF when it is above `heatLimit` + 2 °C for `seasonOffDays` consecutive days.
+  - Safety net: in season OFF, if any zone stays below its night level for 12 h, the season switches ON.
+  - *Fallback:* no weather data → season state unchanged. Every change is logged.
+- ~~**FR-12.3 (Open-Meteo weather):** retired, merged into FR-9.~~
+- ~~**FR-12.4 (City search, county list, GPS button):** retired, replaced by FR-9.2.~~
+
+### 3.7 Weather and predictive control (FR-9, FR-63, FR-67, FR-70, FR-71)
+
+- **FR-9 (Outdoor temperature):** *[now]* Outdoor temperature from Open-Meteo every 15 min; retry after 5 min on
+  failure.
+  - *Fallback:* last value is used for 6 h, then functions that need it use their own fallback;
+    DTC-401 `WARN_WIFI_SIGNAL_DEGRADED` covers a network loss.
+- **FR-9.2 (Location):** *[now]* Weather location as latitude, longitude stored in NVS; set via API and console.
+- **FR-67 (Learned heat-up model):** *[phase 4]* Per zone, the heat-up rate (°C/h as a function of outdoor
+  temperature) is learned from operation, stored in NVS, and used for the pre-heat lead instead of the FR-48 formula.
+  - *Fallback:* too little data or values out of bounds → FR-48 formula (NFR-5.3).
+- **FR-63 (Aligned cycles, boiler minimum load):** *[phase 4]* TPI cycles of all zones start aligned, so open valves
+  overlap. A zone below `minLoops` circuits demanding alone is extended or grouped with another zone, so the boiler
+  does not short-cycle on its own thermostat.
+- **FR-70 (Solar gain throttling):** *[phase 4]* For zones flagged `solarGain`, if the Open-Meteo irradiance forecast
+  for the next 3 h exceeds `solarLimit`, the TPI duty is reduced by `solarReduction`. Values are set from recorded data.
+  - *Fallback:* no forecast → no reduction.
+- **FR-71 (Humidity compensation):** *[nice to have]* Per-zone opt-in: at relative humidity ≥ 60 % the control target
+  is lowered by up to 0.5 °C; the effective target is shown in the admin view.
+  - *Fallback:* no humidity reading → no compensation.
+
+### 3.8 Diagnostics (FR-10, FR-21, FR-23, FR-62)
+
+- **FR-10.2 (Diagnostic codes):** *[now]* The controller raises the codes listed in §5 and shows active codes in the
+  page and `/api/status`.
+- **FR-10.4 (Basic self-test):** *[now]* `/api/diag/selftest` reports Wi-Fi, heap, BLE, zones, radio and a health
+  score 0–100 %, without switching any output. The full self-test is FR-60.
+- **FR-62 (Event history and alarms):** *[now]* The last 50 safety events (DTC raised / cleared, frost, FAULT,
+  watchdog reset, controlled restart) are kept across reboots with time stamp (uptime if time is not set), written
+  only when an event occurs. Alarms are shown in the page and `/api/status`; there is no push channel.
+- **FR-21 (Firmware identity):** *[now]* Version, build date and time, git commit and reset reason are reported in
+  status, console `STATUS` and the boot message.
+- **FR-23 (Console status):** *[now]* `STATUS` shows zones, sensors, boiler, protections, heap (free, minimum, largest
+  block) and OTA margin. Layout is not specified.
+- ~~**FR-24 (Hardware telemetry in STATUS):** retired, merged into FR-23.~~
+- ~~**FR-25 (Zone cards, UTF-8 degree sign):** retired.~~
+- ~~**FR-26 (Web console colouring):** retired, page removed.~~
+- ~~**FR-27 (STATUS table layout, `utf8VisibleLen`):** retired.~~
+- ~~**FR-10.1 (Cloud connection):** retired, out of scope.~~
+- ~~**FR-10.3 (Service mode):** retired, removed in phase 2.~~
+- ~~**FR-10.5 (Fleet OTA):** retired, out of scope.~~
+
+### 3.9 Interfaces and security (FR-7, FR-8, FR-15, FR-34, FR-35, FR-41..FR-45, FR-50, FR-58, FR-59)
+
+- **FR-7.1 (Telnet console):** *[now]* Telnet server on port 23.
+- **FR-7.3 (Console commands):** *[now]* Console commands are accepted via Serial, Telnet and HTTP (FR-45); `HELP`
+  lists them.
+- **FR-45 (Console over HTTP):** *[now]* `POST /api/console/send` executes a console command and returns the new log
+  lines; `CLEAR` empties the log buffer.
+- ~~**FR-7.2 (Web console page `/console`):** retired, page removed.~~
+- **FR-8.1 (Web page):** *[now]* One page served at `/`:
+  - family view: rooms (temperature, target, humidity, state), outdoor weather, boost, one global Home / Away switch,
+    active alarms;
+  - admin view (`#admin`): duty per zone, RSSI per sensor, pre-heat lead, active DTCs, configuration.
+  - Family view language configurable (Romanian / English, NFR-3.1).
+- ~~**FR-8.2 (Remote access via Tailscale):** retired, user network setup, not product behaviour.~~
+- **FR-8.3 (Firmware update):** *[now]* Firmware update via `/update` with authentication (FR-58);
+  `tools/sh_ota_upload.py` completes a 1.25 MB image in < 30 s on the home LAN. OTA rules: FR-60.
+- **FR-15.1 (Actuator polarity):** *[now]* NC or NO actuator type is configurable (API, console), stored in NVS; all
+  valve commands respect it.
+- ~~**FR-15.2 (Compatibility statement):** retired, merged into FR-15.1.~~
+- **FR-34 (Telemetry history):** *[now]* History in LittleFS: 24 h at 5 min and 5 days at 30 min resolution, served by
+  `GET /api/history?range=24h|5d`.
+- **FR-35 (Burner counters):** *[now]* Burner time counters: total, today, yesterday, this month, last month,
+  current burn; reported in boiler status.
+- **FR-41 (Wi-Fi supervisor):** *[now]* Wi-Fi is checked every 10 s and reconnected; after 90 s down the stack is
+  re-initialised. DTC-401 `WARN_WIFI_SIGNAL_DEGRADED` while down or RSSI < −82 dBm. Control continues (NFR-1.1).
+- **FR-42 (Configuration API limits):** *[now]* `/api/config/system` exposes hydraulic and radio timings and rejects
+  values outside the §6 ranges, in particular below the safety floors of FR-2, FR-3 and FR-4.
+- **FR-43 (Relay test):** *[now]* Relay test is accepted only in MANUAL mode and only for configured relay outputs,
+  respecting NC/NO; otherwise HTTP 409.
+- **FR-50 (Setup access point):** *[now]* If the configured Wi-Fi is not joined at boot, the controller opens access
+  point `SmartHeating-Setup`; control continues.
+- **FR-58 (Authentication):** *[now]* Write endpoints that change safety timings, polarity, relays, boiler state or
+  credentials require authentication (same credentials as OTA). CORS is limited to the controller's own origin.
+  - *Fallback:* unauthenticated request → HTTP 401, no change.
+- **FR-59 (Credentials):** *[now]* The first flash may use universal default credentials (OTA, access point, Wi-Fi).
+  Credentials are changed via API or console without re-flashing and stored in NVS.
+  - *Reports:* while any default is active, DTC-403 `WARN_DEFAULT_CREDENTIALS`; everything else works.
+
+### 3.10 Maintenance and commissioning (FR-19, FR-60, FR-65, FR-66, FR-68, FR-69)
+
+- **FR-19 (Valve exercise):** *[now]* A valve closed for ≥ `exerciseIdleDays` is opened for 5 min with the boiler
+  OFF; the optional pump runs during the exercise. Idle time is tracked per valve on epoch time and stored in NVS
+  (on change only). Runs in every mode, including global OFF.
+- **FR-60 (OTA safety and self-test):** *[now]*
+  - OTA starts only with the boiler OFF.
+  - After boot of a new image, automatic checks without the boiler (loop and watchdog alive, Wi-Fi up, sensors
+    received within 60 s); the image is marked valid only if they pass, otherwise the previous image is restored
+    and DTC-303 `ERR_OTA_ROLLBACK` is raised.
+  - Full self-test on request only (API, console): each zone relay switched, boiler link frame sent, one zone
+    opened (interlock respected), boiler ON for `selfTestBurn`, flow rise checked if FR-54 sensors are enabled,
+    boiler OFF with all guards. Result stored and shown. Failures raise DTC-304 `ERR_SELFTEST_FAILED`; a plant
+    failure never causes a rollback. The boiler step is skipped in global OFF.
+- **FR-65 (Configuration export / import):** *[later]* The complete configuration (zones, sensors, offsets, learned
+  values, credentials excluded) is exported and imported as JSON via API.
+- **FR-66 (Factory reset):** *[later]* Factory reset via console or API, with confirmation; keeps Wi-Fi credentials.
+- **FR-68 (Commissioning checklist):** *[now, documentation]* Commissioning follows a checklist; the result is stored:
+  1. installation — manifold flow meters balanced per zone; always-open bypass present; boiler flow setpoint
+     ≤ 45 °C (§2);
+  2. sensors — PVVX / BTHome firmware, advert interval ≤ 10 s; all sensors 24 h side by side next to a reference,
+     offsets set to ±0.2 °C (FR-49); mounted 1.2–1.5 m high on an internal wall, away from floor radiation, sun,
+     doors and drafts;
+  3. function — relay test per zone (FR-43), valve opening time measured, boiler ON/OFF confirmed by the full
+     self-test (FR-60), radio range (FR-5.2).
+- **FR-69 (Number of zones):** *[now: configuration; hardware later]* 1–32 zones, each with name, sensor and output.
+  The number of outputs is limited by the configured hardware; a zone without an output is rejected. Memory for
+  32 zones is reserved statically (NFR-2.6). Relay 4 is a zone or the pump.
+
+### 3.11 Retired requirements (IDs reserved)
+
+- ~~**FR-13 (Device passport, FR-13.1–13.4):** retired, removed in phase 2; location moved to FR-9.2.~~
+- ~~**FR-33 (Sparklines):** retired, not in the current page.~~
+- ~~**FR-36 (Home Assistant package):** retired, out of scope.~~
+- ~~**FR-46 (Dynamic time blocks):** retired, never defined.~~
+
+---
+
+## 4. Non-functional requirements
+
+### 4.1 Safety (NFR-1)
+
+- **NFR-1.1 (Local autonomy):** Loss of Wi-Fi, router or internet does not stop heating control; all decisions run on
+  the controller.
+- **NFR-1.4 (Safe boot):** At every boot the controller drives all zone valves to closed (per FR-15.1), sends one
+  boiler OFF, and runs the boot warmup (FR-22) before any heating command.
+- **NFR-1.5 (Task watchdog):** A 90 s task watchdog on `loop()` resets the controller on a software hang.
+- ~~**NFR-1.2 (Sensor failsafe):** retired, merged into FR-16.2.~~
+- ~~**NFR-1.3 (Frost protection):** retired, merged into FR-16.1.~~
+- ~~**NFR-1.6 (Burner cycle limit 60 s + 60 s):** retired, merged into FR-4.~~
+- ~~**NFR-1.7 (Failure-mode description):** retired, moved to the hydraulics document.~~
+
+### 4.2 Resources and performance (NFR-2)
+
+- **NFR-2.2 (Free heap):** Free heap ≥ 100 KB during normal operation. Below 60 KB
+  DTC-402 `WARN_HEAP_FRAGMENTATION` is raised; below 30 KB a controlled restart is performed while the boiler is OFF,
+  with state restored from NVS (FR-62 records it).
+- **NFR-2.3 (API response):** Local API response time < 100 ms.
+- **NFR-2.4 (Log time stamps):** Every console line carries a `[HH:MM:SS]` time stamp.
+- **NFR-2.6 (No heap drift):** No heap decrease > 5 KB over 24 h of operation; buffers are bounded and reserved
+  statically.
+- **NFR-2.8 (Firmware size):** Firmware image < 1.25 MB, so OTA fits.
+- **NFR-2.9 (Flash wear):** NVS is written only when a value changes.
+- ~~**NFR-2.1 (Power < 1.2 W):** retired.~~
+- ~~**NFR-2.5 (Paced OTA upload):** retired, merged into FR-8.3.~~
+- ~~**NFR-2.7 (Development server):** retired, tooling, documented in the README.~~
+
+### 4.3 Code and language (NFR-3)
+
+- **NFR-3.1 (Language):** Code, identifiers, API messages, logs and documentation in English. The family view of the
+  page is available in Romanian and English (configurable).
+- **NFR-3.2 (Modules):** Firmware is split into modules with one responsibility each: `ThermalZoneManager`,
+  `BoilerRadioTrigger`, `BleSensorScanner`, `DiagnosticEngine`, `TimeAndWeatherService`, `NetworkConsole`,
+  `TelemetryHistoryManager`, `WebApi`, `ConsoleCommands`.
+
+### 4.4 Comfort (NFR-4)
+
+- **NFR-4.1 (Comfort accuracy):** In steady state (no schedule change for 3 h, window closed) the room temperature
+  stays within ±0.3 °C of the target.
+
+### 4.5 Graceful degradation (NFR-5)
+
+- **NFR-5.1 (Priorities):** When goals conflict: safety > comfort > economy. A fallback may give up economy, never
+  safety, and gives up comfort only when safety requires it. Faults are logged and raised as DTC; occupants shall
+  not notice them.
+- **NFR-5.2 (Fallback clause):** Every functional requirement states its inputs, its fallback when an input is
+  missing or implausible, and the DTC or log entry raised. A requirement without a fallback is incomplete.
+- **NFR-5.3 (Bounded learning):** Learned values (TPI base duty, heat-up model, window and solar parameters) are
+  bounded; a learned value outside its bounds or a corrupt NVS record is discarded, the default is used and
+  DTC-301 `WARN_LEARNING_RESET` is raised. Learning never stops control.
+- **NFR-5.4 (Short interruptions):** Heating interruptions shorter than 60 min are acceptable as fallback (the screed
+  buffers them, room drop < 0.3 °C). Longer fallbacks keep heating at an estimated duty (FR-51).
+- **NFR-5.5 (Fault injection):** Every fallback can be triggered on the board for test via console / API (sensor
+  lost, no weather, no time, no humidity, boiler link lost, flow over limit), so `tools/sh_test_system.py` can verify
+  it. Fault injection is refused where it would bypass a safety rule, and ends with a reboot.
+
+---
+
+## 5. Diagnostic codes
+
+| Code | Meaning | Raised by | Cleared |
+|---|---|---|---|
+| `DTC-101`: `ERR_SENSOR_TIMEOUT` | zone sensor without accepted reading > `sensorTimeout` | FR-16.2, FR-22 | first accepted reading |
+| `DTC-102`: `WARN_BATTERY_LOW` | sensor battery < 20 % | FR-6.2 | battery ≥ 25 % |
+| `DTC-103`: `ERR_TEMP_OUT_OF_BOUNDS` | reading outside `validMin`–`validMax` | FR-53 | next reading in range |
+| `DTC-104`: `WARN_SENSOR_SUSPECT` | 3 discarded spikes within 1 h | FR-53 | 24 h without spikes |
+| `DTC-105`: `WARN_SENSOR_WEAK_SIGNAL` | sensor RSSI < −90 dBm for 1 h | FR-72 | RSSI ≥ −88 dBm for 1 h |
+| `DTC-201`: `WARN_BOILER_SPAM_DETECTED` | > 3 rejected boiler requests within 10 s | FR-17.5 | 10 min without rejection |
+| `DTC-202`: `ERR_ZONE_NO_EFFECT` | zone demand without temperature rise | FR-57 | zone rises by `noEffectRise` |
+| `DTC-203`: `ERR_ZONE_OVERHEAT` | zone rising above target with valve closed | FR-56 | zone below target |
+| `DTC-204`: `ERR_BOILER_NOT_HEATING` | no zone and no flow reacts to boiler ON | FR-57 | any zone or flow rises |
+| `DTC-205`: `ERR_FLOW_OVER_LIMIT` | flow above `flowMax` > 2 min | FR-54 | flow 5 °C below `flowMax` |
+| `DTC-206`: `WARN_FLOW_SENSOR_FAULT` | flow / return sensor missing or implausible | FR-54 | valid readings for 10 min |
+| `DTC-207`: `WARN_BOILER_LINK_NOT_FAILSAFE` | heartbeat disabled | FR-55 | heartbeat enabled |
+| `DTC-301`: `WARN_LEARNING_RESET` | learned value discarded, default used | NFR-5.3 | manual clear |
+| `DTC-302`: `WARN_TIME_NOT_SET` | no valid time | FR-61 | NTP success |
+| `DTC-303`: `ERR_OTA_ROLLBACK` | new image failed its checks, previous image restored | FR-60 | manual clear |
+| `DTC-304`: `ERR_SELFTEST_FAILED` | full self-test step failed | FR-60 | next passed self-test |
+| `DTC-401`: `WARN_WIFI_SIGNAL_DEGRADED` | Wi-Fi down or RSSI < −82 dBm | FR-41 | Wi-Fi up and RSSI ≥ −80 dBm |
+| `DTC-402`: `WARN_HEAP_FRAGMENTATION` | free heap < 60 KB | NFR-2.2 | free heap > 75 KB |
+| `DTC-403`: `WARN_DEFAULT_CREDENTIALS` | a default credential is active | FR-59 | all credentials changed |
+
+Every raise and clear is recorded in the event history (FR-62).
+
+---
+
+## 6. Configuration parameters
+
+Set via API and console, stored in NVS (written on change only). Out-of-range values are rejected.
+
+| Parameter | Default | Range | Requirement |
+|---|---|---|---|
+| `interlockDelay` | 180 s | 120–600 s | FR-2, FR-14.2 |
+| `overrun` | 180 s | 180–600 s | FR-3 |
+| `burnerMinRun` / `burnerMinPause` | 180 s / 180 s | 120–600 s | FR-4 |
+| `hysteresis` | 0.3 °C | 0.1–1.0 °C | FR-47 |
+| `boostDuration` | 3 h | 1–6 h | FR-39 |
+| `manualTimeout` | 3 h | 1–6 h | FR-52 |
+| `openLoopBypass` | off | on / off | FR-1.3 |
+| `faultDuty` | 20 % | 0–30 % | FR-51 |
+| `sensorTimeout` | 20 min | 1–60 min | FR-16.2, FR-18 |
+| `frostTemp` | 12 °C | 8–16 °C | FR-16.1 |
+| `validMin` / `validMax` | 5 / 45 °C | 0–10 / 35–50 °C | FR-53 |
+| `maxJump` | 2.0 °C | 0.5–5.0 °C | FR-53 |
+| `windowThreshold` | 1.2 °C | 0.8–2.0 °C | FR-40 |
+| `windowK`, `windowAhDrop` | from traces | bounded per NFR-5.3 | FR-40.2 |
+| `hbInterval` | 60 s | 30–900 s | FR-17.7, FR-55 |
+| `boilerLinkHeartbeat` | on | on / off | FR-55 |
+| `flowSensors` | off | on / off | FR-54 |
+| `flowMax` | 45 °C | 35–55 °C | FR-54 |
+| `overheatMargin` / `overheatTime` | 2 °C / 60 min | 1–5 °C / 30–180 min | FR-56 |
+| `noEffectDuty` / `noEffectTime` / `noEffectRise` | 50 % / 3 h / 0.2 °C | 30–100 % / 1–6 h / 0.1–1.0 °C | FR-57 |
+| `heatLimit` | 15 °C | 10–18 °C | FR-12.2 |
+| `seasonOnDays` / `seasonOffDays` | 2 / 5 days | 1–7 / 1–10 days | FR-12.2 |
+| `exerciseIdleDays` | 14 days | 7–14 days | FR-19 |
+| `selfTestBurn` | 10 min | 5–20 min | FR-60 |
+| `minLoops` | 3 circuits | 1–7 | FR-63 |
+| `solarGain`, `solarLimit`, `solarReduction` | off / from data | per zone, bounded | FR-70 |
+| zone levels day / night / away | 23 / 21 / 18 °C | 5–30 °C | FR-29 |
+| sensor offset | 0.0 °C | −3.0…+3.0 °C | FR-49 |
+
+---
+
+## 7. Traceability
+
+The matrix requirements ↔ tests ↔ code is generated, not maintained by hand:
+
+```bash
+python tools/sh_process_check.py trace --matrix
 ```
-
-### Detalierea Zonelor Termice:
-| Zonă Termică | Încăperi Deservite | Nr. Bucle Pardoseală | Robineți Distribuitor | Actuator & Releu | Senzor Principal Asignat |
-|---|---|:---:|:---:|---|---|
-| **Zona 1** | Living + Bucătărie + Dining + Vestibul | 3 | Robineții 1, 2, 3 | 3x Actuatoare NC 230V $\rightarrow$ **Releu 1 (GPIO32)** | Senzor BLE `Living Room` (`A4:C1:38:A4:C1:DD`) |
-| **Zona 2** | Camera Copilului (Dormitor mijloc) | 2 | Robineții 6, 7 | 2x Actuatoare NC 230V $\rightarrow$ **Releu 2 (GPIO33)** | Senzor BLE `Kids Room` (`A4:C1:38:84:A1:E8`) |
-| **Zona 3** | Dormitor Matrimonial | 2 | Robineții 4, 5 | 2x Actuatoare NC 230V $\rightarrow$ **Releu 3 (GPIO25)** | Senzor BLE `Matrimonial` (sau senzor dedicat) |
-| **Rezervă** | Pompă adițională / Căldură baie | — | — | Contact liber de potențial $\rightarrow$ **Releu 4 (GPIO26)** | Neasignat (Canal liber) |
-| **Bypass** | Baia Mare + Baia Mică | — | — | Calorifere portprosop fără actuatoare | Asigură circulația minimă pentru pompa centralei |
-
----
-
-## 3. Cerințe Funcționale de Sistem (System Functional Requirements)
-
-### 3.1. Reglaj Termic & Algoritm Histerezis (FR-1)
-- **FR-1.1 (Buclă Histerezis):** Fiecare zonă termică va evalua continuu diferența dintre temperatura curentă ($T_{crt}$) și temperatura țintă ($T_{setpoint}$):
-  - **Cerere de căldură (ON):** Când $T_{crt} \le T_{setpoint} - Histerezis$ (implicit: $T_{setpoint} - 0.3^\circ\text{C}$).
-  - **Oprire cerere (OFF):** Când $T_{crt} \ge T_{setpoint} + Histerezis$ (implicit: $T_{setpoint} + 0.3^\circ\text{C}$).
-- **FR-1.2 (Reglaj Temperatură):** Utilizatorul poate modifica temperatura țintă independent per zonă în trepte de 0.5°C (interval acceptat: 15.0°C – 30.0°C) din interfața web, API sau consolă.
-- **FR-1.3 (Comutare Mod de Operare):**
-  - **Mod AUTOMAT:** Zonele și centrala sunt controlate exclusiv de algoritmul termic pe baza senzorilor.
-  - **Mod MANUAL:** Utilizatorul poate forța oricare releu sau centrala ON/OFF pentru mentenanță sau teste.
-
-### 3.2. Siguranță Hidraulică & Interblocare Hardware (FR-2, FR-3, FR-4)
-- **FR-2 (Actuator Opening Interlock):**
-  - Actuatoarele electrotermice cu ceară (NC 230V) necesită între 120 și 180 de secunde pentru cursa completă de deschidere mecanică.
-  - **Regulă critică:** Comanda de pornire a flăcării centralei NU se trimite niciodată înainte ca cel puțin un actuator să fi terminat timpul de interblocare (`DEFAULT_ACTUATOR_DELAY_MS = 120s`).
-  - Previne funcționarea pompei de circulație în regim de cavitație pe circuite complet închise.
-- **FR-3 (Pump Overrun & Heat Dissipation):**
-  - La atingerea temperaturii dorite în toate camerele, flacăra centralei este oprită imediat prin radio.
-  - Actuatoarele termice ale ultimelor zone active sunt menținute deschise timp de încă 120–180 de secunde (`DEFAULT_PUMP_OVERRUN_MS`), permițând pompei centralei să circule agentul termic și să disipeze energia acumulată în schimbătorul primar de căldură.
-- **FR-4 (Anti-Short-Cycling Guard):**
-  - Pentru a proteja vana de gaz și arzătorul centralei de uzură prematură, sistemul interzice repornirea flăcării la un interval mai scurt de 3–5 minute (`DEFAULT_MIN_BOILER_OFF_MS`) de la ultima oprire.
-
-### 3.3. Comandă Radio Centrală pe 433.92 MHz (FR-5)
-- **FR-5.1 (Compatibilitate Semnal Original):** Sistemul reproduce cu precizie la nivel de microsecundă semnalul radio decodificat de la vechiul termostat de cameră:
-  - Modulație: OOK / ASK pe frecvența 433.92 MHz.
-  - Structură tren: 409 tranziții de nivel logic, preambul de liniște de 65 ms, tren de date de ~131 ms și postambul de liniște de 65 ms.
-- **FR-5.2 (Antenă & Hardware Transmisie):** Folosirea plăcii fiice RF cu antenă perimetrică acordată sau modul SYN115 cu antenă calibrată de sfert de undă (17.3 cm cupru) pentru acoperirea sigură a întregului apartament prin pereți de beton.
-
-### 3.4. Telemetrie & Ingestie Senzori de Mediu (FR-6)
-- **FR-6.1 (Senzori Suportați):** Termometre digitale Xiaomi Mijia LYWSD03MMC (ecran LCD, firmware custom ATC / BTHome v2).
-- **FR-6.2 (Parametri Monitorizați):** Temperatură (rezoluție 0.1°C), Umiditate relativă (rezoluție 1%), Nivel baterie (%), Calitate semnal (RSSI dBm).
-- **FR-6.3 (Arhitectură Hibridă de Ingestie):**
-  - **Canal Local (Nativ ESP32):** Scanare BLE pasivă direct pe cipul ESP32-WROOM-32E folosind librăria optimizată NimBLE.
-  - **Canal Secundar / Fallback (MQTT):** Preluare pachete transmise prin brokerul Mosquitto de pe telefonul gateway Galaxy A6 (`home/sensors/ble/#`).
-
-### 3.5. Consolă Virtuală Serială Bidirecțională (2-Way Network Console) (FR-7)
-- **FR-7.1 (Telnet TCP pe portul 23):** Server Telnet activ permanent pe microcontroler, permițând monitorizarea wireless directă din terminal (`pio device monitor`) cu `monitor_port = tcp://192.168.1.20:23`.
-- **FR-7.2 (Consolă Web la `/console`):** Pagină web dedicată (dark theme) cu afișare în timp real a logurilor (ring buffer 8 KB în RAM), istoric de comenzi (taste Up/Down), butoane rapide de acțiune și streaming fără pierderi (`X-Log-Seq`).
-- **FR-7.3 (Control Bidirecțional):** Orice comandă trimisă din consolă (`STATUS`, `ON`, `OFF`, `AUTO`, `MANUAL`, `SET <z> <temp>`, `HELP`) este executată de procesor, iar răspunsul este transmis sincron către Web, Telnet și Serial USB.
-
-### 3.6. Interfață Utilizator & Acces la Distanță (FR-8)
-- **FR-8.1 (Dashboard Principal Web):** Pagină responsive optimizată pentru mobil și desktop la `http://192.168.1.20/` (și prin reverse proxy Galaxy A6 `http://galaxy-a6/heating/`):
-  - Stare flacără centrală (ON/OFF).
-  - Selector mod AUTOMAT / MANUAL.
-  - Carduri individuale pentru fiecare zonă cu afișare temperatură curentă, temperatură țintă, butoane +/- 0.5°C și stare releu.
-  - Listă telemetrie senzori de cameră cu baterie și semnal.
-- **FR-8.2 (Acces de la Distanță Securizat):** Accesibil de oriunde din afara locuinței prin rețeaua criptată **Tailscale VPN** (`http://100.83.135.74/heating/`).
-- **FR-8.3 (Actualizări Wireless Web OTA):** Pagină dedicată de încărcare firmware securizată cu parolă la `http://192.168.1.20/update` (durată flash sub 7 secunde).
-
-### 3.7. Compensare Climatică & Temperatură Exterioară (FR-9)
-- Preluare temperatură exterioară prin receptor radio SYN480R de la senzorul stației meteo Tronic 4-LD7396-2 de pe peretele de Nord.
-- Fallback automat pe API-ul meteo gratuit Open-Meteo prin Wi-Fi dacă senzorul fizic este offline.
-
-### 3.8. Acces Cloud la Distanță, Diagnoză Flotă & Service Mode (FR-10)
-- **FR-10.1 (Traversare Automată NAT/Firewall fără Port-Forwarding):** Dispozitivul ESP32 inițiază o conexiune criptată de ieșire (Outbound TLS WebSocket/MQTTS pe portul 443/8883) către un Server Central Cloud. Funcționează instantaneu pe orice rețea rezidențială (Digi, Orange, Vodafone CGNAT) fără configurare de router sau IP public.
-- **FR-10.2 (Standard Diagnostic Trouble Codes - DTC):** Microcontrollerul monitorizează continuu starea subsistemelor și înregistrează coduri standardizate de eroare:
-  - `DTC-101`: `ERR_SENSOR_TIMEOUT` (lipsă telemetrie cameră >20 min).
-  - `DTC-102`: `WARN_BATTERY_LOW` (baterie CR2032 senzor sub 20%).
-  - `DTC-103`: `ERR_TEMP_OUT_OF_BOUNDS` (citire aberantă senzor <5°C sau >45°C).
-  - `DTC-201`: `WARN_HIGH_CYCLE_RATE` (comutări excesive relee/oră).
-  - `DTC-202`: `ERR_ACTUATOR_STUCK_SHUT` (cerere căldură >90 min fără creștere de temperatură - posibil robinet blocat).
-  - `DTC-401`: `WARN_WIFI_SIGNAL_DEGRADED` (RSSI < -82 dBm).
-  - `DTC-402`: `WARN_HEAP_FRAGMENTATION` (memorie RAM liberă < 60 KB).
-- **FR-10.3 (Service Mode & Phone Troubleshooting):** Mod de mentenanță activabil securizat la distanță (`/api/diag/service?enable=true` sau `DIAG SERVICE ON`):
-  - Permite depanatorului, în timpul convorbirii telefonice cu clientul, să suspende temporar deciziile automate, să acționeze manual fiecare actuator pe rând, să testeze emisia radio către cazan și să inspecteze telemetria în timp real.
-- **FR-10.4 (Suita Onboard Self-Test):** Rutină integrată de autodiagnostic (`/api/diag/selftest` sau `DIAG SELFTEST`) care verifică în mai puțin de 500 ms memoria Heap, Wi-Fi, stiva BLE NimBLE, bridge-ul MQTT, engine-ul termic și emițătorul RF 433 MHz, returnând un Health Score procentual (0-100%).
-- **FR-10.5 (Actualizare Firmware de la Distanță - Remote Fleet OTA):** Posibilitate de actualizare fără fir a firmware-ului de la birou/acasă pentru întreaga flotă de clienți, prin tunelul securizat cloud.
-
-### 3.9. Procedură de Configurare la Client & Cartografiere Dinamică Senzori BLE (FR-11)
-- **FR-11.1 (Produs Comercial Fără MAC-uri Hardcodate):** Sistemul nu depinde de MAC-uri sau denumiri pre-programate în codul sursă. Orice senzor BLE compatibil (BTHome v2 sau PVVX/ATC) despachetat din cutie este detectat automat în aer.
-- **FR-11.2 (Asistent Vizual de Instalare & Descoperire Senzori - Setup Wizard):** Interfață web dedicată la `/setup` și endpoint `/api/setup/discovered-sensors`:
-  - Afișează toți senzorii detectați în eter, ordonați în timp real după intensitatea semnalului RSSI (senzorul ținut în mână de instalator lângă distribuitor apare primul).
-  - Indică adresa MAC, temperatura curentă, nivelul bateriei și dacă este deja asociat unei zone.
-- **FR-11.3 (Cartografiere Flexibilă Zone <-> Relee <-> Senzori):**
-  - Instalatorul sau clientul asignează printr-un singur clic fiecare senzor găsit la Zona Termică dorită (ex: Zona 1 = Living, Releu GPIO32, Senzor `A4:C1:38:...`).
-  - Posibilitate de a numi camerele personalizat și de a seta pragurile de temperatură țintă per zonă.
-- **FR-11.4 (Persistență Non-Volatilă NVS / Preferences):** Toate mapările zonă-senzor, numele încăperilor și setările se salvează în memoria flash non-volatilă (ESP32 Preferences / NVS). Sistemul rezistă la reporniri, căderi de tensiune și deconectări de la rețea.
-
-### 3.10. Sincronizare Automată Dată, Timp & Vreme prin Wi-Fi (FR-12)
-- **FR-12.1 (Sincronizare Oră & Dată via NTP):** La conectarea la Wi-Fi, microcontrolerul sincronizează automat ceasul intern prin Network Time Protocol (NTP, `pool.ntp.org` / `time.google.com`) cu fusul orar al României (`EET-2EEST,M3.5.0/3,M10.5.0/4`), gestionând automat trecerea la ora de vară/iarnă.
-- **FR-12.2 (Detectare Sezon & Regim de Funcționare):** Sistemul deduce automat anul, luna, ziua, ora și determină dacă se află în **Sezonul de Încălzire** (ex. 15 Octombrie – 15 Aprilie) sau în **Extra-sezon** (regim de vară, cu exercițiu automat de mișcare periodică a vanelor pentru prevenirea blocării axului mecanic).
-- **FR-12.3 (Vreme Exterioară prin Wi-Fi Open-Meteo REST API):** Preluare automată a temperaturii exterioare la fiecare 15 minute prin apel HTTP REST către Open-Meteo, pentru reglaj predictiv și compensare climatică chiar și în absența sondei radio externe.
-- **FR-12.4 (Selectare Inteligentă a Locației - Zero Input Coordonate GPS):**
-  - Fără introducere manuală de latitudine/longitudine (zero fricțiune pentru utilizator sau instalator).
-  - Căutare inteligentă cu auto-suggest live pentru orice oraș, comună sau sat din România (interogare directă Geocoding Open-Meteo).
-  - Listă rapidă predefinită cu toate cele 41 de reședințe de județ + București (funcționare 100% offline).
-  - Buton dedicat „📍 Detectează (GPS/IP)” care preia automat coordonatele și localitatea cu 1 singur clic de pe telefon sau laptop.
-
-### 3.11. Pașaport Digital de Instalare & Jurnal Mentenanță Dispozitiv (FR-13)
-- **FR-13.1 (Identificator Hardware & Număr Serial Unic):** Generat automat pe baza MAC-ului nativ al cipului ESP32 (ex: `SH-20500D1A7214`).
-- **FR-13.2 (Data & Ora Primei Puneri în Funcțiune - First Commissioning):** La prima instalare la client, sistemul înregistrează automat în memoria NVS timestamp-ul exact obținut prin NTP (an, lună, zi, oră).
-- **FR-13.3 (Metadate Client & Instalație):** Salvare persistentă a fișei tehnice de montaj:
-  - Numele clientului / Număr de contact.
-  - Localitate / Oraș / Comună & Adresă (selectată inteligent sau auto-detectată).
-  - Jurnal notițe instalator: model centrală pe gaz, tip distribuitor și filet robineți (M30x1.5), număr circuite pardoseală, data ultimei revizii.
-  - Contor timp total de viață (Life Uptime, zile de funcționare continuă de la instalare).
-- **FR-13.4 (Acces & Editare Pașaport):** Endpoint dedicat `/api/setup/passport` (GET/POST) și card integrat în interfața `/setup` pentru acces facil de pe mobil la montaj.
-
-### 3.12. Control Pompă Secundară & Failsafes Hidraulice pentru Grupuri de Amestec GPA (FR-14)
-- **FR-14.1 (Control Automat Pompă de Recirculare pe Releu 4 / GPIO26):** Comandă automată dedicată pompei secundare din grupul de pompare și amestec (GPA) specific caselor, duplexurilor sau distribuitoarelor cu pompă adițională.
-- **FR-14.2 (Interblocare Hidraulică Anti-Cavitație):** Pompa secundară pornește DOAR DUPĂ ce cel puțin un actuator termic a atins cursa completă de deschidere. Elimină riscul funcționării pompei pe circuite închise (fără debit).
-- **FR-14.3 (Post-circulație & Disipare Căldură Reziduală - 180s):** După stingerea flăcării centralei, pompa continuă să funcționeze 3 minute, menținând deschisă ultima zonă activă (*keeper zone*) pentru a răci schimbătorul de căldură și a preveni șocul termic.
-- **FR-14.4 (Exercițiu Automat de Vară Anti-Gripare - Anti-Seize 20s):** Dacă pompa și încălzirea nu au fost active timp de 7 zile consecutive, sistemul deschide automat toate actuatoarele și pornește pompa timp de 20 de secunde. Previne depunerea de calcar și blocarea mecanică a rotorului pompei în extrasezon.
-
-### 3.13. Compatibilitate Universală Actuatoare NC vs NO (FR-15)
-- **FR-15.1 (Polaritate Electrică Configurabilă în NVS):** Setare selectabilă din software (`act_nc: bool`) prin REST API (`/api/setup/actuator-type`) și CLI:
-  - **NC (Normally Closed - Implicit):** Releul se anclanșează (230V aplicat) la cerere de căldură pentru deschidere.
-  - **NO (Normally Open):** Releul rămâne neanclanșat pentru deschidere și se alimentează doar când zona este oprită.
-- **FR-15.2 (Compatibilitate cu Orice Distribuitor de pe Piață):** Permite montarea kitului pe instalații existente fără a schimba actuatoarele funcționale ale clientului (fie ele NC sau NO).
-
-### 3.14. Protecție Forțată la Îngheț & Izolare Failsafe Senzori (FR-16)
-- **FR-16.1 (Emergency Frost Guard < 12°C):** Declanșare automată de urgență a căldurii dacă temperatura oricărei încăperi coboară sub 12°C, suprascriind inclusiv modurile MANUAL sau OFF.
-- **FR-16.2 (Izolare Avarie Senzor DTC-101):** Oprirea imediată a actuatorului zonei la lipsa telemetriei peste 30 de minute (protejează parchetul de supraîncălzire în caz de baterie epuizată a termometrului) și restaurarea instantanee a stării normale de îndată ce sosesc pachete valide.
-
-### 3.15. Protecție Anti-Spam & Interblocare de Siguranță Arzător Cazan (FR-17)
-- **FR-17.1 (Filtru de Idempotență & No-Op Bypass):**
-  - Dacă o comandă de pornire (`ON`) este primită când starea curentă a centralei este deja `ON`, sau o comandă de oprire (`OFF`) când starea este deja `OFF`:
-  - Comanda este tratată instantaneu ca no-op fără a bloca procesorul și fără a transmite pachete radio fizice în eter (zero poluare RF).
-  - Răspunsul HTTP REST returnează succes idempotent (`200 OK` cu `{"status":"ok","boiler":"ON","idempotent":true}`).
-- **FR-17.2 (RF Transmission Cooldown - 3 secunde):**
-  - Emițătorul radio 433.92 MHz impune un interval minim de liniște de 3.000 ms (`MIN_RF_COOLDOWN_MS`) între oricare două trenuri de impulsuri RF consecutive.
-  - Orice solicitare de transmisie în cadrul acestei ferestre este respinsă la nivelul driverului fizic.
-- **FR-17.3 (Interblocare Anti-Short-Cycling pentru Comenzi Manuale & REST API):**
-  - **Timp Minim de Ardere Continuă (Min Run Time - 60s):** Odată ce flacăra cazanului a fost aprinsă (`ON`), nicio comandă manuală de oprire (`OFF`) nu este acceptată timp de minimum 60 de secunde (asigură stabilizarea arderii și evacuarea completă a gazelor arse).
-  - **Timp Minim de Pauză Arzător (Min Pause Time - 60s):** Odată ce flacăra a fost stinsă (`OFF`), nicio comandă manuală de pornire (`ON`) nu este acceptată timp de minimum 60 de secunde (previne aprinderea repetată pe amestec nears și uzura bobinelor vanei de gaz).
-  - *Override de Urgență:* În caz de depanare tehnică sau avarie, modul Service (`Service Mode`) sau un parametru explicit (`force=true`) permite suprascrierea interblocării de către un operator autorizat.
-- **FR-17.4 (Răspuns Determinist HTTP 429 & Feedback CLI):**
-  - Dacă o comandă este respinsă de interblocarea anti-spam / anti-short-cycling, serverul web returnează răspuns determinist HTTP `429 Too Many Requests` cu timpul de așteptare restant:
-    `{"status":"rate_limited","error":"Anti-short-cycling guard active","waitSec":45,"currentBoilerState":"ON"}`.
-  - Utilitarul CLI [`tools/esp_cli.py`](file:///c:/Users/BSeceleanu/.github_repos/smart-heating/tools/esp_cli.py) interceptează starea și afișează avertismentul vizual în terminal fără excepții.
-- **FR-17.5 (Detecție Spam Abuziv & Declanșare Avarie DTC-201):**
-  - Dacă se înregistrează mai mult de 3 încercări respinse de comutare rapidă într-o fereastră de 10 secunde (detecție spam repetat de la utilizator sau buclă infinită dintr-un script extern):
-  - Sistemul înregistrează codul de diagnosticare `DTC-201` (`WARN_RELAY_SHORT_CYCLING` / `WARN_BOILER_SPAM_DETECTED`) și emite avertisment în consola de rețea.
-- **FR-17.6 (Protecție Watchdog TWDT & Zero Blocaj CPU):**
-  - Pre-validarea comenzilor se execută în sub 1 ms. Comenzile respinse nu invocă funcția `transmitBurst()`, garantând că CPU-ul nu blochează întreruperile (`noInterrupts()`) și că Watchdog-ul Hardware TWDT (30s) este alimentat normal.
-
----
-
-### 3.3. Failsafe-uri Avansate, Calibrare Senzori & Versionare (FR-18 - FR-21)
-- **FR-18 (Failsafe Timeout Senzori Configurabil):**
-  - Utilizatorul / instalatorul poate seta durata maximă acceptată de lipsă semnal de la un senzor termic înainte de decuplarea automată a zonei afectate (failsafe OFF cu `DTC-101`).
-  - Domeniu valid: 60s – 7200s (implicit: 600s / 10 min), salvat persistent în NVS (`sns_tout`).
-  - Accesibil prin REST API (`GET/POST /api/setup/sensor-timeout?timeoutSec=...`) și consolă CLI (`tools/esp_cli.py timeout <sec>`).
-  - Test de verificare: `SWE.5-TC13`. Status: `[VERIFIED]`.
-- **FR-19 (Exercițiu Anti-Blocare Calendaristic pe UNIX Epoch):**
-  - Ciclul săptămânal de 20s de exercițiu al pompei GPA și al vanelor este programat pe baza timpului real calendaristic (`time_t nowEpoch = time(nullptr)`) și salvat în NVS (`last_seize_ep`).
-  - Elimină declanșările premature la repornirea alimentării (reboot/cold boot); la prima sincronizare NTP, dacă nu există istoric, data este memorată și următorul ciclu este decalat cu 7 zile (604.800 secunde).
-  - Test de verificare: `SWE.5-TC06`. Status: `[VERIFIED]`.
-- **FR-20 (Indicatori Calitate Semnal BLE - Link Quality):**
-  - Evaluare automată pe clase de intensitate radio pentru fiecare senzor Xiaomi detectat:
-    * `EXCELLENT` ($\ge -72$ dBm)
-    * `GOOD` ($-73$ .. $-82$ dBm)
-    * `MARGINAL` ($-83$ .. $-88$ dBm)
-    * `POOR` ($< -88$ dBm)
-  - Afișat în tabelul Setup Wizard Web (`/setup`) și utilitarul CLI (`tools/esp_cli.py ble` și `status`) pentru asistență imediată la montajul fizic în locuință.
-  - Test de verificare: `SWE.5-TC03`. Status: `[VERIFIED]`.
-- **FR-21 (Versionare Firmware & Identitate Baseline):**
-  - Fiecare imagine de firmware compilată încorporează număr de versiune SemVer (`APP_VERSION`, ex: `1.2.0`), timestamp compilare (`APP_BUILD_DATE " " APP_BUILD_TIME`), hash commit Git (`APP_GIT_COMMIT`) și cauza exactă de resetare hardware (`esp_reset_reason()`).
-  - Expuse în `/api/boiler/status`, utilitarul CLI (`tools/esp_cli.py status`), antetul comenzii `STATUS` și mesajul de boot (POST) la pornirea plăcii.
-  - Test de verificare: `SWE.5-TC14`. Status: `[VERIFIED]`.
-- **FR-22 (Perioadă de Grație Warmup Senzori la Boot & Activare Selectivă):**
-  - La pornirea plăcii ESP32 (cold boot sau reboot software), sistemul acordă o fereastră de grație de maximum 5 minute (300 secunde) în starea dedicată `ZONE_WARMUP` pentru recepționarea balizelor BLE pasive (interval de emisie 30–60s).
-  - Comenzile automate de încălzire și aprinderea arzătorului sunt suspendate preventiv pe durata warmup-ului pentru a proteja echilibrul hidraulic al locuinței (cu excepția protecției de urgență la îngheț `<12°C` care acționează imediat).
-  - **Ieșire Anticipată (Early Exit):** De îndată ce toți senzorii asociați (ex: 3/3) au fost detectați, warmup-ul se oprește imediat (`[SCANNING COMPLETE - ALL ACQUIRED]`) și buclele devin 100% operaționale fără timp mort.
-  - **Decuplare Selectivă & Ridicare DTC-101 (Timeout Cutoff):** Dacă trec 5 minute și anumiți senzori nu au emis balize (baterie descărcată sau distanță prea mare):
-    * Se ridică automat codul `DTC-101` (`"Zone X sensor missing at boot warmup cutoff"`) salvat persistent în NVS;
-    * Se izolează în failsafe OFF exclusiv buclele nefuncționale;
-    * Sistemul pornește încălzirea normal doar pentru zonele complet funcționale.
-  - Test de verificare: `SWE.5-TC03`, `TC13`. Status: `[VERIFIED]`.
-- **FR-23 (Format Tabelar Aliniat & Registru Calitate Semnal Consolă):**
-  - Răspunsurile comenzilor `STATUS`, `BLE` și `SENSORS` sunt structurate în tabele cu lățimi fixe și aliniere verticală milimetrică:
-    * Bucle pardoseală (`[ZONES]`): `ID`, `Zone Name`, `Current Temp` (sau `WARMUP`), `Target Temp`, `Status`, `Actuator Valve (Relay GPIO)`.
-    * Registru termometre (`[SENSORS]`): `Sensor Name`, `MAC Address`, `Temp`, `Humidity`, `Battery`, `Signal (Min/Cur/Max dBm)`, `Packets`, `Last Seen`.
-    * Linie dedicată de protecții: `[PROTECTIONS] Sensor Offline Failsafe: 10 min (all zones) | Pump Anti-Seize: Weekly (Ran: ... | Next in ...)`.
-    * Indicator clar stare achiziție: `[SCANNING: %us/300s in progress]` vs `[SCANNING COMPLETE - ALL ACQUIRED]`.
-  - Test de verificare: `SWE.5-TC12`. Status: `[VERIFIED]`.
-
-- **FR-24 (Telemetrie Hardware Avansată - CPU, RAM, NVM, Temp Cip):**
-  - Monitorizare hardware directă în comanda `STATUS`:
-    * Procesor: Model cip, număr nuclee, frecvență și temperatură internă die (`Die Temp: %.1f °C` via `temperatureRead()`);
-    * Memorie RAM: Memorie heap liberă / totală, watermark minim atins de la boot (`Lowest: %u KB`) și cel mai mare bloc contiguu alocabil (`Max Block: %u KB`) pentru diagnosticarea timpurie a fragmentării;
-    * Memorie Non-Volatilă Flash: Mărime și frecvență flash, stare NVS (`Active`), spațiu ocupat de firmware și marjă liberă pentru update OTA (`OTA Margin: %.2f MB free`).
-  - Test de verificare: `SWE.5-TC01`, `TC14`. Status: `[VERIFIED]`.
-- **FR-25 (Carduri Zonale Integrate & Simbol Nativ UTF-8 `°C`):**
-  - Eliminarea tabelelor separate aglomerate; fiecare cameră este reprezentată printr-un card complet integrând atât parametrii hidraulici și termici (temperatură țintă, curentă, umiditate, stare buclă, stare valvă, releu asociat), cât și parametrii radio ai senzorului BLE asociat (denumire, adresă MAC, baterie, semnal cu link badge, număr pachete, vechime).
-  - Toate temperaturile utilizează simbolul standard UTF-8 `°C`, servit cu header `text/plain; charset=utf-8` pentru redare corectă în orice terminal.
-  - Test de verificare: `SWE.5-TC01`, `TC12`. Status: `[VERIFIED]`.
-- **FR-26 (Stilizare & Mapare Culori Exhaustivă Web Console `/console`):**
-  - Recunoaștere case-insensitive (`/gi`) în scriptul de colorare din browser pentru toate cuvintele de stare:
-    * Verde aprins (`.t-ok`): `PASS`, `Online`, `Enabled`, `Running`, `Active`, `Open`, `ON`;
-    * Roșu alertă (`.t-off`): `FAIL`, `Offline`, `Disabled`, `Stopped`, `Closed`, `OFF`, `Timeout`;
-    * Albastru (`.t-idle`): `Idle`, `Standby`;
-    * Galben cald (`.t-warm`): `Warmup`, `Syncing`, `Scanning...`;
-    * Portocaliu (`.t-demand`): `Demand`, `Heating`;
-    * Violet / Indigo (`.t-auto`, `.t-man`): `Automatic`, `Auto`, `Manual`.
-  - Negative lookahead `(?!-)` pe `OPEN` pentru protejarea numelui `Open-Meteo`.
-  - Test de verificare: `SWE.5-TC12`. Status: `[VERIFIED]`.
-- **FR-27 (Format Tabelar Structural pe Fiecare Subsistem & Aliniere `utf8VisibleLen`):**
-  - Ieșirea comenzii `STATUS` este împărțită în blocuri tabelare dedicate pe 2 coloane paralele numerotate alfabetic (`[A. SYSTEM & CONTROLLER HARDWARE]`, `[B. BOILER, PUMP & HYDRAULIC ACTUATION]`, `[C. WEATHER & OUTDOOR ENVIRONMENT]`, `[D. SAFETY & FAILSAFE INTERLOCKS]`, `[E. HEATING ZONES & ROOM TELEMETRY]`), aerisite prin linii goale (newlines) între categorii și între cardurile camerelor.
-  - Implementat algoritmul `utf8VisibleLen()` care calculează lungimea pe baza caracterelor vizibile pe ecran (compensând octeții suplimentari ai simbolului de grad `°` din UTF-8), garantând că delimitatorul `|` și a doua coloană încep la fix aceeași poziție fără deplasare de 1-2 caractere.
-  - Integrare link oficial de configurare și reglare putere de emisie senzori Xiaomi BLE (`https://pvvx.github.io/ATC_MiThermometer/TelinkMiFlasher.html`) în Web Console, Setup Wizard, Web Dashboard și `HELP`.
-  - Test de verificare: `SWE.5-TC12`. Status: `[VERIFIED]`.
-- **FR-28 (Sensibilitate Ridicată NimBLE prin Pereți & Warmup Non-Blocant):**
-  - Creșterea ferestrei de scanare NimBLE la 90ms dintr-un interval de 100ms (90% duty cycle) în `include/Config.h`, permițând captarea rapidă a senzorilor din încăperi îndepărtate (după 4 pereți) în 39s–64s în loc de 293s.
-  - Buclele de încălzire care și-au achiziționat deja senzorul la pornire își reiau imediat funcționarea termostatică normală dacă au cerere termică, fără a bloca întreaga locuință în așteptarea senzorilor îndepărtați (care rămân în siguranță cu vana închisă în `ZONE_WARMUP`).
-- **FR-29 (Bio-Schedule Circadian & Gărzi Termice Inteligente):**
-  - Implementat motor de orar biologic bazat pe 4 ancore naturale de viață (`Sleep`, `Wake`, `Away`, `Home`) diferențiat pe profiluri de Luni–Vineri (Săptămână) și Sâmbătă–Duminică (Weekend).
-  - Include subsistemul **Predictive Pre-Heat** (calcul inerțial dinamic pentru atingerea temperaturii țintă la ora programată) și **Open Window Smart Pause** (detectare scădere bruscă $>1.2^\circ\text{C}$ în $<5\text{ min} \rightarrow$ pauză forțată 30 min a valvei pentru economie de combustibil).
-  - Test de verificare: `SWE.5-TC16`. Status: `[VERIFIED]`.
-- **FR-30 (Reglaj Dinamic Ancore Circadiene & Persistență NVS):**
-  - Ajustare directă a orelor (`HH:MM`) și temperaturilor per zonă pentru fiecare ancoră via endpoint-ul `POST /api/schedule/anchor` sau comanda consolă `SCHEDULE SET <prof> <anc> <HH:MM> [z1] [z2] [z3]`.
-  - Salvare binară persistentă în memoria NVS (`Preferences`) cu detecție modificare (`memcmp`) pentru protecția flash-ului împotriva uzurii premature.
-  - Test de verificare: `SWE.5-TC17`. Status: `[VERIFIED]`.
-- **FR-31 (Catalog de Preseturi Circadiene & Sloturi Utilizator):**
-  - Catalog integrat de 7 sloturi: 3 din fabrică (`default` Standard / Confort, `eco` Vacanță, `wfh` Home Office) și 4 sloturi libere de utilizator (`custom1` .. `custom4`).
-  - Suport complet pentru redenumire, salvare și resetare la valorile din fabrică (`POST /api/schedule/preset/save`, `/apply`, `/reset`).
-  - Test de verificare: `SWE.5-TC18`. Status: `[VERIFIED]`.
-- **FR-32 (Re-armare Flacără & Anulare Comandă Amânată Cazan):**
-  - Sistem de coadă cu execuție amânată (`PENDING_ON` / `PENDING_OFF`) dacă se solicită comutarea stării în timpul gărzii de cooldown anti-short-cycling (60s).
-  - Utilizatorul se poate răzgândi oricând: o nouă comandă inversă sau apelul `POST /api/boiler/cancel` anulează instantaneu oprirea sau pornirea programată, menținând starea curentă a arzătorului.
-  - Test de verificare: `SWE.5-TC08.2`, `TC09`. Status: `[VERIFIED]`.
-- **FR-33 (Micro-Grafice Vectoriale Sparkline de Trend & Istoric Termic 3h):**
-  - Motor de istoric glisant în JavaScript stocat în `localStorage` (`smart_heating_temp_history_v1`, fereastră glisantă de 3 ore, eșantionare la $\ge 2\text{ min}$ sau $\Delta \ge 0.15^\circ\text{C}$).
-  - Randare vectorială inline SVG ultra-ușoară (fără biblioteci externe / zero bloat):
-    * Curbă continuă pe înălțime scalată dinamic cu prag minim de zgomot ($0.6^\circ\text{C}$);
-    * Gradient de arie semi-transparent sub curbă pentru validare vizuală imediată de la distanță (ecran tabletă / consolă perete);
-    * Punct luminos terminal (glowing circle dot) pe ultima citire în timp real;
-    * Colorare semantică intuitivă: Portocaliu / Chihlimbar (`trend-up`, `↑ +X.X°`, încălzire), Azur / Cyan (`trend-down`, `↓ -X.X°`, răcire / aerisire geam), Ardezie / Slate (`trend-steady`, `→ 0.0°`, repaus confort);
-    * Indicator compact de orizont de timp (`3h`, `45m`) și tooltip detaliat la hover (valoare start, valoare finală, durată minute, număr eșantioane).
-- **FR-34 (Buffer Istoric Telemetrie Flash LittleFS - 24h @ 5m & 5d @ 30m, `/api/history`):**
-  - Implementat în fișiere binare LittleFS compacte (`/history_24h.bin` și `/history_5d.bin`) cu serializator optimizat pe 10 octeți per punct (`int16_t` scalat cu 10 pentru z1, z2, z3, ext; bitmask `uint8_t flags`: `0x01` flacără, `0x02` pompă, `0x04` z1, `0x08` z2, `0x10` z3, `0x80` valid).
-  - Buffer 24 ore: 288 sloturi fixe la rezoluție de 5 minute (2.880 octeți flash).
-  - Buffer 5 zile: 240 sloturi fixe la rezoluție de 30 minute (2.400 octeți flash).
-  - Endpoint REST `GET /api/history?range=24h|5d` generează streaming JSON decuplat (`range`, `stepSec`, `currentSlot`, `points: [[slot, z1, z2, z3, out, flags], ...]`) fără fragmentare a memoriei RAM.
-  - Test de verificare: `SWE.5-TC20.1`, `TC20.2`, `TC20.3`. Status: `[VERIFIED 100% PASS]`.
-- **FR-35 (Model Termic Consum Gaz & Telemetrie Funcționare Cazan):**
-  - Monitorizare hardware directă a timpilor de ardere flacără în secunde (`totalSec`, `todaySec`, `yesterdaySec`, `thisMonthSec`, `lastMonthSec`, `currentBurnSec`) expuse în `/api/boiler/status`.
-  - Model termodinamic calibrat:
-    * Debit arzător cazan condensare joasă temperatură: $0.60\text{ m}^3/\text{oră}$ (flacără modulată ~6 kW).
-    * Baseload apă caldă menajeră (ACM): $0.40\text{ m}^3/\text{zi}$ ($12.0\text{ m}^3/\text{lună}$).
-    * Tarif reglementat plafonat: $3.30\text{ Lei}/\text{m}^3$.
-    * Formule: $V_{\text{heat}} = (\text{todaySec} / 3600.0) \times 0.60$, $V_{\text{total}} = V_{\text{heat}} + 0.40$, $\text{Cost} = V_{\text{total}} \times 3.30$.
-  - Simulare index contor mecanic cu tambur și asistent transmitere autocitire furnizor în Web Dashboard (`web/index_v2.html`) și Home Assistant.
-  - Test de verificare: `SWE.5-TC21.1`, `TC21.2`. Status: `[VERIFIED 100% PASS]`.
-- **FR-36 (Pachet Integrat Home Assistant REST & Configurație Modernă Template):**
-  - Pachet complet versionat sub folderul `homeassistant/`:
-    * Pachet: `homeassistant/packages/smart_heating.yaml` (46 entități totale: 3 climate REST, 13 senzori telemetrie/diagnoză, 3 binary sensors geam deschis, 3 countdown timers, 3 threshold sensors, 4 entități contorizare gaz și cost, 10 comenzi REST).
-    * Sintaxă modernă conform standardelor HA Core: configurat strict sub cheia de nivel superior `template:` (zero platforme depreciate sub `button:` sau `switch:`).
-    * Dashboard Lovelace: `homeassistant/dashboards/smart_heating.yaml` cu carduri condiționale animate pentru alerte de geam deschis (`type: conditional`).
-  - Test de verificare: `SWE.5-TC22.1`, `TC22.2`. Status: `[VERIFIED 100% PASS]`.
-- **FR-37 (Decuplare FSM Relee, Avortare Instantanee Warmup & Invariant Hardware):**
-  - Decuplare FSM Relee: Separarea stării logice a vanei de temporizatorul de deschidere ceară termică (120s interblocare).
-  - Instant Warmup Abort: Dacă utilizatorul reduce setpoint-ul sau temperatura camerei crește în timpul perioadei de warmup (înainte de expirarea celor 120s), mașina de stări FSM trece instantaneu în `IDLE_TEMP_OK`, taie comanda de 230V a releului (`applyRelay(pin, false)`), și anulează cererea către cazan fără pornirea flăcării.
-  - Invariant Hardware Anti-Orphaned Relays: În fiecare ciclu de execuție `update()`, dacă o zonă are `demand == false`, firmware-ul forțează activ pinul GPIO pe starea decuplată (0V / releu decuplat). Niciun releu nu poate rămâne alimentat fără cerere termică activă.
-  - Test de verificare: `SWE.5-TC23.1`, `TC23.2`. Status: `[VERIFIED 100% PASS]`.
-- **FR-38 (Overrun Inteligent Pompă & Disipare Căldură Condiționată de Flacără):**
-  - Ciclul de 180s de post-circulație a pompei GPA pentru disiparea căldurii reziduale din schimbătorul primar se declanșează **strict condiționat** dacă arzătorul a fost aprins efectiv (`_flameStartTimeMs > 0`).
-  - Dacă cererea a fost avortată în faza de warmup (120s actuator opening) înainte ca flacăra să fie aprinsă, timpul de overrun este setat la 0s, permițând oprirea imediată a instalației fără risipă de energie sau uzură a pompei.
-  - Test de verificare: `SWE.5-TC24.1`. Status: `[VERIFIED 100% PASS]`.
-- **FR-39 (Hold Temporar Setpoint & Suprascriere Non-Destructivă Orar Circadian):**
-  - Modificarea temperaturii țintă din interfață (Web UI, REST API, Home Assistant) activează un mod temporar de menținere (`isManualHold = true`, `holdAnchor = activeAnchor`), fără a altera sau corupe profilul de bază salvat în NVS.
-  - La trecerea ceasului biologic la următoarea ancoră circadiană (ex: `DAY` $\rightarrow$ `EVENING`), modul hold este eliberat automat și zona revine la orarul normal.
-  - Eliberare manuală instantanee via `POST /api/zones/hold/clear?id=X|all`.
-  - Mecanism de debounce de 3 secunde la salvarea în NVS (`_nvsSavePendingMs`) pentru protejarea memoriei flash împotriva uzurii la ajustări rapide de setpoint.
-  - Test de verificare: `SWE.5-TC25.1`, `TC25.2`. Status: `[VERIFIED 100% PASS]`.
-- **FR-40 (Suită Detectare Geam Deschis - Open Window Detection & Smart Pause):**
-  - Detecție cădere termică rapidă: $\Delta T \ge \text{threshold}$ (configurabil strict între 0.8°C și 2.0°C, implicit 1.2°C) într-o fereastră de $\le 5\text{ minute}$.
-  - Acțiune fizică imediată: Decuplare forțată releu la 0V (actuator NC închis), cerere termică forțată pe fals (`demand = false`), salvare stare `windowPauseActive = true`, declanșare banner alertă coral animat în UI cu numărătoare inversă live (`MM:SS`).
-  - Ieșire automată: Timeout de siguranță de 30 de minute (1800 secunde) SAU revenire termică (rebound) de $+0.6^\circ\text{C}$ peste temperatura minimă atinsă în timpul aerisirii.
-  - Ieșire manuală: Buton UI `[↺ Am Închis (Reia)]` / `POST /api/zones/window/clear?id=X|all` resetează baseline-ul termic la temperatura curentă și reia încălzirea instantaneu.
-  - Reglaj prag per zonă via `POST /api/zones/window/threshold?id=X&threshold=Y` validat cu HTTP 400 pentru valori în afara limitelor [0.8°C, 2.0°C], salvat persistent în NVS.
-  - Test de verificare: `SWE.5-TC26.1`, `TC26.2`, `TC26.3`, `TC26.4`. Status: `[VERIFIED 100% PASS]`.
-
----
-
-## 4. Cerințe Non-Funcționale (Non-Functional Requirements)
-
-### 4.1. Siguranță & Comportament la Avarie (NFR-1: Safety & Failsafe)
-- **NFR-1.1 (Autonomie Totală la Edge):** Toate deciziile de deschidere/închidere relee și pornire/oprire centrală sunt executate local în memoria ESP32. Căderea conexiunii Wi-Fi, a routerului, a brokerului MQTT sau a conexiunii cloud **NU întrerupe încălzirea**.
-- **NFR-1.2 (Failsafe Cădere Senzor):** Dacă o zonă nu primește nicio citire de temperatură validă timp de peste `sensorTimeoutSec` (implicit 600s), zona este marcată cu avarie, releul zonei este închis preventiv și se emite codul `DTC-101` pentru a evita supraîncălzirea necontrolată.
-- **NFR-1.3 (Protecție la Îngheț):** Chiar dacă o zonă este dezactivată sau setată pe minim, dacă temperatura scade sub 12°C, sistemul forțează încălzirea de protecție la îngheț.
-- **NFR-1.4 (Pornire Sigură la Revenirea Curentului):** După o pană de curent, releele pornesc în mod implicit în stare `LOW` (OPRITE), se emite burst RF `BOILER STOP`, iar sistemul intră în perioada de Warmup fără a porni nicio comandă termică nevalidată.
-- **NFR-1.5 (Hardware Task Watchdog Timer - TWDT 90s):** Supraveghere hardware activă nativă ESP-IDF pe bucla `loop()` cu resetare automată la blocaj software. Calibrat la 90s pentru a asigura o marjă de 100% la transferul și scrierea blocurilor flash în timpul actualizărilor Web OTA (1.28 MB) fără resetări premature.
-- **NFR-1.6 (Limită Ciclu Termic Arzător Cazan - Min 120s per Ciclu):** Indiferent de originea comenzilor (algoritm automat, REST API, Home Assistant sau consolă CLI), frecvența maximă permisă de ciclare a flăcării este limitată la cel mult 1 ciclu per 120 secunde (60s arsură minimă + 60s pauză minimă), prevenind avarierea vanei de gaz și intrarea centralei în avarie mecanică (*Flame Lockout*).
-- **NFR-1.7 (Invarianți Failsafe Termohidraulic la Pană de Tensiune & Defecțiuni):**
-  - *Pană de curent în timpul arderii:* Electrovalva de gaz a cazanului (solenoid 230V) închide etanș admisia de gaz în <50 ms; actuatoarele NC se închid mecanic prin arc; căldura reziduală din arzător este absorbită de volumul de apă din schimbătorul primar (1.5–2L) fără risc de fierbere/suprapresiune. Supapa mecanică de 3 bar reprezintă bariera finală de siguranță.
-  - *Avarie cazan (Lockout EN 298):* Modulul autonom al centralei blochează aprinderea și ignoră orice contact de termostat/RF. Microcontrolerul ESP32 detectează stagnarea termică via `DTC-102`.
-  - *Actuator blocat pe închis:* Distribuitorul include vană de by-pass diferențial cu arc (sau pompă GPA modulantă pe $\Delta P$), prevenind cavitația și supraîncălzirea motorului pompei.
-
-### 4.2. Performanță & Eficiență Resurse (NFR-2)
-- **NFR-2.1 (Consum Energie):** Placa ESP32 consumă sub 1.2W la priză în regim continuu.
-- **NFR-2.2 (Memorie RAM Liberă):** Arhitectura C++ pe ESP32 păstrează peste 115 KB de memorie heap liberă în orice moment (cu stiva NimBLE activă).
-- **NFR-2.3 (Răspuns Rapid):** Timpul de răspuns al API-ului web local este sub 100 ms.
-- **NFR-2.4 (Ergonomie Consolă & Fără Spam):** Fiecare linie din consolă include timestamp NTP `[HH:MM:SS]`. Web Console include filtrare automată împotriva duplicării comenzilor și elimină poluarea cu pagini de eroare HTML (Nginx 502).
-- **NFR-2.5 (Paced Socket Streaming OTA):** Încărcarea firmware-ului prin scriptul `tools/ota_upload.py` utilizează transfer cadențat cu pauze de 12ms per pachet (~110 KB/s), prevenind epuizarea bufferelor TCP `pbuf` din stiva lwIP a ESP32 și asigurând o scriere stabilă în flash în sub 14 secunde fără retransmisii sau căderi de conexiune.
-- **NFR-2.6 (Igienizare Memorie Heap & Zero Fragmentare RAM):** Toate serializatoarele mari JSON din firmware C++ (`main.cpp`, `ThermalZoneManager.cpp`, `DiagnosticEngine.cpp`, `TimeAndWeatherService.cpp`, `DevicePassport.cpp`) folosesc pre-alocare exactă de buffer (`json.reserve(...)`), eliminând micro-realocările succesive la fiecare ciclu de interogare HTTP (3.5s) și garantând stabilitatea pe termen lung a Free Heap-ului la $>115\text{ KB}$.
-- **NFR-2.7 (Mediu de Dezvoltare Decuplat & Zero Flash Wear):** Arhitectură decuplată cu server local de dezvoltare Python (`tools/dev_server.py` pe portul 8080) comunicând direct prin CORS cu REST API-ul ESP32 (`192.168.1.20`), permițând modificarea și testarea instantanee (F5) a fișierelor HTML/CSS/JS fără flash repetat pe microcontroler.
-
-### 4.3. Calitate Cod & Standarde (NFR-3)
-- **NFR-3.1 (English Codebase Standard):** Toate fișierele sursă C++, anteturile, variabilele, comentariile, textele UI și logurile din consolă sunt redactate **100% în limba engleză**.
-- **NFR-3.2 (Modularitate):** Fiecare subsistem este decuplat în clase C++ de sine stătătoare (`NetworkConsole`, `ThermalZoneManager`, `BoilerRadioTrigger`, `BleSensorScanner`, `DiagnosticEngine`, `DevicePassport`, `TimeAndWeatherService`).
-
----
-
-## 5. Matrice de Trasabilitate (Cerințe vs Componente Software vs Teste SWE.5)
-
-| Cod Cerință | Denumire Cerință | Modul / Fișier Implementat | Test Automat SWE.5 | Stare Validare |
-|:---:|---|---|:---:|:---:|
-| **FR-1** | Histerezis & Reglaj Multi-Zonă | [`src/ThermalZoneManager.cpp`](file:///c:/Users/BSeceleanu/.github_repos/smart-heating/src/ThermalZoneManager.cpp) | `SWE.5-TC01`, `TC10` | 100% PASS |
-| **FR-2** | Actuator Interlock Delay (120s) | [`src/ThermalZoneManager.cpp`](file:///c:/Users/BSeceleanu/.github_repos/smart-heating/src/ThermalZoneManager.cpp) | `SWE.5-TC05` | 100% PASS |
-| **FR-3** | Pump Overrun Heat Dissipation (180s) | [`src/ThermalZoneManager.cpp`](file:///c:/Users/BSeceleanu/.github_repos/smart-heating/src/ThermalZoneManager.cpp) | `SWE.5-TC06` | 100% PASS |
-| **FR-4** | Anti-Short-Cycling Boiler Guard (60s) | [`src/BoilerRadioTrigger.cpp`](file:///c:/Users/BSeceleanu/.github_repos/smart-heating/src/BoilerRadioTrigger.cpp) | `SWE.5-TC08` | 100% PASS |
-| **FR-5** | Comandă Radio Centrală 433.92 MHz | [`src/BoilerRadioTrigger.cpp`](file:///c:/Users/BSeceleanu/.github_repos/smart-heating/src/BoilerRadioTrigger.cpp) | `SWE.5-TC04` | 100% PASS |
-| **FR-6** | Telemetrie Xiaomi BLE (Nativ NimBLE) | [`src/BleSensorScanner.cpp`](file:///c:/Users/BSeceleanu/.github_repos/smart-heating/src/BleSensorScanner.cpp) | `SWE.5-TC03` | 100% PASS |
-| **FR-7** | Consolă Virtuală 2-Way (Telnet & Web) | [`src/NetworkConsole.cpp`](file:///c:/Users/BSeceleanu/.github_repos/smart-heating/src/NetworkConsole.cpp) | `SWE.5-TC12` | 100% PASS |
-| **FR-8** | Dashboard Web & REST API | [`src/main.cpp`](file:///c:/Users/BSeceleanu/.github_repos/smart-heating/src/main.cpp) | `SWE.5-TC01` | 100% PASS |
-| **FR-8.3**| Actualizare Firmware Web OTA | [`src/main.cpp`](file:///c:/Users/BSeceleanu/.github_repos/smart-heating/src/main.cpp) | `SWE.5-TC14` | 100% PASS |
-| **FR-10**| Diagnoză DTC & Self-Test Suite | [`src/DiagnosticEngine.cpp`](file:///c:/Users/BSeceleanu/.github_repos/smart-heating/src/DiagnosticEngine.cpp) | `SWE.5-TC04`, `TC09` | 100% PASS |
-| **FR-11**| Setup Wizard & Mapare Dinamică | [`src/ThermalZoneManager.cpp`](file:///c:/Users/BSeceleanu/.github_repos/smart-heating/src/ThermalZoneManager.cpp) | `SWE.5-TC02` | 100% PASS |
-| **FR-12**| Sincronizare NTP Dată, Timp & Vreme Wi-Fi | [`src/TimeAndWeatherService.cpp`](file:///c:/Users/BSeceleanu/.github_repos/smart-heating/src/TimeAndWeatherService.cpp) | `SWE.5-TC11` | 100% PASS |
-| **FR-13**| Pașaport Digital Dispozitiv & NVS | [`src/DevicePassport.cpp`](file:///c:/Users/BSeceleanu/.github_repos/smart-heating/src/DevicePassport.cpp) | `SWE.5-TC02` | 100% PASS |
-| **FR-14**| Pompă Recirculare GPA Releu 4 & Anti-Seize | [`src/ThermalZoneManager.cpp`](file:///c:/Users/BSeceleanu/.github_repos/smart-heating/src/ThermalZoneManager.cpp) | `SWE.5-TC06` | 100% PASS |
-| **FR-15**| Compatibilitate Actuatoare NC vs NO (NVS) | [`src/ThermalZoneManager.cpp`](file:///c:/Users/BSeceleanu/.github_repos/smart-heating/src/ThermalZoneManager.cpp) | `SWE.5-TC05` | 100% PASS |
-| **FR-16**| Frost Guard <12°C & Izolare DTC-101 | [`src/ThermalZoneManager.cpp`](file:///c:/Users/BSeceleanu/.github_repos/smart-heating/src/ThermalZoneManager.cpp) | `SWE.5-TC06` | 100% PASS |
-| **FR-17**| Anti-Spam & Interblocare Cazane (60s / 3s) | [`src/BoilerRadioTrigger.cpp`](file:///c:/Users/BSeceleanu/.github_repos/smart-heating/src/BoilerRadioTrigger.cpp) | `SWE.5-TC07`, `TC08`, `TC09` | 100% PASS |
-| **FR-18**| Failsafe Timeout Senzori Configurabil | [`src/ThermalZoneManager.cpp`](file:///c:/Users/BSeceleanu/.github_repos/smart-heating/src/ThermalZoneManager.cpp) & [`src/main.cpp`](file:///c:/Users/BSeceleanu/.github_repos/smart-heating/src/main.cpp) | `SWE.5-TC13` | 100% PASS |
-| **FR-19**| Exercițiu Anti-Seize pe UNIX Epoch | [`src/ThermalZoneManager.cpp`](file:///c:/Users/BSeceleanu/.github_repos/smart-heating/src/ThermalZoneManager.cpp) | `SWE.5-TC06` | 100% PASS |
-| **FR-20**| Indicatori Calitate Semnal BLE (Link Quality) | [`web/setup.html`](file:///c:/Users/BSeceleanu/.github_repos/smart-heating/web/setup.html) & [`tools/esp_cli.py`](file:///c:/Users/BSeceleanu/.github_repos/smart-heating/tools/esp_cli.py) | `SWE.5-TC03` | 100% PASS |
-| **FR-21**| Versionare Firmware Baseline & Reset Reason | [`include/Version.h`](file:///c:/Users/BSeceleanu/.github_repos/smart-heating/include/Version.h) & [`src/main.cpp`](file:///c:/Users/BSeceleanu/.github_repos/smart-heating/src/main.cpp) | `SWE.5-TC14` | 100% PASS |
-| **FR-22**| Boot Warmup Grace Period & Activare Selectivă | [`include/ThermalZoneManager.h`](file:///c:/Users/BSeceleanu/.github_repos/smart-heating/include/ThermalZoneManager.h) & [`src/ThermalZoneManager.cpp`](file:///c:/Users/BSeceleanu/.github_repos/smart-heating/src/ThermalZoneManager.cpp) | `SWE.5-TC03`, `TC13` | 100% PASS |
-| **FR-23**| Format Tabelar Aliniat & Registru Calitate Semnal | [`src/main.cpp`](file:///c:/Users/BSeceleanu/.github_repos/smart-heating/src/main.cpp) | `SWE.5-TC12` | 100% PASS |
-| **FR-24**| Telemetrie Hardware Avansată (CPU/RAM/NVM) | [`src/main.cpp`](file:///c:/Users/BSeceleanu/.github_repos/smart-heating/src/main.cpp) | `SWE.5-TC01`, `TC14` | 100% PASS |
-| **FR-25**| Carduri Zonale Integrate & Simbol UTF-8 `°C` | [`src/main.cpp`](file:///c:/Users/BSeceleanu/.github_repos/smart-heating/src/main.cpp) | `SWE.5-TC01`, `TC12` | 100% PASS |
-| **FR-26**| Stilizare & Mapare Culori Exhaustivă Web Console | [`src/NetworkConsole.cpp`](file:///c:/Users/BSeceleanu/.github_repos/smart-heating/src/NetworkConsole.cpp) | `SWE.5-TC12` | 100% PASS |
-| **FR-27**| Format Tabelar pe Fiecare Subsistem & Aliniere `utf8VisibleLen` | [`src/main.cpp`](file:///c:/Users/BSeceleanu/.github_repos/smart-heating/src/main.cpp) | `SWE.5-TC12` | 100% PASS |
-| **FR-28**| Sensibilitate NimBLE 90% & Warmup Non-Blocant | [`include/Config.h`](file:///c:/Users/BSeceleanu/.github_repos/smart-heating/include/Config.h) & [`src/ThermalZoneManager.cpp`](file:///c:/Users/BSeceleanu/.github_repos/smart-heating/src/ThermalZoneManager.cpp) | `SWE.5-TC03`, `TC13` | 100% PASS |
-| **FR-29**| Bio-Schedule Circadian & Gărzi Termice Inteligente | [`src/ThermalZoneManager.cpp`](file:///c:/Users/BSeceleanu/.github_repos/smart-heating/src/ThermalZoneManager.cpp) | `SWE.5-TC16` | 100% PASS |
-| **FR-30**| Reglaj Dinamic Ancore Circadiene & Persistență NVS | [`src/ThermalZoneManager.cpp`](file:///c:/Users/BSeceleanu/.github_repos/smart-heating/src/ThermalZoneManager.cpp) & [`src/main.cpp`](file:///c:/Users/BSeceleanu/.github_repos/smart-heating/src/main.cpp) | `SWE.5-TC17` | 100% PASS |
-| **FR-31**| Catalog Preseturi Dinamice & Sloturi Utilizator | [`src/ThermalZoneManager.cpp`](file:///c:/Users/BSeceleanu/.github_repos/smart-heating/src/ThermalZoneManager.cpp) & [`src/main.cpp`](file:///c:/Users/BSeceleanu/.github_repos/smart-heating/src/main.cpp) | `SWE.5-TC18` | 100% PASS |
-| **FR-32**| Re-armare Flacără & Anulare Comandă Amânată Cazan | [`src/BoilerRadioTrigger.cpp`](file:///c:/Users/BSeceleanu/.github_repos/smart-heating/src/BoilerRadioTrigger.cpp) & [`src/main.cpp`](file:///c:/Users/BSeceleanu/.github_repos/smart-heating/src/main.cpp) | `SWE.5-TC08.1`, `TC08.2`, `TC09.1` | 100% PASS |
-| **FR-33**| Indicatori Dinamici de Trend Temperatură (↑/↓/→) | [`web/index.html`](file:///c:/Users/BSeceleanu/.github_repos/smart-heating/web/index.html) | `SWE.5-TC19.6` | 100% PASS |
-| **FR-34**| Buffer Istoric Telemetrie Flash LittleFS (24h/5d) | [`src/main.cpp`](file:///c:/Users/BSeceleanu/.github_repos/smart-heating/src/main.cpp) | `SWE.5-TC20.1`, `TC20.2`, `TC20.3` | 100% PASS |
-| **FR-35**| Model Termic Consum Gaz & Telemetrie | [`src/main.cpp`](file:///c:/Users/BSeceleanu/.github_repos/smart-heating/src/main.cpp) & [`web/index_v2.html`](file:///c:/Users/BSeceleanu/.github_repos/smart-heating/web/index_v2.html) | `SWE.5-TC21.1`, `TC21.2` | 100% PASS |
-| **FR-36**| Pachet Home Assistant & Template Modern | [`homeassistant/packages/smart_heating.yaml`](file:///c:/Users/BSeceleanu/.github_repos/smart-heating/homeassistant/packages/smart_heating.yaml) | `SWE.5-TC22.1`, `TC22.2` | 100% PASS |
-| **FR-37**| FSM Warmup Abort & Invariant Relee Decuplate | [`src/ThermalZoneManager.cpp`](file:///c:/Users/BSeceleanu/.github_repos/smart-heating/src/ThermalZoneManager.cpp) | `SWE.5-TC23.1`, `TC23.2` | 100% PASS |
-| **FR-38**| Overrun Pompă Condiționat de Flacără (180s) | [`src/ThermalZoneManager.cpp`](file:///c:/Users/BSeceleanu/.github_repos/smart-heating/src/ThermalZoneManager.cpp) | `SWE.5-TC24.1` | 100% PASS |
-| **FR-39**| Hold Temporar Setpoint & Non-Destructive Override | [`src/ThermalZoneManager.cpp`](file:///c:/Users/BSeceleanu/.github_repos/smart-heating/src/ThermalZoneManager.cpp) & [`src/main.cpp`](file:///c:/Users/BSeceleanu/.github_repos/smart-heating/src/main.cpp) | `SWE.5-TC25.1`, `TC25.2` | 100% PASS |
-| **FR-40**| Suită Detectare Geam Deschis & Smart Pause | [`src/ThermalZoneManager.cpp`](file:///c:/Users/BSeceleanu/.github_repos/smart-heating/src/ThermalZoneManager.cpp) & [`src/main.cpp`](file:///c:/Users/BSeceleanu/.github_repos/smart-heating/src/main.cpp) | `SWE.5-TC26.1`, `TC26.2`, `TC26.3`, `TC26.4` | 100% PASS |
-| **NFR-1.1**| Autonomie Totală la Edge (Zero Cloud Dependency) | Arhitectură Firmware C++ Locală & Flash NVS | `SWE.5-TC01.1`, `TC02.1` | 100% PASS |
-| **NFR-1.5**| Hardware Task Watchdog (TWDT 90s) | [`src/main.cpp`](file:///c:/Users/BSeceleanu/.github_repos/smart-heating/src/main.cpp) | `SWE.5-TC05.1` | 100% PASS |
-| **NFR-1.7**| Invarianți Siguranță Termohidraulică (Pană/Avarie) | Arhitectură Hardware / NC Actuators / Solenoid Gaz | Analiză FMEA & Standard EN 298 | 100% PASS |
-| **NFR-2.2**| Eficiență RAM (Free Heap >100 KB) | Arhitectură Buffer Static & `reserve()` | `SWE.5-TC01.2`, `TC04.2` | 100% PASS |
-| **NFR-2.5**| Paced Socket Streaming OTA (~110 KB/s) | [`tools/ota_upload.py`](file:///c:/Users/BSeceleanu/.github_repos/smart-heating/tools/ota_upload.py) | `SWE.5-TC15.1`, `TC15.2` | 100% PASS |
-| **NFR-2.6**| Igienizare Memorie Heap & Zero Fragmentare RAM | [`src/main.cpp`](file:///c:/Users/BSeceleanu/.github_repos/smart-heating/src/main.cpp), [`src/ThermalZoneManager.cpp`](file:///c:/Users/BSeceleanu/.github_repos/smart-heating/src/ThermalZoneManager.cpp) | `SWE.5-TC01.2`, `TC04.2` | 100% PASS |
-| **NFR-2.7**| Mediu de Dezvoltare Decuplat & Zero Flash Wear | [`tools/dev_server.py`](file:///c:/Users/BSeceleanu/.github_repos/smart-heating/tools/dev_server.py) | `Browser CDP Live Suite` | 100% PASS |
-| **NFR-3.2**| Zero Bloatware & Decoupled Architecture | Arhitectură fără MQTT / Zero Biblioteci Externe | `SWE.5-TC01.3` | 100% PASS |
-
-
