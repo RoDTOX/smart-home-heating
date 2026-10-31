@@ -331,8 +331,13 @@ one example:
   respecting NC/NO; otherwise HTTP 409.
 - **FR-50 (Setup access point):** *[now]* If the configured Wi-Fi is not joined at boot, the controller opens access
   point `SmartHeating-Setup`; control continues.
-- **FR-58 (Authentication):** *[now]* Write endpoints that change safety timings, polarity, relays, boiler state or
-  credentials, MANUAL mode or fault injection (NFR-5.5) require authentication (same credentials as OTA). CORS is limited to the controller's own origin.
+- **FR-58 (Authentication):** *[now]* These actions require authentication (same credentials as OTA):
+  - changing a safety parameter of §6: `interlockDelay`, `overrun`, `burnerMinRun`, `burnerMinPause`,
+    `openLoopBypass`, `sensorTimeout`, `faultDuty`, `faultFrostOutdoor`, `frostTemp`, `hbInterval`,
+    `boilerLinkHeartbeat`, `boilerLinkType`, `flowSensors`, `flowMax`, `actuatorType`, `pumpOutput`, zone outputs;
+  - boiler commands, relay test, MANUAL mode, fault injection (NFR-5.5), credentials.
+  - Comfort settings (levels, schedule, boost, away, `windowThreshold`) need no authentication.
+  - CORS is limited to the controller's own origin.
   - *Fallback:* unauthenticated request → HTTP 401, no change.
 - **FR-59 (Credentials):** *[now]* The first flash may use universal default credentials (OTA, access point, Wi-Fi).
   Credentials are changed via API or console without re-flashing and stored in NVS.
