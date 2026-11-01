@@ -71,7 +71,7 @@ void printHelp() {
       "  STATUS or S           -> Comprehensive live dashboard: CPU, boiler, weather, zones\r\n"
       "  BLE or SENSORS        -> Decoded Xiaomi BLE thermometer registry, signal & battery\r\n"
       "  WEATHER / TIME        -> Open-Meteo outdoor temperature & NTP local calendar\r\n"
-      "  TIMEOUT [sec]         -> Get or set BLE sensor offline failsafe timeout (default 600s)\r\n"
+      "  TIMEOUT [sec]         -> Get or set sensorTimeout (60-3600 s, default 1200 s)\r\n"
       "  DIAG [SELFTEST]       -> System health score, active DTCs or full 6-subsystem test\r\n"
       "  DIAG CLEAR            -> Clear active Trouble Codes (DTCs) and restore 100% health\r\n"
       "  HISTORY [CLEAR]       -> Flash telemetry ring buffer status (24h/5d) or clear\r\n"
@@ -176,7 +176,9 @@ void handleSerialCommand(String cmd) {
     int sp = upperCmd.indexOf(' ');
     if (sp > 0) {
       uint32_t t = (uint32_t)upperCmd.substring(sp + 1).toInt();
-      thermalZones.setSensorTimeoutSec(t);
+      if (!thermalZones.setSensorTimeoutSec(t)) {
+        netConsole.println(F("[ERROR] sensorTimeout out of range (60 to 3600 s), unchanged"));
+      }
     } else {
       netConsole.printf("[Thermal] Current sensor failsafe timeout: %u s (%u min)\n",
                         thermalZones.getSensorTimeoutSec(),
@@ -473,9 +475,12 @@ void handleSerialCommand(String cmd) {
   } else if (upperCmd.startsWith("LOCATION")) {
     String arg = cmd.substring(8);
     arg.trim();
-    if (arg.length() > 3) {
-      timeAndWeather.setLocation(arg.c_str());
-      timeAndWeather.forceWeatherUpdate();
+    if (arg.length() > 0) {
+      if (timeAndWeather.setLocation(arg.c_str())) {
+        timeAndWeather.forceWeatherUpdate();
+      } else {
+        netConsole.println(F("[ERROR] Use LOCATION lat,lon (-90..90, -180..180), unchanged"));
+      }
     }
     netConsole.printf("[LOCATION] %s\n", timeAndWeather.getLocation());
   } else if (upperCmd == "TIME") {

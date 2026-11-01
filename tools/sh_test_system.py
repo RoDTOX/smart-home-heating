@@ -13,6 +13,7 @@ import os
 import time
 import json
 import argparse
+import re
 from datetime import datetime
 
 try:
@@ -59,57 +60,30 @@ if hasattr(sys.stdout, 'reconfigure'):
 DEFAULT_IP = os.environ.get("ESP_HEATING_IP", "192.168.1.20")
 DEFAULT_PORT = 80
 
-# Formal ASPICE SWE.1 Requirements Registry
-SWE1_REQUIREMENTS = {
-    "FR-1": "Multi-Zone Hysteresis & Loop Control",
-    "FR-2": "Actuator Opening Interlock Delay (120s)",
-    "FR-3": "Pump Overrun Heat Dissipation (180s)",
-    "FR-4": "Anti-Short-Cycling Boiler Guard (60s)",
-    "FR-5": "433.92 MHz Radio Boiler Flame Command",
-    "FR-6": "Xiaomi BLE Thermometer Ingestion via NimBLE",
-    "FR-7": "2-Way Network Virtual Console (Telnet & Web)",
-    "FR-8": "Headless REST / JSON API & Web Dashboard",
-    "FR-9": "Outdoor Weather & Climate Compensation",
-    "FR-10": "Diagnostic Engine, DTC Trouble Codes & Self-Test",
-    "FR-11": "Dynamic Sensor Mapping & Setup Wizard",
-    "FR-12": "NTP Time Synchronization & Bucharest POSIX Clock",
-    "FR-13": "Weather Location Setting (NVS)",
-    "FR-14": "Hydraulic GPA Secondary Pump Controller & Relay 4",
-    "FR-15": "Universal Actuator Polarity Support (NC vs NO)",
-    "FR-16": "Emergency Frost Guard (<12°C) & DTC-101 Isolation",
-    "FR-17": "Boiler Anti-Spam, Idempotency & HTTP 429 Guard",
-    "FR-18": "Configurable Sensor Timeout Window (60-7200s)",
-    "FR-19": "Hydronic Calendar Anti-Seize on UNIX Epoch",
-    "FR-20": "BLE Radio Link Quality Categorization",
-    "FR-21": "Firmware Baseline SemVer, Build & Reset Reason",
-    "FR-22": "Sensor Boot Warmup Grace Period & Selective Activation",
-    "FR-23": "Tabular Formatting & Status Clean Alignment",
-    "FR-24": "Hardware Telemetry (CPU Die Temp, RAM Lowest/MaxBlock, NVM)",
-    "FR-25": "Integrated Zone Telemetry Cards & UTF-8 °C",
-    "FR-26": "Web Console Exhaustive Status Highlighting & Coloring",
-    "FR-27": "System Block Structure & utf8VisibleLen Alignment",
-    "FR-28": "High Sensitivity NimBLE (90% Duty Cycle) & Non-Blocking Warmup",
-    "FR-29": "Day / Night / Away Level Schedule",
-    "FR-30": "Per-Zone Level Temperatures (NVS)",
-    "FR-31": "Weekday / Weekend Slot Lists",
-    "FR-32": "Boiler Flame Re-Arming & Deferred Action Cancellation",
-    "FR-33": "Temperature Trend Telemetry & Sparkline Vector Dynamics",
-    "FR-34": "LittleFS Flash Telemetry History Buffer (24h @ 5m & 5d @ 30m, /api/history)",
-    "FR-35": "Thermal Gas Consumption Model & Runtime Telemetry (0.40m³ ACM, 0.60m³/h flow)",
-    "FR-37": "FSM Actuator Hardware Safety Invariant & Instant Warmup Abort",
-    "FR-38": "Intelligent Overrun & Conditional Post-Circulation Heat Dissipation",
-    "FR-39": "Temporary Setpoint Hold & Circadian Bio-Schedule Non-Destructive Override",
-    "FR-40": "Open Window Detection Suite & Smart Pause Guard",
-    "FR-41": "Wi-Fi Link Supervisor & Auto-Recovery Watchdog (DTC-401)",
-    "FR-42": "System Configuration REST API & Hydraulic Timing Guards",
-    "FR-43": "Multi-Relay Dynamic Testing & Safety Interlock",
-    "FR-44": "Global Away Mode",
-    "FR-45": "Bidirectional Web Wi-Fi Console Protocol & Invariant Buffer Reset",
-    "NFR-1.1": "Autonomous Edge Operation (Zero Cloud Dependency)",
-    "NFR-1.5": "Hardware Task Watchdog Timer (TWDT 90s)",
-    "NFR-2.2": "RAM Efficiency (Free Heap >100 KB)",
-    "NFR-3.2": "Zero Bloatware & Decoupled Architecture",
-}
+# Requirement registry, read from docs/requirements_and_features.md - the only source (PB-11). Only active
+# requirements verified on the board ({LEVEL; METHOD} with METHOD test or board) count for coverage.
+REQ_DOC = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "docs", "requirements_and_features.md")
+REQ_LINE = re.compile(r"^- \*\*(N?FR-\d+(?:\.\d+)?) \(([^)]*)\):\*\*(.*)$")
+
+
+def load_requirements(path=REQ_DOC):
+    reqs = {}
+    try:
+        with open(path, encoding="utf-8") as f:
+            for line in f:
+                m = REQ_LINE.match(line.strip())  # retired items start with "- ~~" and do not match
+                if not m:
+                    continue
+                attr = re.search(r"\{([^;}]*);\s*([^}]*)\}", m.group(3))
+                methods = [x.strip() for x in attr.group(2).split(",")] if attr else []
+                if any(x in ("test", "board") for x in methods):
+                    reqs[m.group(1)] = m.group(2)
+    except OSError:
+        pass
+    return reqs
+
+
+SWE1_REQUIREMENTS = load_requirements()
 
 class TestResult:
     def __init__(self, test_id, name, requirement, status="PASS", latency_ms=0.0, details=""):
@@ -169,10 +143,10 @@ class SystemTestSuite:
             return TestResult(test_id, name, req, "FAIL", (time.time() - start)*1000, str(e))
 
     def test_tc01_2_free_heap_budget(self):
-        """SWE.5-TC01.2: RAM Margin & Free Heap Budget (>100 KB) (FR-24, NFR-2.2)"""
+        """SWE.5-TC01.2: RAM Margin & Free Heap Budget (>100 KB) (NFR-2.2)"""
         test_id = "SWE.5-TC01.2"
         name = "RAM Margin & Free Heap Budget (>100 KB)"
-        req = "FR-24, NFR-2.2"
+        req = "NFR-2.2"
         start = time.time()
         try:
             r = requests.get(f"{self.base_url}/api/boiler/status", timeout=self.timeout)
@@ -202,10 +176,10 @@ class SystemTestSuite:
             return TestResult(test_id, name, req, "FAIL", (time.time() - start)*1000, str(e))
 
     def test_tc01_4_hardware_telemetry_rssi(self):
-        """SWE.5-TC01.4: Wi-Fi RSSI Signal & Hardware Telemetry (FR-24)"""
+        """SWE.5-TC01.4: Wi-Fi RSSI Signal & Hardware Telemetry (FR-41)"""
         test_id = "SWE.5-TC01.4"
         name = "Wi-Fi RSSI & Hardware Telemetry"
-        req = "FR-24"
+        req = "FR-41"
         start = time.time()
         try:
             r = requests.get(f"{self.base_url}/api/boiler/status", timeout=self.timeout)
@@ -240,10 +214,10 @@ class SystemTestSuite:
     # ---------------------------------------------------------
 
     def test_tc02_1_location_contract(self):
-        """SWE.5-TC02.1: Weather Location Setting Contract (FR-13)"""
+        """SWE.5-TC02.1: Weather Location Format (FR-9.2)"""
         test_id = "SWE.5-TC02.1"
-        name = "Weather Location Contract"
-        req = "FR-13"
+        name = "Weather Location Format"
+        req = "FR-9.2"
         start = time.time()
         try:
             r = requests.get(f"{self.base_url}/api/setup/location", timeout=self.timeout)
@@ -251,13 +225,31 @@ class SystemTestSuite:
             assert r.status_code == 200, f"HTTP {r.status_code}"
             coords = r.json().get("coords", None)
             assert coords is not None, "Missing 'coords' field"
+            if coords:
+                lat, lon = (float(x) for x in coords.split(","))
+                assert -90 <= lat <= 90 and -180 <= lon <= 180, f"Location outside lat -90..90 / lon -180..180: {coords}"
             return TestResult(test_id, name, req, "PASS", latency, f"Location: '{coords}'")
         except Exception as e:
             return TestResult(test_id, name, req, "FAIL", (time.time() - start)*1000, str(e))
 
-    # ---------------------------------------------------------
-    # Group 3: BLE Sensing & Environmental Ingestion
-    # ---------------------------------------------------------
+    def test_tc02_2_location_rejects_out_of_range(self):
+        """SWE.5-TC02.2: Location Outside lat/lon Range Rejected (FR-9.2)"""
+        test_id = "SWE.5-TC02.2"
+        name = "Location Range Rejection"
+        req = "FR-9.2"
+        start = time.time()
+        try:
+            before = requests.get(f"{self.base_url}/api/setup/location", timeout=self.timeout).json().get("coords")
+            bad = ["91,26", "44,181", "abc"]
+            for coords in bad:
+                r = requests.post(f"{self.base_url}/api/setup/location", data={"coords": coords}, timeout=self.timeout)
+                assert r.status_code == 400, f"coords={coords}: expected HTTP 400, got {r.status_code}"
+            after = requests.get(f"{self.base_url}/api/setup/location", timeout=self.timeout).json().get("coords")
+            latency = (time.time() - start) * 1000
+            assert after == before, f"Location changed by a rejected request: {before} -> {after}"
+            return TestResult(test_id, name, req, "PASS", latency, f"{len(bad)} invalid locations rejected, '{after}' kept")
+        except Exception as e:
+            return TestResult(test_id, name, req, "FAIL", (time.time() - start)*1000, str(e))
 
     def test_tc03_1_ble_scanner_running(self):
         """SWE.5-TC03.1: NimBLE Passive Scanner Running Status (FR-6, FR-28)"""
@@ -562,19 +554,22 @@ class SystemTestSuite:
             return TestResult(test_id, name, req, "FAIL", (time.time() - start)*1000, str(e))
 
     def test_tc07_2_actuator_interlock_delay_contract(self):
-        """SWE.5-TC07.2: Actuator Opening Interlock Delay Contract (120s) (FR-2, FR-14)"""
+        """SWE.5-TC07.2: Actuator Interlock in 120-600 s, Lower Values Rejected (FR-2)"""
         test_id = "SWE.5-TC07.2"
-        name = "Actuator Interlock Delay Contract (120s)"
-        req = "FR-2, FR-14"
+        name = "Actuator Interlock Range (120-600 s)"
+        req = "FR-2"
         start = time.time()
         try:
-            r = requests.get(f"{self.base_url}/api/zones", timeout=self.timeout)
+            url = f"{self.base_url}/api/config/system"
+            cur = requests.get(url, timeout=self.timeout).json()["actuatorDelaySec"]
+            assert 120 <= cur <= 600, f"interlockDelay {cur} s outside requirements §6 range 120-600 s"
+            for bad in (119, 601):
+                r = requests.post(url, data={"actuatorDelaySec": str(bad)}, timeout=self.timeout)
+                assert r.status_code == 400, f"actuatorDelaySec={bad}: expected HTTP 400, got {r.status_code}"
+            after = requests.get(url, timeout=self.timeout).json()["actuatorDelaySec"]
             latency = (time.time() - start) * 1000
-            data = r.json()
-            zones = data.get("zones", [])
-            assert len(zones) >= 3, "Insufficient zones"
-            details = f"Verified 120s interlock delay rule active across {len(zones)} hydronic loops"
-            return TestResult(test_id, name, req, "PASS", latency, details)
+            assert after == cur, f"interlockDelay changed by a rejected request: {cur} -> {after}"
+            return TestResult(test_id, name, req, "PASS", latency, f"interlockDelay {cur} s; 119 s and 601 s rejected")
         except Exception as e:
             return TestResult(test_id, name, req, "FAIL", (time.time() - start)*1000, str(e))
 
@@ -998,10 +993,10 @@ class SystemTestSuite:
             return TestResult(test_id, name, req, "FAIL", (time.time() - start)*1000, str(e))
 
     def test_tc13_3_tabular_formatting_and_utf8(self):
-        """SWE.5-TC13.3: Tabular Formatting & UTF-8 °C Presentation (FR-23, FR-25, FR-26, FR-27)"""
+        """SWE.5-TC13.3: STATUS Sections Present (FR-23)"""
         test_id = "SWE.5-TC13.3"
         name = "Tabular Formatting & UTF-8 °C Presentation"
-        req = "FR-23, FR-25, FR-26, FR-27"
+        req = "FR-23"
         start = time.time()
         try:
             # Request STATUS to verify subsystem blocks and utf8VisibleLen alignment
@@ -1032,7 +1027,8 @@ class SystemTestSuite:
             r = requests.get(f"{self.base_url}/api/setup/sensor-timeout", timeout=self.timeout)
             latency = (time.time() - start) * 1000
             tout = r.json().get("sensorTimeoutSec")
-            assert tout is not None and tout >= 60, f"Invalid timeout: {tout}"
+            assert tout is not None and 60 <= tout <= 3600, f"sensorTimeout {tout} s outside requirements §6 range 60-3600 s"
+            self.orig_sensor_timeout = tout
             details = f"Configured sensor timeout: {tout}s"
             return TestResult(test_id, name, req, "PASS", latency, details)
         except Exception as e:
@@ -1055,24 +1051,39 @@ class SystemTestSuite:
             return TestResult(test_id, name, req, "FAIL", (time.time() - start)*1000, str(e))
 
     def test_tc14_3_sensor_timeout_restoration(self):
-        """SWE.5-TC14.3: Sensor Failsafe Timeout Restoration (FR-18)"""
+        """SWE.5-TC14.3: Sensor Timeout Restored to the Value Before the Test (FR-18)"""
         test_id = "SWE.5-TC14.3"
         name = "Sensor Timeout Restoration"
         req = "FR-18"
         start = time.time()
         try:
-            r = requests.post(f"{self.base_url}/api/setup/sensor-timeout?timeoutSec=600", timeout=self.timeout)
+            orig = getattr(self, "orig_sensor_timeout", 1200)
+            r = requests.post(f"{self.base_url}/api/setup/sensor-timeout?timeoutSec={orig}", timeout=self.timeout)
             latency = (time.time() - start) * 1000
             assert r.status_code == 200, "Failed restoring timeout"
-            assert r.json().get("sensorTimeoutSec") == 600, "Timeout not restored to 600"
-            details = "Restored default timeout to 600s (10 min) in NVS"
-            return TestResult(test_id, name, req, "PASS", latency, details)
+            assert r.json().get("sensorTimeoutSec") == orig, f"Timeout not restored to {orig}"
+            return TestResult(test_id, name, req, "PASS", latency, f"Restored sensorTimeout {orig} s")
         except Exception as e:
             return TestResult(test_id, name, req, "FAIL", (time.time() - start)*1000, str(e))
 
-    # ---------------------------------------------------------
-    # Group 15: Firmware Baseline Version & Git Identity
-    # ---------------------------------------------------------
+    def test_tc14_4_sensor_timeout_out_of_range_rejected(self):
+        """SWE.5-TC14.4: Sensor Timeout Outside 60-3600 s Rejected (FR-18)"""
+        test_id = "SWE.5-TC14.4"
+        name = "Sensor Timeout Range Rejection"
+        req = "FR-18"
+        start = time.time()
+        try:
+            url = f"{self.base_url}/api/setup/sensor-timeout"
+            before = requests.get(url, timeout=self.timeout).json()["sensorTimeoutSec"]
+            for bad in (59, 3601):
+                r = requests.post(f"{url}?timeoutSec={bad}", timeout=self.timeout)
+                assert r.status_code == 400, f"timeoutSec={bad}: expected HTTP 400, got {r.status_code}"
+            after = requests.get(url, timeout=self.timeout).json()["sensorTimeoutSec"]
+            latency = (time.time() - start) * 1000
+            assert after == before, f"sensorTimeout changed by a rejected request: {before} -> {after}"
+            return TestResult(test_id, name, req, "PASS", latency, f"59 s and 3601 s rejected, {after} s kept")
+        except Exception as e:
+            return TestResult(test_id, name, req, "FAIL", (time.time() - start)*1000, str(e))
 
     def test_tc15_1_firmware_semver(self):
         """SWE.5-TC15.1: Firmware SemVer Baseline Integrity (1.2.0) (FR-21)"""
@@ -1306,10 +1317,10 @@ class SystemTestSuite:
             return TestResult(test_id, name, req, "FAIL", (time.time() - start)*1000, str(e))
 
     def test_tc19_6_sparkline_trend_telemetry(self):
-        """SWE.5-TC19.6: Temperature Trend Telemetry & Sparkline Dynamics (FR-33)"""
+        """SWE.5-TC19.6: Zone Telemetry Fields for the Page (FR-8.1)"""
         test_id = "SWE.5-TC19.6"
-        name = "Temperature Trend & Sparkline Dynamics"
-        req = "FR-33"
+        name = "Zone Telemetry Fields"
+        req = "FR-8.1"
         start = time.time()
         try:
             r = requests.get(f"{self.base_url}/api/zones", timeout=self.timeout)
@@ -1529,10 +1540,10 @@ class SystemTestSuite:
     # ---------------------------------------------------------
 
     def test_tc24_1_intelligent_overrun_conditional_logic(self):
-        """SWE.5-TC24.1: Intelligent Overrun Conditional on Actual Flame Ignition (FR-38)"""
+        """SWE.5-TC24.1: No Overrun Without Flame (FR-3.2)"""
         test_id = "SWE.5-TC24.1"
-        name = "Intelligent Overrun Flame Condition"
-        req = "FR-38"
+        name = "No Overrun Without Flame"
+        req = "FR-3.2"
         start = time.time()
         try:
             r_b = requests.get(f"{self.base_url}/api/boiler/status", timeout=self.timeout)
@@ -1628,30 +1639,30 @@ class SystemTestSuite:
             return TestResult(test_id, name, req, "FAIL", (time.time() - start)*1000, str(e))
 
     def test_tc26_2_open_window_threshold_mutation_persistence(self):
-        """SWE.5-TC26.2: Open Window Threshold Mutation & NVS Persistence (FR-40)"""
+        """SWE.5-TC26.2: One Window Threshold for All Zones (FR-40)"""
         test_id = "SWE.5-TC26.2"
-        name = "Open Window Threshold Mutation & NVS"
+        name = "Global Window Threshold"
         req = "FR-40"
         start = time.time()
+        orig = None
         try:
-            r_init = requests.get(f"{self.base_url}/api/zones", timeout=self.timeout)
-            orig_thresh = r_init.json().get("zones", [])[0].get("windowDropThreshold", 1.2)
-
-            r_set = requests.post(f"{self.base_url}/api/zones/window/threshold?id=0&threshold=1.5", timeout=self.timeout)
+            orig = requests.get(f"{self.base_url}/api/config/system", timeout=self.timeout).json()["windowThreshold"]
+            assert 0.8 <= orig <= 2.0, f"windowThreshold {orig} outside requirements §6 range 0.8-2.0"
+            new = 1.5 if abs(orig - 1.5) > 0.05 else 1.3
+            r_set = requests.post(f"{self.base_url}/api/zones/window/threshold?id=0&threshold={new}", timeout=self.timeout)
             assert r_set.status_code == 200 and r_set.json().get("status") == "ok", f"Set threshold failed: {r_set.text}"
-
-            r_ver = requests.get(f"{self.base_url}/api/zones", timeout=self.timeout)
-            z0 = r_ver.json().get("zones", [])[0]
-            assert abs(z0.get("windowDropThreshold", 0) - 1.5) < 0.05, f"Expected 1.5, got {z0.get('windowDropThreshold')}"
-
-            r_rst = requests.post(f"{self.base_url}/api/zones/window/threshold?id=0&threshold={orig_thresh:.1f}", timeout=self.timeout)
-            assert r_rst.status_code == 200, f"Restore threshold failed: {r_rst.text}"
-
+            zones = requests.get(f"{self.base_url}/api/zones", timeout=self.timeout).json().get("zones", [])
+            assert zones, "No zones"
+            for z in zones:
+                assert abs(z.get("windowDropThreshold", 0) - new) < 0.05, \
+                    f"Zone {z.get('id')} shows {z.get('windowDropThreshold')}, expected the global {new}"
             latency = (time.time() - start) * 1000
-            details = f"Verified threshold mutation (1.5°C) & NVS restore ({orig_thresh:.1f}°C) via /api/zones/window/threshold"
-            return TestResult(test_id, name, req, "PASS", latency, details)
+            return TestResult(test_id, name, req, "PASS", latency, f"Threshold {orig} -> {new} on all {len(zones)} zones -> restored")
         except Exception as e:
             return TestResult(test_id, name, req, "FAIL", (time.time() - start)*1000, str(e))
+        finally:
+            if orig is not None:
+                requests.post(f"{self.base_url}/api/zones/window/threshold?threshold={orig:.1f}", timeout=self.timeout)
 
     def test_tc26_3_open_window_clear_api(self):
         """SWE.5-TC26.3: Open Window Manual Clear API (/api/zones/window/clear) (FR-40)"""
@@ -1717,9 +1728,10 @@ class SystemTestSuite:
             data = r.json()
             assert data.get("status") == "ok", "Expected status ok"
             expected_fields = [
-                "openLoopBypass", "actuatorDelaySec", "boilerDelaySec", "pumpOverrunSec",
-                "shortCyclingSec", "rfMinCooldownSec", "rfSafetyHeartbeatSec",
-                "turReturSensors", "pumpControlEnabled", "pumpRelayPin", "zones"
+                "openLoopBypass", "actuatorDelaySec", "pumpOverrunSec", "burnerMinRunSec", "burnerMinPauseSec",
+                "rfMinCooldownSec", "rfSafetyHeartbeatSec", "rfSafetyHeartbeatEnabled", "pumpControlEnabled",
+                "pumpRelayPin", "actuatorNormallyClosed", "freezeProtectionTemp", "sensorTimeoutSec",
+                "hysteresis", "windowThreshold", "zones"
             ]
             for f in expected_fields:
                 assert f in data, f"Missing '{f}' in /api/config/system"
@@ -1729,35 +1741,58 @@ class SystemTestSuite:
             return TestResult(test_id, name, req, "FAIL", (time.time() - start)*1000, str(e))
 
     def test_tc27_2_system_config_mutation_persistence(self):
-        """SWE.5-TC27.2: System Configuration Mutation & Persistence (FR-42)"""
+        """SWE.5-TC27.2: Configuration Change Inside §6 Accepted, Board Settings Restored (FR-42)"""
         test_id = "SWE.5-TC27.2"
         name = "System Configuration Mutation"
         req = "FR-42"
         start = time.time()
+        url = f"{self.base_url}/api/config/system"
+        orig = None
         try:
-            payload = {
-                "openLoopBypass": "true",
-                "actuatorDelaySec": "180",
-                "boilerDelaySec": "180",
-                "pumpOverrunSec": "180",
-                "shortCyclingSec": "180",
-                "rfMinCooldownSec": "3",
-                "rfSafetyHeartbeatSec": "900",
-                "rfSafetyHeartbeatEnabled": "true",
-                "turReturSensors": "false",
-                "pumpControlEnabled": "false",
-                "pumpRelayPin": "26",
-                "actuatorNormallyClosed": "true",
-                "freezeProtectionTemp": "12.0",
-                "sensorTimeoutSec": "600"
-            }
-            r = requests.post(f"{self.base_url}/api/config/system", data=payload, timeout=self.timeout)
+            orig = requests.get(url, timeout=self.timeout).json()
+            new = 190 if orig["actuatorDelaySec"] != 190 else 200
+            r = requests.post(url, data={"actuatorDelaySec": str(new)}, timeout=self.timeout)
             assert r.status_code == 200, f"Expected 200 on config post, got {r.status_code}"
             data = r.json()
-            assert data.get("openLoopBypass") is True, "openLoopBypass not true in response"
+            assert data.get("actuatorDelaySec") == new, f"actuatorDelaySec {data.get('actuatorDelaySec')} != {new}"
+            assert data.get("openLoopBypass") == orig.get("openLoopBypass"), "openLoopBypass changed by an unrelated request"
             latency = (time.time() - start) * 1000
-            details = f"Configuration mutation verified & persisted to NVS (actuatorDelay={data.get('actuatorDelaySec')}s)"
-            return TestResult(test_id, name, req, "PASS", latency, details)
+            return TestResult(test_id, name, req, "PASS", latency, f"interlockDelay {orig['actuatorDelaySec']} -> {new} s -> restored")
+        except Exception as e:
+            return TestResult(test_id, name, req, "FAIL", (time.time() - start)*1000, str(e))
+        finally:
+            if orig is not None:
+                requests.post(url, data={"actuatorDelaySec": str(orig["actuatorDelaySec"])}, timeout=self.timeout)
+
+    def test_tc27_6_config_below_safety_floor_rejected(self):
+        """SWE.5-TC27.6: Values Outside §6 Rejected, Nothing Changed (FR-42)"""
+        test_id = "SWE.5-TC27.6"
+        name = "Config Range Rejection (§6)"
+        req = "FR-42"
+        start = time.time()
+        url = f"{self.base_url}/api/config/system"
+        try:
+            before = requests.get(url, timeout=self.timeout).json()
+            # requirements §6: interlockDelay 120-600 s, overrun 180-600 s, burnerMinRun / burnerMinPause 120-600 s,
+            # frostTemp 8-16 C, sensorTimeout 60-3600 s, hysteresis 0.1-1.0 C, windowThreshold 0.8-2.0 C, hbInterval 30-900 s
+            below = {"actuatorDelaySec": "119", "pumpOverrunSec": "179", "burnerMinRunSec": "119",
+                     "burnerMinPauseSec": "119", "freezeProtectionTemp": "7.9", "sensorTimeoutSec": "59",
+                     "hysteresis": "0.05", "windowThreshold": "0.7", "rfSafetyHeartbeatSec": "29"}
+            for arg, value in below.items():
+                r = requests.post(url, data={arg: value}, timeout=self.timeout)
+                assert r.status_code == 400, f"{arg}={value}: expected HTTP 400, got {r.status_code}"
+            # One bad value rejects the whole request: the valid interlock change is not applied either
+            alt = 190 if before["actuatorDelaySec"] != 190 else 200
+            r = requests.post(url, data={"actuatorDelaySec": str(alt), "pumpOverrunSec": "100"}, timeout=self.timeout)
+            assert r.status_code == 400, f"Mixed request: expected HTTP 400, got {r.status_code}"
+            r = requests.post(url, data={"boilerDelaySec": "180"}, timeout=self.timeout)
+            assert r.status_code == 400, f"Removed field boilerDelaySec: expected HTTP 400, got {r.status_code}"
+            after = requests.get(url, timeout=self.timeout).json()
+            latency = (time.time() - start) * 1000
+            changed = [k for k in before if k != "zones" and before[k] != after.get(k)]
+            assert not changed, f"Rejected requests changed settings: {changed}"
+            return TestResult(test_id, name, req, "PASS", latency,
+                              f"{len(below)} values below §6 floors and a mixed request rejected (HTTP 400), nothing changed")
         except Exception as e:
             return TestResult(test_id, name, req, "FAIL", (time.time() - start)*1000, str(e))
 
@@ -1806,10 +1841,10 @@ class SystemTestSuite:
 
     # Group 28: Dynamic Time Blocks Engine & Hydraulic Isolation (FR-46, FR-14)
     def test_tc28_3_gpa_pump_isolation_default(self):
-        """SWE.5-TC28.3: Hydraulic GPA Pump Isolation & Relay 4 Default Free (FR-14, FR-42)"""
+        """SWE.5-TC28.3: Optional Pump Setting Exposed (FR-14.1)"""
         test_id = "SWE.5-TC28.3"
-        name = "GPA Pump Default Free Isolation"
-        req = "FR-14"
+        name = "Optional Pump Setting"
+        req = "FR-14.1"
         start = time.time()
         try:
             r = requests.get(f"{self.base_url}/api/config/system", timeout=self.timeout)
@@ -1842,6 +1877,7 @@ class SystemTestSuite:
             self.test_tc01_5_wifi_watchdog_supervisor,
             # Group 2: Weather Location
             self.test_tc02_1_location_contract,
+            self.test_tc02_2_location_rejects_out_of_range,
             # Group 3: BLE Sensing
             self.test_tc03_1_ble_scanner_running,
             self.test_tc03_2_xiaomi_bthome_direct,
@@ -1895,6 +1931,7 @@ class SystemTestSuite:
             self.test_tc14_1_sensor_timeout_query,
             self.test_tc14_2_sensor_timeout_mutation,
             self.test_tc14_3_sensor_timeout_restoration,
+            self.test_tc14_4_sensor_timeout_out_of_range_rejected,
             # Group 15: Firmware Baseline Identity
             self.test_tc15_1_firmware_semver,
             self.test_tc15_2_build_timestamp_and_git,
@@ -1935,6 +1972,7 @@ class SystemTestSuite:
             self.test_tc27_2_system_config_mutation_persistence,
             self.test_tc27_3_relay_test_contract,
             self.test_tc27_5_console_command_and_clear_invariant,
+            self.test_tc27_6_config_below_safety_floor_rejected,
             self.test_tc28_3_gpa_pump_isolation_default,
         ]
 

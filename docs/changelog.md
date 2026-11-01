@@ -5,6 +5,29 @@ Corelat cu planul activ: [`docs/plan.md`](file:///c:/Users/BSeceleanu/.github_re
 
 
 
+## [01.11.2026] - Migration step 1: ParamStore (one parameter table, NVS in one place)
+
+- **Who / when / why:** main chat (Claude), 01.11.2026, owner request "do it here" (architecture §18 step 1).
+- **Firmware:** new `ParamStore` (`include/ParamStore.h`, `src/ParamStore.cpp`) is the only NVS user (R-A4): one
+  table with the requirements §6 defaults and ranges (interlock, overrun, burner run / pause, hysteresis, sensor
+  timeout, frost, window threshold, heartbeat, link heartbeat, open-loop bypass, actuator type, pump), zone records,
+  learned duty (DTC-301 when discarded), state and location; range check on set and load, writes only on change.
+  One-time copy of the old keys (schema 1), written only if every record was stored; old keys kept for a rollback.
+  `ThermalZoneManager`, `BoilerRadioTrigger`, `TimeAndWeatherService` load from it; setters reject out-of-range
+  values. `/api/config/system` POST validates all fields (exact step, §6 range) and rejects the whole request with
+  HTTP 400; new fields `burnerMinRunSec`, `burnerMinPauseSec`, `hysteresis`, `windowThreshold`; removed
+  `boilerDelaySec`, `turReturSensors`, `shortCyclingSec`, per-zone hysteresis / window threshold. Interlock and
+  overrun persisted; one global hysteresis and window threshold; RF cooldown fixed 3 s (FR-17.2); reference MACs and
+  zone names removed from firmware (FR-11.1); factory levels 23 / 21 / 18; location validated (FR-9.2).
+- **Tests:** registry read from the requirements document (no copy); retired IDs remapped; TC07.2 interlock range,
+  TC14.1 / TC14.4 sensor timeout range, TC02.2 location range, TC26.2 global window threshold, TC27.2 restores the
+  board, new TC27.6 rejection below the §6 floors. Checker reads the safety rows of the ParamStore table.
+- **Fixes:** PB-4, PB-5, PB-6, PB-8, PB-9, PB-11 (PB-13 with the flash). PB-14 stays open: the default is §6, the
+  second DTC-101 path (1200 s in `DiagnosticEngine`) is step 6.
+- **Checks:** `pio run` 1.19 MB; `sh_process_check.py` 0 errors, 1 known (PB-12); `sh-safety-reviewer` no BLOCKER,
+  its three migration risks fixed before the commit (schema only after successful writes, migrate only without a
+  schema, old keys kept). Flash and board test follow.
+
 ## [01.11.2026] - Requirements v2.4: watchdog on both tasks, safety reaction bound 10 s
 
 - **Who / when / why:** requirements and architecture sessions, 01.11.2026, after two owner decisions

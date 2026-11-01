@@ -171,6 +171,13 @@ void DiagnosticEngine::evaluateSystem() {
   } else if (heap > 75000) {
     clearDtc("DTC-402");
   }
+
+  // Learned value discarded at load (NFR-5.3); cleared only manually (DIAG CLEAR)
+  static bool learningResetRaised = false;
+  if (paramStore.learnedResets() > 0 && !learningResetRaised) {
+    learningResetRaised = true;
+    raiseDtc("DTC-301", "Learned duty out of bounds, reset", SEV_WARNING);
+  }
 }
 
 uint8_t DiagnosticEngine::calculateHealthScore() const {

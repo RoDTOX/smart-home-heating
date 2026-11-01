@@ -34,7 +34,7 @@ public:
 
     // Location for weather ("lat,lon"), persisted in NVS
     const char* getLocation() const { return _location; }
-    void setLocation(const char* coords);
+    bool setLocation(const char* coords);  // false: not "lat,lon" in range (FR-9.2)
 
     String toJson() const;
 

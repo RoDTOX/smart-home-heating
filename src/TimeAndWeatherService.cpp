@@ -1,6 +1,6 @@
 #include "TimeAndWeatherService.h"
 #include "NetworkConsole.h"
-#include <Preferences.h>
+#include "ParamStore.h"
 #include <HTTPClient.h>
 #include <WiFi.h>
 #include <ArduinoJson.h>
@@ -27,28 +27,14 @@ void TimeAndWeatherService::begin() {
     configTzTime("EET-2EEST,M3.5.0/3,M10.5.0/4", "pool.ntp.org", "time.google.com", "time.cloudflare.com");
     _ntpConfigured = true;
 
-    Preferences prefs;
-    if (prefs.begin("location", true)) {
-        prefs.getString("coords", _location, sizeof(_location));
-        prefs.end();
-    }
-    if (_location[0] == '\0' && prefs.begin("passport", true)) {
-        // One-time migration from the removed DevicePassport namespace
-        char legacy[32] = "";
-        prefs.getString("coords", legacy, sizeof(legacy));
-        prefs.end();
-        if (legacy[0] != '\0') setLocation(legacy);
-    }
+    // Location lives in ParamStore (FR-9.2); the old "location" / "passport" keys are migrated there
+    strlcpy(_location, paramStore.location(), sizeof(_location));
 }
 
-void TimeAndWeatherService::setLocation(const char* coords) {
-    if (!coords || strcmp(coords, _location) == 0) return;
-    strlcpy(_location, coords, sizeof(_location));
-    Preferences prefs;
-    if (prefs.begin("location", false)) {
-        prefs.putString("coords", _location);
-        prefs.end();
-    }
+bool TimeAndWeatherService::setLocation(const char* coords) {
+    if (!paramStore.setLocation(coords)) return false;
+    strlcpy(_location, paramStore.location(), sizeof(_location));
+    return true;
 }
 
 bool TimeAndWeatherService::isTimeSynced() const {

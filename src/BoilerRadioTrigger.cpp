@@ -95,95 +95,56 @@ static const uint16_t rf_off_durations[RF_NUM_STEPS] PROGMEM = {
     471, 198, 458, 198, 459, 198, 458, 198, 65000,
 };
 
-#include <Preferences.h>
+#include "ParamStore.h"
 
 BoilerRadioTrigger boilerRadio;
 
 BoilerRadioTrigger::BoilerRadioTrigger()
     : _dataPin(5), _lastCommandOn(false), _hasTransmittedOnce(false),
       _lastTxTime(0), _lastStateChangeTime(0), _pendingAction(PENDING_NONE),
-      _minRunTimeMs(180000UL), _minPauseTimeMs(180000UL),
-      _rfMinCooldownMs(3000UL), _safetyHeartbeatMs(900000UL), _safetyHeartbeatEnabled(true),
+      _minRunTimeMs(180000UL), _minPauseTimeMs(180000UL),  // placeholders until loadState()
+      _safetyHeartbeatMs(60000UL), _safetyHeartbeatEnabled(true),
       _spamAttemptCount(0), _lastSpamAttemptMs(0),
       _runtimeTotalSec(0), _runtimeTodaySec(0), _runtimeYesterdaySec(0),
       _runtimeThisMonthSec(0), _runtimeLastMonthSec(0),
       _flameStartTimeMs(0), _lastDay(0), _lastMonth(0), _lastNvsSaveMs(0) {
 }
 
-void BoilerRadioTrigger::loadStateFromPreferences() {
-    Preferences prefs;
-    if (prefs.begin("boiler", true)) {
-        _lastCommandOn = prefs.getBool("last_cmd", false);
-        _runtimeTotalSec = prefs.getUInt("rt_tot", 0);
-        _runtimeTodaySec = prefs.getUInt("rt_today", 0);
-        _runtimeYesterdaySec = prefs.getUInt("rt_yest", 0);
-        _runtimeThisMonthSec = prefs.getUInt("rt_mon", 0);
-        _runtimeLastMonthSec = prefs.getUInt("rt_lmon", 0);
-        _lastDay = prefs.getUChar("last_day", 0);
-        _lastMonth = prefs.getUChar("last_mon", 0);
-        _minRunTimeMs = prefs.getUInt("min_run", 180000UL);
-        _minPauseTimeMs = prefs.getUInt("min_pause", 180000UL);
-        _rfMinCooldownMs = prefs.getUInt("rf_cd", 3000UL);
-        _safetyHeartbeatMs = prefs.getUInt("hb_ms", 900000UL);
-        _safetyHeartbeatEnabled = prefs.getBool("hb_en", true);
-        prefs.end();
-    }
+void BoilerRadioTrigger::loadState() {
+    _minRunTimeMs = (uint32_t)paramStore.get(Param::BurnerMinRun) * 1000UL;
+    _minPauseTimeMs = (uint32_t)paramStore.get(Param::BurnerMinPause) * 1000UL;
+    _safetyHeartbeatMs = (uint32_t)paramStore.get(Param::HbInterval) * 1000UL;
+    _safetyHeartbeatEnabled = paramStore.get(Param::BoilerLinkHeartbeat) != 0;
+    _lastCommandOn = paramStore.state(StateKey::BoilerLastOn) != 0;
+    _runtimeTotalSec = paramStore.state(StateKey::RuntimeTotal);
+    _runtimeTodaySec = paramStore.state(StateKey::RuntimeToday);
+    _runtimeYesterdaySec = paramStore.state(StateKey::RuntimeYesterday);
+    _runtimeThisMonthSec = paramStore.state(StateKey::RuntimeThisMonth);
+    _runtimeLastMonthSec = paramStore.state(StateKey::RuntimeLastMonth);
+    _lastDay = (uint8_t)paramStore.state(StateKey::RuntimeDay);
+    _lastMonth = (uint8_t)paramStore.state(StateKey::RuntimeMonth);
 }
 
-void BoilerRadioTrigger::saveStateToPreferences() {
-    Preferences prefs;
-    if (prefs.begin("boiler", false)) {
-        bool oldVal = prefs.getBool("last_cmd", false);
-        if (oldVal != _lastCommandOn || !prefs.isKey("last_cmd")) {
-            prefs.putBool("last_cmd", _lastCommandOn);
-        }
-        if (prefs.getUInt("rt_tot", 0) != _runtimeTotalSec) {
-            prefs.putUInt("rt_tot", _runtimeTotalSec);
-        }
-        if (prefs.getUInt("rt_today", 0) != _runtimeTodaySec) {
-            prefs.putUInt("rt_today", _runtimeTodaySec);
-        }
-        if (prefs.getUInt("rt_yest", 0) != _runtimeYesterdaySec) {
-            prefs.putUInt("rt_yest", _runtimeYesterdaySec);
-        }
-        if (prefs.getUInt("rt_mon", 0) != _runtimeThisMonthSec) {
-            prefs.putUInt("rt_mon", _runtimeThisMonthSec);
-        }
-        if (prefs.getUInt("rt_lmon", 0) != _runtimeLastMonthSec) {
-            prefs.putUInt("rt_lmon", _runtimeLastMonthSec);
-        }
-        if (prefs.getUChar("last_day", 0) != _lastDay) {
-            prefs.putUChar("last_day", _lastDay);
-        }
-        if (prefs.getUChar("last_mon", 0) != _lastMonth) {
-            prefs.putUChar("last_mon", _lastMonth);
-        }
-        if (prefs.getUInt("min_run", 0) != _minRunTimeMs) {
-            prefs.putUInt("min_run", _minRunTimeMs);
-        }
-        if (prefs.getUInt("min_pause", 0) != _minPauseTimeMs) {
-            prefs.putUInt("min_pause", _minPauseTimeMs);
-        }
-        if (prefs.getUInt("rf_cd", 0) != _rfMinCooldownMs) {
-            prefs.putUInt("rf_cd", _rfMinCooldownMs);
-        }
-        if (prefs.getUInt("hb_ms", 0) != _safetyHeartbeatMs) {
-            prefs.putUInt("hb_ms", _safetyHeartbeatMs);
-        }
-        if (prefs.getBool("hb_en", true) != _safetyHeartbeatEnabled) {
-            prefs.putBool("hb_en", _safetyHeartbeatEnabled);
-        }
-        prefs.end();
-        _lastNvsSaveMs = millis();
-    }
+// ParamStore writes a state value only when it changed (NFR-2.9).
+void BoilerRadioTrigger::saveState() {
+    paramStore.saveState(StateKey::BoilerLastOn, _lastCommandOn ? 1 : 0);
+    paramStore.saveState(StateKey::RuntimeTotal, _runtimeTotalSec);
+    paramStore.saveState(StateKey::RuntimeToday, _runtimeTodaySec);
+    paramStore.saveState(StateKey::RuntimeYesterday, _runtimeYesterdaySec);
+    paramStore.saveState(StateKey::RuntimeThisMonth, _runtimeThisMonthSec);
+    paramStore.saveState(StateKey::RuntimeLastMonth, _runtimeLastMonthSec);
+    paramStore.saveState(StateKey::RuntimeDay, _lastDay);
+    paramStore.saveState(StateKey::RuntimeMonth, _lastMonth);
+    _lastNvsSaveMs = millis();
 }
+
 
 void BoilerRadioTrigger::begin(uint8_t dataPin) {
     _dataPin = dataPin;
     pinMode(_dataPin, OUTPUT);
     digitalWrite(_dataPin, LOW);
 
-    loadStateFromPreferences();
+    loadState();
 
     // Safety & Power-Loss Recovery:
     // The physical 433MHz boiler receiver retains whatever state it held before power cut.
@@ -250,7 +211,7 @@ void BoilerRadioTrigger::update() {
             }
         }
         _flameStartTimeMs = now;
-        saveStateToPreferences();
+        saveState();
     }
 }
 
@@ -266,9 +227,9 @@ bool BoilerRadioTrigger::canTransmit(bool targetOn, uint32_t* remainingSec, bool
     if (isIdempotent) *isIdempotent = false;
 
     // 2. Check RF hardware burst cooldown (Configurable, default 3s)
-    if (_lastTxTime > 0 && (now - _lastTxTime < _rfMinCooldownMs)) {
+    if (_lastTxTime > 0 && (now - _lastTxTime < RF_MIN_COOLDOWN_MS)) {
         if (remainingSec) {
-            *remainingSec = (_rfMinCooldownMs - (now - _lastTxTime) + 999) / 1000;
+            *remainingSec = (RF_MIN_COOLDOWN_MS - (now - _lastTxTime) + 999) / 1000;
         }
         return false;
     }
@@ -340,7 +301,7 @@ bool BoilerRadioTrigger::sendBoilerOn(bool force) {
     _lastStateChangeTime = _lastTxTime;
     _spamAttemptCount = 0;
     _pendingAction = PENDING_NONE;
-    saveStateToPreferences();
+    saveState();
     netConsole.println(F("[RF 433MHz] Boiler ON burst sent successfully."));
     return true;
 }
@@ -388,7 +349,7 @@ bool BoilerRadioTrigger::sendBoilerOff(bool force) {
     _lastStateChangeTime = _lastTxTime;
     _spamAttemptCount = 0;
     _pendingAction = PENDING_NONE;
-    saveStateToPreferences();
+    saveState();
     netConsole.println(F("[RF 433MHz] Boiler OFF burst sent successfully."));
     return true;
 }
@@ -456,7 +417,7 @@ void BoilerRadioTrigger::updateRuntimeDayMonth(uint8_t day, uint8_t month) {
         netConsole.printf("[Boiler][Runtime] Rollover to new month %u. Last month runtime: %u s.\n", month, _runtimeLastMonthSec);
     }
     if (changed) {
-        saveStateToPreferences();
+        saveState();
     }
 }
 
@@ -467,41 +428,31 @@ void BoilerRadioTrigger::resetRuntime() {
     _runtimeThisMonthSec = 0;
     _runtimeLastMonthSec = 0;
     _flameStartTimeMs = _lastCommandOn ? millis() : 0;
-    saveStateToPreferences();
+    saveState();
     netConsole.println(F("[Boiler][Runtime] All burner runtime counters reset to 0."));
 }
 
 
 
-void BoilerRadioTrigger::setMinRunTimeMs(uint32_t ms) {
-    if (ms >= 10000UL && ms <= 600000UL) {
-        _minRunTimeMs = ms;
-        saveStateToPreferences();
-    }
+bool BoilerRadioTrigger::setMinRunSec(uint32_t sec) {
+    if (!paramStore.set(Param::BurnerMinRun, (int32_t)sec)) return false;
+    _minRunTimeMs = sec * 1000UL;
+    return true;
 }
 
-void BoilerRadioTrigger::setMinPauseTimeMs(uint32_t ms) {
-    if (ms >= 10000UL && ms <= 600000UL) {
-        _minPauseTimeMs = ms;
-        saveStateToPreferences();
-    }
+bool BoilerRadioTrigger::setMinPauseSec(uint32_t sec) {
+    if (!paramStore.set(Param::BurnerMinPause, (int32_t)sec)) return false;
+    _minPauseTimeMs = sec * 1000UL;
+    return true;
 }
 
-void BoilerRadioTrigger::setRfMinCooldownMs(uint32_t ms) {
-    if (ms >= 500UL && ms <= 60000UL) {
-        _rfMinCooldownMs = ms;
-        saveStateToPreferences();
-    }
-}
-
-void BoilerRadioTrigger::setSafetyHeartbeatMs(uint32_t ms) {
-    if (ms >= 60000UL && ms <= 3600000UL) {
-        _safetyHeartbeatMs = ms;
-        saveStateToPreferences();
-    }
+bool BoilerRadioTrigger::setHeartbeatSec(uint32_t sec) {
+    if (!paramStore.set(Param::HbInterval, (int32_t)sec)) return false;
+    _safetyHeartbeatMs = sec * 1000UL;
+    return true;
 }
 
 void BoilerRadioTrigger::setSafetyHeartbeatEnabled(bool en) {
     _safetyHeartbeatEnabled = en;
-    saveStateToPreferences();
+    paramStore.set(Param::BoilerLinkHeartbeat, en ? 1 : 0);
 }

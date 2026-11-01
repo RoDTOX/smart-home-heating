@@ -76,23 +76,14 @@ void BleSensorScanner::update() {
 const char* BleSensorScanner::resolveNameForMac(const char* mac, const char* advName, char* outBuf, size_t bufLen) {
     if (!mac || bufLen == 0) return "";
 
-    // 1. Check known devices from Config.h
-    for (size_t i = 0; i < KNOWN_BLE_DEVICES_COUNT; i++) {
-        if (strcasecmp(KNOWN_BLE_DEVICES[i].mac, mac) == 0) {
-            strncpy(outBuf, KNOWN_BLE_DEVICES[i].name, bufLen - 1);
-            outBuf[bufLen - 1] = '\0';
-            return outBuf;
-        }
-    }
-
-    // 2. Check if advertised name has useful text (e.g. "ATC_84A1E8")
+    // 1. Check if advertised name has useful text (e.g. "ATC_84A1E8")
     if (advName && strlen(advName) > 0 && strncasecmp(advName, "ESP", 3) != 0) {
         strncpy(outBuf, advName, bufLen - 1);
         outBuf[bufLen - 1] = '\0';
         return outBuf;
     }
 
-    // 3. Fallback: generate friendly name from last 4 characters of MAC
+    // 2. Fallback: generate friendly name from last 4 characters of MAC
     size_t macLen = strlen(mac);
     if (macLen >= 5) {
         snprintf(outBuf, bufLen, "BLE-%c%c%c%c",

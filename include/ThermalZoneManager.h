@@ -2,8 +2,8 @@
 #define THERMAL_ZONE_MANAGER_H
 
 #include <Arduino.h>
-#include <Preferences.h>
 #include "Config.h"
+#include "ParamStore.h"
 #include "BoilerRadioTrigger.h"
 
 #define MAX_THERMAL_ZONES 3
@@ -83,9 +83,7 @@ struct ThermalZoneConfig {
     char sensorName[32];  // Friendly name or alias
     uint8_t relayPin;
     float targetTemp;
-    float hysteresis;
     bool enabled;
-    float windowDropThreshold; // Drop in <=5m to trigger pause (0.8 - 2.0 C, default 1.2 C)
     float tempOffset;          // Sensor calibration offset added to the reading (-3..+3 C)
 };
 
@@ -108,9 +106,9 @@ public:
     void begin();
     void update(BoilerRadioTrigger& boiler);
 
-    // Persistence
-    void loadFromPreferences();
-    void saveToPreferences();
+    // Persistence (ParamStore, NVS writes only on change)
+    void loadConfig();
+    void persistConfig();
 
     // Getters
     size_t getZoneCount() const { return MAX_THERMAL_ZONES; }
@@ -120,17 +118,14 @@ public:
     bool isAutoMode() const { return _autoMode; }
     uint32_t getInterlockDelayMs() const { return _interlockDelayMs; }
     uint32_t getPumpOverrunMs() const { return _pumpOverrunMs; }
-    uint32_t getMinBoilerOffMs() const { return _minBoilerOffMs; }
+    // Requirements §6 ranges are enforced by ParamStore: a setter returns false and changes nothing when out of range
+    bool setInterlockDelaySec(uint32_t sec);
+    bool setOverrunSec(uint32_t sec);
 
     // Hydraulic & Installation Settings
     bool isOpenLoopBypass() const { return _openLoopBypass; }
     void setOpenLoopBypass(bool en);
-    uint32_t getBoilerDelayMs() const { return _boilerDelayMs; }
-    void setBoilerDelayMs(uint32_t ms);
-    bool hasManifoldTurReturSensors() const { return _hasManifoldTurReturSensors; }
-    void setManifoldTurReturSensors(bool en);
-    uint8_t getPumpRelayPin() const { return _pumpRelayPin; }
-    void setPumpRelayPin(uint8_t pin);
+    uint8_t getPumpRelayPin() const { return PIN_RELAY_SPARE; }
 
     // Pump Control (Relay 4 on PIN_RELAY_SPARE / GPIO26)
     bool isPumpControlEnabled() const { return _pumpControlEnabled; }
@@ -143,7 +138,7 @@ public:
 
     // Frost Protection (<12C)
     float getFreezeProtectionTemp() const { return _freezeProtectionTemp; }
-    void setFreezeProtectionTemp(float temp);
+    bool setFreezeProtectionTemp(float temp);
     bool isFrostProtectionActive() const { return _frostProtectionActive; }
 
     // Summer Anti-Seize Exercise (Pumps & Valves)
@@ -151,9 +146,15 @@ public:
     bool isAntiSeizeRunning() const { return _antiSeizeRunning; }
     uint32_t getLastAntiSeizeEpoch() const { return _lastAntiSeizeEpoch; }
 
-    // Sensor Ingestion Failsafe Timeout (default 600s / 10min)
+    // Sensor timeout `sensorTimeout` (FR-16.2, FR-18)
     uint32_t getSensorTimeoutSec() const { return _sensorTimeoutSec; }
-    void setSensorTimeoutSec(uint32_t sec);
+    bool setSensorTimeoutSec(uint32_t sec);
+
+    // One global hysteresis (overshoot cut, FR-47) and window threshold (FR-40), requirements §6
+    float getHysteresis() const { return _hysteresis; }
+    bool setHysteresis(float hyst);
+    float getWindowThreshold() const { return _windowThreshold; }
+    bool setWindowThreshold(float threshold);
 
     // Boot Sensor Warmup (Grace period: max 300s / 5min)
     bool isBootWarmupActive() const { return _bootWarmupActive; }
@@ -164,7 +165,6 @@ public:
 
     // Setters
     void setTargetTemperature(size_t index, float target);
-    void setHysteresis(size_t index, float hyst);
     void setZoneEnabled(size_t index, bool enabled);
     void setZoneName(size_t index, const char* name);
     void setSensorName(size_t index, const char* sensorName);
@@ -176,11 +176,8 @@ public:
     float getDuty(size_t index) const { return index < MAX_THERMAL_ZONES ? _tpi[index].duty : 0.0f; }
     float getLearnedDuty(size_t index) const { return index < MAX_THERMAL_ZONES ? _tpi[index].integral : 0.0f; }
     uint32_t getPreHeatLeadMinutes() const;
-    void mapZone(size_t index, const char* name, const char* sensorMac, const char* sensorName, uint8_t relayPin, float targetTemp, float hysteresis, bool enabled);
+    void mapZone(size_t index, const char* name, const char* sensorMac, const char* sensorName, uint8_t relayPin, float targetTemp, bool enabled);
     void setAutoMode(bool autoMode);
-    void setInterlockDelayMs(uint32_t ms);
-    void setPumpOverrunMs(uint32_t ms);
-    void setMinBoilerOffMs(uint32_t ms);
 
     // Manual Hold (Temporary Override until next schedule slot)
     bool isManualHoldActive(size_t index) const {
@@ -221,8 +218,6 @@ public:
     bool isWindowPauseActive(size_t index) const;
     uint32_t getWindowPauseRemainingSec(size_t index) const;
     bool clearWindowPause(size_t index);
-    void setWindowDropThreshold(size_t index, float threshold);
-    float getWindowDropThreshold(size_t index) const;
     uint32_t getWindowLastDetectionEpoch(size_t index) const;
     uint32_t getWindowLastDetectionDurationSec(size_t index) const;
 
@@ -233,8 +228,8 @@ public:
     String getScheduleJson() const;
 
     // Schedule Persistence
-    void loadSchedulePreferences();
-    void saveSchedulePreferences();
+    void loadSchedule();
+    void saveSchedule();
 
     // Helpers
     const char* getStateStr(ZoneState state) const;
@@ -267,17 +262,15 @@ private:
     uint32_t _antiSeizeStartMs;
     uint32_t _lastAntiSeizeEpoch;
     uint32_t _sensorTimeoutSec;
+    float _hysteresis;
+    float _windowThreshold;
     bool _bootWarmupActive;
     uint32_t _bootWarmupStartMs;
 
-    // Hydraulic Timings & Hardware Wiring
+    // Hydraulic timings (requirements §6, loaded from ParamStore)
     uint32_t _interlockDelayMs;
     uint32_t _pumpOverrunMs;
-    uint32_t _minBoilerOffMs;
-    uint32_t _boilerDelayMs;
     bool _openLoopBypass;
-    bool _hasManifoldTurReturSensors;
-    uint8_t _pumpRelayPin;
 
     uint32_t _lastBoilerOffTime;
     uint32_t _lastBoilerOnTime;

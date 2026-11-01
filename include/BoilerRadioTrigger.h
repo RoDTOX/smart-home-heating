@@ -4,10 +4,8 @@
 #include <Arduino.h>
 
 // FR-17 Timing Thresholds & Safety Limits (Defaults)
-#define RF_MIN_COOLDOWN_MS       3000UL   // FR-17.2: Min 3s silence between any consecutive RF bursts
-#define BOILER_MIN_RUN_TIME_MS   180000UL // FR-17.3: Min 180s burn duration before turning OFF allowed
-#define BOILER_MIN_PAUSE_TIME_MS 180000UL // FR-17.3: Min 180s rest duration before turning ON allowed
-#define BOILER_HEARTBEAT_MS      900000UL // FR-17.7: Periodic 15m safety heartbeat
+#define RF_MIN_COOLDOWN_MS       3000UL   // FR-17.2: fixed minimum silence between two radio frames
+// Burner guard (FR-4) and state repeat (FR-17.7) values are requirements §6 parameters in ParamStore.
 
 enum PendingBoilerAction {
     PENDING_NONE = 0,
@@ -51,18 +49,18 @@ public:
     void updateRuntimeDayMonth(uint8_t day, uint8_t month);
     void resetRuntime();
 
-    void saveStateToPreferences();
-    void loadStateFromPreferences();
+    void saveState();
+    void loadState();
 
     // Configurable RF & Safety Timings
+    // Setters return false and change nothing when the value is outside its requirements §6 range
     uint32_t getMinRunTimeMs() const { return _minRunTimeMs; }
-    void setMinRunTimeMs(uint32_t ms);
+    bool setMinRunSec(uint32_t sec);
     uint32_t getMinPauseTimeMs() const { return _minPauseTimeMs; }
-    void setMinPauseTimeMs(uint32_t ms);
-    uint32_t getRfMinCooldownMs() const { return _rfMinCooldownMs; }
-    void setRfMinCooldownMs(uint32_t ms);
+    bool setMinPauseSec(uint32_t sec);
+    uint32_t getRfMinCooldownMs() const { return RF_MIN_COOLDOWN_MS; }
     uint32_t getSafetyHeartbeatMs() const { return _safetyHeartbeatMs; }
-    void setSafetyHeartbeatMs(uint32_t ms);
+    bool setHeartbeatSec(uint32_t sec);
     bool isSafetyHeartbeatEnabled() const { return _safetyHeartbeatEnabled; }
     void setSafetyHeartbeatEnabled(bool en);
 
@@ -77,7 +75,6 @@ private:
     // Configurable Timers & Safety
     uint32_t _minRunTimeMs;
     uint32_t _minPauseTimeMs;
-    uint32_t _rfMinCooldownMs;
     uint32_t _safetyHeartbeatMs;
     bool     _safetyHeartbeatEnabled;
 

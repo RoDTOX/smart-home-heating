@@ -56,11 +56,8 @@
 // ==========================================
 // 3. Multi-Zone Thermal Controller Defaults
 // ==========================================
-#define DEFAULT_SETPOINT_TEMP 22.0f
-#define DEFAULT_HYSTERESIS    0.3f
-#define DEFAULT_ACTUATOR_DELAY_MS 120000UL // FR-2: NC wax actuators need 120-180s to open before boiler ON
-#define DEFAULT_PUMP_OVERRUN_MS   180000UL // FR-3: keep last zone open 180s after flame OFF
-#define DEFAULT_MIN_BOILER_OFF_MS 180000UL // FR-4: min 3 min flame OFF (enforced by BoilerRadioTrigger min_pause)
+#define DEFAULT_SETPOINT_TEMP 22.0f   // manual target of a new zone
+// Safety timings, thresholds and their ranges are requirements §6 parameters in src/ParamStore.cpp.
 
 
 // ==========================================
@@ -68,17 +65,6 @@
 // ==========================================
 #define BLE_SCAN_INTERVAL_MS  100   // BLE scan interval
 #define BLE_SCAN_WINDOW_MS    90    // BLE scan window (90% duty cycle for high-sensitivity capture through multiple walls)
-
-struct BleDeviceMapEntry {
-    const char* mac;
-    const char* name;
-};
-
-static const BleDeviceMapEntry KNOWN_BLE_DEVICES[] = {
-    {"A4:C1:38:A4:C1:DD", "Living Room"},
-    {"A4:C1:38:84:A1:E8", "Kids Room"},
-    {"A4:C1:38:94:0F:44", "Dormitor Matrimonial"}
-};
-static const size_t KNOWN_BLE_DEVICES_COUNT = sizeof(KNOWN_BLE_DEVICES) / sizeof(KNOWN_BLE_DEVICES[0]);
+// Sensor MACs and names are set at commissioning and stored in NVS (FR-11.1), never compiled in.
 
 #endif // CONFIG_H

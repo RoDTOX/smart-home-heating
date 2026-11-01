@@ -191,7 +191,7 @@ void handleApiZones() {
     json += "\"relayPin\":" + String(cfg.relayPin) + ",";
     json += "\"targetTemp\":" + String(cfg.targetTemp, 1) + ",";
     json += "\"effectiveTarget\":" + String(thermalZones.getEffectiveTargetTemp(i), 1) + ",";
-    json += "\"hysteresis\":" + String(cfg.hysteresis, 2) + ",";
+    json += "\"hysteresis\":" + String(thermalZones.getHysteresis(), 2) + ",";
     json += "\"enabled\":" + String(cfg.enabled ? "true" : "false") + ",";
     json += "\"currentTemp\":" + String(st.currentTemp, 1) + ",";
     json +=
@@ -205,7 +205,7 @@ void handleApiZones() {
     json +=
         "\"windowPauseRemainingSec\":" + String(thermalZones.getWindowPauseRemainingSec(i)) + ",";
     json +=
-        "\"windowDropThreshold\":" + String(thermalZones.getWindowDropThreshold(i), 1) + ",";
+        "\"windowDropThreshold\":" + String(thermalZones.getWindowThreshold(), 1) + ",";
     json +=
         "\"lastWindowEpoch\":" + String(thermalZones.getWindowLastDetectionEpoch(i)) + ",";
     json +=
@@ -324,22 +324,14 @@ void handleApiZoneWindowThreshold() {
                 F("{\"error\":\"Missing parameter (id or threshold)\"}"));
     return;
   }
-  int idVal = server.arg("id").toInt();
-  float thresh = server.arg("threshold").toFloat();
-  if (thresh < 0.8f || thresh > 2.0f) {
+  // One global `windowThreshold` for all zones (FR-40); a zone id, if sent, is ignored.
+  if (!thermalZones.setWindowThreshold(server.arg("threshold").toFloat())) {
     server.send(400, "application/json",
-                F("{\"error\":\"Threshold out of bounds (allowed: 0.8 to 2.0 C)\"}"));
+                F("{\"error\":\"windowThreshold out of range (requirements \u00a76: 0.8 to 2.0 C)\"}"));
     return;
   }
-  size_t idx = (idVal >= 1 && idVal <= (int)thermalZones.getZoneCount())
-                   ? (size_t)(idVal - 1)
-                   : (size_t)idVal;
-  if (idx < thermalZones.getZoneCount()) {
-    thermalZones.setWindowDropThreshold(idx, thresh);
-    server.send(200, "application/json", F("{\"status\":\"ok\"}"));
-  } else {
-    server.send(404, "application/json", F("{\"error\":\"Zone not found\"}"));
-  }
+  server.send(200, "application/json",
+              String("{\"status\":\"ok\",\"windowThreshold\":") + String(thermalZones.getWindowThreshold(), 1) + "}");
 }
 
 void handleApiZoneToggle() {
@@ -429,11 +421,15 @@ void handleApiBleSensors() {
 }
 
 void handleApiSetupLocation() {
-  if (server.method() == HTTP_POST && server.arg("coords").length() > 3) {
-    timeAndWeather.setLocation(server.arg("coords").c_str());
+  server.sendHeader("Access-Control-Allow-Origin", "*");
+  if (server.method() == HTTP_POST) {
+    if (!timeAndWeather.setLocation(server.arg("coords").c_str())) {
+      server.send(400, "application/json",
+                  F("{\"status\":\"error\",\"message\":\"Use coords=lat,lon (-90..90, -180..180)\"}"));
+      return;
+    }
     timeAndWeather.forceWeatherUpdate();
   }
-  server.sendHeader("Access-Control-Allow-Origin", "*");
   server.send(200, "application/json",
               String("{\"coords\":\"") + timeAndWeather.getLocation() + "\"}");
 }
@@ -486,6 +482,12 @@ void handleApiSetupMapZone() {
                 F("{\"status\":\"error\",\"message\":\"Invalid zone index\"}"));
     return;
   }
+  if (server.hasArg("pin") && !ParamStore::validRelayPin((uint8_t)server.arg("pin").toInt())) {
+    server.sendHeader("Access-Control-Allow-Origin", "*");
+    server.send(400, "application/json",
+                F("{\"status\":\"error\",\"message\":\"Invalid relay pin. Allowed: 32, 33, 25, 26.\"}"));
+    return;
+  }
   const ThermalZoneConfig &cur = thermalZones.getConfig(z);
   String name = server.hasArg("name") ? server.arg("name") : String(cur.name);
   String mac = server.hasArg("mac") ? server.arg("mac") : String(cur.sensorMac);
@@ -495,14 +497,18 @@ void handleApiSetupMapZone() {
       server.hasArg("pin") ? (uint8_t)server.arg("pin").toInt() : cur.relayPin;
   float target =
       server.hasArg("target") ? server.arg("target").toFloat() : cur.targetTemp;
-  float hyst =
-      server.hasArg("hyst") ? server.arg("hyst").toFloat() : cur.hysteresis;
   bool en = server.hasArg("enabled") ? (server.arg("enabled") == "true" ||
                                         server.arg("enabled") == "1")
                                      : cur.enabled;
+  // `hysteresis` is one global value (requirements §6); "hyst" sets it for all zones.
+  if (server.hasArg("hyst") && !thermalZones.setHysteresis(server.arg("hyst").toFloat())) {
+    server.sendHeader("Access-Control-Allow-Origin", "*");
+    server.send(400, "application/json",
+                F("{\"status\":\"error\",\"message\":\"hysteresis out of range (0.1 to 1.0 C)\"}"));
+    return;
+  }
 
-  thermalZones.mapZone(z, name.c_str(), mac.c_str(), sname.c_str(), pin, target,
-                       hyst, en);
+  thermalZones.mapZone(z, name.c_str(), mac.c_str(), sname.c_str(), pin, target, en);
   if (server.hasArg("offset")) {
     thermalZones.setTempOffset(z, server.arg("offset").toFloat());
   }
@@ -606,13 +612,13 @@ void handleApiDiagExercise() {
 }
 
 void handleApiSetupSensorTimeout() {
-  if (server.method() == HTTP_POST) {
-    if (server.hasArg("timeoutSec")) {
-      uint32_t sec = (uint32_t)server.arg("timeoutSec").toInt();
-      thermalZones.setSensorTimeoutSec(sec);
-    } else if (server.hasArg("sec")) {
-      uint32_t sec = (uint32_t)server.arg("sec").toInt();
-      thermalZones.setSensorTimeoutSec(sec);
+  if (server.method() == HTTP_POST && (server.hasArg("timeoutSec") || server.hasArg("sec"))) {
+    String v = server.hasArg("timeoutSec") ? server.arg("timeoutSec") : server.arg("sec");
+    if (!thermalZones.setSensorTimeoutSec((uint32_t)v.toInt())) {
+      server.sendHeader("Access-Control-Allow-Origin", "*");
+      server.send(400, "application/json",
+                  F("{\"status\":\"error\",\"message\":\"sensorTimeout out of range (60 to 3600 s)\"}"));
+      return;
     }
   }
   String json = "{\"status\":\"ok\",\"sensorTimeoutSec\":" +
@@ -793,18 +799,19 @@ void handleApiConfigSystemGet() {
   json += "\"zonesCount\":" + String(thermalZones.getZoneCount()) + ",";
   json += "\"openLoopBypass\":" + String(thermalZones.isOpenLoopBypass() ? "true" : "false") + ",";
   json += "\"actuatorDelaySec\":" + String(thermalZones.getInterlockDelayMs() / 1000) + ",";
-  json += "\"boilerDelaySec\":" + String(thermalZones.getBoilerDelayMs() / 1000) + ",";
   json += "\"pumpOverrunSec\":" + String(thermalZones.getPumpOverrunMs() / 1000) + ",";
-  json += "\"shortCyclingSec\":" + String(boilerRadio.getMinRunTimeMs() / 1000) + ",";
+  json += "\"burnerMinRunSec\":" + String(boilerRadio.getMinRunTimeMs() / 1000) + ",";
+  json += "\"burnerMinPauseSec\":" + String(boilerRadio.getMinPauseTimeMs() / 1000) + ",";
   json += "\"rfMinCooldownSec\":" + String(boilerRadio.getRfMinCooldownMs() / 1000) + ",";
   json += "\"rfSafetyHeartbeatSec\":" + String(boilerRadio.getSafetyHeartbeatMs() / 1000) + ",";
   json += "\"rfSafetyHeartbeatEnabled\":" + String(boilerRadio.isSafetyHeartbeatEnabled() ? "true" : "false") + ",";
-  json += "\"turReturSensors\":" + String(thermalZones.hasManifoldTurReturSensors() ? "true" : "false") + ",";
   json += "\"pumpControlEnabled\":" + String(thermalZones.isPumpControlEnabled() ? "true" : "false") + ",";
   json += "\"pumpRelayPin\":" + String(thermalZones.getPumpRelayPin()) + ",";
   json += "\"actuatorNormallyClosed\":" + String(thermalZones.isActuatorNormallyClosed() ? "true" : "false") + ",";
   json += "\"freezeProtectionTemp\":" + String(thermalZones.getFreezeProtectionTemp(), 1) + ",";
   json += "\"sensorTimeoutSec\":" + String(thermalZones.getSensorTimeoutSec()) + ",";
+  json += "\"hysteresis\":" + String(thermalZones.getHysteresis(), 2) + ",";
+  json += "\"windowThreshold\":" + String(thermalZones.getWindowThreshold(), 1) + ",";
   json += "\"zones\":[";
   for (size_t i = 0; i < thermalZones.getZoneCount(); i++) {
     if (i > 0) json += ",";
@@ -814,71 +821,100 @@ void handleApiConfigSystemGet() {
     json += "\"name\":\"" + String(z.name) + "\",";
     json += "\"mac\":\"" + String(z.sensorMac) + "\",";
     json += "\"relayPin\":" + String(z.relayPin) + ",";
-    json += "\"hysteresis\":" + String(z.hysteresis, 2) + ",";
-    json += "\"enabled\":" + String(z.enabled ? "true" : "false") + ",";
-    json += "\"windowDropThreshold\":" + String(z.windowDropThreshold, 1);
+    json += "\"enabled\":" + String(z.enabled ? "true" : "false");
     json += "}";
   }
   json += "]}";
   server.send(200, "application/json", json);
 }
 
+// FR-42: numeric settings of requirements §6, by their API name.
+struct ConfigArg {
+  const char* arg;
+  Param param;
+};
+static const ConfigArg CONFIG_ARGS[] = {
+    {"actuatorDelaySec", Param::InterlockDelay},
+    {"pumpOverrunSec", Param::Overrun},
+    {"burnerMinRunSec", Param::BurnerMinRun},
+    {"burnerMinPauseSec", Param::BurnerMinPause},
+    {"rfSafetyHeartbeatSec", Param::HbInterval},
+    {"freezeProtectionTemp", Param::FrostTemp},
+    {"sensorTimeoutSec", Param::SensorTimeout},
+    {"hysteresis", Param::Hysteresis},
+    {"windowThreshold", Param::WindowThreshold},
+};
+static const char* CONFIG_FLAGS[] = {"openLoopBypass", "rfSafetyHeartbeatEnabled", "pumpControlEnabled",
+                                     "actuatorNormallyClosed"};
+
+static bool isNumber(const String& v) {
+  if (v.length() == 0) return false;
+  char* end = nullptr;
+  strtod(v.c_str(), &end);
+  return end && *end == '\0';
+}
+
+// A value must lie exactly on the parameter's step (1 s, 0.1 C, 0.01 C) and inside its §6 range; nothing is
+// rounded into range (FR-42).
+static bool validParamValue(Param p, const String& v) {
+  if (!isNumber(v)) return false;
+  double scaled = strtod(v.c_str(), nullptr) * ParamStore::def(p).scale;
+  int32_t raw = (int32_t)lround(scaled);
+  return fabs(scaled - raw) < 1e-6 && paramStore.inRange(p, raw);
+}
+
+static bool isFlag(const String& v) {
+  return v == "true" || v == "false" || v == "1" || v == "0";
+}
+
+static bool flagOn(const String& v) {
+  return v == "true" || v == "1";
+}
+
+// Every value is checked first; one value outside requirements §6 rejects the whole request (HTTP 400) and
+// nothing is changed (FR-42).
 void handleApiConfigSystemPost() {
   server.sendHeader("Access-Control-Allow-Origin", "*");
-  if (server.hasArg("openLoopBypass")) {
-    thermalZones.setOpenLoopBypass(server.arg("openLoopBypass") == "true" || server.arg("openLoopBypass") == "1");
-  }
-  if (server.hasArg("actuatorDelaySec")) {
-    uint32_t s = server.arg("actuatorDelaySec").toInt();
-    if (s >= 1 && s <= 600) thermalZones.setInterlockDelayMs(s * 1000UL);
-  }
-  if (server.hasArg("boilerDelaySec")) {
-    uint32_t s = server.arg("boilerDelaySec").toInt();
-    if (s >= 1 && s <= 600) thermalZones.setBoilerDelayMs(s * 1000UL);
-  }
-  if (server.hasArg("pumpOverrunSec")) {
-    uint32_t s = server.arg("pumpOverrunSec").toInt();
-    if (s >= 1 && s <= 600) thermalZones.setPumpOverrunMs(s * 1000UL);
-  }
-  if (server.hasArg("shortCyclingSec")) {
-    uint32_t s = server.arg("shortCyclingSec").toInt();
-    if (s >= 10 && s <= 600) {
-      boilerRadio.setMinRunTimeMs(s * 1000UL);
-      boilerRadio.setMinPauseTimeMs(s * 1000UL);
+  String bad;
+  for (int i = 0; i < server.args(); i++) {
+    String name = server.argName(i);
+    if (name == "plain") continue;
+    String v = server.arg(i);
+    bool known = false, ok = false;
+    for (const auto& c : CONFIG_ARGS) {
+      if (name == c.arg) {
+        known = true;
+        ok = validParamValue(c.param, v);
+      }
     }
+    for (const char* f : CONFIG_FLAGS) {
+      if (name == f) {
+        known = true;
+        ok = isFlag(v);
+      }
+    }
+    if (!known || !ok) bad += (bad.length() ? ",\"" : "\"") + name + "\"";
   }
-  if (server.hasArg("rfMinCooldownSec")) {
-    uint32_t s = server.arg("rfMinCooldownSec").toInt();
-    if (s >= 1 && s <= 60) boilerRadio.setRfMinCooldownMs(s * 1000UL);
+  if (bad.length()) {
+    server.send(400, "application/json",
+                "{\"status\":\"error\",\"message\":\"Unknown, read-only or out of range (requirements \u00a76); "
+                "nothing changed\",\"fields\":[" + bad + "]}");
+    return;
   }
-  if (server.hasArg("rfSafetyHeartbeatSec")) {
-    uint32_t s = server.arg("rfSafetyHeartbeatSec").toInt();
-    if (s >= 60 && s <= 3600) boilerRadio.setSafetyHeartbeatMs(s * 1000UL);
-  }
-  if (server.hasArg("rfSafetyHeartbeatEnabled")) {
-    boilerRadio.setSafetyHeartbeatEnabled(server.arg("rfSafetyHeartbeatEnabled") == "true" || server.arg("rfSafetyHeartbeatEnabled") == "1");
-  }
-  if (server.hasArg("turReturSensors")) {
-    thermalZones.setManifoldTurReturSensors(server.arg("turReturSensors") == "true" || server.arg("turReturSensors") == "1");
-  }
-  if (server.hasArg("pumpControlEnabled")) {
-    thermalZones.setPumpControlEnabled(server.arg("pumpControlEnabled") == "true" || server.arg("pumpControlEnabled") == "1");
-  }
-  if (server.hasArg("pumpRelayPin")) {
-    thermalZones.setPumpRelayPin((uint8_t)server.arg("pumpRelayPin").toInt());
-  }
-  if (server.hasArg("actuatorNormallyClosed")) {
-    thermalZones.setActuatorNormallyClosed(server.arg("actuatorNormallyClosed") == "true" || server.arg("actuatorNormallyClosed") == "1");
-  }
-  if (server.hasArg("freezeProtectionTemp")) {
-    float f = server.arg("freezeProtectionTemp").toFloat();
-    if (f >= 5.0f && f <= 20.0f) thermalZones.setFreezeProtectionTemp(f);
-  }
-  if (server.hasArg("sensorTimeoutSec")) {
-    uint32_t s = server.arg("sensorTimeoutSec").toInt();
-    if (s >= 60 && s <= 3600) thermalZones.setSensorTimeoutSec(s);
-  }
-  thermalZones.saveToPreferences();
+
+  if (server.hasArg("actuatorDelaySec")) thermalZones.setInterlockDelaySec(server.arg("actuatorDelaySec").toInt());
+  if (server.hasArg("pumpOverrunSec")) thermalZones.setOverrunSec(server.arg("pumpOverrunSec").toInt());
+  if (server.hasArg("burnerMinRunSec")) boilerRadio.setMinRunSec(server.arg("burnerMinRunSec").toInt());
+  if (server.hasArg("burnerMinPauseSec")) boilerRadio.setMinPauseSec(server.arg("burnerMinPauseSec").toInt());
+  if (server.hasArg("rfSafetyHeartbeatSec")) boilerRadio.setHeartbeatSec(server.arg("rfSafetyHeartbeatSec").toInt());
+  if (server.hasArg("freezeProtectionTemp")) thermalZones.setFreezeProtectionTemp(server.arg("freezeProtectionTemp").toFloat());
+  if (server.hasArg("sensorTimeoutSec")) thermalZones.setSensorTimeoutSec(server.arg("sensorTimeoutSec").toInt());
+  if (server.hasArg("hysteresis")) thermalZones.setHysteresis(server.arg("hysteresis").toFloat());
+  if (server.hasArg("windowThreshold")) thermalZones.setWindowThreshold(server.arg("windowThreshold").toFloat());
+  if (server.hasArg("openLoopBypass")) thermalZones.setOpenLoopBypass(flagOn(server.arg("openLoopBypass")));
+  if (server.hasArg("rfSafetyHeartbeatEnabled")) boilerRadio.setSafetyHeartbeatEnabled(flagOn(server.arg("rfSafetyHeartbeatEnabled")));
+  if (server.hasArg("pumpControlEnabled")) thermalZones.setPumpControlEnabled(flagOn(server.arg("pumpControlEnabled")));
+  if (server.hasArg("actuatorNormallyClosed")) thermalZones.setActuatorNormallyClosed(flagOn(server.arg("actuatorNormallyClosed")));
   handleApiConfigSystemGet();
 }
 

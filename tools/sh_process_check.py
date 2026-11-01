@@ -80,29 +80,23 @@ DEBUG_RE = re.compile(r"\b(?:TODO|FIXME|XXX|HACK)\b|console\.log\(|\bdebugger;|^
 
 # (file, regex capturing a number, unit, requirements §6 parameter, what it is). The allowed range is read
 # from the §6 table, the only source of defaults and ranges (process R2).
-# Compile-time defaults, NVS fallbacks and the API clamps that can change them at runtime.
-API_CLAMP = r'server\.arg\("{}"\)\.toInt\(\);\s*if \(s >= (\d+) && s <= (\d+)\)'
-SAFETY_LIMITS = [
-    ("include/Config.h", r"^\s*#define\s+DEFAULT_ACTUATOR_DELAY_MS\s+(\d+)", "ms", "interlockDelay",
-     "actuator opening interlock (FR-2)"),
-    ("include/Config.h", r"^\s*#define\s+DEFAULT_PUMP_OVERRUN_MS\s+(\d+)", "ms", "overrun", "overrun (FR-3)"),
-    ("include/Config.h", r"^\s*#define\s+DEFAULT_MIN_BOILER_OFF_MS\s+(\d+)", "ms", "burnerMinPause",
-     "burner minimum pause (FR-4)"),
-    ("src/BoilerRadioTrigger.cpp", r'getUInt\("min_pause",\s*(\d+)', "ms", "burnerMinPause",
-     "burner minimum pause (FR-4)"),
-    ("src/BoilerRadioTrigger.cpp", r'getUInt\("min_run",\s*(\d+)', "ms", "burnerMinRun", "burner minimum run (FR-4)"),
-    ("src/ThermalZoneManager.cpp", r"_freezeProtectionTemp\(([\d.]+)f?\)", "C", "frostTemp",
-     "frost protection threshold (FR-16.1)"),
-    ("src/ThermalZoneManager.cpp", r'getFloat\("frz_temp",\s*([\d.]+)', "C", "frostTemp",
-     "frost protection NVS default (FR-16.1)"),
-    ("src/ThermalZoneManager.cpp", r'getUInt\("s_tout",\s*(\d+)', "s", "sensorTimeout",
-     "sensor timeout isolation (FR-16.2, DTC-101)"),
-    ("src/WebApi.cpp", API_CLAMP.format("actuatorDelaySec"), "s", "interlockDelay", "API actuatorDelaySec range (FR-2)"),
-    ("src/WebApi.cpp", API_CLAMP.format("pumpOverrunSec"), "s", "overrun", "API pumpOverrunSec range (FR-3)"),
-    ("src/WebApi.cpp", API_CLAMP.format("shortCyclingSec"), "s", "burnerMinRun", "API shortCyclingSec range (FR-4)"),
-    ("src/WebApi.cpp", r"if \(f >= ([\d.]+)f? && f <= ([\d.]+)f?\) thermalZones\.setFreezeProtectionTemp", "C",
-     "frostTemp", "API frost threshold range (FR-16.1)"),
+# Since migration step 1 every default and range lives in one table, src/ParamStore.cpp (architecture §9):
+# P("name", "key", default, min, max, scale, flags) in the parameter's own unit. Each safety parameter is checked
+# twice: its default (one group) and its range (two groups). API, console and NVS load all use this table.
+PARAM_ROW = r'P\("{}",\s*"\w+",\s*'
+PARAM_DEFAULT = PARAM_ROW + r"([\d.]+),"
+PARAM_RANGE = PARAM_ROW + r"[\d.]+,\s*([\d.]+),\s*([\d.]+),"
+SAFETY_PARAMS = [
+    ("interlockDelay", "s", "actuator opening interlock (FR-2)"),
+    ("overrun", "s", "overrun (FR-3)"),
+    ("burnerMinRun", "s", "burner minimum run (FR-4)"),
+    ("burnerMinPause", "s", "burner minimum pause (FR-4)"),
+    ("frostTemp", "C", "frost protection threshold (FR-16.1)"),
+    ("sensorTimeout", "s", "sensor timeout (FR-16.2, DTC-101)"),
 ]
+SAFETY_LIMITS = [("src/ParamStore.cpp", pat.format(param), unit, param, f"{what} {kind}")
+                 for param, unit, what in SAFETY_PARAMS
+                 for pat, kind in ((PARAM_DEFAULT, "default"), (PARAM_RANGE, "range"))]
 
 # Live values from GET /api/config/system: (JSON key, unit, requirements §6 parameter, what it is).
 # "zones[]." checks every zone.
@@ -110,13 +104,14 @@ BOARD_IP = "192.168.1.20"
 BOARD_LIMITS = [
     ("actuatorDelaySec", "s", "interlockDelay", "actuator opening interlock (FR-2)"),
     ("pumpOverrunSec", "s", "overrun", "overrun (FR-3)"),
-    ("shortCyclingSec", "s", "burnerMinRun", "burner minimum run (FR-4)"),
+    ("burnerMinRunSec", "s", "burnerMinRun", "burner minimum run (FR-4)"),
+    ("burnerMinPauseSec", "s", "burnerMinPause", "burner minimum pause (FR-4)"),
     ("freezeProtectionTemp", "C", "frostTemp", "frost protection threshold (FR-16.1)"),
-    ("sensorTimeoutSec", "s", "sensorTimeout", "sensor timeout isolation (FR-16.2, DTC-101)"),
-    ("zones[].windowDropThreshold", "C", "windowThreshold", "window drop threshold (FR-40)"),
+    ("sensorTimeoutSec", "s", "sensorTimeout", "sensor timeout (FR-16.2, DTC-101)"),
+    ("windowThreshold", "C", "windowThreshold", "window drop threshold (FR-40)"),
 ]
 # Safety values the firmware enforces but the API does not report, so they cannot be checked live.
-BOARD_NOT_EXPOSED = ["burner minimum pause (FR-4, BoilerRadioTrigger min_pause)"]
+BOARD_NOT_EXPOSED = []
 
 # Requirement writing rules (docs/process.md §2). A quantity is found by keyword; the value nearest to the
 # keyword on the same line is its value. Kinds: time (s), temp (C), size (KB).
@@ -300,7 +295,11 @@ def parse_tests(source):
     registry, tests = {}, []
     for node in ast.walk(tree):
         if isinstance(node, ast.Assign) and any(getattr(t, "id", None) == "SWE1_REQUIREMENTS" for t in node.targets):
-            registry = ast.literal_eval(node.value)
+            # Since migration step 1 the tests read the registry from the requirements document (no copy to compare)
+            try:
+                registry = ast.literal_eval(node.value)
+            except ValueError:
+                registry = {}
         if isinstance(node, ast.FunctionDef) and node.name.startswith("test_"):
             doc = ast.get_docstring(node) or ""
             consts = {}

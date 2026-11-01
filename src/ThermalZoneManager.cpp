@@ -27,12 +27,15 @@ ThermalZoneManager::ThermalZoneManager()
       _antiSeizeRunning(false),
       _antiSeizeStartMs(0),
       _lastAntiSeizeEpoch(0),
-      _sensorTimeoutSec(600UL), // 10 minutes default
+      // Placeholders until begin() loads the requirements §6 values from ParamStore
+      _sensorTimeoutSec(1200UL),
+      _hysteresis(0.3f),
+      _windowThreshold(1.2f),
       _bootWarmupActive(true),
       _bootWarmupStartMs(0),
-      _interlockDelayMs(DEFAULT_ACTUATOR_DELAY_MS),
-      _pumpOverrunMs(DEFAULT_PUMP_OVERRUN_MS),
-      _minBoilerOffMs(DEFAULT_MIN_BOILER_OFF_MS),
+      _interlockDelayMs(180000UL),
+      _pumpOverrunMs(180000UL),
+      _openLoopBypass(false),
       _lastBoilerOffTime(0),
       _lastBoilerOnTime(0),
       _lastEvaluationMs(0),
@@ -55,38 +58,14 @@ ThermalZoneManager::ThermalZoneManager()
         _configs[i].tempOffset = 0.0f;
     }
 
-    // Default Zone 1
-    _configs[0].id = 1;
-    strncpy(_configs[0].name, "Living & Bucatarie", sizeof(_configs[0].name) - 1);
-    strncpy(_configs[0].sensorMac, "A4:C1:38:A4:C1:DD", sizeof(_configs[0].sensorMac) - 1);
-    strncpy(_configs[0].sensorName, "Living Room", sizeof(_configs[0].sensorName) - 1);
-    _configs[0].relayPin = PIN_RELAY_ZONE_1;
-    _configs[0].targetTemp = DEFAULT_SETPOINT_TEMP;
-    _configs[0].hysteresis = DEFAULT_HYSTERESIS;
-    _configs[0].enabled = true;
-    _configs[0].windowDropThreshold = 1.2f;
-
-    // Default Zone 2
-    _configs[1].id = 2;
-    strncpy(_configs[1].name, "Camera Copilului", sizeof(_configs[1].name) - 1);
-    strncpy(_configs[1].sensorMac, "A4:C1:38:84:A1:E8", sizeof(_configs[1].sensorMac) - 1);
-    strncpy(_configs[1].sensorName, "Kids Room", sizeof(_configs[1].sensorName) - 1);
-    _configs[1].relayPin = PIN_RELAY_ZONE_2;
-    _configs[1].targetTemp = DEFAULT_SETPOINT_TEMP;
-    _configs[1].hysteresis = DEFAULT_HYSTERESIS;
-    _configs[1].enabled = true;
-    _configs[1].windowDropThreshold = 1.2f;
-
-    // Default Zone 3
-    _configs[2].id = 3;
-    strncpy(_configs[2].name, "Dormitor Matrimonial", sizeof(_configs[2].name) - 1);
-    strncpy(_configs[2].sensorMac, "", sizeof(_configs[2].sensorMac) - 1);
-    strncpy(_configs[2].sensorName, "Matrimonial", sizeof(_configs[2].sensorName) - 1);
-    _configs[2].relayPin = PIN_RELAY_ZONE_3;
-    _configs[2].targetTemp = DEFAULT_SETPOINT_TEMP;
-    _configs[2].hysteresis = DEFAULT_HYSTERESIS;
-    _configs[2].enabled = true;
-    _configs[2].windowDropThreshold = 1.2f;
+    // No installation data in firmware (FR-11.1): names, sensors and targets come from ParamStore
+    static const uint8_t pins[MAX_THERMAL_ZONES] = {PIN_RELAY_ZONE_1, PIN_RELAY_ZONE_2, PIN_RELAY_ZONE_3};
+    for (size_t i = 0; i < MAX_THERMAL_ZONES; i++) {
+        memset(&_configs[i], 0, sizeof(_configs[i]));
+        _configs[i].id = i + 1;
+        _configs[i].relayPin = pins[i];
+        _configs[i].targetTemp = DEFAULT_SETPOINT_TEMP;
+    }
 
     for (size_t i = 0; i < MAX_THERMAL_ZONES; i++) {
         _statuses[i].state = ZONE_IDLE;
@@ -101,131 +80,85 @@ ThermalZoneManager::ThermalZoneManager()
     }
 }
 
-void ThermalZoneManager::loadFromPreferences() {
-    Preferences prefs;
-    if (!prefs.begin("zones", true)) {
-        return; // Use constructor defaults
-    }
+static_assert(MAX_THERMAL_ZONES == PARAM_ZONES, "ParamStore zone records must match the zone count");
+static_assert(sizeof(ScheduleConfig) <= 256, "ParamStore::saveBlob compares at most 256 bytes");
 
-    if (!prefs.isKey("z_init")) {
-        prefs.end();
-        saveToPreferences(); // Save defaults
-        return;
-    }
-
-    _autoMode = prefs.getBool("autoMode", true);
-    _pumpControlEnabled = prefs.getBool("pump_en", false);
-    _actuatorNormallyClosed = prefs.getBool("act_nc", true);
-    _freezeProtectionTemp = prefs.getFloat("frz_temp", 12.0f);
-    _lastAntiSeizeEpoch = prefs.getUInt("as_epoch", 0);
-    _sensorTimeoutSec = prefs.getUInt("s_tout", 600UL);
+void ThermalZoneManager::loadConfig() {
+    _interlockDelayMs = (uint32_t)paramStore.get(Param::InterlockDelay) * 1000UL;
+    _pumpOverrunMs = (uint32_t)paramStore.get(Param::Overrun) * 1000UL;
+    _hysteresis = paramStore.getf(Param::Hysteresis);
+    _sensorTimeoutSec = (uint32_t)paramStore.get(Param::SensorTimeout);
+    _freezeProtectionTemp = paramStore.getf(Param::FrostTemp);
+    _windowThreshold = paramStore.getf(Param::WindowThreshold);
+    _openLoopBypass = paramStore.get(Param::OpenLoopBypass) != 0;
+    _actuatorNormallyClosed = paramStore.get(Param::ActuatorType) == 0;
+    _pumpControlEnabled = paramStore.get(Param::PumpOutput) != 0;
+    _autoMode = paramStore.state(StateKey::AutoMode) != 0;
+    _lastAntiSeizeEpoch = paramStore.state(StateKey::AntiSeizeEpoch);
 
     for (size_t i = 0; i < MAX_THERMAL_ZONES; i++) {
-        String p = "z" + String(i) + "_";
-        prefs.getString((p + "name").c_str(), _configs[i].name, sizeof(_configs[i].name));
-        prefs.getString((p + "mac").c_str(), _configs[i].sensorMac, sizeof(_configs[i].sensorMac));
-        prefs.getString((p + "sname").c_str(), _configs[i].sensorName, sizeof(_configs[i].sensorName));
-        _configs[i].relayPin = prefs.getUChar((p + "pin").c_str(), _configs[i].relayPin);
-        _configs[i].targetTemp = prefs.getFloat((p + "target").c_str(), _configs[i].targetTemp);
-        _configs[i].hysteresis = prefs.getFloat((p + "hyst").c_str(), _configs[i].hysteresis);
-        _configs[i].enabled = prefs.getBool((p + "en").c_str(), _configs[i].enabled);
-        _configs[i].windowDropThreshold = prefs.getFloat((p + "wdrop").c_str(), 1.2f);
-        _configs[i].tempOffset = prefs.getFloat((p + "ofs").c_str(), 0.0f);
-        _tpi[i].integral = _tpi[i].savedIntegral = prefs.getFloat((p + "tpi").c_str(), 0.0f);
+        const ZoneRecord& z = paramStore.zone(i);
+        strlcpy(_configs[i].name, z.name, sizeof(_configs[i].name));
+        strlcpy(_configs[i].sensorMac, z.sensorMac, sizeof(_configs[i].sensorMac));
+        strlcpy(_configs[i].sensorName, z.sensorName, sizeof(_configs[i].sensorName));
+        _configs[i].relayPin = z.relayPin;
+        _configs[i].enabled = z.enabled != 0;
+        _configs[i].tempOffset = z.offsetC10 / 10.0f;
+        _configs[i].targetTemp = z.targetC10 / 10.0f;
+        _tpi[i].integral = _tpi[i].savedIntegral = paramStore.learned(i) / 1000.0f;
     }
-    prefs.end();
-
-    // Ensure Zone 3 is always Dormitor Matrimonial (never Baie mare)
-    if (strcmp(_configs[2].name, "Baie mare") == 0 || strlen(_configs[2].name) == 0) {
-        strncpy(_configs[2].name, "Dormitor Matrimonial", sizeof(_configs[2].name) - 1);
-        _configs[2].name[sizeof(_configs[2].name) - 1] = '\0';
-        saveToPreferences();
-    }
-
-    Serial.println(F("[Thermal] Zone configs, pump settings, and actuator type loaded from NVS."));
 }
 
-void ThermalZoneManager::saveToPreferences() {
-    Preferences prefs;
-    if (!prefs.begin("zones", false)) {
-        netConsole.println(F("[Thermal] ERROR: Failed to open NVS namespace 'zones' for writing!"));
-        return;
-    }
-
-    prefs.putBool("z_init", true);
-    prefs.putBool("autoMode", _autoMode);
-    prefs.putBool("pump_en", _pumpControlEnabled);
-    prefs.putBool("act_nc", _actuatorNormallyClosed);
-    prefs.putFloat("frz_temp", _freezeProtectionTemp);
-    prefs.putUInt("as_epoch", _lastAntiSeizeEpoch);
-    prefs.putUInt("s_tout", _sensorTimeoutSec);
-
+// Hands every zone record and state value to ParamStore, which writes only what changed (NFR-2.9).
+void ThermalZoneManager::persistConfig() {
     for (size_t i = 0; i < MAX_THERMAL_ZONES; i++) {
-        String p = "z" + String(i) + "_";
-        prefs.putString((p + "name").c_str(), _configs[i].name);
-        prefs.putString((p + "mac").c_str(), _configs[i].sensorMac);
-        prefs.putString((p + "sname").c_str(), _configs[i].sensorName);
-        prefs.putUChar((p + "pin").c_str(), _configs[i].relayPin);
-        prefs.putFloat((p + "target").c_str(), _configs[i].targetTemp);
-        prefs.putFloat((p + "hyst").c_str(), _configs[i].hysteresis);
-        prefs.putBool((p + "en").c_str(), _configs[i].enabled);
-        prefs.putFloat((p + "wdrop").c_str(), _configs[i].windowDropThreshold);
-        prefs.putFloat((p + "ofs").c_str(), _configs[i].tempOffset);
+        ZoneRecord z;
+        memset(&z, 0, sizeof(z));
+        strlcpy(z.name, _configs[i].name, sizeof(z.name));
+        strlcpy(z.sensorMac, _configs[i].sensorMac, sizeof(z.sensorMac));
+        strlcpy(z.sensorName, _configs[i].sensorName, sizeof(z.sensorName));
+        z.relayPin = _configs[i].relayPin;
+        z.enabled = _configs[i].enabled ? 1 : 0;
+        z.offsetC10 = (int16_t)lroundf(_configs[i].tempOffset * 10);
+        z.targetC10 = (int16_t)lroundf(_configs[i].targetTemp * 10);
+        paramStore.saveZone(i, z);
     }
-    prefs.end();
-    Serial.println(F("[Thermal] Zone configs successfully persisted to NVS."));
+    paramStore.saveState(StateKey::AutoMode, _autoMode ? 1 : 0);
+    paramStore.saveState(StateKey::AntiSeizeEpoch, _lastAntiSeizeEpoch);
 }
 
-void ThermalZoneManager::loadSchedulePreferences() {
-    Preferences prefs;
-    if (!prefs.begin("sched", true)) {
-        return;
-    }
+void ThermalZoneManager::loadSchedule() {
     ScheduleConfig loaded;
-    bool valid = prefs.getBytes("cfg2", &loaded, sizeof(loaded)) == sizeof(loaded) &&
-                 loaded.weekdayCount >= 1 && loaded.weekdayCount <= MAX_SCHEDULE_SLOTS &&
+    if (!paramStore.loadBlob("cfg2", &loaded, sizeof(loaded))) {
+        return;  // factory schedule (constructor)
+    }
+    bool valid = loaded.weekdayCount >= 1 && loaded.weekdayCount <= MAX_SCHEDULE_SLOTS &&
                  loaded.weekendCount >= 1 && loaded.weekendCount <= MAX_SCHEDULE_SLOTS;
+    for (uint8_t l = 0; valid && l < LEVEL_COUNT; l++) {
+        for (size_t i = 0; i < MAX_THERMAL_ZONES; i++) {
+            float t = loaded.levelTemps[l][i];
+            if (!(t >= 5.0f && t <= 30.0f)) valid = false;  // FR-29 range
+        }
+    }
+    for (uint8_t n = 0; valid && n < MAX_SCHEDULE_SLOTS; n++) {
+        const ScheduleSlot* lists[2] = {&loaded.weekday[n], &loaded.weekend[n]};
+        uint8_t counts[2] = {loaded.weekdayCount, loaded.weekendCount};
+        for (uint8_t w = 0; w < 2; w++) {
+            if (n < counts[w] && (lists[w]->hour > 23 || lists[w]->minute > 59 || lists[w]->level >= LEVEL_COUNT)) {
+                valid = false;
+            }
+        }
+    }
     if (valid) {
         _scheduleConfig = loaded;
         Serial.println(F("[Thermal] Schedule loaded from NVS."));
-    } else if (prefs.isKey("cfg")) {
-        // Legacy bio-schedule: keep only its on/off flags (first 3 bytes), slots reset to defaults
-        uint8_t legacy[1024];
-        size_t len = prefs.getBytesLength("cfg");
-        if (len >= 3 && len <= sizeof(legacy) && prefs.getBytes("cfg", legacy, len) == len) {
-            _scheduleConfig.enabled = legacy[0];
-            _scheduleConfig.preHeatEnabled = legacy[1];
-            _scheduleConfig.windowDetectionEnabled = legacy[2];
-        }
-        Serial.println(F("[Thermal] Legacy bio-schedule replaced by default level schedule."));
+    } else {
+        netConsole.println(F("[Thermal] Stored schedule invalid, factory schedule used."));
     }
-    prefs.end();
 }
 
-void ThermalZoneManager::saveSchedulePreferences() {
-    Preferences prefs;
-    if (!prefs.begin("sched", false)) {
-        netConsole.println(F("[Thermal] ERROR: Failed to open NVS namespace 'sched' for writing!"));
-        return;
-    }
-    // Only write if changed to avoid NVS flash wear
-    ScheduleConfig currentSaved;
-    size_t len = prefs.getBytes("cfg2", &currentSaved, sizeof(currentSaved));
-    if (len != sizeof(currentSaved) || memcmp(&currentSaved, &_scheduleConfig, sizeof(_scheduleConfig)) != 0) {
-        prefs.putBytes("cfg2", &_scheduleConfig, sizeof(_scheduleConfig));
-        Serial.println(F("[Thermal] Schedule persisted to NVS."));
-    }
-    // One-time cleanup of the legacy bio-schedule and presets
-    if (prefs.isKey("cfg")) {
-        prefs.remove("cfg");
-        prefs.remove("act_preset");
-        Preferences presets;
-        if (presets.begin("presets", false)) {
-            presets.clear();
-            presets.end();
-        }
-    }
-    prefs.end();
+void ThermalZoneManager::saveSchedule() {
+    paramStore.saveBlob("cfg2", &_scheduleConfig, sizeof(_scheduleConfig));
 }
 
 void ThermalZoneManager::applyRelay(uint8_t pin, bool active) {
@@ -242,8 +175,8 @@ void ThermalZoneManager::applyRelay(uint8_t pin, bool active) {
 }
 
 void ThermalZoneManager::begin() {
-    loadFromPreferences();
-    loadSchedulePreferences();
+    loadConfig();
+    loadSchedule();
     evaluateSchedule(millis());
 
     _bootWarmupActive = true;
@@ -283,14 +216,14 @@ void ThermalZoneManager::setPumpControlEnabled(bool enabled) {
         applyRelay(PIN_RELAY_SPARE, false);
         _pumpActive = false;
     }
-    saveToPreferences();
+    paramStore.set(Param::PumpOutput, enabled ? 1 : 0);
     netConsole.printf("[Thermal] Circulation pump control via Relay 4 %s\n", enabled ? "ENABLED" : "DISABLED");
 }
 
 void ThermalZoneManager::setActuatorNormallyClosed(bool nc) {
     if (_actuatorNormallyClosed == nc) return;
     _actuatorNormallyClosed = nc;
-    saveToPreferences();
+    paramStore.set(Param::ActuatorType, nc ? 0 : 1);
     // Refresh all zone relays with new logic polarity
     for (size_t i = 0; i < MAX_THERMAL_ZONES; i++) {
         if (_configs[i].enabled) {
@@ -300,22 +233,46 @@ void ThermalZoneManager::setActuatorNormallyClosed(bool nc) {
     netConsole.printf("[Thermal] Actuator type set to: %s\n", nc ? "NC (Normally Closed)" : "NO (Normally Open)");
 }
 
-void ThermalZoneManager::setFreezeProtectionTemp(float temp) {
-    if (temp >= 5.0f && temp <= 16.0f) {
-        if (fabs(_freezeProtectionTemp - temp) < 0.05f) return;
-        _freezeProtectionTemp = temp;
-        saveToPreferences();
-        netConsole.printf("[Thermal] Frost protection threshold set to: %.1f C\n", temp);
-    }
+bool ThermalZoneManager::setFreezeProtectionTemp(float temp) {
+    if (!paramStore.setf(Param::FrostTemp, temp)) return false;
+    _freezeProtectionTemp = paramStore.getf(Param::FrostTemp);
+    netConsole.printf("[Thermal] Frost protection threshold: %.1f C\n", _freezeProtectionTemp);
+    return true;
 }
 
-void ThermalZoneManager::setSensorTimeoutSec(uint32_t sec) {
-    if (sec < 60) sec = 60;          // Min 1 minute
-    if (sec > 86400) sec = 86400;    // Max 24 hours
-    if (_sensorTimeoutSec == sec) return;
+bool ThermalZoneManager::setSensorTimeoutSec(uint32_t sec) {
+    if (!paramStore.set(Param::SensorTimeout, (int32_t)sec)) return false;
     _sensorTimeoutSec = sec;
-    saveToPreferences();
-    netConsole.printf("[Thermal] Sensor failsafe timeout set to: %u s\n", _sensorTimeoutSec);
+    netConsole.printf("[Thermal] Sensor timeout: %u s\n", _sensorTimeoutSec);
+    return true;
+}
+
+bool ThermalZoneManager::setHysteresis(float hyst) {
+    if (!paramStore.setf(Param::Hysteresis, hyst)) return false;
+    _hysteresis = paramStore.getf(Param::Hysteresis);
+    netConsole.printf("[Thermal] Hysteresis (overshoot cut): %.2f C\n", _hysteresis);
+    return true;
+}
+
+bool ThermalZoneManager::setWindowThreshold(float threshold) {
+    if (!paramStore.setf(Param::WindowThreshold, threshold)) return false;
+    _windowThreshold = paramStore.getf(Param::WindowThreshold);
+    netConsole.printf("[Thermal] Window drop threshold (all zones): %.1f C\n", _windowThreshold);
+    return true;
+}
+
+bool ThermalZoneManager::setInterlockDelaySec(uint32_t sec) {
+    if (!paramStore.set(Param::InterlockDelay, (int32_t)sec)) return false;
+    _interlockDelayMs = sec * 1000UL;
+    netConsole.printf("[Thermal] Actuator interlock: %u s\n", sec);
+    return true;
+}
+
+bool ThermalZoneManager::setOverrunSec(uint32_t sec) {
+    if (!paramStore.set(Param::Overrun, (int32_t)sec)) return false;
+    _pumpOverrunMs = sec * 1000UL;
+    netConsole.printf("[Thermal] Overrun: %u s\n", sec);
+    return true;
 }
 
 void ThermalZoneManager::triggerAntiSeizeExercise() {
@@ -373,15 +330,6 @@ void ThermalZoneManager::clearManualHold(size_t index) {
     }
 }
 
-void ThermalZoneManager::setHysteresis(size_t index, float hyst) {
-    if (index < MAX_THERMAL_ZONES) {
-        if (hyst < 0.1f) hyst = 0.1f;
-        if (hyst > 2.0f) hyst = 2.0f;
-        _configs[index].hysteresis = hyst;
-        saveToPreferences();
-    }
-}
-
 void ThermalZoneManager::setZoneEnabled(size_t index, bool enabled) {
     if (index < MAX_THERMAL_ZONES) {
         _configs[index].enabled = enabled;
@@ -397,7 +345,7 @@ void ThermalZoneManager::setZoneEnabled(size_t index, bool enabled) {
                 _statuses[index].state = ZONE_IDLE;
             }
         }
-        saveToPreferences();
+        persistConfig();
         netConsole.printf("[Thermal] Zone %u (%s) %s\n",
             _configs[index].id, _configs[index].name, enabled ? "ENABLED" : "DISABLED");
     }
@@ -407,7 +355,7 @@ void ThermalZoneManager::setZoneName(size_t index, const char* name) {
     if (index < MAX_THERMAL_ZONES && name) {
         strncpy(_configs[index].name, name, sizeof(_configs[index].name) - 1);
         _configs[index].name[sizeof(_configs[index].name) - 1] = '\0';
-        saveToPreferences();
+        persistConfig();
     }
 }
 
@@ -415,7 +363,7 @@ void ThermalZoneManager::setSensorName(size_t index, const char* sensorName) {
     if (index < MAX_THERMAL_ZONES && sensorName) {
         strncpy(_configs[index].sensorName, sensorName, sizeof(_configs[index].sensorName) - 1);
         _configs[index].sensorName[sizeof(_configs[index].sensorName) - 1] = '\0';
-        saveToPreferences();
+        persistConfig();
         netConsole.printf("[Thermal] Zone %u (%s) assigned to sensor name '%s'\n",
             _configs[index].id, _configs[index].name, _configs[index].sensorName);
     }
@@ -425,18 +373,18 @@ void ThermalZoneManager::setSensorMac(size_t index, const char* sensorMac) {
     if (index < MAX_THERMAL_ZONES && sensorMac) {
         strncpy(_configs[index].sensorMac, sensorMac, sizeof(_configs[index].sensorMac) - 1);
         _configs[index].sensorMac[sizeof(_configs[index].sensorMac) - 1] = '\0';
-        saveToPreferences();
+        persistConfig();
         netConsole.printf("[Thermal] Zone %u (%s) assigned to sensor MAC '%s'\n",
             _configs[index].id, _configs[index].name, _configs[index].sensorMac);
     }
 }
 
 void ThermalZoneManager::setRelayPin(size_t index, uint8_t pin) {
-    if (index < MAX_THERMAL_ZONES) {
+    if (index < MAX_THERMAL_ZONES && ParamStore::validRelayPin(pin)) {
         _configs[index].relayPin = pin;
         pinMode(pin, OUTPUT);
         applyRelay(pin, false);
-        saveToPreferences();
+        persistConfig();
     }
 }
 
@@ -444,25 +392,24 @@ bool ThermalZoneManager::setTempOffset(size_t index, float offset) {
     if (index >= MAX_THERMAL_ZONES || offset < -3.0f || offset > 3.0f) return false;
     if (fabsf(_configs[index].tempOffset - offset) > 0.01f) {
         _configs[index].tempOffset = offset;
-        saveToPreferences();
+        persistConfig();
     }
     netConsole.printf("[Thermal] Zone %u (%s) sensor offset %+.1f C\n", _configs[index].id, _configs[index].name, offset);
     return true;
 }
 
-void ThermalZoneManager::mapZone(size_t index, const char* name, const char* sensorMac, const char* sensorName, uint8_t relayPin, float targetTemp, float hysteresis, bool enabled) {
+void ThermalZoneManager::mapZone(size_t index, const char* name, const char* sensorMac, const char* sensorName, uint8_t relayPin, float targetTemp, bool enabled) {
     if (index < MAX_THERMAL_ZONES) {
         if (name && strlen(name) > 0) strncpy(_configs[index].name, name, sizeof(_configs[index].name) - 1);
         if (sensorMac) strncpy(_configs[index].sensorMac, sensorMac, sizeof(_configs[index].sensorMac) - 1);
         if (sensorName) strncpy(_configs[index].sensorName, sensorName, sizeof(_configs[index].sensorName) - 1);
-        if (relayPin > 0) {
+        if (ParamStore::validRelayPin(relayPin)) {
             _configs[index].relayPin = relayPin;
             pinMode(relayPin, OUTPUT);
         }
         if (targetTemp >= 15.0f && targetTemp <= 30.0f) _configs[index].targetTemp = targetTemp;
-        if (hysteresis >= 0.1f && hysteresis <= 2.0f) _configs[index].hysteresis = hysteresis;
         _configs[index].enabled = enabled;
-        saveToPreferences();
+        persistConfig();
         netConsole.printf("[Thermal] Zone %u mapped: '%s' | MAC: %s | Pin: %u | Target: %.1f C\n",
             _configs[index].id, _configs[index].name, _configs[index].sensorMac, _configs[index].relayPin, _configs[index].targetTemp);
     }
@@ -471,31 +418,12 @@ void ThermalZoneManager::mapZone(size_t index, const char* name, const char* sen
 
 void ThermalZoneManager::setOpenLoopBypass(bool en) {
     _openLoopBypass = en;
-}
-
-void ThermalZoneManager::setInterlockDelayMs(uint32_t ms) {
-    _interlockDelayMs = ms;
-}
-
-void ThermalZoneManager::setBoilerDelayMs(uint32_t ms) {
-    _boilerDelayMs = ms;
-}
-
-void ThermalZoneManager::setPumpOverrunMs(uint32_t ms) {
-    _pumpOverrunMs = ms;
-}
-
-void ThermalZoneManager::setManifoldTurReturSensors(bool en) {
-    _hasManifoldTurReturSensors = en;
-}
-
-void ThermalZoneManager::setPumpRelayPin(uint8_t pin) {
-    _pumpRelayPin = pin;
+    paramStore.set(Param::OpenLoopBypass, en ? 1 : 0);
 }
 
 void ThermalZoneManager::setAutoMode(bool autoMode) {
     _autoMode = autoMode;
-    saveToPreferences();
+    persistConfig();
     netConsole.printf("[Thermal] Operation mode switched to: %s\n", _autoMode ? "AUTO" : "MANUAL");
 }
 
@@ -568,9 +496,9 @@ ScheduleConfig ThermalZoneManager::getFactoryDefaultSchedule() {
     cfg.preHeatEnabled = true;
     cfg.windowDetectionEnabled = true;
     for (size_t i = 0; i < MAX_THERMAL_ZONES; i++) {
-        cfg.levelTemps[LEVEL_DAY][i] = 22.0f;
-        cfg.levelTemps[LEVEL_NIGHT][i] = 20.0f;
-        cfg.levelTemps[LEVEL_AWAY][i] = 16.0f;
+        cfg.levelTemps[LEVEL_DAY][i] = 23.0f;    // FR-29 factory levels
+        cfg.levelTemps[LEVEL_NIGHT][i] = 21.0f;
+        cfg.levelTemps[LEVEL_AWAY][i] = 18.0f;
     }
     cfg.weekdayCount = 2;
     cfg.weekday[0] = {6, 30, LEVEL_DAY};
@@ -584,7 +512,7 @@ ScheduleConfig ThermalZoneManager::getFactoryDefaultSchedule() {
 bool ThermalZoneManager::setLevelTemp(size_t index, ComfortLevel level, float temp) {
     if (index >= MAX_THERMAL_ZONES || level >= LEVEL_COUNT || temp < 5.0f || temp > 30.0f) return false;
     _scheduleConfig.levelTemps[level][index] = temp;
-    saveSchedulePreferences();
+    saveSchedule();
     evaluateSchedule(millis());
     netConsole.printf("[Thermal] Zone %u (%s) %s level set to %.1f C\n",
                       _configs[index].id, _configs[index].name, getLevelName(level), temp);
@@ -611,7 +539,7 @@ bool ThermalZoneManager::setSlots(bool weekend, const char* spec) {
     });
     memcpy(weekend ? _scheduleConfig.weekend : _scheduleConfig.weekday, parsed, n * sizeof(ScheduleSlot));
     (weekend ? _scheduleConfig.weekendCount : _scheduleConfig.weekdayCount) = n;
-    saveSchedulePreferences();
+    saveSchedule();
     evaluateSchedule(millis());
     netConsole.printf("[Thermal] %s slots: %s\n", weekend ? "Weekend" : "Weekday", getSlotsString(weekend).c_str());
     return true;
@@ -635,7 +563,7 @@ void ThermalZoneManager::setAway(bool away) {
     for (size_t i = 0; i < MAX_THERMAL_ZONES; i++) {
         _statuses[i].isManualHold = false;
     }
-    saveSchedulePreferences();
+    saveSchedule();
     evaluateSchedule(millis());
     netConsole.printf("[Thermal] Away mode %s\n", away ? "ON (all zones at away level)" : "OFF (back to schedule)");
 }
@@ -644,7 +572,7 @@ void ThermalZoneManager::resetScheduleToDefault() {
     bool en = _scheduleConfig.enabled;
     _scheduleConfig = getFactoryDefaultSchedule();
     _scheduleConfig.enabled = en;
-    saveSchedulePreferences();
+    saveSchedule();
     evaluateSchedule(millis());
     netConsole.println(F("[Thermal] Schedule reset to factory default."));
 }
@@ -652,7 +580,7 @@ void ThermalZoneManager::resetScheduleToDefault() {
 void ThermalZoneManager::setScheduleEnabled(bool enabled) {
     if (_scheduleConfig.enabled != enabled) {
         _scheduleConfig.enabled = enabled;
-        saveSchedulePreferences();
+        saveSchedule();
         evaluateSchedule(millis());
         netConsole.printf("[Thermal] Schedule %s\n", enabled ? "ENABLED" : "DISABLED");
     }
@@ -661,7 +589,7 @@ void ThermalZoneManager::setScheduleEnabled(bool enabled) {
 void ThermalZoneManager::setPreHeatEnabled(bool enabled) {
     if (_scheduleConfig.preHeatEnabled != enabled) {
         _scheduleConfig.preHeatEnabled = enabled;
-        saveSchedulePreferences();
+        saveSchedule();
         evaluateSchedule(millis());
         netConsole.printf("[Thermal] Predictive Pre-Heat %s\n", enabled ? "ENABLED" : "DISABLED");
     }
@@ -670,7 +598,7 @@ void ThermalZoneManager::setPreHeatEnabled(bool enabled) {
 void ThermalZoneManager::setWindowDetectionEnabled(bool enabled) {
     if (_scheduleConfig.windowDetectionEnabled != enabled) {
         _scheduleConfig.windowDetectionEnabled = enabled;
-        saveSchedulePreferences();
+        saveSchedule();
         netConsole.printf("[Thermal] Open Window Detection %s\n", enabled ? "ENABLED" : "DISABLED");
     }
 }
@@ -754,12 +682,8 @@ bool ThermalZoneManager::evaluateTpi(size_t index, float target, uint32_t now) {
             t.integral = constrain(t.integral + TPI_KI * err, 0.0f, TPI_MAX_INTEGRAL);
             // Keep the learning across reboots; write only on a meaningful change (NVS wear)
             if (fabsf(t.integral - t.savedIntegral) >= 0.05f) {
-                Preferences prefs;
-                if (prefs.begin("zones", false)) {
-                    prefs.putFloat(("z" + String(index) + "_tpi").c_str(), t.integral);
-                    prefs.end();
-                    t.savedIntegral = t.integral;
-                }
+                paramStore.saveLearned(index, (int16_t)lroundf(t.integral * 1000));
+                t.savedIntegral = t.integral;
             }
         }
         t.duty = constrain(err / TPI_BAND_C + t.integral, 0.0f, 1.0f);
@@ -776,7 +700,7 @@ bool ThermalZoneManager::evaluateTpi(size_t index, float target, uint32_t now) {
 
     // Overshoot cut: stop for the rest of the cycle once above target + hysteresis (e.g. solar gain)
     uint32_t elapsed = now - t.cycleStartMs;
-    if (temp >= target + _configs[index].hysteresis && elapsed < t.onMs) {
+    if (temp >= target + _hysteresis && elapsed < t.onMs) {
         t.onMs = elapsed;
     }
     return elapsed < t.onMs;
@@ -797,7 +721,7 @@ void ThermalZoneManager::evaluateWindowDetection(size_t index, float currentTemp
         return;
     }
 
-    float dropThreshold = (_configs[index].windowDropThreshold >= 0.5f) ? _configs[index].windowDropThreshold : 1.2f;
+    float dropThreshold = _windowThreshold;
 
     if (!_windowStates[index].pauseActive) {
         if (_windowStates[index].baselineMs == 0 || (now - _windowStates[index].baselineMs > 300000UL)) {
@@ -879,23 +803,6 @@ bool ThermalZoneManager::clearWindowPause(size_t index) {
     return false;
 }
 
-void ThermalZoneManager::setWindowDropThreshold(size_t index, float threshold) {
-    if (index >= MAX_THERMAL_ZONES) return;
-    if (threshold < 0.8f) threshold = 0.8f;
-    if (threshold > 2.0f) threshold = 2.0f;
-    if (fabsf(_configs[index].windowDropThreshold - threshold) > 0.05f) {
-        _configs[index].windowDropThreshold = threshold;
-        saveToPreferences();
-        netConsole.printf("[Thermal] Zone %u (%s) window drop threshold set to %.1f C\n",
-                          _configs[index].id, _configs[index].name, threshold);
-    }
-}
-
-float ThermalZoneManager::getWindowDropThreshold(size_t index) const {
-    if (index >= MAX_THERMAL_ZONES) return 1.2f;
-    return (_configs[index].windowDropThreshold >= 0.8f && _configs[index].windowDropThreshold <= 2.0f) ? _configs[index].windowDropThreshold : 1.2f;
-}
-
 uint32_t ThermalZoneManager::getWindowLastDetectionEpoch(size_t index) const {
     if (index >= MAX_THERMAL_ZONES) return 0;
     return _windowStates[index].lastDetectionEpoch;
@@ -924,9 +831,7 @@ String ThermalZoneManager::getScheduleJson() const {
     json += "\"weekend\":\"" + getSlotsString(true) + "\",";
     json += "\"openLoopBypass\":" + String(_openLoopBypass ? "true" : "false") + ",";
     json += "\"interlockDelaySec\":" + String(_interlockDelayMs / 1000) + ",";
-    json += "\"boilerDelaySec\":" + String(_boilerDelayMs / 1000) + ",";
     json += "\"pumpOverrunSec\":" + String(_pumpOverrunMs / 1000) + ",";
-    json += "\"hasTurReturSensors\":" + String(_hasManifoldTurReturSensors ? "true" : "false") + ",";
     json += "\"pumpControlEnabled\":" + String(_pumpControlEnabled ? "true" : "false") + ",";
 
     json += "\"zones\":[";
@@ -988,7 +893,7 @@ void ThermalZoneManager::checkAntiSeizeSchedule(uint32_t now) {
     // First boot with NTP synchronized: record now to prevent immediate triggering
     if (_lastAntiSeizeEpoch == 0) {
         _lastAntiSeizeEpoch = (uint32_t)nowEpoch;
-        saveToPreferences();
+        persistConfig();
         return;
     }
     // If boiler/pumps ran within the last 7 days, defer anti-seize
@@ -1011,7 +916,7 @@ void ThermalZoneManager::update(BoilerRadioTrigger& boiler) {
     // Handle debounced NVS saving (3s after last slider change)
     if (_nvsSavePending && now >= _nvsSavePendingMs) {
         _nvsSavePending = false;
-        saveToPreferences();
+        persistConfig();
     }
 
     // Handle ongoing Anti-Seize Exercise (20s duration)
@@ -1022,7 +927,7 @@ void ThermalZoneManager::update(BoilerRadioTrigger& boiler) {
             if (nowEpoch >= 1700000000) {
                 _lastAntiSeizeEpoch = (uint32_t)nowEpoch;
             }
-            saveToPreferences();
+            persistConfig();
 
             // Turn off pump
             if (_pumpControlEnabled) {

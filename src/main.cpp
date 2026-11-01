@@ -191,6 +191,7 @@ void setup() {
 
   Serial.printf("[Hardware] Initializing RF transmitter on GPIO%d...\n",
                 PIN_RF_DATA);
+  paramStore.begin();  // first: every module reads its settings from it
   boilerRadio.begin(PIN_RF_DATA);
 
   // Initialize Multi-Zone Thermal Controller (NC actuator relays)

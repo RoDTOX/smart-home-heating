@@ -29,7 +29,7 @@ Zone ids are 1-based unless noted.
 | POST | `/api/schedule/slots` | `weekend` (`0`/`1`), `slots` = `HH:MM=level,...` (max 8) | Slot list, stored sorted |
 | POST | `/api/schedule/reset` | | Factory schedule (22 / 20 / 16 °C, 06:30 day, 22:30 night) |
 | POST | `/api/zones/window/clear` | `id` | End open-window pause |
-| POST | `/api/zones/window/threshold` | `id`, `threshold` | Open-window drop threshold |
+| POST | `/api/zones/window/threshold` | `threshold` (`id` ignored) | One `windowThreshold` for all zones (FR-40); outside 0.8–2.0 °C → 400 |
 
 Invalid schedule input returns `400`.
 
@@ -45,8 +45,8 @@ Invalid schedule input returns `400`.
 | POST | `/api/zones/toggle` | | Enable/disable zone |
 | GET/POST | `/api/setup/actuator-type` | `type` = `nc`\|`no` | Actuator polarity |
 | GET/POST | `/api/setup/pump` | | GPA pump control (relay 4) |
-| GET/POST | `/api/setup/sensor-timeout` | | Sensor offline failsafe timeout |
-| GET/POST | `/api/config/system` | | Hydraulic timings and wiring |
+| GET/POST | `/api/setup/sensor-timeout` | `timeoutSec` | `sensorTimeout` (FR-18); outside 60–3600 s → 400 |
+| GET/POST | `/api/config/system` | see below | Safety timings and settings of requirements §6 (FR-42) |
 | POST | `/api/relay/test` | | Relay test (manual mode) |
 | POST | `/api/diag/exercise` | | Anti-seize valve exercise |
 
@@ -68,3 +68,31 @@ Invalid schedule input returns `400`.
 | GET | `/api/console/logs` | `since` = sequence number |
 
 OTA firmware upload: `/update` (Basic auth from `include/secrets.h`), or `python tools/sh_ota_upload.py`.
+
+## `/api/config/system`
+
+All values come from `ParamStore` (requirements §6, `src/ParamStore.cpp`). A POST is checked as a whole: if one
+field is unknown, read-only or outside its §6 range, the request returns HTTP 400 with the offending `fields` and
+**nothing** is changed.
+
+| Field | §6 parameter | Range | POST |
+|---|---|---|---|
+| `actuatorDelaySec` | `interlockDelay` | 120–600 s | yes |
+| `pumpOverrunSec` | `overrun` | 180–600 s | yes |
+| `burnerMinRunSec`, `burnerMinPauseSec` | `burnerMinRun`, `burnerMinPause` | 120–600 s | yes |
+| `rfSafetyHeartbeatSec` | `hbInterval` | 30–900 s | yes |
+| `rfSafetyHeartbeatEnabled` | `boilerLinkHeartbeat` | true / false | yes |
+| `freezeProtectionTemp` | `frostTemp` | 8–16 °C | yes |
+| `sensorTimeoutSec` | `sensorTimeout` | 60–3600 s | yes |
+| `hysteresis` | `hysteresis` | 0.1–1.0 °C | yes |
+| `windowThreshold` | `windowThreshold` | 0.8–2.0 °C | yes |
+| `openLoopBypass` | `openLoopBypass` | true / false | yes |
+| `actuatorNormallyClosed` | `actuatorType` | true = NC | yes |
+| `pumpControlEnabled` | `pumpOutput` | true = relay 4 | yes |
+| `rfMinCooldownSec` | FR-17.2 (fixed 3 s) | — | read only |
+| `pumpRelayPin` | relay 4 (GPIO26) | — | read only |
+| `zones[]` | `id`, `name`, `mac`, `relayPin`, `enabled` | — | read only (use `/api/setup/map-zone`) |
+
+Removed in migration step 1: `boilerDelaySec`, `turReturSensors` (stored but never used), `shortCyclingSec`
+(replaced by `burnerMinRunSec` / `burnerMinPauseSec`), per-zone `hysteresis` and `windowDropThreshold` (one global
+value each; `/api/zones` still reports `windowDropThreshold` per zone, equal to the global value).

@@ -32,6 +32,9 @@ Lean refactor on branch `claude/vibrant-ride-95fick`. See [`docs/plan.md`](../..
 - [main chat, 01.11.2026] Requirements v2.2 frozen (review closed by the owner); architecture: control tick in its
   own task (AR-21, step 10), AR-22. Open: O-16 (owner), blueprint location (D37). Migration step 1 (`ParamStore`)
   started in a firmware session.
+- [main chat, 01.11.2026] Migration step 1 (`ParamStore`) implemented in the main chat (owner: "do it here"),
+  committed; flash, board test and owner hands-on acceptance next. Old NVS keys are kept for a rollback - remove
+  them in a later step after acceptance.
 
 ## Next steps
 - Safety defaults in `Config.h` set to production (120/180/180 s) - not yet flashed / tested on the board.
