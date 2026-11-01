@@ -58,9 +58,9 @@
 // ==========================================
 #define DEFAULT_SETPOINT_TEMP 22.0f
 #define DEFAULT_HYSTERESIS    0.3f
-#define DEFAULT_ACTUATOR_DELAY_MS 5000UL   // 5s test bench (120s in production for NC wax actuators)
-#define DEFAULT_PUMP_OVERRUN_MS   10000UL  // 10s test bench (120s in production)
-#define DEFAULT_MIN_BOILER_OFF_MS 15000UL  // 15s test bench (180s anti-short cycling in production)
+#define DEFAULT_ACTUATOR_DELAY_MS 120000UL // FR-2: NC wax actuators need 120-180s to open before boiler ON
+#define DEFAULT_PUMP_OVERRUN_MS   180000UL // FR-3: keep last zone open 180s after flame OFF
+#define DEFAULT_MIN_BOILER_OFF_MS 180000UL // FR-4: min 3 min flame OFF (enforced by BoilerRadioTrigger min_pause)
 
 
 // ==========================================

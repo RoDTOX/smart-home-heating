@@ -67,4 +67,4 @@ Invalid schedule input returns `400`.
 | POST | `/api/console/send` | `cmd` = console command (same as Telnet :23), returns new log lines |
 | GET | `/api/console/logs` | `since` = sequence number |
 
-OTA firmware upload: `/update` (Basic auth from `include/secrets.h`), or `python tools/ota_upload.py`.
+OTA firmware upload: `/update` (Basic auth from `include/secrets.h`), or `python tools/sh_ota_upload.py`.

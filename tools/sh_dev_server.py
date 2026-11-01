@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-tools/dev_server.py
+tools/sh_dev_server.py
 Zero-Risk Local Frontend Development Server for Smart Heating.
 Serves web/ files locally and proxies all REST & Console API calls directly to ESP32 (192.168.1.20).
 Enables instant live UI changes and full console integration on http://localhost:8080/

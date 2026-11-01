@@ -50,7 +50,7 @@ Pentru ca produsul nostru să fie un succes comercial „plug-and-play” out-of
 ### 2.1. Actuatoare Electrotermice 230V: NC (Normally Closed) vs NO (Normally Open)
 - **Actuatoare NC (95% din piață):** Fără tensiune electrică, arcul intern menține ventilul închis. Când primesc 230V de la releu, elementul termic din ceară/parafină se încălzește și deschide complet ventilul în **120–180 secunde**.
 - **Actuatoare NO (5% din piață):** Fără tensiune, ventilul este deschis. Când primesc 230V, ventilul se închide.
-- **Suport Firmware Universal:** Firmware-ul include setarea nativă `actuatorType: NC / NO` (salvată persistent în NVS). Comutarea se face dintr-un singur clic în Web Setup (`/setup`), prin API REST (`/api/setup/actuator-type?type=nc|no`) sau prin CLI (`python tools/esp_cli.py actuator nc`).
+- **Suport Firmware Universal:** Firmware-ul include setarea nativă `actuatorType: NC / NO` (salvată persistent în NVS). Comutarea se face dintr-un singur clic în Web Setup (`/setup`), prin API REST (`/api/setup/actuator-type?type=nc|no`) sau prin CLI (`python tools/sh_esp_cli.py actuator nc`).
 
 ### 2.2. Pompa Secundară de Recirculare / Grupul de Amestec GPA (Releul 4 / GPIO26)
 - **De ce există?** Traseele din pardoseală au sute de metri de țeavă PEX cu rezistență hidraulică mare. Pompa internă din centrala murală nu are debitul și presiunea necesare pentru a asigura circulația corectă prin vana de amestec. Din acest motiv, instalatorii adaugă o pompă dedicată la distribuitor.
@@ -157,20 +157,20 @@ Pentru verificare instantanee fără browser la montaj:
 
 ```bash
 # Verificare stare completă (zone, pompă, actuatoare, senzori)
-python tools/esp_cli.py status
+python tools/sh_esp_cli.py status
 
 # Verificare sau configurare tip actuator (NC = Normally Closed, NO = Normally Open)
-python tools/esp_cli.py actuator
-python tools/esp_cli.py actuator nc
+python tools/sh_esp_cli.py actuator
+python tools/sh_esp_cli.py actuator nc
 
 # Verificare sau configurare releu pompă de circulație
-python tools/esp_cli.py pump
-python tools/esp_cli.py pump enable
+python tools/sh_esp_cli.py pump
+python tools/sh_esp_cli.py pump enable
 
 # Declanșare manuală ciclu test anti-gripare (20 secunde deschidere actuatoare + pompă)
-python tools/esp_cli.py exercise
+python tools/sh_esp_cli.py exercise
 
 # Raport autodiagnostic și verificare coduri de eroare DTC
-python tools/esp_cli.py selftest
-python tools/esp_cli.py diag
+python tools/sh_esp_cli.py selftest
+python tools/sh_esp_cli.py diag
 ```

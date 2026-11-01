@@ -36,23 +36,23 @@ pio run
 ```
 
 ```bash
-python tools/ota_upload.py
+python tools/sh_ota_upload.py
 ```
 
-`ota_upload.py` refuses to flash without `secrets.h` (a build without it would drop the board off Wi-Fi).
+`sh_ota_upload.py` refuses to flash without `secrets.h` (a build without it would drop the board off Wi-Fi).
 GitHub Actions builds every push as a compile check only — do not flash the CI binary.
 
 After flashing, verify against the board:
 
 ```bash
-python tools/test_system.py
+python tools/sh_test_system.py
 ```
 
 ## Use
 
 - **Web UI:** `http://192.168.1.20/` — room cards, boost, Away. `#admin` for levels, slots, sensor mapping,
   calibration offsets, TPI duty, system info.
-- **Console:** Telnet `192.168.1.20:23` or `python tools/esp_cli.py exec "<cmd>"`. `HELP` lists commands, e.g.
+- **Console:** Telnet `192.168.1.20:23` or `python tools/sh_esp_cli.py exec "<cmd>"`. `HELP` lists commands, e.g.
   `SCHEDULE`, `SCHEDULE LEVEL 2 night 19`, `SCHEDULE SLOTS weekday 06:30=day,08:30=away,17:00=day,22:30=night`,
   `AWAY ON`, `OFFSET 1 -0.3`, `LOCATION 45.65,25.60`, `STATUS`.
 

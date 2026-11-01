@@ -27,6 +27,7 @@ Exit code 1 on any ERROR (or WARN with --strict).
 
 import argparse
 import ast
+import functools
 import glob
 import json
 import os
@@ -59,45 +60,42 @@ COMMIT_TYPES = "feat|fix|refactor|perf|test|docs|chore|ci|build|style|revert"
 COMMIT_RE = re.compile(rf"^(?:{COMMIT_TYPES})(?:,(?:{COMMIT_TYPES}))*(?:\([\w ,./-]+\))?!?: \S")
 DEBUG_RE = re.compile(r"\b(?:TODO|FIXME|XXX|HACK)\b|console\.log\(|\bdebugger;|^\s*#if\s+0\b|\[DEBUG\]")
 
-# (file, regex capturing a number, unit label, min, max, requirement / rule)
+# (file, regex capturing a number, unit, requirements §6 parameter, what it is). The allowed range is read
+# from the §6 table, the only source of defaults and ranges (process R2).
 # Compile-time defaults, NVS fallbacks and the API clamps that can change them at runtime.
 API_CLAMP = r'server\.arg\("{}"\)\.toInt\(\);\s*if \(s >= (\d+) && s <= (\d+)\)'
 SAFETY_LIMITS = [
-    ("include/Config.h", r"^\s*#define\s+DEFAULT_ACTUATOR_DELAY_MS\s+(\d+)", "ms", 120000, 180000,
-     "actuator opening interlock 120-180 s (FR-2)"),
-    ("include/Config.h", r"^\s*#define\s+DEFAULT_PUMP_OVERRUN_MS\s+(\d+)", "ms", 180000, None,
-     "pump overrun >= 180 s (FR-3)"),
-    ("include/Config.h", r"^\s*#define\s+DEFAULT_MIN_BOILER_OFF_MS\s+(\d+)", "ms", 180000, None,
-     "anti-short-cycling >= 3 min (FR-4)"),
-    ("src/BoilerRadioTrigger.cpp", r'getUInt\("min_pause",\s*(\d+)', "ms", 180000, None,
-     "anti-short-cycling pause >= 3 min (FR-4)"),
-    ("src/BoilerRadioTrigger.cpp", r'getUInt\("min_run",\s*(\d+)', "ms", 60000, None,
-     "minimum burn >= 60 s (NFR-1.6)"),
-    ("src/ThermalZoneManager.cpp", r"_freezeProtectionTemp\(([\d.]+)f?\)", "C", 12.0, None,
-     "frost protection threshold >= 12 C (FR-16.1)"),
-    ("src/ThermalZoneManager.cpp", r'getFloat\("frz_temp",\s*([\d.]+)', "C", 12.0, None,
-     "frost protection NVS default >= 12 C (FR-16.1)"),
-    ("src/ThermalZoneManager.cpp", r'getUInt\("s_tout",\s*(\d+)', "s", None, 1800,
-     "sensor timeout isolation <= 30 min (FR-16.2, DTC-101)"),
-    ("src/WebApi.cpp", API_CLAMP.format("actuatorDelaySec"), "s", 120, 180,
-     "API actuatorDelaySec range within 120-180 s (FR-2)"),
-    ("src/WebApi.cpp", API_CLAMP.format("pumpOverrunSec"), "s", 180, None,
-     "API pumpOverrunSec min >= 180 s (FR-3)"),
-    ("src/WebApi.cpp", API_CLAMP.format("shortCyclingSec"), "s", 180, None,
-     "API shortCyclingSec min >= 3 min (FR-4)"),
+    ("include/Config.h", r"^\s*#define\s+DEFAULT_ACTUATOR_DELAY_MS\s+(\d+)", "ms", "interlockDelay",
+     "actuator opening interlock (FR-2)"),
+    ("include/Config.h", r"^\s*#define\s+DEFAULT_PUMP_OVERRUN_MS\s+(\d+)", "ms", "overrun", "overrun (FR-3)"),
+    ("include/Config.h", r"^\s*#define\s+DEFAULT_MIN_BOILER_OFF_MS\s+(\d+)", "ms", "burnerMinPause",
+     "burner minimum pause (FR-4)"),
+    ("src/BoilerRadioTrigger.cpp", r'getUInt\("min_pause",\s*(\d+)', "ms", "burnerMinPause",
+     "burner minimum pause (FR-4)"),
+    ("src/BoilerRadioTrigger.cpp", r'getUInt\("min_run",\s*(\d+)', "ms", "burnerMinRun", "burner minimum run (FR-4)"),
+    ("src/ThermalZoneManager.cpp", r"_freezeProtectionTemp\(([\d.]+)f?\)", "C", "frostTemp",
+     "frost protection threshold (FR-16.1)"),
+    ("src/ThermalZoneManager.cpp", r'getFloat\("frz_temp",\s*([\d.]+)', "C", "frostTemp",
+     "frost protection NVS default (FR-16.1)"),
+    ("src/ThermalZoneManager.cpp", r'getUInt\("s_tout",\s*(\d+)', "s", "sensorTimeout",
+     "sensor timeout isolation (FR-16.2, DTC-101)"),
+    ("src/WebApi.cpp", API_CLAMP.format("actuatorDelaySec"), "s", "interlockDelay", "API actuatorDelaySec range (FR-2)"),
+    ("src/WebApi.cpp", API_CLAMP.format("pumpOverrunSec"), "s", "overrun", "API pumpOverrunSec range (FR-3)"),
+    ("src/WebApi.cpp", API_CLAMP.format("shortCyclingSec"), "s", "burnerMinRun", "API shortCyclingSec range (FR-4)"),
     ("src/WebApi.cpp", r"if \(f >= ([\d.]+)f? && f <= ([\d.]+)f?\) thermalZones\.setFreezeProtectionTemp", "C",
-     12.0, None, "API frost threshold min >= 12 C (FR-16.1)"),
+     "frostTemp", "API frost threshold range (FR-16.1)"),
 ]
 
-# Live values from GET /api/config/system: (JSON key, min, max, rule). "zones[]." checks every zone.
+# Live values from GET /api/config/system: (JSON key, unit, requirements §6 parameter, what it is).
+# "zones[]." checks every zone.
 BOARD_IP = "192.168.1.20"
 BOARD_LIMITS = [
-    ("actuatorDelaySec", 120, 180, "actuator opening interlock 120-180 s (FR-2)"),
-    ("pumpOverrunSec", 180, None, "pump overrun >= 180 s (FR-3)"),
-    ("shortCyclingSec", 180, None, "burner minimum run >= 3 min (FR-4)"),
-    ("freezeProtectionTemp", 12.0, None, "frost protection threshold >= 12 C (FR-16.1)"),
-    ("sensorTimeoutSec", None, 1800, "sensor timeout isolation <= 30 min (FR-16.2, DTC-101)"),
-    ("zones[].windowDropThreshold", 0.8, 2.0, "window drop threshold 0.8-2.0 C (FR-40)"),
+    ("actuatorDelaySec", "s", "interlockDelay", "actuator opening interlock (FR-2)"),
+    ("pumpOverrunSec", "s", "overrun", "overrun (FR-3)"),
+    ("shortCyclingSec", "s", "burnerMinRun", "burner minimum run (FR-4)"),
+    ("freezeProtectionTemp", "C", "frostTemp", "frost protection threshold (FR-16.1)"),
+    ("sensorTimeoutSec", "s", "sensorTimeout", "sensor timeout isolation (FR-16.2, DTC-101)"),
+    ("zones[].windowDropThreshold", "C", "windowThreshold", "window drop threshold (FR-40)"),
 ]
 # Safety values the firmware enforces but the API does not report, so they cannot be checked live.
 BOARD_NOT_EXPOSED = ["burner minimum pause (FR-4, BoilerRadioTrigger min_pause)"]
@@ -545,16 +543,50 @@ def resolve_base(base):
     return None, None
 
 
+@functools.lru_cache(maxsize=None)
+def param_ranges():
+    """{parameter name: Range cell} of the requirements §6 table."""
+    text = read(REQ_DOC)
+    start = text.index("\n## 6.")
+    end = text.find("\n## ", start + 1)
+    ranges = {}
+    for line in text[start:end if end > 0 else None].splitlines():
+        cells = [c.strip() for c in line.strip().strip("|").split("|")]
+        if len(cells) == 4:
+            for name in re.findall(r"`(\w+)`", cells[0]):
+                ranges.setdefault(name, cells[2])
+    return ranges
+
+
+def param_limits(param, unit):
+    """Allowed (min, max) of a §6 parameter in `unit` (ms, s or C), or None if §6 gives no such range."""
+    kind = "temp" if unit == "C" else "time"
+    m = VALUE_RE[kind].search(param_ranges().get(param, ""))
+    if not m or not m.group(2):
+        return None
+    scale = (TO_BASE[m.group(3).lower()] if kind == "time" else 1) * (1000 if unit == "ms" else 1)
+    return float(m.group(1).replace(",", ".")) * scale, float(m.group(2).replace(",", ".")) * scale
+
+
+def limit_rule(param, unit, what):
+    """(min, max, rule text) for a safety entry; min/max None when §6 has no range for it."""
+    lim = param_limits(param, unit)
+    if not lim:
+        return None, None, f"{what}: `{param}` has no {unit} range in {REQ_DOC} §6"
+    return lim[0], lim[1], f"{what} `{param}` {lim[0]:g}-{lim[1]:g} {unit} ({REQ_DOC} §6)"
+
+
 def check_safety_limits(rep):
     """One captured group is a single value; two groups are a [min, max] clamp range."""
-    for rel, pattern, unit, lo, hi, rule in SAFETY_LIMITS:
+    for rel, pattern, unit, param, what in SAFETY_LIMITS:
+        lo, hi, rule = limit_rule(param, unit, what)
         m = re.search(pattern, read(rel), re.MULTILINE)
-        if not m:
+        if lo is None:
+            rep.error(rule)
+        elif not m:
             rep.error(f"{rel}: safety limit not found ({rule}) - pattern needs update?")
-            continue
-        vals = [float(g) for g in m.groups()]
-        if (lo is not None and vals[0] < lo) or (hi is not None and vals[-1] > hi):
-            shown = "-".join(f"{v:g}" for v in vals)
+        elif float(m.group(1)) < lo or float(m.groups()[-1]) > hi:
+            shown = "-".join(f"{float(g):g}" for g in m.groups())
             rep.error(f"{rel}: {' '.join(m.group(0).split())[:80]} -> {shown} {unit} violates {rule}")
 
 
@@ -755,7 +787,11 @@ def check_board(rep, ip):
     except (OSError, ValueError) as e:
         rep.error(f"GET /api/config/system failed: {e}")
         return
-    for key, lo, hi, rule in BOARD_LIMITS:
+    for key, unit, param, what in BOARD_LIMITS:
+        lo, hi, rule = limit_rule(param, unit, what)
+        if lo is None:
+            rep.error(rule)
+            continue
         if key.startswith("zones[]."):
             field = key.split(".", 1)[1]
             items = [(f"zone {z.get('id', i)} {field}", z.get(field)) for i, z in enumerate(cfg.get("zones", []))]
@@ -764,7 +800,7 @@ def check_board(rep, ip):
         for label, val in items:
             if not isinstance(val, (int, float)) or isinstance(val, bool):
                 rep.error(f"{label} missing in /api/config/system ({rule}) - API changed?")
-            elif (lo is not None and val < lo) or (hi is not None and val > hi):
+            elif val < lo or val > hi:
                 rep.error(f"{label} = {val:g} violates {rule}")
             else:
                 rep.info(f"{label} = {val:g}")

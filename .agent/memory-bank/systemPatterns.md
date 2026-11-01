@@ -32,7 +32,7 @@
 - **`DevicePassport` (ESP32):** Manages device serial number, first commissioning timestamp, client profile, and technician maintenance log in NVS.
 - **`TimeAndWeatherService` (ESP32):** Wi-Fi NTP synchronization with Europe/Bucharest timezone and periodic exterior temperature retrieval via Open-Meteo REST API.
 - **`NetworkConsole` (ESP32):** Dual Telnet (TCP 23) and Web console (`/console`) with synchronized bidirectional command handling.
-- **`esp_cli.py` (Host/PC):** Command-line client for zero-overhead headless management and rapid validation.
+- **`sh_esp_cli.py` (Host/PC):** Command-line client for zero-overhead headless management and rapid validation.
 
 ## Key Patterns
 - **Headless API-First Pattern:** Microcontroller serves as an ultra-fast, robust REST backend (<100ms response). UI logic is decoupled from core safety firmware.
@@ -40,10 +40,10 @@
 - **Thermal Actuator Interlock Pattern:** NC wax actuators require 2–3 minutes to open. Boiler flame ignition is delayed until at least one actuator is physically open.
 - **Pump Overrun & Bypass Pattern:** Prevents boiler heat exchanger damage by keeping at least one zone valve open for 180s post flame shutdown.
 - **Anti-Short-Cycling & Reversal Pattern:** Enforces minimum 60s burn time and minimum 60s cooldown before state reversals; transitions during active flame are safely queued as `PENDING_OFF` with live countdown telemetric feedback (`boilerCooldownSec`).
-- **Non-Destructive Host Automation Pattern:** Automated host test suites (`test_system.py`) capture live user operational state (`activePreset`, actuator polarity, zone setpoints) at launch and reliably restore it in the final cleanup phase.
-- **Embedded Reverse Proxy Dev Server Pattern:** `tools/dev_server.py` transparently proxies `/api/*` to the ESP32 hardware, enabling native live console streaming and rapid UI iteration on localhost without CORS or connection friction.
+- **Non-Destructive Host Automation Pattern:** Automated host test suites (`sh_test_system.py`) capture live user operational state (`activePreset`, actuator polarity, zone setpoints) at launch and reliably restore it in the final cleanup phase.
+- **Embedded Reverse Proxy Dev Server Pattern:** `tools/sh_dev_server.py` transparently proxies `/api/*` to the ESP32 hardware, enabling native live console streaming and rapid UI iteration on localhost without CORS or connection friction.
 - **Hybrid Sensor Fallback Pattern:** Zone listens to direct BLE; if no packet received within 90s, uses MQTT payload from Galaxy A6. If no telemetry received for > 30 minutes, zone trips sensor fault failsafe (`DTC-101`).
 - **NVS Persistence Pattern:** All configuration, calibration, sensor mappings, and passport metadata survive power cycles and reboots via ESP32 Preferences with strict wear-leveling (`if (oldVal != newVal)`).
 - **Test Integrity & Anti-Weakening Invariant (ASPICE SWE.5):** The primary purpose of tests is to discover bugs, race conditions, edge cases, and architectural defects in the firmware. **Weakening or relaxing test assertions to force a passing status is strictly forbidden.** If a test fails, the root cause must be diagnosed and resolved in the C++ firmware logic or documented as a verified defect.
-- **Daily Zero-Gap Requirements Audit Protocol:** At the start of every session / day, the agent systematically audits the codebase against `requirements_and_features.md` and `test_system.py`. If any implementation or API endpoint lacks formal requirements coverage or automated test verification, the agent proactively alerts the user and requests explicit approval to specify and test it before proceeding.
+- **Daily Zero-Gap Requirements Audit Protocol:** At the start of every session / day, the agent systematically audits the codebase against `requirements_and_features.md` and `sh_test_system.py`. If any implementation or API endpoint lacks formal requirements coverage or automated test verification, the agent proactively alerts the user and requests explicit approval to specify and test it before proceeding.
 

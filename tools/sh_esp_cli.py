@@ -446,7 +446,7 @@ def cmd_interactive_shell(args):
             elif cmd == "exercise":
                 cmd_exercise(args)
             elif cmd == "test":
-                from test_system import SystemTestSuite
+                from sh_test_system import SystemTestSuite
                 suite = SystemTestSuite(ip=args.ip, port=args.port)
                 suite.run_all()
             elif cmd == "monitor":
@@ -557,7 +557,7 @@ def main():
     elif args.command == "exec":
         cmd_exec(args)
     elif args.command == "test":
-        from test_system import SystemTestSuite
+        from sh_test_system import SystemTestSuite
         suite = SystemTestSuite(ip=args.ip, port=args.port)
         ok = suite.run_all()
         if args.report:

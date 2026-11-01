@@ -5,6 +5,26 @@ Corelat cu planul activ: [`docs/plan.md`](file:///c:/Users/BSeceleanu/.github_re
 
 
 
+## [01.11.2026] - Process review QA-1..QA-28 (proposal)
+
+- **Who / when / why:** main chat (Claude, branch `claude/vibrant-ride-95fick`), 01.11.2026, asked by the owner
+  after the process, requirements and architecture chats were merged back: review everything except code and tests.
+- **Where:** `docs/process_review.md` (new): 28 rows, 6 blocking (empty `problems.md` with known safety defects on
+  the board, `AGENTS.md` safety list and `sh-safety-reviewer` against baseline v2 incl. FR-51, requirements review not
+  closed and its exit criterion unreachable without waivers, decisions not in `decisions.md`, test/code order and no
+  test review gate). Then requirements (SYS/SW level, verification method, FR-4 values, "flame lit", glossary, OTA
+  validation, burner pause after reboot, scope vs plan), architecture (loop blocking vs FR-37, tailoring, RAM risk,
+  I-3), ASPICE labels, traceability of acceptance / problems, CI, stale memory-bank and hydraulics docs.
+- **Status:** awaiting owner approval row by row. **Not changed:** any reviewed file, firmware, tests. Nothing committed.
+
+## [01.11.2026] - Process: one active chat owns every zone
+
+- **Who / when / why:** process chat (Claude, branch `claude/vibrant-ride-95fick`), 01.11.2026, asked by the owner.
+  The owner moves all work back to the main chat (parallel chats lost context); the "one chat, one zone" rule
+  could have made that chat refuse process or requirement work.
+- **Where:** `AGENTS.md` §5: "When only one chat is active, it owns every zone." The zone split still applies
+  when parallel chats run.
+
 ## [01.11.2026] - Traceability: SWE.1 ↔ SWE.2 kept in one place and checked
 
 - **Who / when / why:** `/simplify` chat (Claude, branch `claude/vibrant-ride-95fick`), 01.11.2026 02:10, asked by the
@@ -25,6 +45,132 @@ Corelat cu planul activ: [`docs/plan.md`](file:///c:/Users/BSeceleanu/.github_re
   - `docs/process.md`: SWE.2 row, rule R1 (no ID ranges), §7 gap partly closed.
 - **Owner review:** the 37 merged rows in §3.2. **Not changed:** firmware, tests. Committed locally with the
   first commit of `tools/sh_process_check.py`, `tools/sh_git_version.py` and `docs/process.md` (owner OK); not pushed.
+
+## [01.11.2026] - Requirements: architecture observations O-1..O-11 applied
+
+- **Who / when / why:** requirements chat (Claude, branch `claude/vibrant-ride-95fick`), 01.11.2026 01:29.
+  The architecture chat handed observations O-1..O-11 (`docs/architecture.md` §16) to the requirements chat;
+  the owner decided the open ones by questionnaire.
+- **Where:** `docs/requirements_and_features.md` (FR-3, FR-12.2, FR-47, FR-51, FR-54, FR-58, FR-62, FR-64, FR-69,
+  FR-71, NFR-1.4, NFR-3.2, §5 new DTC-208, §6 new parameters) and `docs/requirements_review.md` §6 (decision log).
+- **Safety:** the boiler never burns with all zone valves closed (O-1); a zone with a lost sensor keeps frost safety
+  in global OFF below `faultFrostOutdoor` = 5 °C outdoor (O-2, owner chose 5 °C); the flow-limit OFF is forced (O-5).
+- **Not changed:** firmware, tests, `docs/architecture.md`. Nothing committed.
+
+## [01.11.2026] - Architecture: SWE.2 for baseline v2 approved
+
+- **Who / when / why:** architecture chat (Claude, branch `claude/vibrant-ride-95fick`), 01.11.2026, entry written
+  01.11.2026 00:50. Asked through the session that coordinates the chats: write the software architecture (ASPICE
+  SWE.2) for requirements baseline v2, because process §7 listed "SWE.2 architecture not defined" as open and the
+  current code mixes control and safety in one class. Every decision row was approved by the owner.
+- **Where:** `docs/architecture.md` (new): 23 modules in 6 layers, `SafetySupervisor` as the only writer of outputs,
+  interfaces, 1 s control tick, state machines (zone, valve, boiler, boiler link, mode, season, boot / OTA), validity
+  `Ok` / `Held` / `Lost` on every input with a fallback matrix, `ParamStore`, DTC and event store, fault injection,
+  output / boiler-link / input abstractions, phase-4 advisor contract, flash / RAM / timing / wear budget, trace of
+  all 103 active requirement IDs to modules, gap list G1-G32 and 14 migration steps. `AGENTS.md` §5: new zone
+  *architecture* (`docs/architecture.md`), added with the owner's OK.
+- **Owner decisions (AR-1..AR-20):** last zone valve stays open while the burner is still ON or its OFF is deferred,
+  then for `overrun`; learned TPI duty per zone and outdoor band of 5 °C; weather fetch in a background task;
+  history in LittleFS; flash margin ≥ 40 KB; season safety net only in season mode AUTO. Later the same day: in
+  global OFF a zone with a lost sensor runs `faultDuty` when it is cold outside (O-2, limit set by the requirements
+  chat); a flow-temperature limit stops the boiler at once (O-5, only with the optional probes, none installed);
+  G2 fixed in migration steps 4 and 9, no separate hotfix. Work order (owner): requirements → architecture → code,
+  each migration step changes the code and its tests together (no separate test step first).
+- **Aligned 01.11.2026 01:45** with the requirements commit 925ea91: `faultFrostOutdoor` (5 °C) in global OFF and
+  for disabled zones, DTC-208 for a failed output expansion, §6 parameter names, `AUTH` list = FR-58, §16 marked
+  applied, §18 work order.
+- **Not changed:** firmware, tests, requirements. Open: observations O-1..O-11 (`docs/architecture.md` §16) for the
+  requirements chat (O-1 and O-2 are safety); dependency checks R-A1..R-A7 for the process chat.
+
+## [01.11.2026] - Requirements: review approved, baseline v2
+
+- **Who / when / why:** requirements chat (Claude, branch `claude/vibrant-ride-95fick`), 31.10.2026–01.11.2026,
+  entry written 01.11.2026 00:02. Asked by the owner: ASPICE SYS.2 / SWE.1 review of the v1 specification
+  (Romanian, partly obsolete, values contradicting each other and AGENTS.md), then a new baseline. Every row was
+  approved by the owner.
+- **Where:** `docs/requirements_review.md` (new): findings per requirement, domain gaps G-01..G-22, owner's
+  blueprint comparison B-01..B-21, decisions D1-D36, fallback matrix. `docs/requirements_and_features.md`
+  rewritten in English as baseline v2 (IDs kept where the meaning did not change, retired IDs struck through,
+  new FR-52..FR-72 and NFR-5.x, DTC table, parameter table).
+- **Key decisions:** interlock 180 s; overrun keeps the last valve open without a pump too; burner min run / pause
+  180 s; sensor timeout 20 min, then the zone runs its learned duty (20 % if nothing learned); frost protection
+  also on disabled zones; boost upward only (+0.5-2 °C, ends after 3 h or at the next slot); levels 23 / 21 / 18;
+  one global window threshold, smart window detection in phase 4; automatic heating season; 1-32 zones;
+  fail-safe boiler link (heartbeat, can be disabled); API authentication; OTA rollback and manual full self-test;
+  alarms page-only; every feature has a fallback that the occupants do not notice (NFR-5).
+- **Not changed:** firmware, tests. Open: `tools/sh_test_system.py` still cites retired FR-13, FR-24..27, FR-33,
+  FR-38 (`sh_process_check.py trace`: 16 errors); new DTCs are not raised by the firmware yet.
+
+## [31.10.2026] - Process: chat zones, problems log, acceptance, release gate
+
+- **Process:** AGENTS.md §5 "One chat, one zone" - process / requirements / firmware chats change only their
+  files; shared logs are append-only.
+- **Process:** new `docs/problems.md` (`PB-n`, symptom, board commit, safety, cause, fix, status) and
+  `docs/acceptance.md` (owner's hands-on test: board commit, what was checked, OK/NOK). process.md §5 now
+  covers commit -> flash -> accept -> release gate -> PR -> merge + tag `vAPP_VERSION`; §8 problem flow.
+- **Tools:** `sh_process_check.py process` checks the problems log and `PB-n` citations in commits;
+  new `release` mode: OK acceptance for a build with HEAD's firmware, no open safety problem,
+  `APP_VERSION` not already tagged with other firmware.
+
+## [31.10.2026] - Process: requirement rules, board check, review / decision / commit gates
+
+- **Process:** new [`docs/process.md`](process.md) - work products, requirement writing rules (R1-R6),
+  requirements review steps and exit criteria, decision recording, commit/push gate, board check,
+  known process gaps. Referenced from AGENTS.md §4.
+- **Tools:** `sh_process_check.py reqs` (also in the default run and CI, WARN only) - one value per safety
+  quantity, vague wording, one meaning per DTC (two names, unnamed citations, defined but never raised).
+- **Tools:** `sh_process_check.py board [--ip]` - live `/api/config/system` values against the safety limits
+  (ERROR), commit the board runs vs HEAD (WARN). Added to AGENTS.md §4 and the `sh-verify-firmware` skill
+  (before and after flash).
+- **Build identity:** new pre-build script `tools/sh_git_version.py` writes `include/git_version.h`
+  (gitignored) with `APP_GIT_COMMIT` = short HEAD, `-dirty` on uncommitted firmware inputs. `Version.h`
+  includes it instead of the hard-coded `8065534`. `sh_process_check.py process` errors on a hard-coded
+  commit or a missing pre-script.
+- **Open (process gaps, see process.md §7):** burner min pause not exposed by the API.
+
+## [31.10.2026] - Tool naming convention
+
+- **Process:** new project tools/scripts start with `sh_` (AGENTS.md §3). `tools/process_check.py` renamed to
+  `tools/sh_process_check.py`; CI, `verify-firmware` skill and `safety-reviewer` agent updated.
+- **Process:** existing tools renamed too: `sh_esp_cli.py`, `sh_test_system.py`, `sh_build_web.py`
+  (`platformio.ini` extra_scripts), `sh_ota_upload.py`, `sh_dev_server.py`. Agent `sh-safety-reviewer` and skill
+  `sh-verify-firmware` use `sh-` (names allow only hyphens). README, AGENTS.md, docs and memory bank updated;
+  older changelog entries keep the old names.
+
+## [30.10.2026] - Agent workflow: safety reviewer and verify skill
+
+- **Tools:** `.claude/agents/safety-reviewer.md` - read-only agent that reviews the firmware diff against the
+  AGENTS.md safety list (interlock, overrun, anti-short-cycling, frost, DTC-101 / safe state) and resource rules;
+  runs `process_check.py process` first and reports BLOCKER / RISK / NOTE.
+- **Tools:** `.claude/skills/verify-firmware/SKILL.md` - the "verification before flashing" pipeline as one
+  command: `pio run` -> `process_check.py` -> safety review -> OTA flash (asks first) -> `test_system.py`.
+
+## [30.10.2026] - Traceability and process check
+
+- **Tools:** new `tools/process_check.py` (stdlib only, no board). `trace`: requirements in
+  `docs/requirements_and_features.md` vs test docstrings / `SWE1_REQUIREMENTS` vs `// FR-x` tags in code,
+  optional Markdown matrix (`--matrix`). `process`: safety defaults (interlock, overrun, anti-short-cycling,
+  frost, sensor timeout), changelog + activeContext updated with code, commit message format, debug leftovers,
+  tracked `secrets.h`, library changes, firmware < 1.25 MB. Runs in GitHub Actions after `pio run`.
+- **Safety fix:** `Config.h` defaults were test-bench values (interlock 5 s, overrun 10 s, boiler off 15 s)
+  and are not stored in NVS, so every boot ran with them. Now 120 s / 180 s / 180 s (FR-2, FR-3, FR-4).
+  The check also covers the real anti-short-cycling defaults in `BoilerRadioTrigger` (`min_pause`, `min_run`).
+- **Checker review fixes:** requirement IDs must match exactly (`FR-10.9` no longer passes via `FR-10`);
+  coverage counts only tests citing the leaf's own ID, parent-only coverage is a separate warning (30/88, was
+  reported as 75/88); duplicate requirement definitions are errors; API clamps and the frost NVS default are
+  checked next to the compile-time defaults; git failures abort with an error instead of passing; merge
+  commits skipped; paths with spaces/diacritics parsed correctly; CI on `main` diffs against the previous push.
+- **Open findings (not fixed):** API clamps allow interlock/overrun from 1 s, short-cycling from 10 s, frost
+  from 5 °C; code tag `FR-17.7` not in the requirements doc; FR-41..FR-45 used by tests but missing from the requirements doc; FR-36
+  (Home Assistant) still in the doc; commit `abb8dec` subject `test,cli:` not in the allowed types;
+  `/api/config/system` accepts interlock/overrun down to 1 s; `_minBoilerOffMs` is never read.
+
+## [30.10.2026] - First verification on the board
+
+- `pio run` clean (flash 1.19 MB), flashed with `tools/ota_upload.py`, `tools/test_system.py` 78/78 PASS.
+- **Tests:** dropped `FR-36` (Home Assistant, removed in phase 1) from the requirement registry; new
+  `SWE.5-TC16.5` covers `FR-44` global away (toggle, every zone's `effectiveTarget` = away level, restore).
+  `activeLevel` stays the slot level while away is on — by design, the UI checks `away` first.
 
 ## [29.10.2026] - Level schedule, new UI, TPI control
 

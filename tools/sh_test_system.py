@@ -96,7 +96,6 @@ SWE1_REQUIREMENTS = {
     "FR-33": "Temperature Trend Telemetry & Sparkline Vector Dynamics",
     "FR-34": "LittleFS Flash Telemetry History Buffer (24h @ 5m & 5d @ 30m, /api/history)",
     "FR-35": "Thermal Gas Consumption Model & Runtime Telemetry (0.40m³ ACM, 0.60m³/h flow)",
-    "FR-36": "Home Assistant Full REST Package & Modern Template Integration",
     "FR-37": "FSM Actuator Hardware Safety Invariant & Instant Warmup Abort",
     "FR-38": "Intelligent Overrun & Conditional Post-Circulation Heat Dissipation",
     "FR-39": "Temporary Setpoint Hold & Circadian Bio-Schedule Non-Destructive Override",
@@ -1200,6 +1199,35 @@ class SystemTestSuite:
             if orig:
                 requests.post(f"{self.base_url}/api/schedule/slots", data={"weekend": "0", "slots": orig}, timeout=self.timeout)
 
+    def test_tc16_5_global_away_roundtrip(self):
+        """SWE.5-TC16.5: Global Away Mode Toggle & Restore (FR-44)"""
+        test_id = "SWE.5-TC16.5"
+        name = "Global Away Mode Roundtrip"
+        req = "FR-44"
+        start = time.time()
+        orig = None
+        try:
+            orig = requests.get(f"{self.base_url}/api/schedule", timeout=self.timeout).json()["away"]
+            flip = "false" if orig else "true"
+            r = requests.post(f"{self.base_url}/api/schedule/enable?away={flip}", timeout=self.timeout)
+            latency = (time.time() - start) * 1000
+            assert r.status_code == 200, f"HTTP {r.status_code}"
+            d = r.json()
+            assert d["away"] == (not orig), f"Expected away={not orig}, got {d['away']}"
+            # activeLevel stays the slot level by design; away overrides the effective target of every zone
+            if d["away"]:
+                zones = requests.get(f"{self.base_url}/api/zones", timeout=self.timeout).json()["zones"]
+                for z, lv in zip(zones, d["zones"]):
+                    assert abs(z["effectiveTarget"] - lv["away"]) < 0.05, \
+                        f"Zone {z['id']} effectiveTarget {z['effectiveTarget']} != away level {lv['away']}"
+            details = f"away {orig} -> {d['away']} (zones follow away level) -> restored"
+            return TestResult(test_id, name, req, "PASS", latency, details)
+        except Exception as e:
+            return TestResult(test_id, name, req, "FAIL", (time.time() - start)*1000, str(e))
+        finally:
+            if orig is not None:
+                requests.post(f"{self.base_url}/api/schedule/enable?away={'true' if orig else 'false'}", timeout=self.timeout)
+
     def test_tc16_4_invalid_schedule_rejection(self):
         """SWE.5-TC16.4: Invalid Level / Slot Input Rejected (FR-31)"""
         test_id = "SWE.5-TC16.4"
@@ -1876,6 +1904,7 @@ class SystemTestSuite:
             self.test_tc16_2_level_temp_roundtrip,
             self.test_tc16_3_slots_roundtrip_sorted,
             self.test_tc16_4_invalid_schedule_rejection,
+            self.test_tc16_5_global_away_roundtrip,
             # Group 19: Negative Validation & Boundary Constraints
             self.test_tc19_2_temperature_boundary_clamping,
             self.test_tc19_3_invalid_zone_index_handling,

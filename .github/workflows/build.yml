@@ -9,6 +9,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
@@ -18,3 +20,7 @@ jobs:
           key: pio-${{ hashFiles('platformio.ini') }}
       - run: pip install platformio
       - run: pio run
+      # On main the merge-base with origin/main is HEAD itself, so diff against the previous push instead.
+      - run: python tools/sh_process_check.py --base "$BASE" --require-firmware
+        env:
+          BASE: ${{ github.ref == 'refs/heads/main' && github.event.before || 'origin/main' }}

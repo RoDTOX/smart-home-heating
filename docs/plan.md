@@ -33,9 +33,9 @@ Details: [`hardware_esp32_relay.md`](hardware_esp32_relay.md),
 - [x] **3. UI** — one page (222 lines): family view + `#admin`. Setup page removed.
 - [x] **4. Control (first step)** — TPI valve control with learned base duty, weather-shifted pre-heat,
       sensor calibration offsets.
-- [ ] **Verify on the board** — build locally with `secrets.h`, `tools/ota_upload.py`, `tools/test_system.py`,
-      watch TPI logs / room temps for a few days.
-- [ ] **Next** — split `main.cpp` (~1.7k lines), persist learned duty in NVS, sensor-loss fallback duty
+- [ ] **Verify on the board** — ✅ build, OTA flash, `tools/sh_test_system.py` 78/78 (30.10.2026);
+      still to do: watch TPI logs / room temps for a few days.
+- [ ] **Next** — ✅ split `main.cpp`, ✅ persist learned duty in NVS; sensor-loss fallback duty
       instead of full close (needs a decision: frost risk vs. runaway), UI on LittleFS with version check.
 
 ## Design direction (for phases 2–4)

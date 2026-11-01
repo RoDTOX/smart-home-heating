@@ -22,6 +22,7 @@ include/secrets.h
 
 # Generated build helper files
 compile_commands.json
+include/git_version.h
 
 # Web build artifacts
 include/*_html_gz.h
@@ -33,5 +34,5 @@ scratch/
 __pycache__/
 *.pyc
 
-# Generated test report (tools/test_system.py --report)
+# Generated test report (tools/sh_test_system.py --report)
 docs/system_test_report.md

@@ -5,10 +5,10 @@
 - **Core Framework:** Arduino framework on PlatformIO (`platform = espressif32`, board `esp32dev`).
 - **Bluetooth Library:** `NimBLE-Arduino @ 3.0.0-dev` (lightweight, non-blocking passive scanning).
 - **Networking & Web Server:** Native ESP32 `<WebServer.h>`, `<HTTPUpdateServer.h>`, `ArduinoJson @ 7.0.4`.
-- **Web Storage & Assets:** Gzipped PROGMEM C++ headers (`include/dashboard_html_gz.h`, `include/console_html_gz.h`, `include/setup_html_gz.h`) generated automatically by `tools/build_web.py` (<40KB total footprint).
+- **Web Storage & Assets:** Gzipped PROGMEM C++ headers (`include/dashboard_html_gz.h`, `include/console_html_gz.h`, `include/setup_html_gz.h`) generated automatically by `tools/sh_build_web.py` (<40KB total footprint).
 - **Frontend Web:** HTML5, CSS3 (high-density dark theme, responsive 16:9 + 720p), Vanilla JavaScript, interactive inline SVG floorplan. Zero external CDN dependencies.
 - **Upstream Host Bridge:** Samsung Galaxy A6 ("Cinderella", Android 9, Termux/Debian Proot) running Mosquitto MQTT (:1883), PostgreSQL, and Grafana (:3000).
-- **Local Dev Server & Testing:** `tools/dev_server.py` (reverse proxy on `:8080`), `tools/ota_upload.py` (direct socket OTA streaming), `tools/test_system.py` (ASPICE SWE.5 68 atomic tests, 100% pass rate).
+- **Local Dev Server & Testing:** `tools/sh_dev_server.py` (reverse proxy on `:8080`), `tools/sh_ota_upload.py` (direct socket OTA streaming), `tools/sh_test_system.py` (ASPICE SWE.5 68 atomic tests, 100% pass rate).
 
 ## Build Commands
 ```bash
@@ -16,16 +16,16 @@
 pio run
 
 # Generate/refresh gzipped web headers
-python tools/build_web.py
+python tools/sh_build_web.py
 
 # Flash firmware over OTA (Wi-Fi)
-python tools/ota_upload.py
+python tools/sh_ota_upload.py
 
 # Run ASPICE SWE.5 full test suite
-python tools/test_system.py
+python tools/sh_test_system.py
 
 # Start local reverse-proxy dev server
-python tools/dev_server.py
+python tools/sh_dev_server.py
 ```
 
 ## Dependencies (PlatformIO `platformio.ini`)

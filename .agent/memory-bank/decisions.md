@@ -151,3 +151,20 @@
    - Dedicated **Wall Tablet Kiosk Mode** for wall-mounted touch displays.
 7. **Multi-Tenant Server Backend**: Selected **PocketBase** (Go + SQLite embedded) for the backend microservice on pp.mysmarthome.cc. Consumes only ~15 MB RAM, includes out-of-the-box Auth (OAuth2 Google/Apple/Email PIN), real-time WebSockets, and built-in Admin UI.
 **Consequences**: Crystal-clear architectural alignment; high hardware resilience through ESP-NOW; negligible server footprint; fast time-to-market without App Store delays or recurring cloud bills.
+## 2026-11-01 — Process review approved; agent workflow for the clean-up and migration
+**Context**: The main chat reviewed process, requirements and architecture (`docs/process_review.md`, QA-1…QA-28).
+The owner wants parallel Claude sessions to implement the review, then the firmware migration with tests and reviews.
+**Decision**:
+- All QA rows approved with the recommended option: QA-12 an OTA image is valid when at least one mapped sensor is
+  received within 60 s; QA-16 a maximum safety reaction latency of 2 s is added as a requirement (except OTA with the
+  boiler OFF); QA-23 CI reports checker errors linked to an open `PB-n` as known and fails only on new errors.
+- Firmware migration keeps AR-19: one step of `architecture.md` §18 at a time; the owner tests hands-on on the board
+  before the next step starts.
+- The firmware session may flash the board itself after `sh-verify-firmware` passes (build, process check, safety
+  review without BLOCKER). Only one firmware session runs at a time.
+- Documentation sessions run in parallel, each in its own files (AGENTS.md §5 zones); they do not commit; the main
+  chat verifies, writes the shared log entries and commits.
+**Decided by**: owner (chat, 01.11.2026).
+**Affects**: `docs/process_review.md`, `docs/process.md`, `AGENTS.md`, `docs/architecture.md` §18, `.claude/skills/sh-verify-firmware/SKILL.md`.
+**Consequences**: The review rows have an owner; code work starts after the documentation wave; flashing is no longer
+reserved to the owner's confirmation per flash, but stays behind the verification gate.
