@@ -1,10 +1,11 @@
 # System and Software Requirements — Smart Home Heating
 
-**Baseline:** v2.4, 01.11.2026. v2 (31.10.2026) derived from the owner-approved review
+**Baseline:** v2.5, 01.11.2026. v2 (31.10.2026) derived from the owner-approved review
 [`requirements_review.md`](requirements_review.md); v2.1 adds the process review rows QA-7, QA-8, QA-9, QA-10,
 QA-11, QA-12, QA-13, QA-14, QA-16 ([`process_review.md`](process_review.md)); v2.2 adds the owner decisions D37,
 D38, D39 and the architecture observations O-12, O-13, O-14, O-15, and closes the review (applied as listed in
-`requirements_review.md` §6 and §8); v2.3 adds O-16 and v2.4 the 10 s bound of NFR-1.8, changes after closure (`requirements_review.md` §9).
+`requirements_review.md` §6 and §8); v2.3 adds O-16, v2.4 the 10 s bound of NFR-1.8 and v2.5 the proxy clause of FR-8.1, changes after closure
+(`requirements_review.md` §9).
 **Replaces:** the Romanian specification of 07.10.2026 (v1). IDs are kept where the meaning did not change.
 **Related:** [`plan.md`](plan.md), [`changelog.md`](changelog.md), [`hardware_esp32_relay.md`](hardware_esp32_relay.md),
 [`underfloor_heating_hydraulics_and_failsafes.md`](underfloor_heating_hydraulics_and_failsafes.md), [`api_reference.md`](api_reference.md).
@@ -358,6 +359,8 @@ one example:
     active alarms;
   - admin view (`#admin`): duty per zone, RSSI per sensor, pre-heat lead, active DTCs, configuration.
   - Family view language configurable (Romanian / English, NFR-3.1).
+  - Behind a reverse proxy that serves the controller under a path prefix (e.g. `/heating/` on a home server) the
+    page works as served directly: every URL the page requests is relative to the page address (no leading `/`).
 - ~~**FR-8.2 (Remote access via Tailscale):** retired, user network setup, not product behaviour.~~
 - **FR-8.3 (Firmware update):** *[now]* {SW; test} Firmware update via `/update` with authentication (FR-58);
   `tools/sh_ota_upload.py` completes a 1.25 MB image in < 30 s on the home LAN. OTA rules: FR-60.

@@ -36,6 +36,9 @@ Lean refactor on branch `claude/vibrant-ride-95fick`. See [`docs/plan.md`](../..
   committed (413fa60, fix 7743c26), flashed, board test 81/81 PASS, board check PASS. Waiting for the owner's
   hands-on acceptance (row in docs/acceptance.md), then PB rows closed and step 2 (`Diagnostics`). Old NVS keys are
   kept for a rollback - remove them in a later step after acceptance. Not pushed.
+- [main chat, 01.11.2026] PB-15: page URLs relative so it works behind a path-prefix proxy (FR-8.1, change C-2,
+  baseline v2.5), test TC19.7. Uncommitted build on the board (flashed by mistake, PB-16: `sh_ota_upload.py` takes
+  no arguments). Owner: the Galaxy server will be replaced by another machine; keep the fix general.
 
 ## Next steps
 - Safety defaults in `Config.h` set to production (120/180/180 s) - not yet flashed / tested on the board.

@@ -1341,6 +1341,27 @@ class SystemTestSuite:
         except Exception as e:
             return TestResult(test_id, name, req, "FAIL", (time.time() - start)*1000, str(e))
 
+    def test_tc19_7_page_relative_urls(self):
+        """SWE.5-TC19.7: Page Works Behind a Path-Prefix Proxy (FR-8.1)"""
+        test_id = "SWE.5-TC19.7"
+        name = "Page URLs Relative (Proxy Prefix)"
+        req = "FR-8.1"
+        start = time.time()
+        try:
+            r = requests.get(f"{self.base_url}/", timeout=self.timeout)
+            latency = (time.time() - start) * 1000
+            assert r.status_code == 200, f"Failed fetching page: {r.status_code}"
+            html = r.text
+            # FR-8.1: every URL the page requests is relative to the page address (no leading "/")
+            absolute = re.findall(r"""(?:fetch|api)\(\s*["'`]/[^"'`]*|(?:href|src|action)\s*=\s*["']/[^"']*""", html)
+            assert not absolute, f"Root-absolute URLs break a path-prefix proxy: {absolute[:5]}"
+            calls = re.findall(r"""api\(\s*["'`]([^"'`]+)""", html)
+            assert calls, "No api(...) calls found in the served page"
+            details = f"{len(calls)} API calls, all relative; no root-absolute href/src/action"
+            return TestResult(test_id, name, req, "PASS", latency, details)
+        except Exception as e:
+            return TestResult(test_id, name, req, "FAIL", (time.time() - start)*1000, str(e))
+
     # ---------------------------------------------------------
     # Group 20: LittleFS Flash Telemetry History Buffer (FR-34)
     # ---------------------------------------------------------
@@ -1948,6 +1969,7 @@ class SystemTestSuite:
             self.test_tc19_2_temperature_boundary_clamping,
             self.test_tc19_3_invalid_zone_index_handling,
             self.test_tc19_6_sparkline_trend_telemetry,
+            self.test_tc19_7_page_relative_urls,
             # Group 20: LittleFS Flash Telemetry History Buffer (FR-34)
             self.test_tc20_1_history_schema_24h,
             self.test_tc20_2_history_schema_5d,

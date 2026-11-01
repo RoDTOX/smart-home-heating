@@ -5,6 +5,22 @@ Corelat cu planul activ: [`docs/plan.md`](file:///c:/Users/BSeceleanu/.github_re
 
 
 
+## [01.11.2026] - Page works behind a path-prefix proxy (PB-15)
+
+- **Who / when / why:** main chat (Claude), 01.11.2026, owner report: through the home-server proxy
+  (`/heating/`) the page showed only a dark skeleton with "HTTP 404".
+- **Cause:** the page requested root-absolute URLs (`/api/...`, `/update`), which skip the proxy prefix.
+- **Requirements:** FR-8.1 gains the proxy clause (change after closure C-2, baseline v2.5); owner approved, kept
+  general - not tied to one server.
+- **Web:** `web/index.html` requests every URL relative to the page address (`api/...`, `update`). No firmware
+  logic changed.
+- **Tests:** new TC19.7 (FR-8.1) fails on 7743c26 (5 root-absolute URLs), passes on the fixed page.
+- **Checks:** `pio run` 1.14 MB; `sh_process_check.py` 0 errors, 1 known (PB-12). Safety review not needed (no
+  `src/`, `include/`, `platformio.ini` change).
+- **On the board:** the uncommitted build was flashed by mistake (`sh_ota_upload.py --help` uploads at once,
+  PB-16); `/api/zones` 200 direct and through the proxy, TC19.7 PASS. Not a result of record until built from the
+  commit.
+
 ## [01.11.2026] - Migration step 1: ParamStore (one parameter table, NVS in one place)
 
 - **Who / when / why:** main chat (Claude), 01.11.2026, owner request "do it here" (architecture §18 step 1).

@@ -69,7 +69,7 @@ a{color:var(--idle)}
     <h2>Sistem</h2>
     <div class="row">Locație (lat,lon) <input id="loc" placeholder="45.65,25.60"><button id="saveLoc">Salvează</button></div>
     <div class="scroll"><table id="sys"></table></div>
-    <div class="row"><a href="/update">Actualizare firmware (OTA)</a></div>
+    <div class="row"><a href="update">Actualizare firmware (OTA)</a></div>
   </section>
 </div>
 
@@ -161,8 +161,8 @@ function renderAdmin() {
 
 async function refresh() {
   try {
-    [Z, B, ST, D] = await Promise.all([api("/api/zones"), api("/api/ble/sensors").then(r => r.sensors), api("/api/boiler/status"), api("/api/diag/status")]);
-    if (document.body.classList.contains("admin")) S = await api("/api/schedule");
+    [Z, B, ST, D] = await Promise.all([api("api/zones"), api("api/ble/sensors").then(r => r.sensors), api("api/boiler/status"), api("api/diag/status")]);
+    if (document.body.classList.contains("admin")) S = await api("api/schedule");
     renderHeader(); renderRooms(); renderAlerts(); renderAdmin();
     $("err").textContent = "";
   } catch (e) { $("err").textContent = "Conexiune pierdută (" + e.message + ")"; }
@@ -172,10 +172,10 @@ $("rooms").addEventListener("click", async e => {
   const b = e.target.closest("button");
   if (b) {
     const i = +b.dataset.i, z = Z.zones[i];
-    if (b.dataset.a === "clr") await api("/api/zones/hold/clear", {id: i + 1});
+    if (b.dataset.a === "clr") await api("api/zones/hold/clear", {id: i + 1});
     else {
       const t = Math.min(MAX_T, Math.max(MIN_T, z.effectiveTarget + (b.dataset.a === "up" ? STEP : -STEP)));
-      await api("/api/zones/setpoint", {id: i + 1, target: t.toFixed(1)});
+      await api("api/zones/setpoint", {id: i + 1, target: t.toFixed(1)});
     }
     return refresh();
   }
@@ -184,7 +184,7 @@ $("rooms").addEventListener("click", async e => {
   if (card) { openRoom = openRoom === +card.dataset.i ? -1 : +card.dataset.i; renderRooms(); }
 });
 
-$("away").onclick = async () => { await api("/api/schedule/enable", {away: Z.away ? 0 : 1}); refresh(); };
+$("away").onclick = async () => { await api("api/schedule/enable", {away: Z.away ? 0 : 1}); refresh(); };
 
 $("toggleAdmin").onclick = e => { e.preventDefault(); document.body.classList.toggle("admin"); location.hash = document.body.classList.contains("admin") ? "admin" : ""; refresh(); };
 if (location.hash === "#admin") document.body.classList.add("admin");
@@ -196,31 +196,31 @@ schedForm.addEventListener("focusout", e => { if (!schedForm.contains(e.relatedT
 $("admin").addEventListener("change", async e => {
   const el = e.target;
   if (el.dataset.ofs !== undefined) {
-    await api("/api/setup/map-zone", {zone: el.dataset.ofs, offset: el.value});
+    await api("api/setup/map-zone", {zone: el.dataset.ofs, offset: el.value});
     return refresh();
   }
   if (el.dataset.mac !== undefined && el.value !== "") {
-    await api("/api/setup/map-zone", {zone: el.value, mac: el.dataset.mac});
+    await api("api/setup/map-zone", {zone: el.value, mac: el.dataset.mac});
     refresh();
   }
 });
 
 $("saveSched").onclick = async () => {
   try {
-    await api("/api/schedule/enable", {enabled: $("schedOn").checked ? 1 : 0});
+    await api("api/schedule/enable", {enabled: $("schedOn").checked ? 1 : 0});
     for (const el of document.querySelectorAll("#levels input")) {
       const z = S.zones[el.dataset.z - 1];
-      if (Math.abs(z[el.dataset.l] - parseFloat(el.value)) > 0.04) await api("/api/schedule/level", {zone: el.dataset.z, level: el.dataset.l, temp: el.value});
+      if (Math.abs(z[el.dataset.l] - parseFloat(el.value)) > 0.04) await api("api/schedule/level", {zone: el.dataset.z, level: el.dataset.l, temp: el.value});
     }
-    if ($("wd").value !== S.weekday) await api("/api/schedule/slots", {weekend: 0, slots: $("wd").value});
-    if ($("we").value !== S.weekend) await api("/api/schedule/slots", {weekend: 1, slots: $("we").value});
+    if ($("wd").value !== S.weekday) await api("api/schedule/slots", {weekend: 0, slots: $("wd").value});
+    if ($("we").value !== S.weekend) await api("api/schedule/slots", {weekend: 1, slots: $("we").value});
     $("schedMsg").textContent = "Salvat.";
   } catch (e) { $("schedMsg").textContent = "Eroare: " + e.message; }
   editing = false; refresh();
 };
 
-$("saveLoc").onclick = async () => { await api("/api/setup/location", {coords: $("loc").value}); refresh(); };
-api("/api/setup/location").then(r => $("loc").value = r.coords).catch(() => {});
+$("saveLoc").onclick = async () => { await api("api/setup/location", {coords: $("loc").value}); refresh(); };
+api("api/setup/location").then(r => $("loc").value = r.coords).catch(() => {});
 
 refresh();
 setInterval(() => { if (!document.hidden) refresh(); }, 5000);
