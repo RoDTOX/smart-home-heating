@@ -26,7 +26,15 @@ Corelat cu planul activ: [`docs/plan.md`](file:///c:/Users/BSeceleanu/.github_re
   second DTC-101 path (1200 s in `DiagnosticEngine`) is step 6.
 - **Checks:** `pio run` 1.19 MB; `sh_process_check.py` 0 errors, 1 known (PB-12); `sh-safety-reviewer` no BLOCKER,
   its three migration risks fixed before the commit (schema only after successful writes, migrate only without a
-  schema, old keys kept). Flash and board test follow.
+  schema, old keys kept).
+- **On the board (01.11.2026):** flashed 413fa60, then 7743c26 (window threshold endpoint no longer needs a zone
+  id; TC26.2 had left 1.5 C on the board because its restore was rejected). Migration log: every zone (name, MAC,
+  pin, enabled, target, offset), schedule, levels 22 / 20 / 16, burner counters and location kept; burner 180 / 180,
+  heartbeat 900 s, sensor timeout 600 s, frost 12 C carried over; Z2 / Z3 window 0.3 C dropped (global 1.2 C);
+  `openLoopBypass` false (test leftover reset). Interlock 190 s, window 1.3 C, hysteresis 0.35 C survived an OTA
+  reboot (PB-5), then restored. `sh_test_system.py` 81/81 PASS, coverage 57 / 91 requirements (the rest belong to
+  later steps), tests leave the configuration unchanged; `sh_process_check.py board` PASS; free heap 112 KB.
+  PB-4, PB-5, PB-6, PB-8, PB-9, PB-11, PB-13 set to fixed; closed after the owner's acceptance.
 
 ## [01.11.2026] - Requirements v2.4: watchdog on both tasks, safety reaction bound 10 s
 

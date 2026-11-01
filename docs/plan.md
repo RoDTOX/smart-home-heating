@@ -62,7 +62,7 @@ Requirement phase tags map to the steps: `[now]` = steps 1–13, `[phase 4]` = s
 | Step | Module / change (details: `architecture.md` §18) | Status | Board commit | Accepted |
 |---|---|---|---|---|
 | 0 | Process review rows QA-1…QA-28 applied by the documentation sessions, committed by the main chat | in progress | — | — |
-| 1 | `ParamStore`: one parameter table with requirements §6 defaults and ranges, all NVS access | implemented, board test and owner acceptance pending | — | — |
+| 1 | `ParamStore`: one parameter table with requirements §6 defaults and ranges, all NVS access | flashed, board test 81/81 PASS; owner acceptance pending | 7743c26 | — |
 | 2 | `Diagnostics`: DTC enum of requirements §5, event history in LittleFS | open | — | — |
 | 3 | `OutputBank`: logical channels, polarity in one place, static tables for 32 zones | open | — | — |
 | 4 | `SafetySupervisor`: valve states, interlock, overrun without pump, burner guard, frost on all zones, pump guard | open | — | — |
