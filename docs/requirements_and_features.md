@@ -1,11 +1,11 @@
 # System and Software Requirements — Smart Home Heating
 
-**Baseline:** v2.5, 01.11.2026. v2 (31.10.2026) derived from the owner-approved review
+**Baseline:** v2.6, 01.11.2026. v2 (31.10.2026) derived from the owner-approved review
 [`requirements_review.md`](requirements_review.md); v2.1 adds the process review rows QA-7, QA-8, QA-9, QA-10,
 QA-11, QA-12, QA-13, QA-14, QA-16 ([`process_review.md`](process_review.md)); v2.2 adds the owner decisions D37,
 D38, D39 and the architecture observations O-12, O-13, O-14, O-15, and closes the review (applied as listed in
-`requirements_review.md` §6 and §8); v2.3 adds O-16, v2.4 the 10 s bound of NFR-1.8 and v2.5 the proxy clause of FR-8.1, changes after closure
-(`requirements_review.md` §9).
+`requirements_review.md` §6 and §8); v2.3 adds O-16, v2.4 the 10 s bound of NFR-1.8, v2.5 the proxy clause of FR-8.1 and v2.6 the owner's page test
+(C-3…C-8), changes after closure (`requirements_review.md` §9).
 **Replaces:** the Romanian specification of 07.10.2026 (v1). IDs are kept where the meaning did not change.
 **Related:** [`plan.md`](plan.md), [`changelog.md`](changelog.md), [`hardware_esp32_relay.md`](hardware_esp32_relay.md),
 [`underfloor_heating_hydraulics_and_failsafes.md`](underfloor_heating_hydraulics_and_failsafes.md), [`api_reference.md`](api_reference.md).
@@ -226,7 +226,13 @@ one example:
 - **FR-11.1 (No installation data in firmware):** *[now]* {SW; inspection} The firmware ships without sensor MAC addresses or zone
   names; they are set at commissioning and stored in NVS.
 - **FR-11.3 (Zone mapping):** *[now]* {SW; test} Each zone maps to a name, one sensor (MAC), one relay output and a target;
-  set via API (`/api/setup/...`) and console. `/api/setup/discovered-sensors` lists received sensors by RSSI.
+  set in the engineering view of the page (FR-8.1), via API (`/api/setup/...`) and console.
+  `/api/setup/discovered-sensors` lists received sensors by RSSI.
+  - A relay output serves at most one zone, and not the one the pump uses (FR-14.1); a zone is switched on only with
+    a sensor and a relay output. A rejected setting returns HTTP 400 and changes nothing.
+  - The number of zones is the number of zones switched on, up to the configured zone slots (FR-69).
+  - While a zone's valve is energised, its relay is not changed and the zone is not switched off (FR-3: until the
+    overrun hold of migration step 4 exists); the setting is rejected and can be repeated once the valve is closed.
 - **FR-11.4 (Persistence):** *[now]* {SW; test} Mapping, names and settings are stored in NVS and survive reboot and power loss.
 - ~~**FR-11.2 (Setup wizard page `/setup`):** retired, page removed; discovery kept in FR-11.3.~~
 - **FR-72 (Additional BLE receivers):** *[nice to have]* {SW, HW; test} Optional extra ESP32 receivers forward sensor adverts to the
@@ -326,14 +332,31 @@ one example:
 
 - **FR-10.2 (Diagnostic codes):** *[now]* {SW; test} The controller raises the codes listed in §5 and shows active codes in the
   page and `/api/status`.
-- **FR-10.4 (Basic self-test):** *[now]* {SW; test} `/api/diag/selftest` reports Wi-Fi, heap, BLE, zones, radio and a health
-  score 0–100 %, without switching any output. The full self-test is FR-60.
+- **FR-10.4 (Basic self-test):** *[now]* {SW; test} `/api/diag/status`, `/api/diag/selftest`, console `DIAG` and the
+  engineering view report a list of checks, each with its rule, its measured value and the result `OK` / `FAIL`, or
+  `INFO` when the controller cannot verify it. No output is switched; no health score or percentage is reported.
+
+  | Check | `OK` when |
+  |---|---|
+  | `wifi` | Wi-Fi up and RSSI not below the DTC-401 limit (§5) |
+  | `heap` | free heap not below the DTC-402 limit (§5) |
+  | `ble` | BLE scan running |
+  | `sensors` | every switched-on zone has an accepted reading within `sensorTimeout` (the DTC-101 rule); value: zones with a reading / zones switched on; `INFO` while no zone is switched on |
+  | `time` | clock synchronised |
+  | `weather` | outdoor temperature not older than 6 h (FR-9 fallback) |
+  | `radio` | always `INFO`: last command and its age; the 433 MHz link has no return channel, so the boiler's reaction cannot be checked |
+
+  The full self-test is FR-60.
 - **FR-62 (Event history and alarms):** *[now]* {SW; test} The last 50 safety events (DTC raised / cleared, frost, FAULT,
   watchdog reset, controlled restart) are kept across reboots with time stamp (uptime if time is not set), written
   only when an event occurs. Alarms are shown in the page and `/api/status`; there is no push channel.
   - *Fallback:* event store cannot be written → events are kept in RAM until reboot, with a log line.
 - **FR-21 (Firmware identity):** *[now]* {SW; test} Version, build date and time, git commit and reset reason are reported in
   status, console `STATUS` and the boot message.
+  - The version is `1.MM.DD.NN`: `MM` and `DD` are the month and day of the last commit that changed a firmware input
+    (`docs/process.md` §6), `NN` is the count of such commits on that day up to and including it (`01` for the
+    first), e.g. `1.11.01.01`. It is computed from git at build time, so the same firmware always gets the same
+    version; the git commit tells apart two versions of the same day in different years.
 - **FR-23 (Console status):** *[now]* {SW; test} `STATUS` shows zones, sensors, boiler, protections, heap (free, minimum, largest
   block) and OTA margin. `STATUS` and `/api/status` also report, since boot, the longest control-tick delay (how
   much later than due a tick started) and the longest web/loop pass, so NFR-1.8 can be checked on the board.
@@ -356,12 +379,31 @@ one example:
 - ~~**FR-7.2 (Web console page `/console`):** retired, page removed.~~
 - **FR-8.1 (Web page):** *[now]* {SW; test, inspection} One page served at `/`:
   - family view: rooms (temperature, target, humidity, state), outdoor weather, boost, one global Home / Away switch,
-    active alarms;
-  - admin view (`#admin`): duty per zone, RSSI per sensor, pre-heat lead, active DTCs, configuration.
+    active alarms; the header says in words what the schedule does now and when it changes next (e.g.
+    `Program: zi până la 22:30, apoi noapte`), or why the house does not follow it (away, schedule off);
+  - admin view (`#admin`) is the engineering view, like the watch window of a bus or debugger tool: every value the
+    API reports (zones, boiler, sensors, parameters, schedule, diagnostics, time and weather, system) is shown with its
+    API name (e.g. `zones[2].relayEngaged`) and a short explanation, and on tap the requirement it belongs to; a value
+    without an explanation is still shown; a value that changed since the last refresh is highlighted; while the view
+    is open it keeps a trace of every change with its time, exportable as CSV; it holds the zone commissioning
+    (FR-11.3) and the checks of FR-10.4;
+  - zone states are shown with the codes and texts of FR-8.4;
   - Family view language configurable (Romanian / English, NFR-3.1).
   - Behind a reverse proxy that serves the controller under a path prefix (e.g. `/heating/` on a home server) the
     page works as served directly: every URL the page requests is relative to the page address (no leading `/`).
 - ~~**FR-8.2 (Remote access via Tailscale):** retired, user network setup, not product behaviour.~~
+- **FR-8.4 (Zone states):** *[now]* {SW; test} The API reports each zone in exactly one of these states, the first that
+  applies from the top; the page shows the code and the text. Any other value is a defect.
+
+  | Code | Page text | When |
+  |---|---|---|
+  | `FROST` | Protecție îngheț | frost protection heats the zone (FR-16.1) |
+  | `DISABLED` | Zonă oprită | zone switched off or not commissioned (FR-11.3) |
+  | `FAULT` | Senzor pierdut – încălzește de rezervă | sensor in timeout (FR-16.2, FR-51) |
+  | `ACQUIRING` | Așteaptă senzorul | after boot, no reading yet, at most the warmup (FR-22) |
+  | `WINDOW` | Fereastră deschisă | window pause (FR-40) |
+  | `HEATING` | Încălzește | valve opening or open |
+  | `IDLE` | Temperatură atinsă | valve closed, no heat demand |
 - **FR-8.3 (Firmware update):** *[now]* {SW; test} Firmware update via `/update` with authentication (FR-58);
   `tools/sh_ota_upload.py` completes a 1.25 MB image in < 30 s on the home LAN. OTA rules: FR-60.
 - **FR-15.1 (Actuator polarity):** *[now]* {SW; test} NC or NO actuator type is configurable (API, console), stored in NVS; all

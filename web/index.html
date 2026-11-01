@@ -5,11 +5,11 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Încălzire</title>
 <style>
-:root{--bg:#f4f5f7;--card:#fff;--fg:#1c1f24;--mut:#6b7280;--line:#e5e7eb;--heat:#ea580c;--idle:#2563eb;--away:#9ca3af;--bad:#dc2626;--ok:#16a34a}
-@media (prefers-color-scheme:dark){:root{--bg:#0f1115;--card:#181b21;--fg:#e8eaed;--mut:#9aa0a6;--line:#2a2e36;--heat:#fb923c;--idle:#60a5fa;--away:#6b7280;--bad:#f87171;--ok:#4ade80}}
+:root{--bg:#f4f5f7;--card:#fff;--fg:#1c1f24;--mut:#6b7280;--line:#e5e7eb;--heat:#ea580c;--idle:#2563eb;--away:#9ca3af;--bad:#dc2626;--ok:#16a34a;--chg:#fde68a}
+@media (prefers-color-scheme:dark){:root{--bg:#0f1115;--card:#181b21;--fg:#e8eaed;--mut:#9aa0a6;--line:#2a2e36;--heat:#fb923c;--idle:#60a5fa;--away:#6b7280;--bad:#f87171;--ok:#4ade80;--chg:#854d0e}}
 *{box-sizing:border-box}
 body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.4 system-ui,-apple-system,Segoe UI,Roboto,sans-serif}
-main{max-width:960px;margin:0 auto;padding:16px}
+main{max-width:1100px;margin:0 auto;padding:16px}
 header{display:flex;flex-wrap:wrap;gap:8px 16px;align-items:center;justify-content:space-between;margin-bottom:16px}
 header h1{font-size:20px;margin:0}
 .meta{color:var(--mut);display:flex;gap:14px;flex-wrap:wrap}
@@ -19,7 +19,7 @@ button.on{background:var(--fg);color:var(--bg)}
 .room{background:var(--card);border:1px solid var(--line);border-left:6px solid var(--idle);border-radius:14px;padding:14px;cursor:pointer}
 .room.heat{border-left-color:var(--heat)}.room.away{border-left-color:var(--away)}.room.bad{border-left-color:var(--bad)}
 .room .t{font-size:40px;font-weight:600;line-height:1.1}
-.room .s{color:var(--mut)}
+.s,.room .s{color:var(--mut)}
 .ctl{display:none;margin-top:12px;gap:8px;align-items:center;flex-wrap:wrap}
 .room.open .ctl{display:flex}
 .alerts{margin:0 0 12px;padding:0;list-style:none}
@@ -27,13 +27,20 @@ button.on{background:var(--fg);color:var(--bg)}
 section{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px;margin-top:12px}
 section h2{font-size:16px;margin:0 0 10px}
 table{width:100%;border-collapse:collapse}
-td,th{text-align:left;padding:6px 4px;border-bottom:1px solid var(--line)}
+td,th{text-align:left;padding:5px 4px;border-bottom:1px solid var(--line);vertical-align:top}
 input,select{font:inherit;background:var(--bg);color:var(--fg);border:1px solid var(--line);border-radius:8px;padding:6px}
-input.n{width:64px}input.w{width:100%;max-width:420px}
+input.n{width:64px}input.w{width:100%;max-width:420px}input.nm{width:150px}
 .row{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:6px 0}
 .scroll{overflow-x:auto}
 footer{margin-top:20px;color:var(--mut);display:flex;gap:16px;flex-wrap:wrap}
 a{color:var(--idle)}
+code,.mono{font:13px/1.35 ui-monospace,SFMono-Regular,Consolas,monospace}
+.OK{color:var(--ok);font-weight:600}.FAIL{color:var(--bad);font-weight:600}.INFO{color:var(--mut);font-weight:600}
+#watch td{padding:3px 4px}
+#watch tr.grp td{background:var(--bg);font-weight:600;padding-top:10px}
+#watch tr.chg td.v{background:var(--chg)}
+#watch tr.det td{color:var(--mut);border-bottom:none}
+#trace{max-height:360px;overflow:auto}
 #admin{display:none}body.admin #admin{display:block}
 </style>
 </head>
@@ -49,6 +56,19 @@ a{color:var(--idle)}
 
 <div id="admin">
   <section>
+    <h2>Verificări (FR-10.4)</h2>
+    <div class="scroll"><table id="checks"></table></div>
+  </section>
+  <section>
+    <h2>Zone – punere în funcțiune (FR-11.3)</h2>
+    <div class="s">O zonă se pornește doar cu senzor; un releu servește o singură zonă și nu pompa. Numărul de zone = zonele pornite.</div>
+    <div class="scroll"><table id="setup"></table></div>
+  </section>
+  <section>
+    <h2>Senzori BLE auziți</h2>
+    <div class="scroll"><table id="sensors"></table></div>
+  </section>
+  <section>
     <h2>Program (același pentru toate zonele)</h2>
     <div class="row"><label><input type="checkbox" id="schedOn"> Program activ</label></div>
     <div class="scroll"><table id="levels"></table></div>
@@ -58,47 +78,203 @@ a{color:var(--idle)}
     <div class="row"><button id="saveSched">Salvează programul</button><span id="schedMsg" class="s"></span></div>
   </section>
   <section>
-    <h2>Senzori BLE</h2>
-    <div class="scroll"><table id="sensors"></table></div>
-  </section>
-  <section>
-    <h2>Zone</h2>
-    <div class="scroll"><table id="zones"></table></div>
-  </section>
-  <section>
     <h2>Sistem</h2>
-    <div class="row">Locație (lat,lon) <input id="loc" placeholder="45.65,25.60"><button id="saveLoc">Salvează</button></div>
-    <div class="scroll"><table id="sys"></table></div>
+    <div class="row">Locație (lat,lon) <input id="loc" placeholder="45.65,25.60"><button id="saveLoc">Salvează</button><span id="locMsg" class="s"></span></div>
     <div class="row"><a href="update">Actualizare firmware (OTA)</a></div>
+  </section>
+  <section>
+    <h2>Semnale – tot ce raportează API-ul (FR-8.1)</h2>
+    <div class="row"><input class="w" id="filter" placeholder="Filtru: nume sau explicație (ex. zones[0], relay, boiler)"><span id="watchInfo" class="s"></span></div>
+    <div class="s">Atinge un rând pentru cerință. Galben = s-a schimbat la ultima citire.</div>
+    <div class="scroll"><table id="watch" class="mono"></table></div>
+  </section>
+  <section>
+    <h2>Trace – schimbări cât timp pagina e deschisă</h2>
+    <div class="row"><button id="csv">Export CSV</button><button id="clearTrace">Golește</button>
+      <label><input type="checkbox" id="traceAll"> și valorile care se schimbă continuu (ore, vechimi, memorie)</label><span id="traceInfo" class="s"></span></div>
+    <div id="trace" class="scroll"><table class="mono" id="traceTable"></table></div>
   </section>
 </div>
 
 <footer><a href="#" id="toggleAdmin">Admin</a><span id="err"></span></footer>
 </main>
+<!-- FR-8.1: API names watched by the engineering view and their explanation [text, requirement, "v" = changes continuously] -->
+<script type="application/json" id="doc">
+{"endpoints": ["api/zones", "api/boiler/status", "api/ble/sensors", "api/diag/status", "api/config/system", "api/schedule", "api/setup/time", "api/setup/location"],
+"doc": {
+"status": ["Răspunsul API: ok", "FR-42"],
+"autoMode": ["true = automat (program și reglaj), false = manual", "FR-1.3"],
+"boiler": ["Ultima comandă trimisă centralei: ON / OFF", "FR-17.1"],
+"boilerCooldownSec": ["Secunde până se poate trimite următorul cadru radio", "FR-17.2"],
+"pendingAction": ["Comandă de centrală amânată (NONE = nimic în așteptare)", "FR-32"],
+"pendingWaitSec": ["Secunde până la comanda amânată", "FR-32"],
+"boilerDemand": ["Cel puțin o zonă cere căldură", "FR-37"],
+"actuatorType": ["Tipul robineților: NC = închis fără curent, NO = deschis fără curent", "FR-15.1"],
+"pumpEnabled": ["Pompa de circulație e configurată (releul 4)", "FR-14.1"],
+"pumpActive": ["Pompa e pornită acum", "FR-14.2"],
+"frostGuardActive": ["Protecția la îngheț încălzește cel puțin o zonă", "FR-16.1"],
+"sensorTimeoutSec": ["sensorTimeout: după atâtea secunde fără citire senzorul e pierdut", "FR-18"],
+"lastAntiSeizeEpoch": ["Ultimul exercițiu al robineților (timp Unix)", "FR-19"],
+"scheduleEnabled": ["Programul e pornit", "FR-31"],
+"away": ["Mod Plecat pentru toată casa", "FR-44"],
+"activeLevel": ["Treapta programului acum: day = zi, night = noapte, away = plecat", "FR-29"],
+"nextLevel": ["Treapta următoare din program", "FR-31"],
+"minsToNextSlot": ["Minute până la următoarea oră din program", "FR-31", "v"],
+"preHeatActive": ["Preîncălzire înaintea unei trepte mai calde", "FR-48"],
+"boilerRuntime.totalSec": ["Ardere totală (s)", "FR-35"],
+"boilerRuntime.todaySec": ["Ardere azi (s)", "FR-35"],
+"boilerRuntime.yesterdaySec": ["Ardere ieri (s)", "FR-35"],
+"boilerRuntime.thisMonthSec": ["Ardere luna aceasta (s)", "FR-35"],
+"boilerRuntime.lastMonthSec": ["Ardere luna trecută (s)", "FR-35"],
+"boilerRuntime.currentBurnSec": ["Durata arderii curente (s), 0 = flacără oprită", "FR-35", "v"],
+"zones[].id": ["Numărul zonei", "FR-11.3"],
+"zones[].name": ["Numele zonei", "FR-11.3"],
+"zones[].sensor": ["Alias senzor (gol = după MAC)", "FR-11.3"],
+"zones[].sensorMac": ["MAC-ul senzorului zonei (gol = fără senzor)", "FR-11.3"],
+"zones[].mac": ["MAC-ul senzorului zonei (gol = fără senzor)", "FR-11.3"],
+"zones[].relayPin": ["Ieșirea zonei: GPIO 32 = releu 1, 33 = releu 2, 25 = releu 3, 26 = releu 4", "FR-11.3"],
+"zones[].targetTemp": ["Ținta setată a zonei (°C)", "FR-29"],
+"zones[].effectiveTarget": ["Ținta folosită acum: program, boost sau plecat (°C)", "FR-29"],
+"zones[].hysteresis": ["Robinetul se închide la țintă + histerezis (°C)", "FR-47"],
+"zones[].enabled": ["Zona e pornită (punere în funcțiune)", "FR-11.3"],
+"zones[].currentTemp": ["Temperatura camerei cu offset (°C); valabilă doar cu sensorValid = true", "FR-6.2"],
+"zones[].sensorValid": ["Citire primită în ultimul sensorTimeout", "FR-16.2"],
+"zones[].sensorFault": ["Senzor pierdut (timeout), DTC-101", "FR-16.2"],
+"zones[].frostActive": ["Protecția la îngheț încălzește zona", "FR-16.1"],
+"zones[].windowPauseActive": ["Pauză pentru fereastră deschisă", "FR-40"],
+"zones[].windowPauseRemainingSec": ["Secunde rămase din pauza de fereastră", "FR-40", "v"],
+"zones[].windowDropThreshold": ["Scăderea de temperatură care înseamnă fereastră (windowThreshold, °C)", "FR-40"],
+"zones[].lastWindowEpoch": ["Ultima fereastră detectată (timp Unix, 0 = niciuna)", "FR-40"],
+"zones[].lastWindowDurationSec": ["Durata ultimei pauze de fereastră (s)", "FR-40"],
+"zones[].demand": ["Zona cere căldură acum", "FR-47"],
+"zones[].relayEngaged": ["Releul robinetului e alimentat: robinet deschis sau se deschide", "FR-37"],
+"zones[].openSec": ["Estimare deschidere robinet 0–120 s: crește alimentat, scade oprit", "FR-2", "v"],
+"zones[].isManualHold": ["Boost: țintă pusă de mână până la următoarea oră din program", "FR-1.2"],
+"zones[].duty": ["Duty acum (%): cât din ciclu stă robinetul deschis", "FR-47"],
+"zones[].learnedDuty": ["Duty de bază învățat (%)", "FR-47"],
+"zones[].tempOffset": ["Corecția senzorului, adăugată la citire (°C)", "FR-49"],
+"zones[].state": ["Starea zonei", "FR-8.4"],
+"zones[].day": ["Temperatura treptei zi (°C)", "FR-29"],
+"zones[].night": ["Temperatura treptei noapte (°C)", "FR-29"],
+"zones[].away": ["Temperatura treptei plecat (°C)", "FR-29"],
+"firmwareVersion": ["Versiunea firmware 1.LL.ZZ.NN (luna, ziua, al câtelea commit al zilei)", "FR-21"],
+"buildDate": ["Data și ora build-ului", "FR-21"],
+"gitCommit": ["Commit-ul firmware-ului (-dirty = modificări necomise)", "FR-21"],
+"resetReason": ["Motivul ultimei reporniri", "FR-21"],
+"lastTxMs": ["Ultimul cadru radio (ms de la pornire, 0 = niciunul)", "FR-17.6"],
+"freeHeap": ["Memorie liberă (octeți); sub 60 KB = DTC-402", "NFR-2.2", "v"],
+"rssi": ["Semnal Wi-Fi (dBm); sub −82 = DTC-401", "FR-41", "v"],
+"uptimeSec": ["Secunde de la pornire", "FR-23", "v"],
+"wifiWatchdog": ["Supraveghetorul Wi-Fi", "FR-41"],
+"time": ["Ora plăcii", "FR-12.1", "v"],
+"date": ["Data plăcii", "FR-12.1"],
+"season": ["Anotimpul după dată", "FR-12.2"],
+"isHeatingSeason": ["Sezon de încălzire", "FR-12.2"],
+"outdoorTemp": ["Temperatura de afară (°C), Open-Meteo", "FR-9"],
+"outdoorHumidity": ["Umiditatea de afară (%)", "FR-9"],
+"bleScanning": ["Scanarea Bluetooth rulează", "FR-6.3"],
+"scanning": ["Scanarea Bluetooth rulează", "FR-6.3"],
+"count": ["Senzori auziți de la pornire", "FR-6.3"],
+"sensors[].name": ["Numele senzorului din reclama Bluetooth", "FR-6.1"],
+"sensors[].mac": ["MAC-ul senzorului", "FR-6.1"],
+"sensors[].temp": ["Temperatura citită, fără offset (°C)", "FR-6.2"],
+"sensors[].hum": ["Umiditatea citită (%)", "FR-6.2"],
+"sensors[].bat": ["Bateria senzorului (%); sub 20 = DTC-102", "FR-6.2"],
+"sensors[].rssi": ["Semnal Bluetooth (dBm)", "FR-20", "v"],
+"sensors[].packets": ["Pachete primite de la pornire", "FR-6.3", "v"],
+"sensors[].source": ["De unde vine citirea", "FR-6.3"],
+"sensors[].ageSec": ["Secunde de la ultima citire", "FR-16.2", "v"],
+"checks[].id": ["Numele verificării", "FR-10.4"],
+"checks[].result": ["OK / FAIL, sau INFO când placa nu poate verifica", "FR-10.4"],
+"checks[].value": ["Valoarea măsurată", "FR-10.4", "v"],
+"checks[].rule": ["Regula verificării", "FR-10.4"],
+"dtcCount": ["Coduri de eroare active", "FR-10.2"],
+"dtcs[].code": ["Codul de eroare", "FR-10.2"],
+"dtcs[].severity": ["Gravitate", "FR-10.2"],
+"dtcs[].message": ["Mesajul codului", "FR-10.2"],
+"dtcs[].count": ["De câte ori a apărut", "FR-10.2"],
+"dtcs[].ageSec": ["Secunde de la ultima apariție", "FR-10.2", "v"],
+"zonesCount": ["Locuri de zonă din firmware", "FR-69"],
+"openLoopBypass": ["Ocolirea buclei închise (doar test), false = normal", "FR-1.3"],
+"actuatorDelaySec": ["interlockDelay: robinetul se deschide atâtea s înainte de centrală", "FR-2"],
+"interlockDelaySec": ["interlockDelay: robinetul se deschide atâtea s înainte de centrală", "FR-2"],
+"pumpOverrunSec": ["overrun: ultimul robinet rămâne deschis atâtea s după flacără", "FR-3"],
+"burnerMinRunSec": ["burnerMinRun: ardere minimă (s)", "FR-4"],
+"burnerMinPauseSec": ["burnerMinPause: pauză minimă între arderi (s)", "FR-4"],
+"rfMinCooldownSec": ["Pauza minimă între cadre radio (s)", "FR-17.2"],
+"rfSafetyHeartbeatSec": ["hbInterval: repetarea stării către centrală (s)", "FR-17.7"],
+"rfSafetyHeartbeatEnabled": ["Repetarea stării către centrală e pornită", "FR-17.7"],
+"pumpControlEnabled": ["Pompa de circulație e configurată", "FR-14.1"],
+"pumpRelayPin": ["Releul pompei (GPIO 26 = releu 4)", "FR-14.1"],
+"actuatorNormallyClosed": ["Robineți NC (închis fără curent)", "FR-15.1"],
+"freezeProtectionTemp": ["frostTemp: pragul protecției la îngheț (°C)", "FR-16.1"],
+"hysteresis": ["Histerezis global (°C)", "FR-47"],
+"windowThreshold": ["windowThreshold: scăderea care înseamnă fereastră (°C)", "FR-40"],
+"enabled": ["Programul e pornit", "FR-31"],
+"preHeatEnabled": ["Preîncălzirea e permisă", "FR-48"],
+"windowDetectionEnabled": ["Detecția ferestrei e pornită", "FR-40"],
+"isWeekend": ["Azi se folosește programul de weekend", "FR-31"],
+"weekday": ["Program luni–vineri (ora=treaptă)", "FR-31"],
+"weekend": ["Program de weekend (ora=treaptă)", "FR-31"],
+"timeSynced": ["Ora e sincronizată", "FR-12.1"],
+"year": ["Anul", "FR-12.1"],
+"month": ["Luna", "FR-12.1"],
+"day": ["Ziua", "FR-12.1"],
+"dayOfWeek": ["Ziua săptămânii", "FR-12.1"],
+"weatherValid": ["Există date meteo", "FR-9"],
+"weatherAgeSec": ["Vechimea datelor meteo (s); peste 6 h = FAIL", "FR-9", "v"],
+"coords": ["Locația pentru vreme (lat,lon)", "FR-9.2"]
+}}
+</script>
 <script>
 const MIN_T = 16, MAX_T = 22.5, STEP = 0.5;
 const LEVELS = ["day", "night", "away"], LEVEL_RO = {day: "zi", night: "noapte", away: "plecat"};
+// FR-8.4: zone state code -> page text
+const STATE_RO = {FROST: "Protecție îngheț", DISABLED: "Zonă oprită", FAULT: "Senzor pierdut – încălzește de rezervă",
+  ACQUIRING: "Așteaptă senzorul", WINDOW: "Fereastră deschisă", HEATING: "Încălzește", IDLE: "Temperatură atinsă"};
+// FR-10.4: check id -> rule in words
+const CHECK_RO = {wifi: "Wi-Fi conectat și semnal ≥ −82 dBm (DTC-401)", heap: "memorie liberă ≥ 60 KB (DTC-402)",
+  ble: "scanarea Bluetooth rulează", sensors: "fiecare zonă pornită are citire în sensorTimeout (DTC-101); INFO cât nu e nicio zonă pornită",
+  time: "ora sincronizată", weather: "temperatura de afară nu e mai veche de 6 h (FR-9)",
+  radio: "INFO: radioul nu are canal de întoarcere, reacția centralei nu se poate verifica"};
+const RELAYS = [[32, "Releu 1 (GPIO32)"], [33, "Releu 2 (GPIO33)"], [25, "Releu 3 (GPIO25)"], [26, "Releu 4 (GPIO26)"]];
+const DOC = JSON.parse(document.getElementById("doc").textContent);
 const $ = id => document.getElementById(id);
 const esc = s => String(s).replace(/[&<>"]/g, c => ({"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;"}[c]));
+const isAdmin = () => document.body.classList.contains("admin");
 let Z = null, S = null, B = [], ST = null, D = null, openRoom = -1, editing = false;
+let RAW = {}, prevFlat = {}, changed = new Set(), trace = [], openSig = null;
+const dirtyRows = new Set();
 
 async function api(path, params) {
   const opt = params ? {method: "POST", body: new URLSearchParams(params)} : {};
   const r = await fetch(path, opt);
-  if (!r.ok) throw new Error(path + " HTTP " + r.status);
+  if (!r.ok) {
+    let msg = path + " HTTP " + r.status;
+    try { const j = await r.json(); if (j.message) msg = j.message; } catch (e) {}
+    throw new Error(msg);
+  }
   return r.json();
 }
 
 function roomClass(z) {
-  if (z.sensorFault || !z.enabled) return "bad";
+  if (z.state === "FAULT" || z.state === "DISABLED") return "bad";
   if (Z.away) return "away";
   return z.relayEngaged ? "heat" : "";
 }
 
+// FR-11.3: the family view shows the zones switched on (and a zone the frost protection heats)
+const shownZones = () => Z.zones.map((z, i) => [z, i]).filter(([z]) => z.enabled || z.state === "FROST");
+
 function renderRooms() {
   const hum = {};
   B.forEach(s => hum[s.mac.toUpperCase()] = s);
-  $("rooms").innerHTML = Z.zones.map((z, i) => {
+  const list = shownZones();
+  if (!list.length) {
+    $("rooms").innerHTML = `<div class="room bad"><div>Nicio zonă pornită</div><div class="s">Punerea în funcțiune se face din Admin.</div></div>`;
+    return;
+  }
+  $("rooms").innerHTML = list.map(([z, i]) => {
     const s = hum[(z.sensorMac || "").toUpperCase()];
     const t = z.sensorValid ? z.currentTemp.toFixed(1) + "°" : "--";
     const h = s ? " · " + Math.round(s.hum) + "%" : "";
@@ -106,6 +282,7 @@ function renderRooms() {
     return `<div class="room ${roomClass(z)} ${openRoom === i ? "open" : ""}" data-i="${i}">
       <div>${esc(z.name)}</div><div class="t">${t}</div>
       <div class="s">țintă ${z.effectiveTarget.toFixed(1)}°${h}${hold}</div>
+      <div class="s">${esc(STATE_RO[z.state] || z.state)}</div>
       <div class="ctl">
         <button data-a="dn" data-i="${i}">−</button><b>${z.effectiveTarget.toFixed(1)}°</b><button data-a="up" data-i="${i}">+</button>
         ${z.isManualHold ? `<button data-a="clr" data-i="${i}">Înapoi la program</button>` : ""}
@@ -113,97 +290,228 @@ function renderRooms() {
   }).join("");
 }
 
+// FR-8.1: the schedule in words, with the time of the next change
+function scheduleText() {
+  if (Z.away) return "Mod plecat: toate camerele pe treapta plecat";
+  if (!Z.scheduleEnabled) return "Program oprit: camerele țin ținta setată";
+  let at = "";
+  const m = ST && /^(\d\d):(\d\d)/.exec(ST.time || "");
+  if (m) {
+    const t = (+m[1] * 60 + +m[2] + Z.minsToNextSlot) % 1440;
+    at = " până la " + String(Math.floor(t / 60)).padStart(2, "0") + ":" + String(t % 60).padStart(2, "0");
+  }
+  const pre = Z.preHeatActive ? " · preîncălzire pentru " + LEVEL_RO[Z.nextLevel] : "";
+  return `Program: ${LEVEL_RO[Z.activeLevel]}${at}, apoi ${LEVEL_RO[Z.nextLevel]}${pre}`;
+}
+
 function renderHeader() {
   $("clock").textContent = ST ? ST.time.slice(0, 5) : "--:--";
   $("outdoor").textContent = ST && ST.outdoorTemp > -100 ? "afară " + ST.outdoorTemp.toFixed(1) + "°" : "afară --";
   $("boiler").textContent = "centrala " + (Z.boiler === "ON" ? "pornită 🔥" : "oprită");
-  $("level").textContent = Z.away ? "mod plecat" : Z.scheduleEnabled ? "acum " + LEVEL_RO[Z.activeLevel] + (Z.preHeatActive ? " (preîncălzire)" : "") : "program oprit";
+  $("level").textContent = scheduleText();
   $("away").classList.toggle("on", Z.away);
 }
 
 function renderAlerts() {
   const a = [];
   Z.zones.forEach(z => {
-    if (z.sensorFault) a.push(`${z.name}: senzor offline – zonă oprită`);
-    if (z.frostActive) a.push(`${z.name}: protecție la îngheț activă`);
-    if (z.windowPauseActive) a.push(`${z.name}: fereastră deschisă – pauză ${Math.ceil(z.windowPauseRemainingSec / 60)} min`);
+    // Until FR-51 is built (migration step 7) the zone does not heat on sensor loss: say what the valve does
+    if (z.state === "FAULT") a.push(`${z.name}: senzor pierdut – ` + (z.relayEngaged ? "robinet deschis" : "zona nu încălzește"));
+    if (z.state === "FROST") a.push(`${z.name}: protecție la îngheț activă`);
+    if (z.state === "WINDOW") a.push(`${z.name}: fereastră deschisă – pauză ${Math.ceil(z.windowPauseRemainingSec / 60)} min`);
   });
   B.forEach(s => { if (s.bat > 0 && s.bat < 15) a.push(`Baterie slabă: ${s.name || s.mac} (${s.bat}%)`); });
   (D && D.dtcs || []).forEach(d => a.push(`${d.code}: ${d.message}`));
   $("alerts").innerHTML = a.map(x => `<li>${esc(x)}</li>`).join("");
 }
 
-function renderAdmin() {
-  if (!document.body.classList.contains("admin") || !S) return;
-  if (!editing) {
-    $("schedOn").checked = S.enabled;
-    $("wd").value = S.weekday;
-    $("we").value = S.weekend;
-    $("levels").innerHTML = "<tr><th>Zonă</th><th>Zi</th><th>Noapte</th><th>Plecat</th></tr>" + S.zones.map((z, i) =>
-      `<tr><td>${esc(z.name)}</td>${LEVELS.map(l => `<td><input class="n" type="number" step="0.5" min="5" max="30" data-z="${i + 1}" data-l="${l}" value="${z[l].toFixed(1)}"></td>`).join("")}</tr>`).join("");
-  }
-  const opts = Z.zones.map((z, i) => `<option value="${i}">${esc(z.name)}</option>`).join("");
-  // Do not re-render a table while one of its inputs is focused (typing / open dropdown)
-  const busy = id => $(id).contains(document.activeElement);
-  if (!busy("sensors")) $("sensors").innerHTML = "<tr><th>Nume</th><th>MAC</th><th>°C</th><th>%</th><th>Bat</th><th>RSSI</th><th>Văzut</th><th>Zonă</th></tr>" + B.map(s => {
-    const zi = Z.zones.findIndex(z => (z.sensorMac || "").toUpperCase() === s.mac.toUpperCase());
-    return `<tr><td>${esc(s.name)}</td><td>${esc(s.mac)}</td><td>${s.temp.toFixed(1)}</td><td>${Math.round(s.hum)}</td><td>${s.bat}%</td><td>${s.rssi}</td><td>${s.ageSec}s</td>
-      <td><select data-mac="${esc(s.mac)}"><option value="">–</option>${opts}</select></td></tr>`.replace(`value="${zi}"`, `value="${zi}" selected`);
-  }).join("");
-  if (!busy("zones")) $("zones").innerHTML = "<tr><th>Zonă</th><th>Stare</th><th>Robinet</th><th>Duty (învățat)</th><th>Țintă</th><th>Offset senzor</th></tr>" + Z.zones.map((z, i) =>
-    `<tr><td>${esc(z.name)}</td><td>${esc(z.state)}</td><td>${z.relayEngaged ? "deschis " + Math.round(z.openSec / 60) + " min" : "închis"}</td><td>${z.duty}% (${z.learnedDuty}%)</td><td>${z.effectiveTarget.toFixed(1)}°</td>
-     <td><input class="n" type="number" step="0.1" min="-3" max="3" data-ofs="${i}" value="${z.tempOffset.toFixed(1)}"></td></tr>`).join("");
-  const rt = Z.boilerRuntime || {};
-  const rows = ST ? [["Firmware", `${ST.firmwareVersion} (${ST.gitCommit})`], ["Uptime", Math.round(ST.uptimeSec / 3600) + " h"], ["Heap liber", Math.round(ST.freeHeap / 1024) + " KB"],
-    ["Wi-Fi", ST.rssi + " dBm"], ["Sănătate", (D ? D.healthScore : "--") + "%"], ["Ardere azi", Math.round((rt.todaySec || 0) / 60) + " min"], ["Ardere luna aceasta", Math.round((rt.thisMonthSec || 0) / 3600) + " h"]] : [];
-  $("sys").innerHTML = rows.map(r => `<tr><td>${r[0]}</td><td>${esc(r[1])}</td></tr>`).join("");
+const busy = id => $(id).contains(document.activeElement);
+
+function renderChecks() {
+  $("checks").innerHTML = "<tr><th>Verificare</th><th>Rezultat</th><th>Valoare</th><th>Regula</th></tr>" + (D && D.checks || []).map(c =>
+    `<tr><td><code>${esc(c.id)}</code></td><td class="${esc(c.result)}">${esc(c.result)}</td><td>${esc(c.value)}</td><td>${esc(CHECK_RO[c.id] || c.rule)}</td></tr>`).join("");
 }
 
+function renderSetup() {
+  if (busy("setup") || dirtyRows.size) return;
+  const sensorOpts = cur => {
+    const macs = B.map(s => s.mac.toUpperCase());
+    let o = `<option value="">– fără senzor –</option>`;
+    if (cur && !macs.includes(cur.toUpperCase())) o += `<option value="${esc(cur)}" selected>${esc(cur)} (neauzit)</option>`;
+    return o + B.map(s => `<option value="${esc(s.mac)}" ${s.mac.toUpperCase() === (cur || "").toUpperCase() ? "selected" : ""}>${esc(s.mac)} · ${s.temp.toFixed(1)}° · ${s.rssi} dBm</option>`).join("");
+  };
+  $("setup").innerHTML = "<tr><th>Nr</th><th>Nume</th><th>Senzor</th><th>Releu</th><th>Pornită</th><th>Offset °C</th><th></th><th></th></tr>" + Z.zones.map((z, i) =>
+    `<tr data-z="${i}"><td>${z.id}</td><td><input class="nm" data-f="name" maxlength="31" value="${esc(z.name)}"></td>
+     <td><select data-f="mac">${sensorOpts(z.sensorMac)}</select></td>
+     <td><select data-f="pin">${RELAYS.map(([p, t]) => `<option value="${p}" ${p === z.relayPin ? "selected" : ""}>${t}</option>`).join("")}</select></td>
+     <td><input type="checkbox" data-f="enabled" ${z.enabled ? "checked" : ""}></td>
+     <td><input class="n" type="number" step="0.1" min="-3" max="3" data-f="offset" value="${z.tempOffset.toFixed(1)}"></td>
+     <td><button data-save="${i}">Salvează</button></td><td class="s" id="setupMsg${i}"></td></tr>`).join("");
+}
+
+function renderSensors() {
+  if (busy("sensors")) return;
+  $("sensors").innerHTML = "<tr><th>Nume</th><th>MAC</th><th>°C</th><th>%</th><th>Bat</th><th>RSSI</th><th>Văzut</th><th>Zonă</th></tr>" + B.map(s => {
+    const z = Z.zones.find(z => (z.sensorMac || "").toUpperCase() === s.mac.toUpperCase());
+    return `<tr><td>${esc(s.name)}</td><td><code>${esc(s.mac)}</code></td><td>${s.temp.toFixed(1)}</td><td>${Math.round(s.hum)}</td><td>${s.bat}%</td><td>${s.rssi}</td><td>${s.ageSec}s</td><td>${z ? esc(z.name) : "–"}</td></tr>`;
+  }).join("");
+}
+
+function renderSchedule() {
+  if (!S || editing) return;
+  $("schedOn").checked = S.enabled;
+  $("wd").value = S.weekday;
+  $("we").value = S.weekend;
+  $("levels").innerHTML = "<tr><th>Zonă</th><th>Zi</th><th>Noapte</th><th>Plecat</th></tr>" + S.zones.map((z, i) =>
+    `<tr><td>${esc(z.name)}</td>${LEVELS.map(l => `<td><input class="n" type="number" step="0.5" min="5" max="30" data-z="${i + 1}" data-l="${l}" value="${z[l].toFixed(1)}"></td>`).join("")}</tr>`).join("");
+}
+
+// ---- Engineering view: every API value with its name, explanation and requirement (FR-8.1)
+function flatten(v, path, out) {
+  if (v !== null && typeof v === "object") {
+    const arr = Array.isArray(v);
+    for (const k of Object.keys(v)) flatten(v[k], arr ? `${path}[${k}]` : (path ? `${path}.${k}` : k), out);
+  } else out[path] = v;
+  return out;
+}
+const docKey = path => path.replace(/\[\d+\]/g, "[]");
+const docOf = path => DOC.doc[docKey(path)] || ["(fără explicație)", ""];
+
+function showValue(path, v) {
+  const k = docKey(path);
+  if (k === "zones[].state") return `${v} · ${STATE_RO[v] || "stare necunoscută – defect (FR-8.4)"}`;
+  if (k === "zones[].relayPin" || k === "pumpRelayPin") { const r = RELAYS.find(([p]) => p === v); return r ? `${v} · ${r[1].split(" (")[0]}` : String(v); }
+  if (/Epoch$/.test(k) && v > 0) return `${v} · ${new Date(v * 1000).toLocaleString("ro-RO")}`;
+  return typeof v === "string" ? `"${v}"` : String(v);
+}
+
+function updateWatch() {
+  const now = new Date().toLocaleTimeString("ro-RO");
+  const flat = {};
+  for (const ep of DOC.endpoints) {
+    if (RAW[ep]) for (const [p, v] of Object.entries(flatten(RAW[ep], "", {}))) flat[`${ep} › ${p}`] = v;
+  }
+  changed = new Set();
+  const hadPrev = Object.keys(prevFlat).length > 0;
+  for (const [sig, v] of Object.entries(flat)) {
+    if (hadPrev && prevFlat[sig] !== v) {
+      changed.add(sig);
+      const vol = (docOf(sig.split(" › ")[1])[2] === "v");
+      if (!vol || $("traceAll").checked) trace.push([now, sig, sig in prevFlat ? prevFlat[sig] : "(nou)", v]);
+    }
+  }
+  if (trace.length > 5000) trace.splice(0, trace.length - 5000);
+  prevFlat = flat;
+  renderWatch();
+  renderTrace();
+}
+
+function renderWatch() {
+  const f = $("filter").value.trim().toLowerCase();
+  let html = "", n = 0, group = "";
+  for (const [sig, v] of Object.entries(prevFlat)) {
+    const [ep, path] = sig.split(" › ");
+    const d = docOf(path);
+    if (f && !(sig.toLowerCase().includes(f) || d[0].toLowerCase().includes(f))) continue;
+    if (ep !== group) { group = ep; html += `<tr class="grp"><td colspan="3">${esc(ep)}</td></tr>`; }
+    html += `<tr data-sig="${esc(sig)}" class="${changed.has(sig) ? "chg" : ""}"><td>${esc(path)}</td><td class="v">${esc(showValue(path, v))}</td><td>${esc(d[0])}</td></tr>`;
+    if (openSig === sig) html += `<tr class="det"><td colspan="3">Cerința: ${esc(d[1] || "–")} · sursa: GET ${esc(ep)} · cheie: ${esc(docKey(path))}</td></tr>`;
+    n++;
+  }
+  $("watch").innerHTML = "<tr><th>Semnal (nume API)</th><th>Valoare</th><th>Explicație</th></tr>" + html;
+  $("watchInfo").textContent = `${n} valori`;
+}
+
+function renderTrace() {
+  $("traceInfo").textContent = `${trace.length} schimbări`;
+  $("traceTable").innerHTML = "<tr><th>Ora</th><th>Semnal</th><th>Înainte</th><th>Acum</th></tr>" + trace.slice(-300).reverse().map(t =>
+    `<tr><td>${t[0]}</td><td>${esc(t[1])}</td><td>${esc(String(t[2]))}</td><td>${esc(String(t[3]))}</td></tr>`).join("");
+}
+
+$("watch").addEventListener("click", e => {
+  const tr = e.target.closest("tr[data-sig]");
+  if (!tr) return;
+  openSig = openSig === tr.dataset.sig ? null : tr.dataset.sig;
+  renderWatch();
+});
+$("filter").addEventListener("input", renderWatch);
+$("clearTrace").onclick = () => { trace = []; renderTrace(); };
+$("csv").onclick = () => {
+  const q = s => `"${String(s).replace(/"/g, '""')}"`;
+  const csv = "time,signal,before,now\n" + trace.map(t => t.map(q).join(",")).join("\n");
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(new Blob([csv], {type: "text/csv"}));
+  a.download = "trace-" + new Date().toISOString().slice(0, 19).replace(/:/g, "") + ".csv";
+  a.click();
+  URL.revokeObjectURL(a.href);
+};
+
+let inFlight = false;
 async function refresh() {
+  // One refresh at a time, endpoints one after another: the board serves one client request per loop pass
+  if (inFlight) return;
+  inFlight = true;
   try {
-    [Z, B, ST, D] = await Promise.all([api("api/zones"), api("api/ble/sensors").then(r => r.sensors), api("api/boiler/status"), api("api/diag/status")]);
-    if (document.body.classList.contains("admin")) S = await api("api/schedule");
-    renderHeader(); renderRooms(); renderAlerts(); renderAdmin();
+    const admin = isAdmin();
+    const eps = admin ? DOC.endpoints : ["api/zones", "api/ble/sensors", "api/boiler/status", "api/diag/status"];
+    for (const ep of eps) RAW[ep] = await api(ep);
+    Z = RAW["api/zones"]; B = RAW["api/ble/sensors"].sensors; ST = RAW["api/boiler/status"]; D = RAW["api/diag/status"];
+    S = RAW["api/schedule"] || S;
+    renderHeader(); renderRooms(); renderAlerts();
+    if (admin) {
+      renderChecks(); renderSetup(); renderSensors(); renderSchedule(); updateWatch();
+      if (!busy("loc") && RAW["api/setup/location"]) $("loc").value = RAW["api/setup/location"].coords;
+    }
     $("err").textContent = "";
   } catch (e) { $("err").textContent = "Conexiune pierdută (" + e.message + ")"; }
+  inFlight = false;
 }
 
 $("rooms").addEventListener("click", async e => {
   const b = e.target.closest("button");
   if (b) {
     const i = +b.dataset.i, z = Z.zones[i];
-    if (b.dataset.a === "clr") await api("api/zones/hold/clear", {id: i + 1});
-    else {
-      const t = Math.min(MAX_T, Math.max(MIN_T, z.effectiveTarget + (b.dataset.a === "up" ? STEP : -STEP)));
-      await api("api/zones/setpoint", {id: i + 1, target: t.toFixed(1)});
-    }
+    try {
+      if (b.dataset.a === "clr") await api("api/zones/hold/clear", {id: i + 1});
+      else {
+        const t = Math.min(MAX_T, Math.max(MIN_T, z.effectiveTarget + (b.dataset.a === "up" ? STEP : -STEP)));
+        await api("api/zones/setpoint", {id: i + 1, target: t.toFixed(1)});
+      }
+    } catch (err) { $("err").textContent = err.message; }
     return refresh();
   }
   if (e.target.closest(".ctl")) return;
-  const card = e.target.closest(".room");
+  const card = e.target.closest(".room[data-i]");
   if (card) { openRoom = openRoom === +card.dataset.i ? -1 : +card.dataset.i; renderRooms(); }
 });
 
 $("away").onclick = async () => { await api("api/schedule/enable", {away: Z.away ? 0 : 1}); refresh(); };
 
-$("toggleAdmin").onclick = e => { e.preventDefault(); document.body.classList.toggle("admin"); location.hash = document.body.classList.contains("admin") ? "admin" : ""; refresh(); };
+let timer = null;
+function startTimer() { clearInterval(timer); timer = setInterval(() => { if (!document.hidden) refresh(); }, isAdmin() ? 2000 : 5000); }
+$("toggleAdmin").onclick = e => { e.preventDefault(); document.body.classList.toggle("admin"); location.hash = isAdmin() ? "admin" : ""; startTimer(); refresh(); };
 if (location.hash === "#admin") document.body.classList.add("admin");
+
+// Commissioning: a row being edited is not overwritten by the refresh until it is saved
+$("setup").addEventListener("input", e => { const tr = e.target.closest("tr[data-z]"); if (tr) dirtyRows.add(tr.dataset.z); });
+$("setup").addEventListener("change", e => { const tr = e.target.closest("tr[data-z]"); if (tr) dirtyRows.add(tr.dataset.z); });
+$("setup").addEventListener("click", async e => {
+  const b = e.target.closest("button[data-save]");
+  if (!b) return;
+  const i = b.dataset.save, tr = b.closest("tr"), f = n => tr.querySelector(`[data-f="${n}"]`);
+  try {
+    await api("api/setup/map-zone", {zone: i, name: f("name").value.trim(), mac: f("mac").value, sname: "", pin: f("pin").value,
+      enabled: f("enabled").checked ? 1 : 0, offset: (+f("offset").value).toFixed(1)});
+    dirtyRows.delete(i);
+    $("setupMsg" + i).textContent = "Salvat.";
+  } catch (err) { $("setupMsg" + i).textContent = "Respins: " + err.message; }
+  if (!dirtyRows.size) refresh();
+});
 
 // While the schedule form is being edited, refreshes must not overwrite the inputs
 const schedForm = $("saveSched").closest("section");
 schedForm.addEventListener("focusin", () => editing = true);
 schedForm.addEventListener("focusout", e => { if (!schedForm.contains(e.relatedTarget)) editing = false; });
-$("admin").addEventListener("change", async e => {
-  const el = e.target;
-  if (el.dataset.ofs !== undefined) {
-    await api("api/setup/map-zone", {zone: el.dataset.ofs, offset: el.value});
-    return refresh();
-  }
-  if (el.dataset.mac !== undefined && el.value !== "") {
-    await api("api/setup/map-zone", {zone: el.value, mac: el.dataset.mac});
-    refresh();
-  }
-});
 
 $("saveSched").onclick = async () => {
   try {
@@ -219,11 +527,14 @@ $("saveSched").onclick = async () => {
   editing = false; refresh();
 };
 
-$("saveLoc").onclick = async () => { await api("api/setup/location", {coords: $("loc").value}); refresh(); };
-api("api/setup/location").then(r => $("loc").value = r.coords).catch(() => {});
+$("saveLoc").onclick = async () => {
+  try { await api("api/setup/location", {coords: $("loc").value}); $("locMsg").textContent = "Salvat."; }
+  catch (e) { $("locMsg").textContent = "Respins: " + e.message; }
+  refresh();
+};
 
+startTimer();
 refresh();
-setInterval(() => { if (!document.hidden) refresh(); }, 5000);
 </script>
 </body>
 </html>

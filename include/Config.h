@@ -44,10 +44,10 @@
 #define PIN_STATUS_LED        23
 
 // Relay driver pins for underfloor heating manifold
-#define PIN_RELAY_ZONE_1      32   // Relay 1: Living & Kitchen (Loops 1, 2, 3)
-#define PIN_RELAY_ZONE_2      33   // Relay 2: Child Bedroom (Loops 6, 7)
-#define PIN_RELAY_ZONE_3      25   // Relay 3: Master Bedroom (Loops 4, 5)
-#define PIN_RELAY_SPARE       26   // Relay 4: Spare / Auxiliary (Pump / Bypass)
+#define PIN_RELAY_ZONE_1      32   // Relay 1
+#define PIN_RELAY_ZONE_2      33   // Relay 2
+#define PIN_RELAY_ZONE_3      25   // Relay 3
+#define PIN_RELAY_SPARE       26   // Relay 4: zone or pump (FR-69)
 
 // Relay logic levels (ESP32-Relay X4 optocouplers are active HIGH)
 #define RELAY_ACTIVE_LEVEL    HIGH

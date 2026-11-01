@@ -162,8 +162,8 @@ void ThermalZoneManager::saveSchedule() {
 }
 
 void ThermalZoneManager::applyRelay(uint8_t pin, bool active) {
-    if (pin == PIN_RELAY_SPARE) {
-        // Circulation pump is directly active HIGH (runs when energized)
+    if (zoneUsingRelay(pin, SIZE_MAX) < 0) {
+        // Pump, or a relay no zone uses: directly active HIGH (runs when energized), off = de-energized
         digitalWrite(pin, active ? RELAY_ACTIVE_LEVEL : RELAY_INACTIVE_LEVEL);
     } else {
         // Thermal zone actuator:
@@ -182,16 +182,17 @@ void ThermalZoneManager::begin() {
     _bootWarmupActive = true;
     _bootWarmupStartMs = millis();
 
+    // NFR-1.4: every relay output driven closed, also those no zone uses after a reassignment
+    static const uint8_t RELAY_PINS[] = {PIN_RELAY_ZONE_1, PIN_RELAY_ZONE_2, PIN_RELAY_ZONE_3, PIN_RELAY_SPARE};
+    for (uint8_t pin : RELAY_PINS) {
+        pinMode(pin, OUTPUT);
+        applyRelay(pin, false);
+    }
     for (size_t i = 0; i < MAX_THERMAL_ZONES; i++) {
-        pinMode(_configs[i].relayPin, OUTPUT);
-        applyRelay(_configs[i].relayPin, false);
         _statuses[i].state = _configs[i].enabled ? ZONE_WARMUP : ZONE_DISABLED;
         _statuses[i].relayEngaged = false;
         _statuses[i].stateChangedMs = millis();
     }
-
-    pinMode(PIN_RELAY_SPARE, OUTPUT);
-    applyRelay(PIN_RELAY_SPARE, false);
     _pumpActive = false;
 
     Serial.printf("[Thermal] Initialized: 3 zones, Actuators: %s, Pump Relay 4: %s\n",
@@ -209,8 +210,17 @@ const ThermalZoneStatus& ThermalZoneManager::getStatus(size_t index) const {
     return _statuses[index];
 }
 
-void ThermalZoneManager::setPumpControlEnabled(bool enabled) {
-    if (_pumpControlEnabled == enabled) return;
+int ThermalZoneManager::zoneUsingRelay(uint8_t pin, size_t exceptIndex) const {
+    for (size_t i = 0; i < MAX_THERMAL_ZONES; i++) {
+        if (i != exceptIndex && _configs[i].relayPin == pin) return (int)i;
+    }
+    return -1;
+}
+
+bool ThermalZoneManager::setPumpControlEnabled(bool enabled) {
+    if (_pumpControlEnabled == enabled) return true;
+    // FR-11.3: the pump relay must not be a zone output
+    if (enabled && zoneUsingRelay(getPumpRelayPin(), SIZE_MAX) >= 0) return false;
     _pumpControlEnabled = enabled;
     if (!enabled && _pumpActive) {
         applyRelay(PIN_RELAY_SPARE, false);
@@ -218,6 +228,7 @@ void ThermalZoneManager::setPumpControlEnabled(bool enabled) {
     }
     paramStore.set(Param::PumpOutput, enabled ? 1 : 0);
     netConsole.printf("[Thermal] Circulation pump control via Relay 4 %s\n", enabled ? "ENABLED" : "DISABLED");
+    return true;
 }
 
 void ThermalZoneManager::setActuatorNormallyClosed(bool nc) {
@@ -403,9 +414,13 @@ void ThermalZoneManager::mapZone(size_t index, const char* name, const char* sen
         if (name && strlen(name) > 0) strncpy(_configs[index].name, name, sizeof(_configs[index].name) - 1);
         if (sensorMac) strncpy(_configs[index].sensorMac, sensorMac, sizeof(_configs[index].sensorMac) - 1);
         if (sensorName) strncpy(_configs[index].sensorName, sensorName, sizeof(_configs[index].sensorName) - 1);
-        if (ParamStore::validRelayPin(relayPin)) {
+        if (ParamStore::validRelayPin(relayPin) && relayPin != _configs[index].relayPin) {
+            // The caller refuses a move while the valve is energised; both outputs are driven closed here
+            uint8_t oldPin = _configs[index].relayPin;
             _configs[index].relayPin = relayPin;
             pinMode(relayPin, OUTPUT);
+            applyRelay(relayPin, false);
+            applyRelay(oldPin, false);
         }
         if (targetTemp >= 15.0f && targetTemp <= 30.0f) _configs[index].targetTemp = targetTemp;
         _configs[index].enabled = enabled;
@@ -437,7 +452,8 @@ void ThermalZoneManager::setRelayManual(size_t index, bool on) {
 }
 
 void ThermalZoneManager::setPumpManual(bool on) {
-    if (!_autoMode) {
+    // Relay 4 is the pump only with pump control on; otherwise it may be a zone output (FR-11.3)
+    if (!_autoMode && _pumpControlEnabled) {
         _pumpActive = on;
         applyRelay(PIN_RELAY_SPARE, on);
         netConsole.printf("[Thermal][MANUAL] Circulation Pump Relay 4 switched to %s\n", on ? "ON" : "OFF");
@@ -458,18 +474,17 @@ void ThermalZoneManager::setBoilerManual(BoilerRadioTrigger& boiler, bool on) {
     }
 }
 
-const char* ThermalZoneManager::getStateStr(ZoneState state) const {
-    switch (state) {
-        case ZONE_DISABLED:      return "Disabled";
-        case ZONE_IDLE:          return "Idle (Temp OK)";
-        case ZONE_WARMING_UP:    return "Actuator Warming Up";
-        case ZONE_HEATING:       return "Heating Active";
-        case ZONE_FAULT_TIMEOUT: return "Sensor Timeout (Failsafe OFF)";
-        case ZONE_FROST_GUARD:   return "Frost Protection Active (<12C)";
-        case ZONE_WARMUP:        return "Acquiring Sensor (Warmup)";
-        case ZONE_WINDOW_PAUSE:  return "Window Pause (Open Window Detected)";
-        default:                 return "Unknown";
-    }
+// FR-8.4: the first state that applies from the top; architecture §7 "Displayed zone state"
+const char* ThermalZoneManager::getStateCode(size_t index) const {
+    if (index >= MAX_THERMAL_ZONES) return "DISABLED";
+    const ThermalZoneStatus& st = _statuses[index];
+    if (st.frostActive || st.state == ZONE_FROST_GUARD) return "FROST";
+    if (!_configs[index].enabled || st.state == ZONE_DISABLED) return "DISABLED";
+    if (st.sensorFault || st.state == ZONE_FAULT_TIMEOUT) return "FAULT";
+    if (st.state == ZONE_WARMUP) return "ACQUIRING";
+    if (st.state == ZONE_WINDOW_PAUSE || isWindowPauseActive(index)) return "WINDOW";
+    if (st.relayEngaged || st.state == ZONE_WARMING_UP || st.state == ZONE_HEATING) return "HEATING";
+    return "IDLE";
 }
 
 const char* ThermalZoneManager::getLevelName(uint8_t level) {
@@ -934,11 +949,9 @@ void ThermalZoneManager::update(BoilerRadioTrigger& boiler) {
                 applyRelay(PIN_RELAY_SPARE, false);
                 _pumpActive = false;
             }
-            // Restore relays based on demand
+            // Restore every relay to its zone's valve state; a zone switched off during the exercise closes
             for (size_t i = 0; i < MAX_THERMAL_ZONES; i++) {
-                if (_configs[i].enabled) {
-                    applyRelay(_configs[i].relayPin, _statuses[i].relayEngaged);
-                }
+                applyRelay(_configs[i].relayPin, _configs[i].enabled && _statuses[i].relayEngaged);
             }
             netConsole.println(F("[Thermal] Anti-seize exercise completed successfully."));
         }

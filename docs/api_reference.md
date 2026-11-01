@@ -8,12 +8,12 @@ Zone ids are 1-based unless noted.
 
 | Method | Path | Purpose |
 |---|---|---|
-| GET | `/api/boiler/status` | Firmware, boiler state, time, outdoor temperature, heap, RSSI, uptime |
-| GET | `/api/zones` | Per-zone temps, effective target, valve state, `duty` / `learnedDuty` (%), `tempOffset`, alarms; global schedule state (`away`, `activeLevel`, `minsToNextSlot`) and boiler runtime |
+| GET | `/api/boiler/status` | Firmware (`firmwareVersion` 1.MM.DD.NN, FR-21), boiler state, time, outdoor temperature, heap, RSSI, uptime |
+| GET | `/api/zones` | Per-zone temps, effective target, valve state, `duty` / `learnedDuty` (%), `tempOffset`, alarms, `state` (FR-8.4: `FROST`, `DISABLED`, `FAULT`, `ACQUIRING`, `WINDOW`, `HEATING`, `IDLE`); global schedule state (`away`, `activeLevel`, `nextLevel`, `minsToNextSlot`) and boiler runtime |
 | GET | `/api/ble/sensors` | All decoded BLE sensors (temp, humidity, battery, RSSI, age) |
 | GET | `/api/history?range=24h\|5d` | Temperature history from LittleFS |
 | POST | `/api/history/clear` | Clear history |
-| GET | `/api/diag/status` | Health score and active DTCs |
+| GET | `/api/diag/status` | `checks[]` of FR-10.4 (`id`, `result` OK / FAIL / INFO, `value`, `rule`), `dtcCount` (active), active `dtcs[]`; no health score |
 | GET | `/api/diag/selftest` | Subsystem self-test report |
 | POST | `/api/diag/clear` | Clear DTCs |
 
@@ -40,7 +40,7 @@ Invalid schedule input returns `400`.
 | GET/POST | `/api/setup/location` | `coords` = `lat,lon` | Location for Open-Meteo |
 | GET | `/api/setup/time` | `refreshWeather` | NTP time and weather |
 | GET | `/api/setup/discovered-sensors` | | BLE sensors with assigned zone (0-based) |
-| POST | `/api/setup/map-zone` | `zone` (0-based), `name`, `mac`, `sname`, `pin`, `target`, `hyst`, `enabled`, `offset` | Zone mapping and sensor calibration offset (−3..+3 °C) |
+| POST | `/api/setup/map-zone` | `zone` (0-based), `name`, `mac`, `sname`, `pin`, `target`, `hyst`, `enabled`, `offset` | Zone commissioning (FR-11.3): all fields checked first, HTTP 400 and nothing changed when a relay is used by another zone or the pump, a zone is switched on without sensor, the name is empty / > 31 bytes / has `"` or `\`, the MAC is malformed, target outside 15–30 °C or offset outside −3..+3 °C |
 | POST | `/api/zones/sensor` | | Assign sensor to zone |
 | POST | `/api/zones/toggle` | | Enable/disable zone |
 | GET/POST | `/api/setup/actuator-type` | `type` = `nc`\|`no` | Actuator polarity |

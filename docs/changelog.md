@@ -5,6 +5,36 @@ Corelat cu planul activ: [`docs/plan.md`](file:///c:/Users/BSeceleanu/.github_re
 
 
 
+## [01.11.2026] - Owner page test: engineering view, commissioning, states, checks, version (PB-17 - PB-21)
+
+- **Who / when / why:** main chat (Claude), 01.11.2026, the owner's hands-on remarks on the page (step 1 board)
+  and the request for an engineering view "like CANoe / Trace32".
+- **Requirements (baseline v2.6, changes after closure C-3 - C-8, owner answers 01.11.2026):** FR-8.1 header in
+  words with the next change, admin view = engineering view (every API value with its API name, explanation,
+  requirement, change highlight, change trace with CSV export), commissioning in the page; new FR-8.4 zone states
+  (`FROST`, `DISABLED`, `FAULT`, `ACQUIRING`, `WINDOW`, `HEATING`, `IDLE` with Romanian texts); FR-10.4 checks with
+  rule, value and `OK` / `FAIL` / `INFO`, no health score; FR-11.3 relay used once and not by the pump, zone on
+  only with a sensor, number of zones = zones switched on; FR-21 version `1.MM.DD.NN` from git. Architecture §7
+  displayed state order and §10 health line follow.
+- **Board:** zone data copied from the old software erased (owner decision "now"): Zone 1-3, no sensor, off, relays
+  32 / 33 / 25. Heating off until commissioning; the old mapping is in the session scratchpad.
+- **Firmware:** `ThermalZoneManager::getStateCode()` (FR-8.4, a switched-off zone is `DISABLED`);
+  `DiagnosticEngine::runChecks()` / `checksJson()` replace the health score in `/api/diag/status`,
+  `/api/boiler/status`, `/api/diag/selftest`, console `DIAG` and the boot banner (no more `PASS` without a check);
+  `dtcCount` counts active DTCs; `/api/setup/map-zone` checks every field first (HTTP 400, nothing changed);
+  enabling the pump is refused while a zone uses relay 4; `APP_VERSION` written by `tools/sh_git_version.py`;
+  installation names removed from the relay comments in `Config.h` (FR-11.1).
+- **Web:** family view shows switched-on zones with their state text and the schedule sentence; admin view has the
+  checks, commissioning per zone (name, sensor, relay, on / off, offset), sensors, schedule, system, the signal
+  watch of 8 GET endpoints (2 s) and the change trace (CSV).
+- **Tests:** TC10.2 / TC10.3 without health score, new TC10.4 (FR-10.4), TC15.1 version from git (FR-21), TC19.6
+  no assertion on the temperature of a zone without reading (no requirement), new TC19.8 (FR-8.4), TC19.9 (every
+  API value explained, FR-8.1), TC19.10 (FR-11.3 rejections, pump on a zone relay).
+- **Tools:** `sh_process_check.py` errors on a hard-coded `APP_VERSION`, release tag from the computed version;
+  `sh_esp_cli.py diag` prints the checks.
+- **Safety review:** BLOCKER B1 (relay moved while energised) and RISK R1 (zone off while its valve is the last open one), R2 (relay 4 polarity), R3 fixed before flashing; valve-open rule added to FR-11.3.
+- **Found on the way:** PB-22 (room `+` lowers a target above 22.5 °C), PB-23 (FR-51 not built, safety), PB-24 (relay swap).
+
 ## [01.11.2026] - Page works behind a path-prefix proxy (PB-15)
 
 - **Who / when / why:** main chat (Claude), 01.11.2026, owner report: through the home-server proxy

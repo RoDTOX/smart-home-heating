@@ -119,14 +119,15 @@ def cmd_diag(args):
         r = requests.get(url, timeout=DEFAULT_TIMEOUT)
         if r.status_code == 200:
             d = r.json()
-            score = d.get('healthScore', 100)
             dtcs = d.get('dtcs', [])
             print("==================================================")
-            print(f"  ESP32 Health & Diagnostics (Score: {score}%)")
+            print("  ESP32 Diagnostics - basic self-test (FR-10.4)")
             print("==================================================")
+            for c in d.get('checks', []):
+                print(f"  {c.get('id'):<8} {c.get('result'):<5} {c.get('value'):<20} {c.get('rule')}")
             print(f"Active DTC Codes:   {len(dtcs)}")
             if not dtcs:
-                print("  [OK] All subsystems nominal. Zero active trouble codes.")
+                print("  No active trouble codes.")
             for item in dtcs:
                 print(f"  * [{item.get('code')}] {item.get('severity')}: {item.get('message')} (x{item.get('count')}, {item.get('ageSec')}s ago)")
             print("==================================================")

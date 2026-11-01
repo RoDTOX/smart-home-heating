@@ -129,7 +129,7 @@ listed in §3.3.
 | 19 | `Commands` | L5 | Every user action, identical for every source; runs in `loop()` | the command queue I15 | FR-1.2 (limits), FR-7.3, FR-11.3 (mapping), FR-17.1 (response), FR-17.3, FR-17.4, FR-42, FR-43 (MANUAL check), FR-58 (auth level), FR-59, FR-65, FR-66, NFR-1.8 (a command reaches the next control tick through I15) | `WebApi.cpp`, `ConsoleCommands.cpp` |
 | 20 | `WebApi` | L6 | HTTP transport: routes, JSON, authentication check, CORS, page, OTA upload | — | FR-8.1 (serve), FR-8.3, FR-42, FR-45, FR-58, NFR-2.3, NFR-3.1 | `WebApi.cpp` |
 | 21 | `Console` | L6 | Serial / Telnet / HTTP console and the log ring | log ring, Telnet client | FR-7.1, FR-7.3, FR-23, FR-45, NFR-2.4 | `NetworkConsole`, `ConsoleCommands` |
-| 22 | `StatusModel` | L6 | Page, API and `STATUS` data from the published snapshot I16 | static output buffer | FR-8.1 (data), FR-10.2 (show), FR-20 (show), FR-21, FR-23, FR-35 (show), FR-47 / FR-48 (admin view), FR-52 (warning), NFR-2.3 | `WebApi.cpp` handlers |
+| 22 | `StatusModel` | L6 | Page, API and `STATUS` data from the published snapshot I16 | static output buffer | FR-8.1 (data), FR-8.4, FR-10.2 (show), FR-20 (show), FR-21, FR-23, FR-35 (show), FR-47 / FR-48 (admin view), FR-52 (warning), NFR-2.3 | `WebApi.cpp` handlers |
 | 23 | `History` | L6 | Telemetry history and burner counters | LittleFS ring files, counters | FR-34, FR-35, NFR-4.1 (measurement) | `TelemetryHistoryManager`, counters in `BoilerRadioTrigger` |
 | — | all modules | all | Cross-cutting rules: §2 principles, §8 fallbacks, §14 budgets | — | NFR-1.1 (no network dependency in L2–L4), NFR-2.6 (P5), NFR-2.8 (§14.1), NFR-3.1, NFR-3.2 (this table), NFR-5.1 (§8), NFR-5.2 (§8.2) | — |
 
@@ -464,8 +464,8 @@ an already open valve open. Everything else arrives as a request.
   above). TPI uses the band of the current outdoor temperature; an empty band starts from the nearest learned band.
   `FAULT` uses the same table, so FR-51 gets "the learned duty for the current outdoor temperature". Outdoor `Lost` →
   last used band.
-- **Displayed zone state** (page, API) is derived, highest first: `FROST` (safety latch) > `FAULT` > `WINDOW` >
-  `HEATING` (valve `OPENING` / `OPEN`) > `IDLE`; `DISABLED` separately.
+- **Displayed zone state** (page, API, FR-8.4) is derived, highest first: `FROST` (safety latch) > `DISABLED` >
+  `FAULT` > `ACQUIRING` > `WINDOW` > `HEATING` (valve `OPENING` / `OPEN`) > `IDLE`.
 
 ### 7.2 Valve state — `SafetySupervisor::ValveArbiter`, per output
 
@@ -674,7 +674,8 @@ The event history lives in LittleFS (§10) to keep NVS free for parameters (AR-6
   watchdog reset, controlled restart, season change, OTA, invariant violation, parameter reset. The same code and zone
   are recorded at most 6 times per hour; further repeats are counted in the last record (flash wear and history
   stay bounded).
-- **Health:** free heap, minimum, largest block every 10 s (FR-23, NFR-2.2); health score for FR-10.4.
+- **Health:** free heap, minimum, largest block every 10 s (FR-23, NFR-2.2); the checks of FR-10.4 (rule, value,
+  `OK` / `FAIL` / `INFO`), no score.
 
 | DTC | Raised by |
 |---|---|

@@ -65,31 +65,16 @@ void printBootBannerAndSelfTest() {
   netConsole.printf("  Reset Cause: %s\n", getResetReasonStr(rstReason));
   netConsole.println(F("=================================================="));
 
-  bool wifiOk = (WiFi.status() == WL_CONNECTED);
-  uint32_t heap = ESP.getFreeHeap();
-  bool bleOk = bleScanner.isScanning();
-  uint8_t health = diagEngine.calculateHealthScore();
-
-  netConsole.println(F("[POST] Power-On Self-Test:"));
-  netConsole.printf("  * Network Connection:    %s (IP: %s, Signal: %d dBm)\n",
-                    wifiOk ? "PASS" : "FAIL",
-                    wifiOk ? WiFi.localIP().toString().c_str() : "No IP",
-                    wifiOk ? WiFi.RSSI() : 0);
-  netConsole.printf("  * System Memory (RAM):   PASS (%u KB free, no leaks)\n", heap / 1024);
-  netConsole.printf("  * Thermal Actuators:     PASS (%s, User-Configured in NVS)\n",
-                    thermalZones.isActuatorNormallyClosed() ? "Normally Closed [NC]" : "Normally Open [NO]");
-  netConsole.printf("  * Circulation Pump:      PASS (Secondary Pump on Relay 4: %s)\n",
-                    thermalZones.isPumpControlEnabled() ? "ENABLED" : "DISABLED");
-  netConsole.printf("  * Room Thermometers:     %s (Bluetooth Receiver active, listening)\n",
-                    bleOk ? "PASS" : "FAIL");
-  netConsole.printf("  * Gas Boiler Radio (RF): PASS (Transmitter on GPIO%d Ready)\n", PIN_RF_DATA);
-  netConsole.println(F("  * System Crash Guard:    PASS (Hardware Watchdog Armed: 90s timeout)"));
-  netConsole.printf("  * Flash Telemetry:       %s (LittleFS Ring Buffer: 24h@5m, 5d@30m)\n",
-                    telemetryHistory.isFsMounted() ? "PASS" : "WARN");
-  netConsole.println(F("  * Web Dashboard & API:   PASS (HTTP Port 80, Telnet Port 23)"));
-  netConsole.printf("  * Overall Health Score:  %u%% [%s]\n",
-                    health,
-                    health >= 90 ? "EXCELLENT" : (health >= 70 ? "GOOD" : "DEGRADED"));
+  // FR-10.4: the boot self-test prints the measured checks only, no PASS without a check
+  DiagCheck checks[DIAG_CHECK_COUNT];
+  diagEngine.runChecks(checks);
+  netConsole.println(F("[POST] Power-On Self-Test (FR-10.4):"));
+  for (size_t i = 0; i < DIAG_CHECK_COUNT; i++) {
+    netConsole.printf("  * %-8s %-5s %-20s %s\n", checks[i].id, checks[i].result,
+                      checks[i].value, checks[i].rule);
+  }
+  netConsole.printf("  * Flash Telemetry: LittleFS %s\n",
+                    telemetryHistory.isFsMounted() ? "mounted" : "NOT mounted");
   netConsole.println(F("--------------------------------------------------"));
   netConsole.println(F("[Ready] Type 'HELP' or '?' for command list."));
   netConsole.println(F("=================================================="));

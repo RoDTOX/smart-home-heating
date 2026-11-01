@@ -44,7 +44,7 @@ import subprocess
 import sys
 import urllib.request
 
-from sh_git_version import FIRMWARE_INPUTS, firmware_commit
+from sh_git_version import FIRMWARE_INPUTS, firmware_commit, firmware_version
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 REQ_DOC = "docs/requirements_and_features.md"
@@ -735,6 +735,11 @@ def check_build_identity(rep):
                 if re.match(r'\s*#define\s+APP_GIT_COMMIT\s+"[0-9a-f]{7,}', line):
                     rel = os.path.relpath(path, ROOT).replace(os.sep, "/")
                     rep.error(f"{rel}:{n}: hard-coded APP_GIT_COMMIT - it must come from git_version.h")
+                # FR-21: the version is computed from git (1.MM.DD.NN); only the fallback may be written by hand
+                m = re.match(r'\s*#define\s+APP_VERSION\s+"([^"]+)"', line)
+                if m and m.group(1) != "1.00.00.00":
+                    rel = os.path.relpath(path, ROOT).replace(os.sep, "/")
+                    rep.error(f"{rel}:{n}: hard-coded APP_VERSION - it must come from git_version.h (FR-21)")
 
 
 def read_table(rel, columns=()):
@@ -1062,14 +1067,11 @@ def check_release(rep):
 
     check_problems(rep, release=True)
 
-    m = re.search(r'^\s*#define\s+APP_VERSION\s+"([^"]+)"', read(VERSION_H), re.MULTILINE)
-    if not m:
-        rep.error(f"{VERSION_H}: APP_VERSION not found")
-        return
-    tag = f"v{m.group(1)}"
+    tag = f"v{firmware_version(ROOT)}"
     tagged = git("rev-parse", "--verify", "--quiet", tag + "^{commit}", probe=True)
     if tagged and not same_firmware(tagged.strip()):
-        rep.error(f"{tag} already released with different firmware - bump APP_VERSION in {VERSION_H}")
+        rep.error(f"{tag} already released with different firmware - the same day a year earlier; "
+                  f"tag the release with the year")
     elif tagged:
         rep.info(f"HEAD firmware is the released {tag}")
     else:

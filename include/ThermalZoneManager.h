@@ -130,7 +130,9 @@ public:
     // Pump Control (Relay 4 on PIN_RELAY_SPARE / GPIO26)
     bool isPumpControlEnabled() const { return _pumpControlEnabled; }
     bool isPumpActive() const { return _pumpActive; }
-    void setPumpControlEnabled(bool enabled);
+    bool setPumpControlEnabled(bool enabled);  // false: a zone uses the pump relay (FR-11.3), nothing changed
+    // FR-11.3: index of the zone (other than exceptIndex) driving this relay output, -1 when none
+    int zoneUsingRelay(uint8_t pin, size_t exceptIndex) const;
 
     // Actuator Type (NC vs NO)
     bool isActuatorNormallyClosed() const { return _actuatorNormallyClosed; }
@@ -232,7 +234,8 @@ public:
     void saveSchedule();
 
     // Helpers
-    const char* getStateStr(ZoneState state) const;
+    // FR-8.4: displayed zone state code (FROST, DISABLED, FAULT, ACQUIRING, WINDOW, HEATING, IDLE)
+    const char* getStateCode(size_t index) const;
 
 private:
     ThermalZoneConfig _configs[MAX_THERMAL_ZONES];

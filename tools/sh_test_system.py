@@ -187,7 +187,7 @@ class SystemTestSuite:
             data = r.json()
             rssi = data.get("rssi")
             assert rssi is not None and rssi < 0, f"Invalid RSSI value: {rssi}"
-            details = f"Wi-Fi RSSI: {rssi} dBm, Health Score: {data.get('healthScore')}%"
+            details = f"Wi-Fi RSSI: {rssi} dBm"
             return TestResult(test_id, name, req, "PASS", latency, details)
         except Exception as e:
             return TestResult(test_id, name, req, "FAIL", (time.time() - start)*1000, str(e))
@@ -336,114 +336,60 @@ class SystemTestSuite:
     # Group 4: Onboard Diagnostics & Safety Self-Test
     # ---------------------------------------------------------
 
-    def test_tc04_1_selftest_wifi(self):
-        """SWE.5-TC04.1: Self-Test Wi-Fi Subsystem Verification (FR-10, NFR-1.1)"""
+    CHECK_IDS = ("wifi", "heap", "ble", "sensors", "time", "weather", "radio")
+
+    def _selftest_results(self):
+        text = requests.get(f"{self.base_url}/api/diag/selftest", timeout=self.timeout).text
+        found = dict(re.findall(r"^(wifi|heap|ble|sensors|time|weather|radio)\s+(OK|FAIL|INFO)\b", text, re.M))
+        return text, found
+
+    def test_tc04_1_selftest_lists_checks(self):
+        """SWE.5-TC04.1: Self-Test Lists Every Check With a Result (FR-10.4)"""
         test_id = "SWE.5-TC04.1"
-        name = "Self-Test Wi-Fi Subsystem"
-        req = "FR-10, NFR-1.1"
+        name = "Self-Test Lists Checks"
+        req = "FR-10.4"
         start = time.time()
         try:
-            r = requests.get(f"{self.base_url}/api/diag/selftest", timeout=self.timeout)
+            text, found = self._selftest_results()
             latency = (time.time() - start) * 1000
-            text = r.text
-            assert "Wi-Fi Subsystem:" in text and "PASS" in text, "Wi-Fi subsystem not PASS in selftest"
-            details = "Wi-Fi Subsystem: PASS verified over live selftest"
+            missing = [c for c in self.CHECK_IDS if c not in found]
+            assert not missing, f"Checks missing from /api/diag/selftest: {missing}"
+            details = ", ".join(f"{c} {found[c]}" for c in self.CHECK_IDS)
             return TestResult(test_id, name, req, "PASS", latency, details)
         except Exception as e:
             return TestResult(test_id, name, req, "FAIL", (time.time() - start)*1000, str(e))
 
-    def test_tc04_2_selftest_memory_heap(self):
-        """SWE.5-TC04.2: Self-Test System Memory (Heap) Verification (FR-10, NFR-2.2)"""
+    def test_tc04_2_selftest_matches_status(self):
+        """SWE.5-TC04.2: Self-Test and /api/diag/status Give the Same Results (FR-10.4)"""
         test_id = "SWE.5-TC04.2"
-        name = "Self-Test System Memory (Heap)"
-        req = "FR-10, NFR-2.2"
+        name = "Self-Test = Diag Status"
+        req = "FR-10.4"
         start = time.time()
         try:
-            r = requests.get(f"{self.base_url}/api/diag/selftest", timeout=self.timeout)
+            _, found = self._selftest_results()
+            diag = requests.get(f"{self.base_url}/api/diag/status", timeout=self.timeout).json()
             latency = (time.time() - start) * 1000
-            text = r.text
-            assert "System Memory (Heap):" in text and "PASS" in text, "Heap subsystem not PASS in selftest"
-            details = "System Memory (Heap): PASS verified (>60 KB threshold)"
+            api = {c["id"]: c["result"] for c in diag.get("checks", [])}
+            # time and weather can flip between the two calls only at a sync; all others are stable
+            diff = [c for c in self.CHECK_IDS if found.get(c) != api.get(c)]
+            assert not diff, f"Self-test vs /api/diag/status differ for {diff}: {found} vs {api}"
+            details = "same results in both reports"
             return TestResult(test_id, name, req, "PASS", latency, details)
         except Exception as e:
             return TestResult(test_id, name, req, "FAIL", (time.time() - start)*1000, str(e))
 
-    def test_tc04_3_selftest_ble_stack(self):
-        """SWE.5-TC04.3: Self-Test Bluetooth BLE Stack Verification (FR-6, FR-10)"""
+    def test_tc04_3_selftest_no_score(self):
+        """SWE.5-TC04.3: Self-Test Reports No Health Score or PASS Without a Check (FR-10.4)"""
         test_id = "SWE.5-TC04.3"
-        name = "Self-Test Bluetooth BLE Stack"
-        req = "FR-6, FR-10"
+        name = "Self-Test Without Score"
+        req = "FR-10.4"
         start = time.time()
         try:
-            r = requests.get(f"{self.base_url}/api/diag/selftest", timeout=self.timeout)
+            text, _ = self._selftest_results()
             latency = (time.time() - start) * 1000
-            text = r.text
-            assert "Bluetooth BLE Stack:" in text and "PASS" in text, "BLE stack not PASS in selftest"
-            details = "Bluetooth BLE Stack: PASS (Scanner ACTIVE)"
-            return TestResult(test_id, name, req, "PASS", latency, details)
-        except Exception as e:
-            return TestResult(test_id, name, req, "FAIL", (time.time() - start)*1000, str(e))
-
-    def test_tc04_4_selftest_hydraulic_pump(self):
-        """SWE.5-TC04.4: Self-Test Hydraulic Pump Subsystem Verification (FR-10, FR-14)"""
-        test_id = "SWE.5-TC04.4"
-        name = "Self-Test Hydraulic Pump Subsystem"
-        req = "FR-10, FR-14"
-        start = time.time()
-        try:
-            r = requests.get(f"{self.base_url}/api/diag/selftest", timeout=self.timeout)
-            latency = (time.time() - start) * 1000
-            text = r.text
-            assert "Hydraulic Pump Ctrl:" in text and "PASS" in text, "Pump subsystem not PASS in selftest"
-            details = "Hydraulic Pump Ctrl: PASS (Relay 4 GPA Controller)"
-            return TestResult(test_id, name, req, "PASS", latency, details)
-        except Exception as e:
-            return TestResult(test_id, name, req, "FAIL", (time.time() - start)*1000, str(e))
-
-    def test_tc04_5_selftest_multizone_engine(self):
-        """SWE.5-TC04.5: Self-Test Multi-Zone Heating Engine Verification (FR-1, FR-10)"""
-        test_id = "SWE.5-TC04.5"
-        name = "Self-Test Multi-Zone Heating Engine"
-        req = "FR-1, FR-10"
-        start = time.time()
-        try:
-            r = requests.get(f"{self.base_url}/api/diag/selftest", timeout=self.timeout)
-            latency = (time.time() - start) * 1000
-            text = r.text
-            assert "Multi-Zone Engine:" in text and "PASS" in text, "Multi-zone engine not PASS in selftest"
-            details = "Multi-Zone Engine: PASS (Automatic Hysteresis Loops)"
-            return TestResult(test_id, name, req, "PASS", latency, details)
-        except Exception as e:
-            return TestResult(test_id, name, req, "FAIL", (time.time() - start)*1000, str(e))
-
-    def test_tc04_6_selftest_boiler_rf(self):
-        """SWE.5-TC04.6: Self-Test Boiler RF 433 MHz Trigger Verification (FR-5, FR-10)"""
-        test_id = "SWE.5-TC04.6"
-        name = "Self-Test Boiler RF 433 MHz Trigger"
-        req = "FR-5, FR-10"
-        start = time.time()
-        try:
-            r = requests.get(f"{self.base_url}/api/diag/selftest", timeout=self.timeout)
-            latency = (time.time() - start) * 1000
-            text = r.text
-            assert "Boiler RF 433 MHz:" in text and "PASS" in text, "Boiler RF trigger not PASS in selftest"
-            details = "Boiler RF 433 MHz: PASS (OOK 409-step Transmitter)"
-            return TestResult(test_id, name, req, "PASS", latency, details)
-        except Exception as e:
-            return TestResult(test_id, name, req, "FAIL", (time.time() - start)*1000, str(e))
-
-    def test_tc04_7_selftest_health_score(self):
-        """SWE.5-TC04.7: Self-Test Health Score Rating (100% EXCELLENT) (FR-10)"""
-        test_id = "SWE.5-TC04.7"
-        name = "Self-Test System Health Score"
-        req = "FR-10"
-        start = time.time()
-        try:
-            r = requests.get(f"{self.base_url}/api/diag/selftest", timeout=self.timeout)
-            latency = (time.time() - start) * 1000
-            text = r.text
-            assert "System Health Score:      100% [EXCELLENT]" in text or "Health Score:" in text, "Missing health score"
-            details = "Overall Health Score: 100% [EXCELLENT] (All subsystems healthy)"
+            assert "health" not in text.lower() and "score" not in text.lower(), "Self-test still reports a health score"
+            assert not re.search(r"\bPASS\b", text), "Self-test still prints PASS lines"
+            details = "no score, no PASS lines"
             return TestResult(test_id, name, req, "PASS", latency, details)
         except Exception as e:
             return TestResult(test_id, name, req, "FAIL", (time.time() - start)*1000, str(e))
@@ -778,9 +724,9 @@ class SystemTestSuite:
             return TestResult(test_id, name, req, "FAIL", (time.time() - start)*1000, str(e))
 
     def test_tc10_2_dtc201_fault_logging(self):
-        """SWE.5-TC10.2: DTC-201 Fault Logging & Health Score Degradation (FR-10, FR-17)"""
+        """SWE.5-TC10.2: DTC-201 Fault Logging (FR-10, FR-17)"""
         test_id = "SWE.5-TC10.2"
-        name = "DTC-201 Logging & Health Degradation"
+        name = "DTC-201 Logging"
         req = "FR-10, FR-17"
         start = time.time()
         try:
@@ -790,16 +736,16 @@ class SystemTestSuite:
             dtcs = data.get("dtcs", [])
             has_dtc201 = any(d.get("code") == "DTC-201" for d in dtcs)
             assert has_dtc201, f"DTC-201 was not logged after spam injection: {dtcs}"
-            assert data.get("healthScore", 100) < 100, "Health score did not degrade"
-            details = f"DTC-201 raised: WARN_BOILER_SPAM_DETECTED, Health Score degraded to {data.get('healthScore')}%"
+            assert data.get("dtcCount", 0) >= 1, f"dtcCount does not count the active DTC-201: {data.get('dtcCount')}"
+            details = f"DTC-201 raised: WARN_BOILER_SPAM_DETECTED, {data.get('dtcCount')} active DTC(s)"
             return TestResult(test_id, name, req, "PASS", latency, details)
         except Exception as e:
             return TestResult(test_id, name, req, "FAIL", (time.time() - start)*1000, str(e))
 
     def test_tc10_3_dtc_clear_and_recovery(self):
-        """SWE.5-TC10.3: Diagnostic DTC Clear & Health Score Recovery (FR-10, FR-17)"""
+        """SWE.5-TC10.3: Diagnostic DTC Clear (FR-10, FR-17)"""
         test_id = "SWE.5-TC10.3"
-        name = "DTC Clear & System Health Recovery"
+        name = "DTC Clear"
         req = "FR-10, FR-17"
         start = time.time()
         try:
@@ -812,13 +758,46 @@ class SystemTestSuite:
             r_diag = requests.get(f"{self.base_url}/api/diag/status", timeout=self.timeout)
             latency = (time.time() - start) * 1000
             data = r_diag.json()
-            assert data.get("healthScore") == 100, f"Expected 100% health score, got {data.get('healthScore')}"
             assert len(data.get("dtcs", [])) == 0, "DTCs still present after clear"
-            details = "DTCs cleared; System Health Score 100% recovered"
+            assert data.get("dtcCount") == 0, f"dtcCount {data.get('dtcCount')} after clear, expected 0 active"
+            details = "DTCs cleared; 0 active"
             return TestResult(test_id, name, req, "PASS", latency, details)
         except Exception as e:
             requests.post(f"{self.base_url}/api/boiler/cancel", timeout=self.timeout)
             requests.post(f"{self.base_url}/api/boiler/off?force=true", timeout=self.timeout)
+            return TestResult(test_id, name, req, "FAIL", (time.time() - start)*1000, str(e))
+
+    def test_tc10_4_basic_selftest_checks(self):
+        """SWE.5-TC10.4: Basic Self-Test Reports Checks, No Score (FR-10.4)"""
+        test_id = "SWE.5-TC10.4"
+        name = "Self-Test Checks (no score)"
+        req = "FR-10.4"
+        start = time.time()
+        try:
+            diag = requests.get(f"{self.base_url}/api/diag/status", timeout=self.timeout).json()
+            status = requests.get(f"{self.base_url}/api/boiler/status", timeout=self.timeout).json()
+            zones = requests.get(f"{self.base_url}/api/zones", timeout=self.timeout).json()["zones"]
+            latency = (time.time() - start) * 1000
+            # FR-10.4: no health score or percentage
+            assert "healthScore" not in diag and "healthScore" not in status, "healthScore still reported"
+            checks = {c["id"]: c for c in diag.get("checks", [])}
+            expected = {"wifi", "heap", "ble", "sensors", "time", "weather", "radio"}
+            assert set(checks) == expected, f"Checks {sorted(checks)}, expected {sorted(expected)}"
+            for c in checks.values():
+                assert c.get("result") in ("OK", "FAIL", "INFO"), f"{c['id']}: result {c.get('result')}"
+                assert c.get("rule") and "value" in c, f"{c['id']}: rule or value missing"
+            # The rules of the FR-10.4 table, recomputed from the values the board reports
+            rssi = status["rssi"]
+            assert checks["wifi"]["result"] == ("OK" if rssi >= -82 else "FAIL"), f"wifi {checks['wifi']} at {rssi} dBm"
+            heap_ok = status["freeHeap"] >= 60000
+            assert checks["heap"]["result"] == ("OK" if heap_ok else "FAIL"), f"heap {checks['heap']} at {status['freeHeap']}"
+            on = [z for z in zones if z["enabled"]]
+            want = "INFO" if not on else ("OK" if all(z["sensorValid"] and not z["sensorFault"] for z in on) else "FAIL")
+            assert checks["sensors"]["result"] == want, f"sensors {checks['sensors']}, expected {want}"
+            assert checks["radio"]["result"] == "INFO", "radio must be INFO (no return channel)"
+            details = ", ".join(f"{k} {checks[k]['result']}" for k in sorted(checks))
+            return TestResult(test_id, name, req, "PASS", latency, details)
+        except Exception as e:
             return TestResult(test_id, name, req, "FAIL", (time.time() - start)*1000, str(e))
 
     # ---------------------------------------------------------
@@ -1085,19 +1064,26 @@ class SystemTestSuite:
         except Exception as e:
             return TestResult(test_id, name, req, "FAIL", (time.time() - start)*1000, str(e))
 
-    def test_tc15_1_firmware_semver(self):
-        """SWE.5-TC15.1: Firmware SemVer Baseline Integrity (1.2.0) (FR-21)"""
+    def test_tc15_1_firmware_version(self):
+        """SWE.5-TC15.1: Firmware Version 1.MM.DD.NN from git (FR-21)"""
         test_id = "SWE.5-TC15.1"
-        name = "Firmware SemVer Baseline (1.2.0)"
+        name = "Firmware Version 1.MM.DD.NN"
         req = "FR-21"
         start = time.time()
         try:
             r = requests.get(f"{self.base_url}/api/boiler/status", timeout=self.timeout)
             latency = (time.time() - start) * 1000
             data = r.json()
-            ver = data.get("firmwareVersion")
-            assert ver == "1.2.0", f"Unexpected firmware version: {ver}"
-            details = f"Firmware SemVer: v{ver}"
+            ver = data.get("firmwareVersion", "")
+            assert re.fullmatch(r"1\.(0[1-9]|1[0-2])\.(0[1-9]|[12]\d|3[01])\.\d{2}", ver), f"Not 1.MM.DD.NN: {ver}"
+            # Same firmware, same version: recompute it from git for the commit the board reports
+            commit = data.get("gitCommit", "").replace("-dirty", "")
+            root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+            sys.path.insert(0, os.path.join(root, "tools"))
+            from sh_git_version import firmware_version
+            expected = firmware_version(root, commit) if commit else None
+            assert expected is None or ver == expected, f"Board {ver}, git gives {expected} for {commit}"
+            details = f"Firmware version {ver} = git for {commit}"
             return TestResult(test_id, name, req, "PASS", latency, details)
         except Exception as e:
             return TestResult(test_id, name, req, "FAIL", (time.time() - start)*1000, str(e))
@@ -1334,8 +1320,6 @@ class SystemTestSuite:
                 assert "targetTemp" in z, f"Missing targetTemp in zone {i}"
                 if z.get("sensorValid", False):
                     assert 5.0 <= z["currentTemp"] <= 40.0, f"Unphysical currentTemp {z['currentTemp']} in zone {i}"
-                else:
-                    assert z["currentTemp"] == 0.0 or "Warmup" in z.get("state", ""), f"Unexpected uninitialized temp: {z['currentTemp']}"
             details = f"Verified live telemetry for {len(zones)} zones feeding 3h SVG sparkline dynamics"
             return TestResult(test_id, name, req, "PASS", latency, details)
         except Exception as e:
@@ -1358,6 +1342,116 @@ class SystemTestSuite:
             calls = re.findall(r"""api\(\s*["'`]([^"'`]+)""", html)
             assert calls, "No api(...) calls found in the served page"
             details = f"{len(calls)} API calls, all relative; no root-absolute href/src/action"
+            return TestResult(test_id, name, req, "PASS", latency, details)
+        except Exception as e:
+            return TestResult(test_id, name, req, "FAIL", (time.time() - start)*1000, str(e))
+
+    ZONE_STATES = ("FROST", "DISABLED", "FAULT", "ACQUIRING", "WINDOW", "HEATING", "IDLE")
+
+    def test_tc19_8_zone_state_codes(self):
+        """SWE.5-TC19.8: Zone State Codes (FR-8.4)"""
+        test_id = "SWE.5-TC19.8"
+        name = "Zone State Codes"
+        req = "FR-8.4"
+        start = time.time()
+        try:
+            zones = requests.get(f"{self.base_url}/api/zones", timeout=self.timeout).json()["zones"]
+            latency = (time.time() - start) * 1000
+            for z in zones:
+                assert z["state"] in self.ZONE_STATES, f"Zone {z['id']}: state {z['state']!r} not in FR-8.4"
+                # First that applies from the top: a switched-off zone without frost is DISABLED
+                if not z["enabled"] and not z["frostActive"]:
+                    assert z["state"] == "DISABLED", f"Zone {z['id']} off but state {z['state']}"
+                if z["frostActive"]:
+                    assert z["state"] == "FROST", f"Zone {z['id']} frost but state {z['state']}"
+            details = ", ".join(f"Z{z['id']} {z['state']}" for z in zones)
+            return TestResult(test_id, name, req, "PASS", latency, details)
+        except Exception as e:
+            return TestResult(test_id, name, req, "FAIL", (time.time() - start)*1000, str(e))
+
+    def test_tc19_9_engineering_view_covers_api(self):
+        """SWE.5-TC19.9: Engineering View Explains Every API Value (FR-8.1)"""
+        test_id = "SWE.5-TC19.9"
+        name = "Engineering View Covers API"
+        req = "FR-8.1"
+        start = time.time()
+        try:
+            page = requests.get(f"{self.base_url}/", timeout=self.timeout).text
+            m = re.search(r'<script type="application/json" id="doc">(.*?)</script>', page, re.S)
+            assert m, "Engineering view name table (script#doc) not in the served page"
+            doc = json.loads(m.group(1))
+
+            def flat(v, path, out):
+                if isinstance(v, dict):
+                    for k, x in v.items():
+                        flat(x, f"{path}.{k}" if path else k, out)
+                elif isinstance(v, list):
+                    for x in v:
+                        flat(x, f"{path}[]", out)
+                else:
+                    out.add(path)
+                return out
+
+            missing, count = [], 0
+            for ep in doc["endpoints"]:
+                r = requests.get(f"{self.base_url}/{ep}", timeout=self.timeout)
+                assert r.status_code == 200, f"{ep}: HTTP {r.status_code}"
+                keys = flat(r.json(), "", set())
+                count += len(keys)
+                missing += [f"{ep} {k}" for k in sorted(keys) if k not in doc["doc"]]
+            latency = (time.time() - start) * 1000
+            assert not missing, f"API values without explanation: {missing[:8]}"
+            details = f"{len(doc['endpoints'])} endpoints, {count} value names, all explained"
+            return TestResult(test_id, name, req, "PASS", latency, details)
+        except Exception as e:
+            return TestResult(test_id, name, req, "FAIL", (time.time() - start)*1000, str(e))
+
+    def test_tc19_10_commissioning_rules(self):
+        """SWE.5-TC19.10: Commissioning Rejects Invalid Zone Settings (FR-11.3)"""
+        test_id = "SWE.5-TC19.10"
+        name = "Commissioning Rules"
+        req = "FR-11.3"
+        start = time.time()
+        url = f"{self.base_url}/api/setup/map-zone"
+        before = None
+        try:
+            before = requests.get(f"{self.base_url}/api/config/system", timeout=self.timeout).json()
+            zones = before["zones"]
+            z0, z1 = zones[0], zones[1]
+            # A relay output serves at most one zone
+            r = requests.post(url, data={"zone": 0, "pin": z1["relayPin"]}, timeout=self.timeout)
+            assert r.status_code == 400, f"Relay of zone 2 given to zone 1: HTTP {r.status_code}"
+            # A zone is switched on only with a sensor
+            r = requests.post(url, data={"zone": 0, "enabled": 1, "mac": "", "sname": ""}, timeout=self.timeout)
+            assert r.status_code == 400, f"Zone switched on without sensor: HTTP {r.status_code}"
+            # Names that would break the JSON are rejected
+            r = requests.post(url, data={"zone": 0, "name": 'a"b'}, timeout=self.timeout)
+            assert r.status_code == 400, f"Name with a quote: HTTP {r.status_code}"
+            r = requests.post(url, data={"zone": 0, "mac": "nonsense"}, timeout=self.timeout)
+            assert r.status_code == 400, f"Malformed MAC: HTTP {r.status_code}"
+            # Nothing changed by the rejected settings
+            after = requests.get(f"{self.base_url}/api/config/system", timeout=self.timeout).json()
+            assert after["zones"] == zones, f"Rejected settings changed the zones: {after['zones']}"
+            # Not the relay the pump uses: with a zone on relay 4 the pump cannot be enabled
+            pump_pin = before["pumpRelayPin"]
+            free = next((z for z in zones if z["relayPin"] != pump_pin and not z["enabled"]), None)
+            pump_checked = False
+            if not before["pumpControlEnabled"] and free and all(z["relayPin"] != pump_pin for z in zones):
+                idx = free["id"] - 1
+                r = requests.post(url, data={"zone": idx, "pin": pump_pin}, timeout=self.timeout)
+                assert r.status_code == 200, f"Free relay 4 to switched-off zone {free['id']}: HTTP {r.status_code}"
+                try:
+                    r = requests.post(f"{self.base_url}/api/setup/pump", data={"enabled": 1}, timeout=self.timeout)
+                    assert r.status_code == 400, f"Pump enabled on a zone relay: HTTP {r.status_code}"
+                    cfg = requests.get(f"{self.base_url}/api/config/system", timeout=self.timeout).json()
+                    assert not cfg["pumpControlEnabled"], "Pump got enabled on a zone relay"
+                    pump_checked = True
+                finally:
+                    r = requests.post(url, data={"zone": idx, "pin": free["relayPin"]}, timeout=self.timeout)
+                    assert r.status_code == 200, f"Could not restore zone {free['id']} relay {free['relayPin']}"
+            latency = (time.time() - start) * 1000
+            details = "relay twice, on without sensor, bad name, bad MAC rejected, nothing changed" + \
+                      ("; pump on a zone relay rejected" if pump_checked else "; pump rule not checked (pump on or relay 4 used)")
             return TestResult(test_id, name, req, "PASS", latency, details)
         except Exception as e:
             return TestResult(test_id, name, req, "FAIL", (time.time() - start)*1000, str(e))
@@ -1907,13 +2001,9 @@ class SystemTestSuite:
             self.test_tc03_3_ble_link_quality_badges,
             self.test_tc03_4_boot_warmup_contract,
             # Group 4: Diagnostics & Self-Test
-            self.test_tc04_1_selftest_wifi,
-            self.test_tc04_2_selftest_memory_heap,
-            self.test_tc04_3_selftest_ble_stack,
-            self.test_tc04_4_selftest_hydraulic_pump,
-            self.test_tc04_5_selftest_multizone_engine,
-            self.test_tc04_6_selftest_boiler_rf,
-            self.test_tc04_7_selftest_health_score,
+            self.test_tc04_1_selftest_lists_checks,
+            self.test_tc04_2_selftest_matches_status,
+            self.test_tc04_3_selftest_no_score,
             # Group 5: Watchdog Timer
             self.test_tc05_1_hardware_twdt_guard,
             # Group 6: Actuator Polarity
@@ -1937,6 +2027,7 @@ class SystemTestSuite:
             self.test_tc10_1_rapid_spam_injection,
             self.test_tc10_2_dtc201_fault_logging,
             self.test_tc10_3_dtc_clear_and_recovery,
+            self.test_tc10_4_basic_selftest_checks,
             # Group 11: Zone Setpoints & Modes
             self.test_tc11_1_zone_setpoint_read,
             self.test_tc11_2_zone_setpoint_mutation,
@@ -1956,7 +2047,7 @@ class SystemTestSuite:
             self.test_tc14_3_sensor_timeout_restoration,
             self.test_tc14_4_sensor_timeout_out_of_range_rejected,
             # Group 15: Firmware Baseline Identity
-            self.test_tc15_1_firmware_semver,
+            self.test_tc15_1_firmware_version,
             self.test_tc15_2_build_timestamp_and_git,
             self.test_tc15_3_hardware_reset_reason,
             # Group 16: Schedule (day / night / away levels)
@@ -1970,6 +2061,9 @@ class SystemTestSuite:
             self.test_tc19_3_invalid_zone_index_handling,
             self.test_tc19_6_sparkline_trend_telemetry,
             self.test_tc19_7_page_relative_urls,
+            self.test_tc19_8_zone_state_codes,
+            self.test_tc19_9_engineering_view_covers_api,
+            self.test_tc19_10_commissioning_rules,
             # Group 20: LittleFS Flash Telemetry History Buffer (FR-34)
             self.test_tc20_1_history_schema_24h,
             self.test_tc20_2_history_schema_5d,

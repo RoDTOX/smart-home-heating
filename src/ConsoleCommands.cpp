@@ -163,7 +163,8 @@ void handleSerialCommand(String cmd) {
   } else if (upperCmd == "PUMP OFF") {
     thermalZones.setPumpManual(false);
   } else if (upperCmd == "PUMP ENABLE") {
-    thermalZones.setPumpControlEnabled(true);
+    if (!thermalZones.setPumpControlEnabled(true))
+      netConsole.println(F("[ERR] Relay 4 is a zone output, the pump cannot use it (FR-11.3)."));
   } else if (upperCmd == "PUMP DISABLE") {
     thermalZones.setPumpControlEnabled(false);
   } else if (upperCmd == "ACTUATOR NC") {
@@ -453,9 +454,14 @@ void handleSerialCommand(String cmd) {
     } else if (upperCmd == "DIAG CLEAR") {
       diagEngine.clearAllDtcs();
     } else {
-      netConsole.printf("[DIAG] System Health Score: %u%% | Active DTCs: %u\n",
-                        diagEngine.calculateHealthScore(),
-                        diagEngine.getDtcCount());
+      DiagCheck checks[DIAG_CHECK_COUNT];
+      diagEngine.runChecks(checks);
+      for (size_t i = 0; i < DIAG_CHECK_COUNT; i++) {
+        netConsole.printf("[DIAG] %-8s %-5s %-20s %s\n", checks[i].id,
+                          checks[i].result, checks[i].value, checks[i].rule);
+      }
+      netConsole.printf("[DIAG] Active DTCs: %u\n",
+                        (unsigned int)diagEngine.getActiveDtcCount());
       size_t activeCount = 0;
       for (size_t i = 0; i < diagEngine.getDtcCount(); i++) {
         const DtcRecord *d = diagEngine.getDtc(i);
@@ -468,8 +474,7 @@ void handleSerialCommand(String cmd) {
         }
       }
       if (activeCount == 0) {
-        netConsole.println(
-            F("  No active diagnostic trouble codes. All subsystems nominal!"));
+        netConsole.println(F("  No active diagnostic trouble codes."));
       }
     }
   } else if (upperCmd.startsWith("LOCATION")) {

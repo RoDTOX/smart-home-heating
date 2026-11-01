@@ -3,6 +3,7 @@
 #include "BoilerRadioTrigger.h"
 #include "NetworkConsole.h"
 #include "ThermalZoneManager.h"
+#include "TimeAndWeatherService.h"
 #include <WiFi.h>
 
 DiagnosticEngine diagEngine;
@@ -180,29 +181,104 @@ void DiagnosticEngine::evaluateSystem() {
   }
 }
 
-uint8_t DiagnosticEngine::calculateHealthScore() const {
-  int score = 100;
-  for (size_t i = 0; i < _dtcCount; i++) {
-    if (!_dtcRecords[i].active)
+static void setCheck(DiagCheck &c, const char *id, const char *rule,
+                     const char *result) {
+  c.id = id;
+  c.rule = rule;
+  c.result = result;
+  c.value[0] = '\0';
+}
+
+// FR-10.4: each check states its rule; nothing is reported as OK that was not measured
+void DiagnosticEngine::runChecks(DiagCheck (&out)[DIAG_CHECK_COUNT]) const {
+  bool wifiUp = (WiFi.status() == WL_CONNECTED);
+  int rssi = wifiUp ? WiFi.RSSI() : 0;
+  setCheck(out[0], "wifi", "Wi-Fi up and RSSI >= -82 dBm (DTC-401)",
+           wifiUp && rssi >= -82 ? "OK" : "FAIL");
+  if (wifiUp)
+    snprintf(out[0].value, sizeof(out[0].value), "%d dBm", rssi);
+  else
+    strlcpy(out[0].value, "disconnected", sizeof(out[0].value));
+
+  uint32_t heap = ESP.getFreeHeap();
+  setCheck(out[1], "heap", "free heap >= 60 KB (DTC-402)",
+           heap >= 60000 ? "OK" : "FAIL");
+  snprintf(out[1].value, sizeof(out[1].value), "%u KB", (unsigned int)(heap / 1024));
+
+  bool scanning = bleScanner.isScanning();
+  setCheck(out[2], "ble", "BLE scan running", scanning ? "OK" : "FAIL");
+  strlcpy(out[2].value, scanning ? "scanning" : "stopped", sizeof(out[2].value));
+
+  size_t on = 0, withReading = 0;
+  for (size_t i = 0; i < thermalZones.getZoneCount(); i++) {
+    if (!thermalZones.getConfig(i).enabled)
       continue;
-    switch (_dtcRecords[i].severity) {
-    case SEV_INFO:
-      score -= 2;
-      break;
-    case SEV_WARNING:
-      score -= 10;
-      break;
-    case SEV_ERROR:
-      score -= 25;
-      break;
-    case SEV_CRITICAL:
-      score -= 50;
-      break;
-    }
+    on++;
+    const ThermalZoneStatus &st = thermalZones.getStatus(i);
+    if (st.sensorValid && !st.sensorFault)
+      withReading++;
   }
-  if (score < 0)
-    score = 0;
-  return (uint8_t)score;
+  setCheck(out[3], "sensors",
+           "every switched-on zone has a reading within sensorTimeout "
+           "(DTC-101); INFO while no zone is on",
+           on == 0 ? "INFO" : (withReading == on ? "OK" : "FAIL"));
+  snprintf(out[3].value, sizeof(out[3].value), "%u/%u", (unsigned int)withReading,
+           (unsigned int)on);
+
+  bool synced = timeAndWeather.isTimeSynced();
+  setCheck(out[4], "time", "clock synchronised", synced ? "OK" : "FAIL");
+  strlcpy(out[4].value, synced ? timeAndWeather.getFormattedTime().c_str() : "not synced",
+          sizeof(out[4].value));
+
+  uint32_t age = timeAndWeather.getWeatherAgeSec();
+  setCheck(out[5], "weather", "outdoor temperature not older than 6 h (FR-9)",
+           age <= 6UL * 3600UL ? "OK" : "FAIL");
+  if (age == 999999)
+    strlcpy(out[5].value, "never received", sizeof(out[5].value));
+  else
+    snprintf(out[5].value, sizeof(out[5].value), "%u min old", (unsigned int)(age / 60));
+
+  setCheck(out[6], "radio",
+           "no return channel: the boiler's reaction cannot be checked", "INFO");
+  uint32_t tx = boilerRadio.getLastTransmissionTime();
+  if (tx == 0)
+    strlcpy(out[6].value, "no frame since boot", sizeof(out[6].value));
+  else
+    snprintf(out[6].value, sizeof(out[6].value), "last %s, %u s ago",
+             boilerRadio.isLastCommandOn() ? "ON" : "OFF",
+             (unsigned int)((millis() - tx) / 1000));
+}
+
+String DiagnosticEngine::checksJson() const {
+  DiagCheck checks[DIAG_CHECK_COUNT];
+  runChecks(checks);
+  String json;
+  json.reserve(900);
+  json = "[";
+  for (size_t i = 0; i < DIAG_CHECK_COUNT; i++) {
+    if (i > 0)
+      json += ",";
+    json += "{\"id\":\"";
+    json += checks[i].id;
+    json += "\",\"result\":\"";
+    json += checks[i].result;
+    json += "\",\"value\":\"";
+    json += checks[i].value;
+    json += "\",\"rule\":\"";
+    json += checks[i].rule;
+    json += "\"}";
+  }
+  json += "]";
+  return json;
+}
+
+size_t DiagnosticEngine::getActiveDtcCount() const {
+  size_t n = 0;
+  for (size_t i = 0; i < _dtcCount; i++) {
+    if (_dtcRecords[i].active)
+      n++;
+  }
+  return n;
 }
 
 String DiagnosticEngine::runSelfTest() {
@@ -210,58 +286,21 @@ String DiagnosticEngine::runSelfTest() {
   out.reserve(1024);
   out = "";
   out += "==================================================\n";
-  out += "  ESP32 Smart Heating - Full Self-Test Diagnostic \n";
+  out += "  Smart Heating - basic self-test (FR-10.4)\n";
   out += "==================================================\n";
 
-  // 1. Wi-Fi
-  bool wifiOk = (WiFi.status() == WL_CONNECTED);
-  out += "1. Wi-Fi Subsystem:       " + String(wifiOk ? "PASS" : "FAIL") +
-         " (IP: " + WiFi.localIP().toString() +
-         ", RSSI: " + String(WiFi.RSSI()) + " dBm)\n";
-
-  // 2. Memory
-  uint32_t heap = ESP.getFreeHeap();
-  bool heapOk = (heap >= 60000);
-  out += "2. System Memory (Heap):  " + String(heapOk ? "PASS" : "WARN") +
-         " (" + String(heap / 1024) + " KB free)\n";
-
-  // 3. BLE Subsystem
-  bool bleOk = bleScanner.isScanning();
-  size_t bleCount = bleScanner.getSensorCount();
-  out += "3. Bluetooth BLE Stack:   " + String(bleOk ? "PASS" : "FAIL") +
-         " (Scanner: " + String(bleOk ? "ACTIVE" : "STOPPED") +
-         ", Heard: " + String(bleCount) + " sensors)\n";
-
-  // 4. Hydraulic & Pump Controller
-  bool pumpEn = thermalZones.isPumpControlEnabled();
-  out += "4. Hydraulic Pump Ctrl:   PASS (GPA Pump: " +
-         String(pumpEn ? "ENABLED" : "DISABLED") + ")\n";
-
-  // 5. Thermal Controller
-  bool autoMode = thermalZones.isAutoMode();
-  out += "5. Multi-Zone Engine:     PASS (Mode: " +
-         String(autoMode ? "AUTOMATIC" : "MANUAL") +
-         ", Zones: " + String(thermalZones.getZoneCount()) + ")\n";
-
-  // 6. Boiler RF Trigger
-  bool boilerLast = boilerRadio.isLastCommandOn();
-  out += "6. Boiler RF 433 MHz:     PASS (Pin: GPIO" + String(PIN_RF_DATA) +
-         ", Last Cmd: " + String(boilerLast ? "ON" : "OFF") + ")\n";
-
-  // Health Score
-  uint8_t health = calculateHealthScore();
-  out += "--------------------------------------------------\n";
-  out += "System Health Score:      " + String(health) + "% [" +
-         String(health >= 90 ? "EXCELLENT"
-                             : (health >= 70 ? "GOOD" : "DEGRADED")) +
-         "]\n";
+  DiagCheck checks[DIAG_CHECK_COUNT];
+  runChecks(checks);
+  char line[160];
+  for (size_t i = 0; i < DIAG_CHECK_COUNT; i++) {
+    snprintf(line, sizeof(line), "%-8s %-5s %-20s %s\n", checks[i].id,
+             checks[i].result, checks[i].value, checks[i].rule);
+    out += line;
+  }
 
   // Active DTCs
-  size_t activeCount = 0;
-  for (size_t i = 0; i < _dtcCount; i++) {
-    if (_dtcRecords[i].active)
-      activeCount++;
-  }
+  size_t activeCount = getActiveDtcCount();
+  out += "--------------------------------------------------\n";
   out += "Active Diagnostic DTCs:   " + String(activeCount) + "\n";
   for (size_t i = 0; i < _dtcCount; i++) {
     if (_dtcRecords[i].active) {

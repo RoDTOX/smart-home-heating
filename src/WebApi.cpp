@@ -239,7 +239,7 @@ void handleApiZones() {
     json += "\"duty\":" + String((int)(thermalZones.getDuty(i) * 100)) + ",";
     json += "\"learnedDuty\":" + String((int)(thermalZones.getLearnedDuty(i) * 100)) + ",";
     json += "\"tempOffset\":" + String(cfg.tempOffset, 1) + ",";
-    json += "\"state\":\"" + String(thermalZones.getStateStr(st.state)) + "\"";
+    json += "\"state\":\"" + String(thermalZones.getStateCode(i)) + "\"";
     json += "}";
   }
   json += "]}";
@@ -333,6 +333,8 @@ void handleApiZoneWindowThreshold() {
               String("{\"status\":\"ok\",\"windowThreshold\":") + String(thermalZones.getWindowThreshold(), 1) + "}");
 }
 
+static void sendSetupError(const String &message);
+
 void handleApiZoneToggle() {
   if (!server.hasArg("id")) {
     server.send(400, "application/json",
@@ -344,7 +346,17 @@ void handleApiZoneToggle() {
                    ? (size_t)(idVal - 1)
                    : (size_t)idVal;
   if (idx < thermalZones.getZoneCount()) {
-    bool current = thermalZones.getConfig(idx).enabled;
+    const ThermalZoneConfig &cfg = thermalZones.getConfig(idx);
+    bool current = cfg.enabled;
+    // FR-11.3: on only with a sensor; FR-3: not off while the valve is energised (no overrun hold before step 4)
+    if (!current && strlen(cfg.sensorMac) == 0 && strlen(cfg.sensorName) == 0) {
+      sendSetupError("A zone is switched on only with a sensor");
+      return;
+    }
+    if (current && thermalZones.getStatus(idx).relayEngaged) {
+      sendSetupError("Valve is open; switch the zone off once the valve is closed");
+      return;
+    }
     thermalZones.setZoneEnabled(idx, !current);
     server.sendHeader("Access-Control-Allow-Origin", "*");
     server.send(200, "application/json", F("{\"status\":\"ok\"}"));
@@ -469,48 +481,115 @@ void handleApiSetupDiscoveredSensors() {
   server.send(200, "application/json", json);
 }
 
+static void sendSetupError(const String &message) {
+  server.sendHeader("Access-Control-Allow-Origin", "*");
+  server.send(400, "application/json",
+              "{\"status\":\"error\",\"message\":\"" + message + "; nothing changed\"}");
+}
+
+// Printable text that fits the record and cannot break the JSON it is written into
+static bool validLabel(const String &s, size_t capacity, bool allowEmpty) {
+  if (s.length() >= capacity || (!allowEmpty && s.length() == 0)) return false;
+  for (size_t i = 0; i < s.length(); i++) {
+    char c = s[i];
+    if ((uint8_t)c < 0x20 || c == '"' || c == '\\') return false;
+  }
+  return true;
+}
+
+static bool validMac(const String &s) {
+  if (s.length() == 0) return true;
+  if (s.length() != 17) return false;
+  for (size_t i = 0; i < 17; i++) {
+    char c = s[i];
+    if (i % 3 == 2 ? c != ':' : !isxdigit((unsigned char)c)) return false;
+  }
+  return true;
+}
+
+// FR-11.3: every field is checked before anything changes; a rejected setting returns 400 and changes nothing.
 void handleApiSetupMapZone() {
-  if (!server.hasArg("zone")) {
-    server.send(400, "application/json",
-                F("{\"status\":\"error\",\"message\":\"Missing zone param\"}"));
+  if (!server.hasArg("zone") || !isDigit(server.arg("zone")[0])) {
+    sendSetupError("Missing or invalid zone index");
     return;
   }
   size_t z = (size_t)server.arg("zone").toInt();
   if (z >= thermalZones.getZoneCount()) {
-    server.send(400, "application/json",
-                F("{\"status\":\"error\",\"message\":\"Invalid zone index\"}"));
-    return;
-  }
-  if (server.hasArg("pin") && !ParamStore::validRelayPin((uint8_t)server.arg("pin").toInt())) {
-    server.sendHeader("Access-Control-Allow-Origin", "*");
-    server.send(400, "application/json",
-                F("{\"status\":\"error\",\"message\":\"Invalid relay pin. Allowed: 32, 33, 25, 26.\"}"));
+    sendSetupError("Invalid zone index");
     return;
   }
   const ThermalZoneConfig &cur = thermalZones.getConfig(z);
   String name = server.hasArg("name") ? server.arg("name") : String(cur.name);
   String mac = server.hasArg("mac") ? server.arg("mac") : String(cur.sensorMac);
+  mac.toUpperCase();
   String sname =
       server.hasArg("sname") ? server.arg("sname") : String(cur.sensorName);
   uint8_t pin =
       server.hasArg("pin") ? (uint8_t)server.arg("pin").toInt() : cur.relayPin;
   float target =
       server.hasArg("target") ? server.arg("target").toFloat() : cur.targetTemp;
-  bool en = server.hasArg("enabled") ? (server.arg("enabled") == "true" ||
-                                        server.arg("enabled") == "1")
-                                     : cur.enabled;
+  float offset =
+      server.hasArg("offset") ? server.arg("offset").toFloat() : cur.tempOffset;
+  String enArg = server.hasArg("enabled") ? server.arg("enabled") : String(cur.enabled ? "1" : "0");
+  bool en = (enArg == "true" || enArg == "1");
+
+  if (!(en || enArg == "false" || enArg == "0")) {
+    sendSetupError("enabled must be 1/0 or true/false");
+    return;
+  }
+  if (!validLabel(name, sizeof(cur.name), false)) {
+    sendSetupError("Name must be 1-31 characters, no quotes or backslash");
+    return;
+  }
+  if (!validMac(mac)) {
+    sendSetupError("Sensor MAC must be AA:BB:CC:DD:EE:FF or empty");
+    return;
+  }
+  if (!validLabel(sname, sizeof(cur.sensorName), true)) {
+    sendSetupError("Sensor alias must be up to 31 characters, no quotes or backslash");
+    return;
+  }
+  // FR-3: no overrun hold before migration step 4, so an energised valve is neither moved nor switched off
+  if (thermalZones.getStatus(z).relayEngaged && (pin != cur.relayPin || (cur.enabled && !en))) {
+    sendSetupError("Valve is open; change the relay or switch the zone off once the valve is closed");
+    return;
+  }
+  if (!ParamStore::validRelayPin(pin)) {
+    sendSetupError("Invalid relay pin. Allowed: 32, 33, 25, 26");
+    return;
+  }
+  int other = thermalZones.zoneUsingRelay(pin, z);
+  if (other >= 0) {
+    sendSetupError("Relay already used by zone " + String(other + 1));
+    return;
+  }
+  if (thermalZones.isPumpControlEnabled() && pin == thermalZones.getPumpRelayPin()) {
+    sendSetupError("Relay is the pump output");
+    return;
+  }
+  if (en && mac.length() == 0 && sname.length() == 0) {
+    sendSetupError("A zone is switched on only with a sensor");
+    return;
+  }
+  if (server.hasArg("target") && (target < 15.0f || target > 30.0f)) {
+    sendSetupError("Target out of range (15 to 30 C)");
+    return;
+  }
+  if (offset < -3.0f || offset > 3.0f) {
+    sendSetupError("Offset out of range (-3 to +3 C)");
+    return;
+  }
   // `hysteresis` is one global value (requirements §6); "hyst" sets it for all zones.
-  if (server.hasArg("hyst") && !thermalZones.setHysteresis(server.arg("hyst").toFloat())) {
-    server.sendHeader("Access-Control-Allow-Origin", "*");
-    server.send(400, "application/json",
-                F("{\"status\":\"error\",\"message\":\"hysteresis out of range (0.1 to 1.0 C)\"}"));
+  if (server.hasArg("hyst") &&
+      !paramStore.inRange(Param::Hysteresis,
+                          ParamStore::toRaw(Param::Hysteresis, server.arg("hyst").toFloat()))) {
+    sendSetupError("hysteresis out of range (0.1 to 1.0 C)");
     return;
   }
 
+  if (server.hasArg("hyst")) thermalZones.setHysteresis(server.arg("hyst").toFloat());
   thermalZones.mapZone(z, name.c_str(), mac.c_str(), sname.c_str(), pin, target, en);
-  if (server.hasArg("offset")) {
-    thermalZones.setTempOffset(z, server.arg("offset").toFloat());
-  }
+  thermalZones.setTempOffset(z, offset);
   server.sendHeader("Access-Control-Allow-Origin", "*");
   server.send(200, "application/json",
               F("{\"status\":\"ok\",\"message\":\"Zone configuration updated "
@@ -527,10 +606,12 @@ void handleApiSetupTime() {
 
 void handleApiDiagStatus() {
   String json;
-  json.reserve(1024);
+  json.reserve(2048);
   json = "{";
-  json += "\"healthScore\":" + String(diagEngine.calculateHealthScore()) + ",";
-  json += "\"dtcCount\":" + String(diagEngine.getDtcCount()) + ",";
+  json += "\"checks\":";
+  json += diagEngine.checksJson();
+  json += ",";
+  json += "\"dtcCount\":" + String(diagEngine.getActiveDtcCount()) + ",";
   json += "\"dtcs\":[";
   size_t written = 0;
   for (size_t i = 0; i < diagEngine.getDtcCount(); i++) {
@@ -591,7 +672,10 @@ void handleApiSetupPump() {
     if (server.hasArg("enabled")) {
       String v = server.arg("enabled");
       v.toLowerCase();
-      thermalZones.setPumpControlEnabled(v == "true" || v == "1");
+      if (!thermalZones.setPumpControlEnabled(v == "true" || v == "1")) {
+        sendSetupError("Relay 4 is a zone output, the pump cannot use it");
+        return;
+      }
     }
   }
   String json = "{\"status\":\"ok\",\"pumpEnabled\":" +
@@ -646,7 +730,6 @@ void handleApiStatus() {
   json += "\"rssi\":" + String(WiFi.RSSI()) + ",";
   json += "\"uptimeSec\":" + String(millis() / 1000) + ",";
   json += "\"wifiWatchdog\":\"active\",";
-  json += "\"healthScore\":" + String(diagEngine.calculateHealthScore()) + ",";
   json += "\"time\":\"" + timeAndWeather.getFormattedTime() + "\",";
   json += "\"date\":\"" + timeAndWeather.getFormattedDate() + "\",";
   json += "\"season\":\"" + timeAndWeather.getSeason() + "\",";
@@ -892,6 +975,10 @@ void handleApiConfigSystemPost() {
         ok = isFlag(v);
       }
     }
+    // FR-11.3: the pump relay must not be a zone output
+    if (name == "pumpControlEnabled" && ok && flagOn(v) && !thermalZones.isPumpControlEnabled() &&
+        thermalZones.zoneUsingRelay(thermalZones.getPumpRelayPin(), SIZE_MAX) >= 0)
+      ok = false;
     if (!known || !ok) bad += (bad.length() ? ",\"" : "\"") + name + "\"";
   }
   if (bad.length()) {

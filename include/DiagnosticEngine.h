@@ -23,6 +23,16 @@ struct DtcRecord {
     bool active;
 };
 
+// FR-10.4: one check of the basic self-test - its rule, the measured value and the result
+struct DiagCheck {
+    const char* id;
+    const char* rule;
+    const char* result;  // "OK", "FAIL", or "INFO" when the controller cannot verify it
+    char value[40];
+};
+
+#define DIAG_CHECK_COUNT 7
+
 class DiagnosticEngine {
 public:
     DiagnosticEngine();
@@ -38,9 +48,11 @@ public:
     size_t getDtcCount() const { return _dtcCount; }
     const DtcRecord* getDtc(size_t index) const;
 
-    // Health & Self-Test
-    uint8_t calculateHealthScore() const;
+    // Basic self-test (FR-10.4): checks with rules, no score
+    void runChecks(DiagCheck (&out)[DIAG_CHECK_COUNT]) const;
+    String checksJson() const;
     String runSelfTest();
+    size_t getActiveDtcCount() const;
 
     const char* getSeverityStr(DtcSeverity sev) const;
 
