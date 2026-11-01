@@ -1,11 +1,11 @@
 # Requirements Review — `docs/requirements_and_features.md`
 
 > ASPICE SYS.2 / SWE.1 review of the requirement baseline, done **before** fixing tests or code.
-> Date: 31.10.2026. Status: **every row approved by the owner** (31.10.2026; architecture observations §6 and
-> process review rows §8 on 01.11.2026) and applied in requirements baseline v2.1. **Not closed:** the checker criteria of
-> `process.md` §3 hold (§7) and D37, D38, D39 are decided (§8.1); open are the blueprint's location and version
-> (D37) and the owner's sign-off. Tests and firmware follow in the
-> migration steps (`architecture.md` §18).
+> Date: 31.10.2026. Status: **closed 01.11.2026, owner (chat).** Every row approved by the owner (31.10.2026;
+> architecture observations §6 and process review rows §8 on 01.11.2026) and applied in requirements baseline v2.2;
+> the exit criteria of `process.md` §3 hold (§7). **Open action** (not a decision): the blueprint's location and
+> version, to be given by the owner (D37, §4.5). Tests and firmware follow in the migration steps
+> (`architecture.md` §18).
 
 ## 1. Scope and method
 
@@ -341,8 +341,8 @@ a test or a fix after the baseline is approved.
 
 ## 6. Observations from the architecture (01.11.2026)
 
-Raised by the architecture chat in [`architecture.md`](architecture.md) §16 (O-1…O-11), decided by the owner on
-01.11.2026 and applied to baseline v2 by the requirements chat.
+Raised by the architecture chat in [`architecture.md`](architecture.md) §16, decided by the owner on 01.11.2026
+and applied by the requirements chat: O-1…O-11 to baseline v2, O-12…O-15 to baseline v2.2.
 
 | # | Requirement | Decision | Applied to |
 |---|---|---|---|
@@ -357,6 +357,10 @@ Raised by the architecture chat in [`architecture.md`](architecture.md) §16 (O-
 | O-9 | FR-47, FR-51 | ✅ owner: learned base duty per zone and outdoor band of 5 °C (7 bands) (AR-12) | FR-47 |
 | O-10 | FR-69 | ✅ owner: outputs of a failed expansion count as closed, DTC-208 `ERR_OUTPUT_EXPANSION_FAULT` | FR-69, §5 |
 | O-11 | FR-58 | ✅ owner: MANUAL mode and fault injection require authentication | FR-58 |
+| O-12 | NFR-1.8, FR-23 | ✅ owner: `STATUS` and `/api/status` report the longest control-tick delay and the longest web/loop pass since boot, so NFR-1.8 can be checked on the board (control runs in its own task, so both are named neutrally) | FR-23, NFR-1.8 |
+| O-13 | NFR-1.8, FR-14.5, FR-17.3 | ✅ owner: pump stop (FR-14.5) and forced manual OFF (FR-17.3) are safety reactions of NFR-1.8; FR-17.3 stops the burner at the next control tick | NFR-1.8, FR-17.3 |
+| O-14 | FR-68 | ✅ owner, option A: the installer records the commissioning result in a document; the controller does not store it (LEVEL `install`) | FR-68 |
+| O-15 | FR-4 | ✅ owner: a violated safety rule found by the self-check may also end a run earlier than `burnerMinRun` (safety > burner wear, NFR-5.1) | FR-4 |
 
 ## 7. Accepted checker warnings
 
@@ -380,10 +384,9 @@ its §6 default, so the frost quantity has one value left (the "+1.5 °C" releas
 - `reqs` no un-waived "different values" WARN on a safety quantity — **met** (W-1 is heap, waived).
 - `reqs` no requirement-side DTC warning — **met**: the 14 WARN "defined … but the firmware never raises it" are
   code side (migration steps), not review rows.
-- every `D-n` decided and recorded — **decided** (D37, D38, D39 on 01.11.2026, §8.1); recorded when the main
-  chat appends the entries to `decisions.md`. The blueprint's location and version (D37) are still to be given
-  by the owner.
-- owner sign-off — open.
+- every `D-n` decided and recorded — **met**: D37, D38, D39 decided 01.11.2026 (§8.1) and recorded in
+  `decisions.md`; O-12…O-15 likewise (§6). Open action: the blueprint's location and version (D37).
+- owner sign-off — **met**: closed 01.11.2026, owner (chat).
 
 ## 8. Process review rows applied (01.11.2026)
 
@@ -411,10 +414,14 @@ applied to requirements baseline v2.1 by the requirements chat.
 | `reqs` | 0 ERROR, 18 WARN: interlock (FR-2 180 s / FR-37 1 s), overrun (FR-3 180 s / FR-3.2 0 s / FR-37 1 s), frost (FR-16.1 12 °C / 1.5 °C), heap, 14 DTC never raised | 0 ERROR, 14 WARN (DTC never raised, code side), 1 waived (W-1 heap) |
 | `trace` | 16 ERROR, 84 WARN | 0 ERROR, 16 KNOWN (PB-11, tests), 76 WARN (checker with R7 coverage per method); new: NFR-1.8 has no module (architecture side); 0 requirements without attribute |
 
+Baseline v2.2 (D37, D38, D39, O-12, O-13, O-14, O-15 applied; review closed): `reqs` 0 ERROR, 14 WARN (DTC never
+raised, code side), 1 waived (W-1); `trace` 0 ERROR, 16 KNOWN (PB-11), 75 WARN, NFR-1.8 allocated by the
+architecture, 0 requirements without attribute.
+
 ### 8.1 Decisions raised by this pass
 
 | # | Question | Options | Recommendation | Owner |
 |---|---|---|---|---|
-| D37 | Where is the owner's blueprint `underfloor_heating_blueprint_2.pdf`, the source of B-01…B-21, and which version was reviewed? It is not in the repository (QA-15). | A add the PDF to `docs/` / B record its location and version (file date, page count or SHA-256) in §4.5 | A — the rows can be re-checked against the same file | ✅ owner 01.11.2026: B; location and version still to be given by the owner (§4.5) |
+| D37 | Where is the owner's blueprint `underfloor_heating_blueprint_2.pdf`, the source of B-01…B-21, and which version was reviewed? It is not in the repository (QA-15). | A add the PDF to `docs/` / B record its location and version (file date, page count or SHA-256) in §4.5 | A — the rows can be re-checked against the same file | ✅ owner 01.11.2026: B. Open action: location and version, to be given by the owner (§4.5) |
 | D38 | FR-60 on a controller with no mapped sensor (before commissioning, FR-11.1): "at least one advert from a mapped sensor within 60 s" can never pass, so every OTA would roll back. | A skip the sensor check while no zone has a mapped sensor / B accept an advert from any sensor / C keep: OTA only after commissioning | A | ✅ owner 01.11.2026: A (FR-60; loop / watchdog and Wi-Fi checks stay) |
 | D39 | NFR-1.8 vs FR-17.2: a boiler OFF that is due (flow limit FR-54, deferred OFF FR-32) can wait up to 3 s for the radio cooldown when another frame (e.g. the FR-17.7 state repeat) was just sent, so the 2 s bound cannot hold for a radio frame. NFR-1.8 as approved names OTA as the only exception. | A the 2 s apply to the decision and to every relay; a radio frame may also wait for the FR-17.2 cooldown (worst case 2 s + 3 s) / B a safety OFF frame skips the cooldown / C shorter cooldown | A — the cooldown protects the receiver; the valves keep the 2 s | ✅ owner 01.11.2026: A (NFR-1.8) |

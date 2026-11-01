@@ -5,6 +5,19 @@ Corelat cu planul activ: [`docs/plan.md`](file:///c:/Users/BSeceleanu/.github_re
 
 
 
+## [01.11.2026] - Requirements v2.2 frozen; control tick in its own task (AR-21)
+
+- **Who / when / why:** requirements and architecture sessions, 01.11.2026, after the owner's questionnaire
+  (`decisions.md`, "Control in its own task…"). Verified and committed by the main chat.
+- **Requirements v2.2:** O-12 (status reports longest control-tick delay and loop pass), O-13 (pump stop and forced
+  manual OFF under NFR-1.8), O-14 (commissioning result is a document), O-15 (self-check may end a burner run early).
+  Review closed by the owner; open action only: blueprint location and version (D37).
+- **Architecture:** AR-21 rewritten — control tick in its own FreeRTOS task above `loop()`, command queue I15 and
+  snapshot I16, both tasks on the watchdog, built in migration step 10; AR-3 / P6 amended; AR-22 approved; RAM budget
+  +16 KB static against a 10 KB margin, covered by the `String` removal of step 11 and the planned log-ring saving
+  (risk). New observation O-16 (watchdog of both tasks, NFR-1.8 trigger, OTA exception) for the owner.
+- **Checks:** `sh_process_check.py` 0 errors, 21 known, PASS. **Not changed:** firmware, tests.
+
 ## [01.11.2026] - Requirements D37-D39 and architecture aligned to baseline v2.1 (wave 2)
 
 - **Who / when / why:** requirements and architecture sessions started by the main chat, 01.11.2026; verified and

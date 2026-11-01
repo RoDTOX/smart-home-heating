@@ -1,9 +1,10 @@
 # System and Software Requirements — Smart Home Heating
 
-**Baseline:** v2.1, 01.11.2026 — v2 (31.10.2026, derived from the owner-approved review
-[`requirements_review.md`](requirements_review.md)) plus the owner-approved process review rows QA-7, QA-8, QA-9,
-QA-10, QA-11, QA-12, QA-13, QA-14, QA-16 ([`process_review.md`](process_review.md); applied as listed in
-`requirements_review.md` §8).
+**Baseline:** v2.2, 01.11.2026 — review closed by the owner. v2 (31.10.2026) derived from the owner-approved
+review [`requirements_review.md`](requirements_review.md); v2.1 adds the process review rows QA-7, QA-8, QA-9,
+QA-10, QA-11, QA-12, QA-13, QA-14, QA-16 ([`process_review.md`](process_review.md)); v2.2 adds the owner decisions
+D37, D38, D39 and the architecture observations O-12, O-13, O-14, O-15 (applied as listed in
+`requirements_review.md` §6 and §8).
 **Replaces:** the Romanian specification of 07.10.2026 (v1). IDs are kept where the meaning did not change.
 **Related:** [`plan.md`](plan.md), [`changelog.md`](changelog.md), [`hardware_esp32_relay.md`](hardware_esp32_relay.md),
 [`underfloor_heating_hydraulics_and_failsafes.md`](underfloor_heating_hydraulics_and_failsafes.md), [`api_reference.md`](api_reference.md).
@@ -155,7 +156,8 @@ one example:
 - ~~**FR-38 (Flame-conditioned pump overrun):** retired, merged into FR-3 / FR-3.2.~~
 - **FR-4 (Burner anti-short-cycling):** *[now]* {SW; test} The burner stays ON for at least `burnerMinRun` and OFF
   for at least `burnerMinPause`, for every ON/OFF source (automatic, API, console); only a forced OFF (FR-17.3,
-  FR-54) may end a run earlier. Values below the range in §6 are rejected.
+  FR-54) or a violated safety rule found by the self-check may end a run earlier than `burnerMinRun` (safety >
+  burner wear, NFR-5.1). Values below the range in §6 are rejected.
   - *Fallback:* a request inside the guard is deferred (FR-32), never dropped silently.
 - **FR-37 (Valve follows demand):** *[now]* {SW; test} A zone without demand (§0) has its valve de-energised
   (closed, per FR-15.1) at the next control tick, except the overrun valve of FR-3. If demand ends during the
@@ -187,7 +189,8 @@ one example:
 - **FR-17.2 (Radio cooldown):** *[now]* {SW; test} At least 3 s between two radio frames; a frame requested earlier is rejected
   by the driver.
 - **FR-17.3 (Manual boiler requests):** *[now]* {SW; test} Manual ON/OFF requests are subject to FR-4. Only OFF may be forced
-  (`force=true`), which stops the burner at once. No mechanism starts the burner inside the guard.
+  (`force=true`), which stops the burner at the next control tick (NFR-1.8). No mechanism starts the burner inside
+  the guard.
 - **FR-17.4 (Rejected request response):** *[now]* {SW; test} A request rejected by the guard returns HTTP 429 with
   `status` = `rate_limited` or `pending`, the remaining `waitSec` and the current boiler state.
 - **FR-17.5 (Request spam):** *[now]* {SW; test} More than 3 rejected requests within 10 s raise DTC-201 `WARN_BOILER_SPAM_DETECTED`.
@@ -331,7 +334,9 @@ one example:
 - **FR-21 (Firmware identity):** *[now]* {SW; test} Version, build date and time, git commit and reset reason are reported in
   status, console `STATUS` and the boot message.
 - **FR-23 (Console status):** *[now]* {SW; test} `STATUS` shows zones, sensors, boiler, protections, heap (free, minimum, largest
-  block) and OTA margin. Layout is not specified.
+  block) and OTA margin. `STATUS` and `/api/status` also report, since boot, the longest control-tick delay (how
+  much later than due a tick started) and the longest web/loop pass, so NFR-1.8 can be checked on the board.
+  Layout is not specified.
 - ~~**FR-24 (Hardware telemetry in STATUS):** retired, merged into FR-23.~~
 - ~~**FR-25 (Zone cards, UTF-8 degree sign):** retired.~~
 - ~~**FR-26 (Web console colouring):** retired, page removed.~~
@@ -401,7 +406,7 @@ one example:
 - **FR-65 (Configuration export / import):** *[later]* {SW; test} The complete configuration (zones, sensors, offsets, learned
   values, credentials excluded) is exported and imported as JSON via API.
 - **FR-66 (Factory reset):** *[later]* {SW; test} Factory reset via console or API, with confirmation; keeps Wi-Fi credentials.
-- **FR-68 (Commissioning checklist):** *[now, documentation]* {install; inspection} Commissioning follows a checklist; the result is stored:
+- **FR-68 (Commissioning checklist):** *[now, documentation]* {install; inspection} Commissioning follows a checklist; the installer records the result in the commissioning document (the controller does not store it):
   1. installation — manifold flow meters balanced per zone; always-open bypass present; boiler flow setpoint
      ≤ 45 °C (§2);
   2. sensors — PVVX / BTHome firmware, advert interval ≤ 10 s; all sensors 24 h side by side next to a reference,
@@ -438,12 +443,15 @@ one example:
   switches has changed, within 2 s of its trigger; the 2 s are fixed, not a configuration parameter. A radio frame
   of the reaction may additionally wait for the cooldown of FR-17.2 (worst case 2 s + 3 s). Safety reactions are:
   - closing a valve without demand (FR-37);
+  - stopping the pump when no valve is open any more (FR-14.5);
   - opening the valve of a zone below `frostTemp` (FR-16.1);
   - the forced boiler OFF of the flow limit, once its filter time has elapsed (FR-54);
+  - the forced manual boiler OFF (FR-17.3);
   - interlock and burner-guard decisions: boiler ON once `interlockDelay` and the guard have elapsed, a deferred
     request when its guard expires (FR-2, FR-4, FR-32).
   - The only exception is an OTA upload (FR-8.3), which may hold `loop()` longer; it is accepted only with the
     boiler OFF (FR-60).
+  - On the board the bound is checked with the longest control-tick delay and web/loop pass of FR-23.
 - ~~**NFR-1.2 (Sensor failsafe):** retired, merged into FR-16.2.~~
 - ~~**NFR-1.3 (Frost protection):** retired, merged into FR-16.1.~~
 - ~~**NFR-1.6 (Burner cycle limit 60 s + 60 s):** retired, merged into FR-4.~~

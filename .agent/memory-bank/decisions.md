@@ -464,3 +464,21 @@ at the end of this log.
 **Affects**: FR-60, NFR-1.8, FR-17.2, `requirements_review.md` §4.5 / §8.1, `architecture.md` §5, §7.7.
 **Consequences**: OTA works on an uncommissioned board; the radio OFF frame keeps its cooldown; the B-n rows can
 only be re-checked once the owner gives the blueprint's location.
+
+## 2026-11-01 — Control in its own task, boiler timing, observations O-12…O-15, requirements frozen
+**Context**: The architecture alignment to baseline v2.1 proposed AR-21 (bounded web server inside `loop()` to meet
+NFR-1.8) and AR-22, and raised O-12…O-15 on the requirements. The owner answered by questionnaire.
+**Decision**:
+- AR-21 (as proposed) rejected. The web page must stay responsive; control may react 1–3 s later in the background.
+  The control tick runs in its own FreeRTOS task; `WebServer` and console stay in `loop()`. Amends AR-3 and P6.
+  RAM cost ~4–5 KB accepted; if the margin is short, the log ring goes from 8 to 4 KB.
+- AR-22 approved: boiler state, run / pause timers and the overrun count from the frame actually sent.
+- O-12: status reports the longest control-tick delay and longest loop pass (NFR-1.8 testable on the board).
+- O-13: pump stop at the last valve (FR-14.5) and the forced manual OFF (FR-17.3) are in the NFR-1.8 list.
+- O-14 = A: the commissioning result (FR-68) is a document filled at installation, not stored by the controller.
+- O-15: the self-check may end a burner run early on a violated safety rule (FR-4), safety > wear.
+- The requirements review is closed (owner sign-off); open action only: blueprint location and version (D37).
+**Decided by**: owner (chat, 01.11.2026).
+**Affects**: AR-3, AR-21, AR-22, P6, NFR-1.8, FR-4, FR-14.5, FR-17.3, FR-23, FR-68, `architecture.md` §5, §14.2, §16, §18.
+**Consequences**: firmware migration may start at step 1 (`ParamStore`); the task split is placed in a later step by
+the architecture.
