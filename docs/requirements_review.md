@@ -3,7 +3,8 @@
 > ASPICE SYS.2 / SWE.1 review of the requirement baseline, done **before** fixing tests or code.
 > Date: 31.10.2026. Status: **every row approved by the owner** (31.10.2026; architecture observations §6 and
 > process review rows §8 on 01.11.2026) and applied in requirements baseline v2.1. **Not closed:** the checker criteria of
-> `process.md` §3 hold (§7); D37, D38, D39 are open (§8.1) and the owner's sign-off is missing. Tests and firmware follow in the
+> `process.md` §3 hold (§7) and D37, D38, D39 are decided (§8.1); open are the blueprint's location and version
+> (D37) and the owner's sign-off. Tests and firmware follow in the
 > migration steps (`architecture.md` §18).
 
 ## 1. Scope and method
@@ -231,8 +232,8 @@ baselined now and implemented later.
 
 ### 4.5 Owner's blueprint (`underfloor_heating_blueprint_2.pdf`) vs. this review
 
-**Source:** the owner's PDF is not in the repository; its location and version are open (D37, process review
-QA-15).
+**Source:** the owner's PDF `underfloor_heating_blueprint_2.pdf`; it stays outside the repository (D37 = B,
+process review QA-15). Location and version: to be given by the owner.
 
 Each blueprint item checked against the requirements, the review rows above and the reference install.
 Verdict: **covered** (already a requirement / review row), **strengthens** (confirms or changes a row above),
@@ -379,7 +380,9 @@ its §6 default, so the frost quantity has one value left (the "+1.5 °C" releas
 - `reqs` no un-waived "different values" WARN on a safety quantity — **met** (W-1 is heap, waived).
 - `reqs` no requirement-side DTC warning — **met**: the 14 WARN "defined … but the firmware never raises it" are
   code side (migration steps), not review rows.
-- every `D-n` decided — **not met**: D37, D38, D39 (§8.1).
+- every `D-n` decided and recorded — **decided** (D37, D38, D39 on 01.11.2026, §8.1); recorded when the main
+  chat appends the entries to `decisions.md`. The blueprint's location and version (D37) are still to be given
+  by the owner.
 - owner sign-off — open.
 
 ## 8. Process review rows applied (01.11.2026)
@@ -395,11 +398,11 @@ applied to requirements baseline v2.1 by the requirements chat.
 | QA-9 | FR-2, FR-4 | parameter names only, values in §6 (rule R2) | FR-2, FR-4 (forced OFF named as the only early end, FR-17.3, FR-54); same R2 fix in FR-3, FR-16.1, FR-16.2 |
 | QA-10 | FR-3, FR-3.2 | "flame lit" = an ON frame was sent and not cancelled (tier A); tier B may use real feedback | requirements §0 glossary, FR-3, FR-3.2 |
 | QA-11 | FR-3, FR-3.2, FR-37, FR-47 | glossary: control tick, TPI cycle, request, command, demand, accepted reading, flame lit | requirements §0 glossary, FR-3, FR-3.2, FR-37 (also "per FR-15.1"), FR-47; wording aligned in FR-1.3, FR-58 |
-| QA-12 | FR-60 | new image valid when at least one advert from a mapped sensor is received within 60 s, loop and watchdog alive, Wi-Fi up | FR-60; edge case D38 |
+| QA-12 | FR-60 | new image valid when at least one advert from a mapped sensor is received within 60 s, loop and watchdog alive, Wi-Fi up | FR-60; sensor check skipped without a mapped sensor (D38) |
 | QA-13 | NFR-1.4 | the boot OFF starts `burnerMinPause` | NFR-1.4 |
 | QA-14 | phase tags | tags map to the migration steps of `architecture.md` §18 | requirements §0 table |
 | QA-15 | review record | B-01 cites FR-11.3, FR-69; blueprint source recorded | B-01 (full IDs also in B-04, D16), §4.5 source note, D37 |
-| QA-16 | new NFR | every safety reaction within 2 s of its trigger, fixed (not in §6); only exception an OTA upload with the boiler OFF | NFR-1.8 (new); conflict with FR-17.2 in D39 |
+| QA-16 | new NFR | every safety reaction within 2 s of its trigger, fixed (not in §6); only exception an OTA upload with the boiler OFF | NFR-1.8 (new); radio cooldown of FR-17.2 may add up to 3 s (D39) |
 
 `sh_process_check.py` output (line numbers dropped):
 
@@ -408,10 +411,10 @@ applied to requirements baseline v2.1 by the requirements chat.
 | `reqs` | 0 ERROR, 18 WARN: interlock (FR-2 180 s / FR-37 1 s), overrun (FR-3 180 s / FR-3.2 0 s / FR-37 1 s), frost (FR-16.1 12 °C / 1.5 °C), heap, 14 DTC never raised | 0 ERROR, 14 WARN (DTC never raised, code side), 1 waived (W-1 heap) |
 | `trace` | 16 ERROR, 84 WARN | 0 ERROR, 16 KNOWN (PB-11, tests), 76 WARN (checker with R7 coverage per method); new: NFR-1.8 has no module (architecture side); 0 requirements without attribute |
 
-### 8.1 Open decisions
+### 8.1 Decisions raised by this pass
 
 | # | Question | Options | Recommendation | Owner |
 |---|---|---|---|---|
-| D37 | Where is the owner's blueprint `underfloor_heating_blueprint_2.pdf`, the source of B-01…B-21, and which version was reviewed? It is not in the repository (QA-15). | A add the PDF to `docs/` / B record its location and version (file date, page count or SHA-256) in §4.5 | A — the rows can be re-checked against the same file | open |
-| D38 | FR-60 on a controller with no mapped sensor (before commissioning, FR-11.1): "at least one advert from a mapped sensor within 60 s" can never pass, so every OTA would roll back. | A skip the sensor check while no zone has a mapped sensor / B accept an advert from any sensor / C keep: OTA only after commissioning | A | open |
-| D39 | NFR-1.8 vs FR-17.2: a boiler OFF that is due (flow limit FR-54, deferred OFF FR-32) can wait up to 3 s for the radio cooldown when another frame (e.g. the FR-17.7 state repeat) was just sent, so the 2 s bound cannot hold for a radio frame. NFR-1.8 as approved names OTA as the only exception. | A the 2 s apply to the decision and to every relay; a radio frame may also wait for the FR-17.2 cooldown (worst case 2 s + 3 s) / B a safety OFF frame skips the cooldown / C shorter cooldown | A — the cooldown protects the receiver; the valves keep the 2 s | open |
+| D37 | Where is the owner's blueprint `underfloor_heating_blueprint_2.pdf`, the source of B-01…B-21, and which version was reviewed? It is not in the repository (QA-15). | A add the PDF to `docs/` / B record its location and version (file date, page count or SHA-256) in §4.5 | A — the rows can be re-checked against the same file | ✅ owner 01.11.2026: B; location and version still to be given by the owner (§4.5) |
+| D38 | FR-60 on a controller with no mapped sensor (before commissioning, FR-11.1): "at least one advert from a mapped sensor within 60 s" can never pass, so every OTA would roll back. | A skip the sensor check while no zone has a mapped sensor / B accept an advert from any sensor / C keep: OTA only after commissioning | A | ✅ owner 01.11.2026: A (FR-60; loop / watchdog and Wi-Fi checks stay) |
+| D39 | NFR-1.8 vs FR-17.2: a boiler OFF that is due (flow limit FR-54, deferred OFF FR-32) can wait up to 3 s for the radio cooldown when another frame (e.g. the FR-17.7 state repeat) was just sent, so the 2 s bound cannot hold for a radio frame. NFR-1.8 as approved names OTA as the only exception. | A the 2 s apply to the decision and to every relay; a radio frame may also wait for the FR-17.2 cooldown (worst case 2 s + 3 s) / B a safety OFF frame skips the cooldown / C shorter cooldown | A — the cooldown protects the receiver; the valves keep the 2 s | ✅ owner 01.11.2026: A (NFR-1.8) |

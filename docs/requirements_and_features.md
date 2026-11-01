@@ -391,8 +391,9 @@ one example:
 - **FR-60 (OTA safety and self-test):** *[now]* {SW; test}
   - OTA starts only with the boiler OFF.
   - After boot of a new image, automatic checks without the boiler must pass within 60 s: loop and watchdog
-    alive, Wi-Fi up, and at least one advert received from a mapped sensor. Only then is the image marked valid;
-    otherwise the previous image is restored and DTC-303 `ERR_OTA_ROLLBACK` is raised.
+    alive, Wi-Fi up, and at least one advert received from a mapped sensor. The sensor check is skipped while no
+    zone has a mapped sensor (before commissioning, FR-11.1). Only then is the image marked valid; otherwise the
+    previous image is restored and DTC-303 `ERR_OTA_ROLLBACK` is raised.
   - Full self-test on request only (API, console): each zone relay switched, boiler link frame sent, one zone
     opened (interlock respected), boiler ON for `selfTestBurn`, flow rise checked if FR-54 sensors are enabled,
     boiler OFF with all guards. Result stored and shown. Failures raise DTC-304 `ERR_SELFTEST_FAILED`; a plant
@@ -433,8 +434,9 @@ one example:
   sends one boiler OFF, which starts `burnerMinPause` (FR-4), and enters the boot warmup (FR-22) before any heating
   command.
 - **NFR-1.5 (Task watchdog):** {SW; inspection} A 90 s task watchdog on `loop()` resets the controller on a software hang.
-- **NFR-1.8 (Safety reaction time):** {SW; test, analysis} Every safety reaction has changed the outputs within 2 s
-  of its trigger; the 2 s are fixed, not a configuration parameter. Safety reactions are:
+- **NFR-1.8 (Safety reaction time):** {SW; test, analysis} Every safety reaction is decided, and every relay it
+  switches has changed, within 2 s of its trigger; the 2 s are fixed, not a configuration parameter. A radio frame
+  of the reaction may additionally wait for the cooldown of FR-17.2 (worst case 2 s + 3 s). Safety reactions are:
   - closing a valve without demand (FR-37);
   - opening the valve of a zone below `frostTemp` (FR-16.1);
   - the forced boiler OFF of the flow limit, once its filter time has elapsed (FR-54);

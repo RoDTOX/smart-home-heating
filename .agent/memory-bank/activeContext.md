@@ -29,6 +29,8 @@ Lean refactor on branch `claude/vibrant-ride-95fick`. See [`docs/plan.md`](../..
   by three sessions (process, requirements, records); checker 0 errors, 21 known (PB-1..PB-14), PASS. Open: owner
   decisions D37-D39 and sign-off of the requirements review; architecture follow-up (NFR-1.8, glossary, attributes);
   then migration step 1 (`ParamStore`).
+- [main chat, 01.11.2026] Wave 2 done: D37-D39 applied, architecture aligned to v2.1. Waiting for the owner:
+  AR-21, AR-22, O-12…O-15, sign-off of the requirements review, blueprint location (D37). Then step 1.
 
 ## Next steps
 - Safety defaults in `Config.h` set to production (120/180/180 s) - not yet flashed / tested on the board.

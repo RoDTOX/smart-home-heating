@@ -450,3 +450,17 @@ owner 01.11.2026).
 the same day, process review QA-25, QA-27, QA-28).
 **Consequences**: An agent that finds one of these decisions in an older file follows the replacement. New entries go
 at the end of this log.
+
+## 2026-11-01 — Requirements review: OTA without mapped sensors, radio cooldown vs reaction time, blueprint source (D37, D38, D39)
+**Context**: Applying the process review produced three open questions in `docs/requirements_review.md` §8.1.
+**Decision**:
+- D38 = A: FR-60 skips the sensor check of a new image while no zone has a mapped sensor; loop/watchdog and Wi-Fi
+  checks stay.
+- D39 = A: the NFR-1.8 bound (2 s) applies to the safety decision and to every relay; a radio frame may additionally
+  wait for the FR-17.2 cooldown (worst case 2 s + 3 s), which protects the receiver.
+- D37 = B: the owner's blueprint `underfloor_heating_blueprint_2.pdf` stays outside the repository; its location and
+  version are recorded in `requirements_review.md` §4.5. Location and version not given yet (open).
+**Decided by**: owner (chat, 01.11.2026).
+**Affects**: FR-60, NFR-1.8, FR-17.2, `requirements_review.md` §4.5 / §8.1, `architecture.md` §5, §7.7.
+**Consequences**: OTA works on an uncommissioned board; the radio OFF frame keeps its cooldown; the B-n rows can
+only be re-checked once the owner gives the blueprint's location.

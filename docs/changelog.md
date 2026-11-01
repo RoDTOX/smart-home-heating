@@ -5,6 +5,19 @@ Corelat cu planul activ: [`docs/plan.md`](file:///c:/Users/BSeceleanu/.github_re
 
 
 
+## [01.11.2026] - Requirements D37-D39 and architecture aligned to baseline v2.1 (wave 2)
+
+- **Who / when / why:** requirements and architecture sessions started by the main chat, 01.11.2026; verified and
+  committed by the main chat. Owner decisions D37 = B, D38 = A, D39 = A (`decisions.md`).
+- **Requirements:** FR-60 skips the sensor check while no zone has a mapped sensor; NFR-1.8 bound applies to the
+  decision and every relay, a radio frame may also wait for the FR-17.2 cooldown; blueprint location / version
+  still to be given by the owner (D37). Review header still open (owner sign-off).
+- **Architecture:** NFR-1.8 allocated and designed (bounded `WebServer` pass, ≤ 500 ms loop pass, relays before the
+  radio frame, loop timing measured, OTA only behind `QuietGate`); boot OFF starts `burnerMinPause`; FR-60 per D38;
+  glossary terms, I-3 with fault duty, only `SW` requirements allocated to modules, gaps G-n and steps cite `PB-n`,
+  new gap G33. Proposed for the owner: AR-21, AR-22; observations O-12…O-15 for the requirements.
+- **Checks:** `sh_process_check.py` 0 errors, 21 known, PASS. **Not changed:** firmware, tests.
+
 ## [01.11.2026] - Process review QA-1..QA-28 applied (wave 1)
 
 - **Who / when / why:** three sessions started by the main chat, 01.11.2026, after the owner approved every row of
