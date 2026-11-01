@@ -7,7 +7,7 @@ Lean refactor on branch `claude/vibrant-ride-95fick`. See [`docs/plan.md`](../..
 - Phases 1–4 (first step) done on the branch: cleanup, firmware lean, level schedule, new UI, TPI control.
 - CI (GitHub Actions) compiles every push; container network blocks the PlatformIO registry.
 - `main.cpp` split into `WebApi.cpp` / `ConsoleCommands.cpp`; learned TPI duty persisted in NVS.
-- 30.10.2026: flashed on the board (OTA), `sh_test_system.py` 78/78 PASS, 48/48 requirements covered.
+- 30.10.2026: flashed on the board (OTA), `sh_test_system.py` 78/78 PASS, 48/48 requirements covered — not valid as evidence (process review QA-26).
 
 - `tools/sh_process_check.py` checks traceability (req ↔ test ↔ code) and AGENTS.md process rules; in CI.
   Coverage counts exact leaf IDs only (30/88); safety check includes the `/api/config/system` clamps.
@@ -25,14 +25,16 @@ Lean refactor on branch `claude/vibrant-ride-95fick`. See [`docs/plan.md`](../..
   burner run / pause 120–600 s, sensor timeout 1–60 min. Done, uncommitted: `sh_process_check.py` reads safety
   ranges from §6 (no copies). Open: AGENTS.md §3 safety list and `.claude/agents/sh-safety-reviewer.md` still say
   120–180 s / < 12 °C; changelog entry for this step.
-- [main chat, 01.11.2026] Process review `docs/process_review.md` (QA-1..QA-28), awaiting owner approval row by
-  row; QA-1..QA-6 block code work. Nothing changed in the reviewed files.
+- [main chat, 01.11.2026] Process review `docs/process_review.md` (QA-1..QA-28) approved by the owner and applied
+  by three sessions (process, requirements, records); checker 0 errors, 21 known (PB-1..PB-14), PASS. Open: owner
+  decisions D37-D39 and sign-off of the requirements review; architecture follow-up (NFR-1.8, glossary, attributes);
+  then migration step 1 (`ParamStore`).
 
 ## Next steps
 - Safety defaults in `Config.h` set to production (120/180/180 s) - not yet flashed / tested on the board.
-- Open: FR-41..45 into the requirements doc; API clamp lets interlock/overrun go to 1 s.
+- API clamp below the safety floors: `docs/problems.md` PB-4.
 - Watch TPI logs / room temps for a few days on the board.
-- Decide sensor-loss fallback duty (frost risk vs. runaway); UI on LittleFS with version check.
+- UI on LittleFS with version check.
 - [requirements chat, 01.11.2026] Align `tools/sh_test_system.py` with baseline v2: retired FR-13, FR-24..27, FR-33, FR-38 still cited; new requirements FR-47..72 / NFR-5.x have no tests yet.
 - [architecture chat, 01.11.2026 01:45] `docs/architecture.md` follows the requirements of 925ea91 (O-1..O-11 applied, `faultFrostOutdoor`, DTC-208, §6 names, FR-58 AUTH list). Process chat: `process.md` §1 SWE.2 row and §7 gap → `docs/architecture.md`; grep check for R-A1..R-A7; §3 last line ("tests changed first, then code") no longer matches the owner's order. Firmware chat: start at migration step 1 (`ParamStore`); each step changes code and its tests together, full `sh_test_system.py` before flashing; G2 is fixed in steps 4 and 9, no separate hotfix.
 - [requirements chat, 01.11.2026 01:29] Architecture observations O-1..O-11 closed in the requirements (decision log: `docs/requirements_review.md` §6); O-2 limit `faultFrostOutdoor` = 5 °C. Owner order (01.11.2026): requirements and architecture aligned and covering each other first, then code; tests follow the code (not TDD). Committed as 925ea91.

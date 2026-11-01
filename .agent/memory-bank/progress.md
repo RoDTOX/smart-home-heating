@@ -1,14 +1,21 @@
 # Progress
 
-## Works (verified live on `192.168.1.20` before the lean refactor)
-- Multi-zone hysteresis control (3 zones), actuator interlock, pump overrun, anti-short-cycling, frost guard, sensor timeout (DTC-101).
-- Boiler ON/OFF via 433.92 MHz OOK (`BoilerRadioTrigger`) with safety heartbeat refresh.
-- Native passive BLE scan of Xiaomi sensors (BTHome v2 / PVVX), NimBLE heap leak fixed (DTC-402).
-- REST API, Web OTA, Telnet console, NTP + Open-Meteo, schedule with presets, open-window detection.
+Rewritten 01.11.2026 (process review QA-25). The plan and the status of every migration step are in
+[`docs/plan.md`](../../docs/plan.md); the owner's board tests in [`docs/acceptance.md`](../../docs/acceptance.md),
+problems in [`docs/problems.md`](../../docs/problems.md).
+
+## On the board today
+
+The lean firmware flashed on 30.10.2026 (it reports `8065534`, the old hard-coded build identity): TPI control,
+weather-shifted pre-heat, sensor offsets, level schedule, one page, REST API, OTA, Telnet console, NTP and
+Open-Meteo, passive BLE scan. It predates baseline v2 and has known safety defects (`docs/plan.md`, "Current state").
+No board test result counts as evidence yet (process review QA-1, QA-26).
+
+## Done
+
+- Lean phases 1–3 and a first control step (29.10.2026, [`docs/changelog.md`](../../docs/changelog.md)).
+- Requirements baseline v2 (31.10.2026), architecture (approved 01.11.2026), process review (approved 01.11.2026).
 
 ## Pending
-- Phase 2 firmware lean, phase 3 single UI page, phase 4 predictive control (see `docs/plan.md`).
 
-## Known issues
-- Hysteresis-only control overshoots/undershoots on slow underfloor screed (motivation for phase 4).
-- Web UI (`web/index.html`, ~4.9k lines) too large and not what the user wants (phase 3).
+- Apply the process review rows, then migration steps 1–14 one at a time (`docs/plan.md`).

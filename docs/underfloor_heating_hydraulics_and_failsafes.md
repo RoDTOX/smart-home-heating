@@ -1,176 +1,221 @@
-# Ghid Tehnic de Hidraulică, Componente Speciale & Failsafes pentru Încălzirea în Pardoseală
+# Underfloor Heating — Hydraulics, Components and Failsafes
 
-> **Proiect:** Sistem Inteligent Autonom de Încălzire Multi-Zonă (Smart Home Heating)  
-> **Destinat:** Instalatori autorizați, tehnicieni de service și proprietari de locuințe  
-> **Hardware:** Placă ESP32-Relay X4 V1.1 (240MHz, 4MB Flash, IP: `192.168.1.20`)  
-> **Data:** 09 Octombrie 2026 | Versiune Specificație: 2.0 (Failsafes & Hydraulic Hardening)
-
----
-
-## 1. Introducere: Realitatea Instalațiilor din Teren
-
-Instalațiile de încălzire în pardoseală (și cele mixte: pardoseală + radiatoare) diferă substanțial de la un apartament la o casă individuală sau un duplex. În timp ce un apartament mic poate avea doar o centrală murală conectată direct la distribuitor, casele și apartamentele moderne includ adesea **grupuri de pompare și amestec (GPA)**, **pompe secundare de recirculare**, **supape de presiune diferențială (bypass)** și **termostate mecanice de siguranță la supratemperatură**.
-
-Pentru ca produsul nostru să fie un succes comercial „plug-and-play” out-of-the-box, firmware-ul și logica de comandă sunt proiectate să suporte toate aceste configurații fără modificări de cod, oferind flexibilitate totală și siguranță absolută.
+> **For:** installers, service technicians and owners.
+> **Hardware:** ESP32-Relay X4 V1.1 (reference install `192.168.1.20`).
+> **Version:** 3.0, 01.11.2026 — English rewrite against requirements baseline v2
+> ([`requirements_and_features.md`](requirements_and_features.md)) and [`architecture.md`](architecture.md)
+> (process review QA-28). Replaces the Romanian version 2.0 of 09.10.2026.
+>
+> Controller behaviour is defined in the requirements; parameters are cited by name and their defaults and ranges are
+> in requirements §6. This document explains the hydraulics and the installation.
 
 ---
 
-## 2. Anatomia Distribuitorului de Pardoseală & Componentele Speciale
+## 1. Installations differ
+
+Underfloor installations (and mixed underfloor + radiator ones) differ a lot between a flat and a house. A small flat
+may have only a wall-hung boiler feeding the manifold directly; houses often add a **pump and mixing group (GPA)**,
+**secondary circulation pumps**, **differential-pressure bypass valves** and **mechanical high-limit thermostats**.
+The firmware supports these through configuration — actuator type, optional pump output, boiler link type, number of
+zones (requirements §6) — not through code changes.
+
+**Reference install:** no mixing valve and no manifold pump; boiler water goes straight into the screed; the bathroom
+towel radiators are the always-open bypass (requirements §2).
+
+---
+
+## 2. Manifold anatomy and special components
+
+Generic manifold with a mixing group (not the reference install):
 
 ```text
-       TUR de la Centrală (ex. 50-65°C) ───┐
-                                          │
-                                          ▼
+       FLOW from the boiler (e.g. 50-65 °C) ──┐
+                                             │
+                                             ▼
                          ┌─────────────────────────────────┐
-                         │ Grup de Pompare & Amestec (GPA) │
-                         │ - Vană Termostatică de Amestec  │
-                         │   (reduce apa la 35-40°C)       │
+                         │ Pump and mixing group (GPA)     │
+                         │ - thermostatic mixing valve     │
+                         │   (lowers the water to 35-40 °C)│
                          │                                 │
-                         │ - Pompa Secundară de Circulație │ ◄── Comandată de RELEUL 4
-                         │   (Wilo / Grundfos 230V)        │     (GPIO26 pe ESP32)
+                         │ - secondary circulation pump    │ ◄── optional pump output
+                         │   (230 V)                       │     (relay 4, GPIO26)
                          └────────────────┬────────────────┘
                                           │
                                           ▼
-   TUR DISTRIBUITOR (Apă la 38°C) ────────┼───────────────────────┐
-   [ Termostat Contact Siguranță 55°C ] ──┘                       │
-   [ Debitmetre Reglaj Circuite 1..7 ]                            │
+   MANIFOLD FLOW (water at about 38 °C) ──┼───────────────────────┐
+   [ high-limit contact thermostat 55 °C ]┘                       │
+   [ flow meters, one per circuit ]                               │
        │           │           │                                  │
-    Bucla 1     Bucla 2     Bucla 3                             Bypass
-    (Living)    (Copil)   (Matrimonial)                      Diferențial
+    Zone 1      Zone 2      Zone 3                         differential
+   (living)     (kids)     (master)                           bypass
        │           │           │                                  │
        ▼           ▼           ▼                                  ▼
-   RETUR DISTRIBUITOR ────────────────────────────────────────────┘
-   [ Ventile cu Actuatoare Electrotermice 230V (NC sau NO) ]
-   (Comandate de Releele 1, 2, 3: GPIO32, GPIO33, GPIO25)
+   MANIFOLD RETURN ───────────────────────────────────────────────┘
+   [ valves with 230 V thermal actuators (NC or NO) ]
+   (relays 1, 2, 3: GPIO32, GPIO33, GPIO25)
                                           │
                                           ▼
-       RETUR spre Centrală (apă răcită la 28-32°C)
+       RETURN to the boiler (water cooled to 28-32 °C)
 ```
 
-### 2.1. Actuatoare Electrotermice 230V: NC (Normally Closed) vs NO (Normally Open)
-- **Actuatoare NC (95% din piață):** Fără tensiune electrică, arcul intern menține ventilul închis. Când primesc 230V de la releu, elementul termic din ceară/parafină se încălzește și deschide complet ventilul în **120–180 secunde**.
-- **Actuatoare NO (5% din piață):** Fără tensiune, ventilul este deschis. Când primesc 230V, ventilul se închide.
-- **Suport Firmware Universal:** Firmware-ul include setarea nativă `actuatorType: NC / NO` (salvată persistent în NVS). Comutarea se face dintr-un singur clic în Web Setup (`/setup`), prin API REST (`/api/setup/actuator-type?type=nc|no`) sau prin CLI (`python tools/sh_esp_cli.py actuator nc`).
+Without a mixing valve (reference install) the boiler's central-heating flow setpoint is set on the boiler to at most
+45 °C; this is an installation precondition checked at commissioning (requirements §2, FR-68).
 
-### 2.2. Pompa Secundară de Recirculare / Grupul de Amestec GPA (Releul 4 / GPIO26)
-- **De ce există?** Traseele din pardoseală au sute de metri de țeavă PEX cu rezistență hidraulică mare. Pompa internă din centrala murală nu are debitul și presiunea necesare pentru a asigura circulația corectă prin vana de amestec. Din acest motiv, instalatorii adaugă o pompă dedicată la distribuitor.
-- **Problema din teren:** Fără un controler inteligent, mulți proprietari lasă pompa băgată permanent în priză (24/7). Acest lucru duce la:
-  1. Risipă inutilă de curent (45–65W continuu = ~40 kWh/lună aruncați).
-  2. Uzură mecanică prematură a rotorului.
-  3. **Cavitație și suprapresiune:** Când toate actuatoarele camerelor sunt închise, pompa împinge împotriva unui perete închis, provocând zgomote ascuțite în distribuitor și risc de ardere a motorului.
-- **Soluția Implementată pe ESP32:**
-  - Releul 4 (`GPIO26`) comandă automat alimentarea fazei (230V) a pompei secundare.
-  - **Interlock de Pornire Pompă:** Pompa pornește DOAR DUPĂ ce cel puțin un actuator de zonă este fizic deschis (starea `ZONE_HEATING`), garantând că circuitul hidraulic are debit asigurat.
-  - **Post-Circulație (Pump Overrun):** Când cererea de căldură încetează, pompa continuă să funcționeze 120–180 de secunde pentru a disipa căldura din cazan și pentru a egaliza temperatura în pardoseală.
-  - **Keeper Zone:** Pe durata post-circulației, ultimul actuator activ rămâne deschis pentru a asigura bucla de circulație a apei.
+### 2.1 230 V thermal actuators: NC (normally closed) vs NO (normally open)
 
-### 2.3. Termostatul Mecanic de Siguranță la Contact (55°C - High-Limit Thermostat)
-- **Ce este?** Un termostat mecanic cu bimetal montat cu colier metalic direct pe țeava de tur din cupru/pex a distribuitorului, reglat la 50–55°C.
-- **De ce este critic?** În pardoseală nu trebuie să intre niciodată apă la peste 50°C (ar crăpa șapa, ar dezlipi gresia și ar degrada parchetul laminat/stratificat). Dacă vana termostatică mecanică de amestec se blochează accidental pe deschis, apa din centrală (la 65-75°C) ar intra direct în pardoseală!
-- **Conectare Recomandată:** Contactul său NC (Normal Închis) se leagă în serie pe alimentarea generală a pompei de distribuitor și a centralei. Dacă turul sare de 55°C, contactul se desface mecanic instantaneu, tăind pompa indiferent de starea electronicii.
+- **NC (most of the market):** without power, the internal spring keeps the valve closed. With 230 V from the relay
+  the wax element heats up and opens the valve fully after a few minutes (the requirements assume 3–5 min, FR-47).
+  The opening time is measured at commissioning (FR-68); the boiler is switched ON only after a valve has been
+  energised for `interlockDelay` (FR-2).
+- **NO (rare):** without power the valve is open; with 230 V it closes.
+- **Firmware:** `actuatorType` NC / NO (FR-15.1), stored in NVS and respected by every valve command; set through the
+  API or the CLI (`python tools/sh_esp_cli.py actuator nc`).
 
-### 2.4. Supapa de Presiune Diferențială (Bypass Hidraulic)
-- O supapă cu arc calibrat (0.2–0.3 bar) montată între colectorul de tur și cel de retur.
-- În cazul în care toate actuatoarele se închid brusc înainte de oprirea pompei, presiunea deschide mecanic supapa, permițând apei să circule în scurtcircuit la capătul distribuitorului.
-- *Notă:* În apartamentul de test, rolul de bypass hidraulic permanent este asigurat de cele 2 radiatoare portprosop din băi, care nu au actuatoare și rămân permanent deschise.
+### 2.2 Secondary circulation pump / mixing group (GPA)
 
----
+- **Why it exists:** underfloor circuits are hundreds of metres of PEX pipe with a high hydraulic resistance. The
+  internal pump of a wall-hung boiler often cannot deliver enough flow through the mixing valve, so installers add a
+  dedicated pump at the manifold.
+- **Problem in the field:** without a controller the pump is often left powered 24/7. This causes:
+  1. wasted electricity (45–65 W continuously, about 40 kWh per month);
+  2. early mechanical wear of the rotor;
+  3. **pumping against closed valves:** when all room actuators are closed the pump pushes against a dead end —
+     noise in the manifold and overheating of the pump motor.
+- **Firmware** (optional pump, FR-14.1, `pumpOutput`, disabled by default; unused in the reference install):
+  - the pump starts only after a valve has been open for `interlockDelay` (FR-14.2);
+  - it runs only while at least one valve is open, or during the overrun with the overrun valve open (FR-14.5);
+  - it runs during the overrun (FR-14.3).
+- **Overrun valve:** the last open zone valve stays open while the boiler is ON or its OFF is deferred, and for
+  `overrun` after the OFF — with or without a pump (FR-3). The overrun takes the residual heat out of the boiler's
+  primary heat exchanger after the flame goes off. If the burner never started (the request was cancelled during the
+  interlock), there is no overrun (FR-3.2).
 
-## 3. Matricea Failsafes-urilor de Siguranță Firmware (NFR-1)
+### 2.3 Mechanical high-limit contact thermostat (50–55 °C)
 
-| Nivel Siguranță | Mecanism Hardware / Software | Comportament la Anomalie | Cod Diagnoză |
-| :--- | :--- | :--- | :---: |
-| **Microcontroller Hang** | Hardware Task Watchdog (TWDT 8s) | Reset hardware automat al ESP32 în max 8 secunde; toate releele repornesc în starea sigură `LOW`. | `SYS-RST` |
-| **Avarie / Pierdere Senzor** | Timeout Telemetrie (>30 min) | Zona este decuplată forțat (`demand=false`), actuatorul este închis pentru a preveni supraîncălzirea necontrolată a șapei. | `DTC-101` |
-| **Baterie Descărcată** | Monitorizare CR2032 (<20%) | Avertizare proactivă înainte ca termometrul să se oprească complet. | `DTC-102` |
-| **Temperatură Aberantă** | Citire sub 5°C sau peste 45°C | Izolare citire eronată pentru prevenirea deciziilor greșite. | `DTC-103` |
-| **Protecție la Îngheț** | Frost Guard Urgență (<12°C) | Declanșare automată căldură și deschidere actuatoare chiar dacă modul este pe `MANUAL` sau `OFF`. | `FROST-GUARD` |
-| **Protecție Cazan Gaz** | Anti-Short-Cycling Burner Guard | Minim 3 min funcționare continuă flacără / Minim 5 min pauză între reaprinderi pentru protejarea vanei de gaz. | `BURNER-GUARD` |
-| **Gripare Mecanică Ax Pompă**| Exercițiu Anti-Blocare (Summer) | Rulare automată 20 secunde o dată la 7 zile în extra-sezon pentru spargerea depunerilor de calcar/magnetită. | `ANTI-SEIZE` |
-| **Pierdere Conexiune Wi-Fi**| Autonomie Totală la Edge | Microcontrolerul continuă să regleze încălzirea 100% autonom prin BLE și histerezis local. | `NET-OFFLINE` |
+- **What it is:** a bimetal thermostat clamped on the manifold flow pipe, set to 50–55 °C.
+- **Why it matters:** water above about 50 °C must never enter the floor: it cracks the screed, debonds tiles and
+  damages laminate or engineered wood. If the thermostatic mixing valve sticks open, boiler water at 65–75 °C goes
+  straight into the floor.
+- **Recommended wiring:** its NC contact in series with the supply of the manifold pump and the boiler demand. When
+  the flow exceeds the setting the contact opens mechanically and stops the pump, whatever the electronics do.
+- **Controller side:** the optional flow / return probes add a software flow limit (FR-54, `flowSensors`, `flowMax`).
+  The mechanical thermostat works without any electronics and does not depend on the controller.
 
-### 3.1. Decuplare FSM Relee & Anulare Instantanee Warmup (Instant Warmup Abort)
-- **Problema Tehnică:** Actuatoarele termoelectrice NC au nevoie de 120–180s pentru a deschide complet ventilul prin dilatarea elementului de ceară/parafină. Când o zonă cere căldură (`demand = true`), intră în starea `ZONE_WARMUP` și alimentează actuatorul la 230V. Dacă în acest interval utilizatorul reduce setpoint-ul (manual sau din Home Assistant) sau temperatura ambientală crește natural, condiția de cerere devine nulă (`demand = false`).
-- **Comportament de Siguranță Firmware:**
-  1. Starea FSM a zonei este imediat retrogradată din `ZONE_WARMUP` în `ZONE_IDLE`.
-  2. **Invariant Hardware Releu Orfan:** Releul fizic al zonei este forțat instantaneu la nivel inactiv (`digitalWrite(pin, LOW)` pentru actuatoare NC), tăind alimentarea de 230V. Vana se închide fără a rămâne deschisă fantomă în instalație.
-  3. **Protecție Cazan Gaz:** Centrala termică nu primește comanda de aprindere prin radio 433 MHz dacă toate zonele își anulează faza de warmup, eliminând pornirile inutile pe circuite fără circulație hidraulică activă (anti-dry firing).
+### 2.4 Differential-pressure bypass valve
 
-### 3.2. Post-Circulație Inteligentă Condiționată de Flacără (Intelligent Overrun)
-- **Problema Tehnică:** Pompa de distribuitor (GPA, Releul 4) include o funcție de post-circulație de 180 secunde (`PUMP_OVERRUN_MS = 180000`) pentru a disipa căldura acumulată în schimbătorul primar al cazanului după stingerea flăcării. Dacă cererea a fost inițiată, cazanul a intrat în armare prealabilă (`PENDING_ON`), dar cererea a fost anulată înainte ca flacăra să se aprindă efectiv (`_flameStartTimeMs == 0`), rularea pompei timp de 3 minute ar genera zgomot, uzură mecanică inutilă a rotorului și răcirea șapei.
-- **Soluție Firmware (`BoilerRadioTrigger`):**
-  - Temporizarea de post-circulație este declanșată **STRICT CONDIȚIONAT** de faptul că flacăra a fost aprinsă efectiv (`_flameStartTimeMs > 0`).
-  - Dacă starea cazanului este anulată înainte de aprindere (ex. prin comanda `/api/boiler/cancel` sau prin stingerea tuturor cererilor din camere), cazanul revine direct în `IDLE` cu `overrunRemainingSec = 0`.
-  - Când flacăra a funcționat efectiv, ultimul circuit activ (`_lastDemandZoneIndex`) este menținut forțat deschis pe întreaga durată a celor 180 secunde de post-circulație („Keeper Zone”), garantând că pompa secundară nu împinge împotriva unui colector închis.
-
-### 3.3. Tăiere Hidraulică la Detectare Fereastră Deschisă (Open Window Hydronic Cutoff)
-- **Problema Tehnică:** Aerisirea camerei în sezonul rece provoacă o scădere bruscă a temperaturii aerului. Un termostat clasic ar forța deschiderea circuitului și arderea masivă de gaz pentru a încerca să încălzească aerul de afară. Datorită inerției șapei (2–4 ore), încălzirea pompată în timpul aerisirii ar duce la o supraîncălzire sufocantă a camerei după închiderea geamului.
-- **Soluție Firmware (`ThermalZoneManager`):**
-  - Algoritmul calculează derivata de temperatură pe o fereastră mobilă de 10 minute (`WINDOW_HISTORY_SLOTS = 5`, eșantioane la fiecare 2 minute).
-  - Prag de detecție dinamic configurabil în intervalul sigur `[0.8°C .. 2.0°C]` (default `1.2°C`). Valorile sub 0.8°C sunt refuzate pentru a evita declanșările false cauzate de curenți slabi sau oscilații normale ale senzorului BLE.
-  - La confirmarea căderii de temperatură:
-    1. Zona intră în starea de protecție `windowOpen = true`.
-    2. Cererea termică a camerei este suprimată forțat (`demand = false`).
-    3. Releul electrotermic asociat este decuplat instantaneu la 0V (actuatorul NC închide ventilul buclei).
-    4. Încălzirea pe camera respectivă rămâne blocată timp de 30 de minute (`WINDOW_PAUSE_MS = 1800000`) sau până la deblocarea manuală prin `/api/zones/window/clear?zone=X` ori din comutatorul dedicat din Home Assistant.
+- A spring-loaded valve (0.2–0.3 bar) between the flow and return headers.
+- If all actuators close while a pump is still running, the pressure opens it and the water circulates through the
+  end of the manifold.
+- **Reference install:** the two bathroom towel radiators have no actuators and are always open; they are the
+  permanent bypass. An always-open bypass is an installation precondition (requirements §2).
 
 ---
 
-## 4. Ghid de Cablare Electrică la Montaj
+## 3. Failures and failsafes
 
-Placa **ESP32-Relay X4 V1.1** este alimentată la 230V AC (sau 5V DC micro-USB). Cele 4 relee au contacte normal deschise (NO) și comune (COM) capabile să comute până la 10A la 250V AC.
+**Controller reactions** (fallback, DTC, fault-injection name) are defined once, in the fallback matrix of
+[`architecture.md`](architecture.md) §8.2, with the DTC list in requirements §5. This document does not repeat them.
 
-### Schemă de conexiuni recomandată:
+**What the hardware does on its own**, independent of the controller:
+
+| Failure | Hardware behaviour | Related requirement |
+|---|---|---|
+| Power loss during a burn | The boiler's gas valve closes when its own power or demand goes; NC actuators close by their spring. The residual heat goes into the water of the boiler's primary exchanger; the boiler's own 3 bar safety valve is the last barrier. | NFR-1.4 (safe boot when power returns) |
+| Controller software hang | The 90 s task watchdog resets the controller; at boot all valves are driven closed and one boiler OFF is sent. | NFR-1.5, NFR-1.4 |
+| Controller loses power | NC actuators lose power and close. The 433 MHz receiver keeps its last state until it times out — only a fail-safe receiver does that; the reference receiver has no timeout. A wired link uses a dry normally-open contact: no power = OFF. | FR-55 |
+| All valves closed while the boiler pump runs | The always-open bypass (towel radiators or differential-pressure valve) carries the flow. | requirements §2, FR-3 |
+| Mixing valve stuck open | The mechanical high-limit thermostat stops the pump and the boiler demand. | FR-54 (optional probes) |
+| Boiler lockout (EN 298) | The boiler's burner control blocks ignition and ignores the thermostat contact and the radio; a tier-A (ON/OFF) controller cannot see it directly. | FR-57 (phase 4, DTC-204) |
+| Actuator stuck closed | The zone stays cold; the bypass protects the pump. | FR-57 (phase 4, DTC-202) |
+| Actuator stuck open, relay contact welded, wrong NC/NO setting | The zone keeps heating with its valve commanded closed. | FR-56 (phase 4, DTC-203) |
+
+### 3.1 Demand ends during the interlock
+
+A wax actuator needs minutes to open. If the room reaches its target, or the target is lowered, while the valve is
+still opening, the valve is de-energised within one control tick and no boiler ON is sent for that zone (FR-37). The
+boiler is never started for a circuit that has no flow.
+
+### 3.2 Open window
+
+Airing a room in winter drops the air temperature fast. A plain thermostat would open the circuit and burn gas to heat
+the outside air; because the screed reacts with hours of lag, the heat pumped in during the airing overheats the room
+after the window is closed. The controller therefore closes the zone's valve when the room temperature drops by at
+least the global `windowThreshold` within 5 min, for 30 min at most, or until the temperature rebounds, or until it is
+cleared by hand with `POST /api/zones/window/clear` (FR-40). Frost protection overrides the pause. A smarter detection
+using the temperature slope, the outdoor temperature and absolute humidity is planned for phase 4 (FR-40.2).
+
+### 3.3 Valve exercise
+
+Valves that stay closed for a long time can seize. A valve closed for `exerciseIdleDays` is opened for 5 min with the
+boiler OFF, and the optional pump runs with it (FR-19). Today's firmware still runs the old fixed weekly short exercise
+until migration step 12 (`architecture.md` §17, G24).
+
+---
+
+## 4. Electrical wiring
+
+The **ESP32-Relay X4 V1.1** is powered from 230 V AC (or 5 V DC over micro-USB). Its four relays have normally-open
+(NO) and common (COM) contacts rated up to 10 A at 250 V AC. Mains wiring is work for a qualified electrician.
+
+### Recommended connections
 
 ```text
-                  FAZĂ 230V AC (de la panoul de siguranțe al locuinței)
+                  230 V AC PHASE (from the home's distribution board)
                                      │
-                                     ├────────────────────────────┐
-                                     │ (Siguranță fuzibilă 2A-4A) │
-                                     │                            │
-                    ┌────────────────┴────────────────┐           │
-                    │      ESP32-Relay X4 V1.1        │           │
-                    │  Terminal Alimentare AC: L & N  │           │
-                    └────────────────┬────────────────┘           │
-                                     │                            │
-     ┌───────────────────────────────┼────────────────────────────┤
-     ▼ COM Releu 1                   ▼ COM Releu 2                ▼ COM Releu 4
-[ Releu 1 - GPIO32 ]            [ Releu 2 - GPIO33 ]         [ Releu 4 - GPIO26 ]
-     ▼ NO                            ▼ NO                         ▼ NO
-Fază spre Actuator NC 1         Fază spre Actuator NC 2      Fază spre Pompa Distribuitor
-(Living & Bucătărie)            (Camera Copilului)           (Grup de Amestec GPA)
-     │                               │                            │
-     ▼                               ▼                            ▼
-  Actuator 1                      Actuator 2                    Pompă
-     │                               │                            │
-     └───────────────────────────────┴────────────────────────────┘
+                                     ├───────────────────────────────────────────┐
+                                     │ (fuse 2-4 A)                              │
+                    ┌────────────────┴────────────────┐                          │
+                    │      ESP32-Relay X4 V1.1        │                          │
+                    │  AC supply terminal: L and N    │                          │
+                    └────────────────┬────────────────┘                          │
+                                     │                                           │
+     ┌───────────────────────┬───────┴───────────────┬───────────────────────────┤
+     ▼ COM relay 1           ▼ COM relay 2           ▼ COM relay 3               ▼ COM relay 4
+[ relay 1 - GPIO32 ]    [ relay 2 - GPIO33 ]    [ relay 3 - GPIO25 ]        [ relay 4 - GPIO26 ]
+     ▼ NO                    ▼ NO                    ▼ NO                        ▼ NO
+phase to actuator(s)    phase to actuator(s)    phase to actuator(s)        phase to the manifold
+zone 1 (living +        zone 2 (kids bedroom)   zone 3 (master bedroom)     pump (optional) or a
+kitchen)                                                                    4th zone
+     │                       │                       │                           │
+     ▼                       ▼                       ▼                           ▼
+  actuators               actuators               actuators                    pump
+     │                       │                       │                           │
+     └───────────────────────┴───────────────────────┴───────────────────────────┘
                                      │
                                      ▼
-                  NUL 230V AC (Comun pentru toți consumatorii)
+                  230 V AC NEUTRAL (common to all loads)
 ```
+
+- With NC actuators an energised relay opens the valve; with NO actuators set `actuatorType` = NO (FR-15.1).
+- Relay 4 is either a zone or the pump (FR-69, `pumpOutput`).
+- **Boiler link:** the reference install uses the 433.92 MHz transmitter on GPIO19 to the boiler's receiver. A wired
+  link uses a dry normally-open relay contact on the boiler's thermostat input, so loss of power means OFF (FR-55,
+  `boilerLinkType`).
 
 ---
 
-## 5. Comenzi Rapide CLI pentru Diagnoză & Punere în Funcțiune
+## 5. CLI commands for diagnosis and commissioning
 
-Pentru verificare instantanee fără browser la montaj:
+For quick checks during installation without a browser:
 
 ```bash
-# Verificare stare completă (zone, pompă, actuatoare, senzori)
+# Full status (zones, pump, actuators, sensors)
 python tools/sh_esp_cli.py status
 
-# Verificare sau configurare tip actuator (NC = Normally Closed, NO = Normally Open)
+# Show or set the actuator type (NC = normally closed, NO = normally open)
 python tools/sh_esp_cli.py actuator
 python tools/sh_esp_cli.py actuator nc
 
-# Verificare sau configurare releu pompă de circulație
+# Show or set the circulation pump output
 python tools/sh_esp_cli.py pump
 python tools/sh_esp_cli.py pump enable
 
-# Declanșare manuală ciclu test anti-gripare (20 secunde deschidere actuatoare + pompă)
+# Start the valve exercise by hand (see §3.3)
 python tools/sh_esp_cli.py exercise
 
-# Raport autodiagnostic și verificare coduri de eroare DTC
+# Self-test report and active DTC codes
 python tools/sh_esp_cli.py selftest
 python tools/sh_esp_cli.py diag
 ```
+
+The full commissioning checklist is FR-68.

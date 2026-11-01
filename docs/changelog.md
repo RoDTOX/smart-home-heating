@@ -5,6 +5,25 @@ Corelat cu planul activ: [`docs/plan.md`](file:///c:/Users/BSeceleanu/.github_re
 
 
 
+## [01.11.2026] - Process review QA-1..QA-28 applied (wave 1)
+
+- **Who / when / why:** three sessions started by the main chat, 01.11.2026, after the owner approved every row of
+  `docs/process_review.md` with the recommended options. Verified and committed by the main chat.
+- **Process session:** `docs/process.md` (test review gate §3.2 in the owner's order, waivers, tailoring, ASPICE
+  labels, SUP.1 / MAN.3, owner flash decision), `AGENTS.md` (safety list by ID and parameter, FR-51, NFR-1.4; plan =
+  architecture §18), `sh-safety-reviewer` and `sh-verify-firmware` read requirements and invariants at run time,
+  `sh_process_check.py` (waivers, `{LEVEL; METHOD}` attribute, coverage per method, KNOWN errors via open `PB-n`,
+  R-A1…R-A7 grep WARN), `sh_git_version.py` fixes, `problems.md` PB-1…PB-14, new columns in problems / acceptance.
+- **Requirements session:** baseline v2.1 — `{LEVEL; METHOD}` on every active requirement, glossary, FR-2 / FR-4
+  by parameter name, "flame lit" defined, FR-60 one mapped sensor, NFR-1.4 boot OFF starts `burnerMinPause`, new
+  NFR-1.8 (safety reaction ≤ 2 s), phase tags mapped to migration steps, waiver table; review stays open for D37-D39
+  and the owner's sign-off.
+- **Records session:** `decisions.md` (D1-D36, O-1…O-11, AR-1…AR-20, quiz, work order, superseded decisions),
+  `plan.md` as the migration plan with risks, memory-bank pointers to the architecture, hydraulics doc in English
+  aligned with baseline v2.
+- **Checks:** `sh_process_check.py` 0 errors, 21 known (PB-n), PASS; `pio run` clean. **Not changed:** firmware
+  (`src/`, `include/`, `web/`), tests.
+
 ## [01.11.2026] - Process review QA-1..QA-28 (proposal)
 
 - **Who / when / why:** main chat (Claude, branch `claude/vibrant-ride-95fick`), 01.11.2026, asked by the owner

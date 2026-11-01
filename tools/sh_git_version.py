@@ -11,8 +11,9 @@ import os
 import subprocess
 
 HEADER = os.path.join("include", "git_version.h")
-# Paths whose uncommitted changes make the binary differ from the commit.
-FIRMWARE_INPUTS = ("src", "include", "web", "lib", "platformio.ini")
+# Paths whose uncommitted changes make the binary (or its test result) differ from the commit: tools/ holds the
+# pre-build scripts that shape the binary and the system test. docs/process.md §6.
+FIRMWARE_INPUTS = ("src", "include", "web", "lib", "tools", "platformio.ini")
 
 
 def _git(root, *args):
@@ -45,9 +46,14 @@ def write_header(root):
     print(f"[sh_git_version] commit {commit}")
 
 
+# Only the PlatformIO names are guarded: a NameError inside write_header must fail the build, not skip it.
 try:
     Import("env")  # noqa: F821 (provided by PlatformIO/SCons)
-    write_header(str(env["PROJECT_DIR"]))  # noqa: F821
+    PROJECT_DIR = str(env["PROJECT_DIR"])  # noqa: F821
 except NameError:
-    if __name__ == "__main__":
-        write_header(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    PROJECT_DIR = None
+
+if PROJECT_DIR:
+    write_header(PROJECT_DIR)
+elif __name__ == "__main__":
+    write_header(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))

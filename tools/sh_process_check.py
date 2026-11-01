@@ -3,26 +3,34 @@
 Traceability and process check (stdlib only). Rules: docs/process.md.
 
   trace    requirements (docs/requirements_and_features.md) <-> modules (docs/architecture.md §3.2)
-           <-> tests (tools/sh_test_system.py docstrings) <-> code tags (// FR-x in src/, include/, web/)
+           <-> tests (tools/sh_test_system.py docstrings) <-> code tags (// FR-x in src/, include/, web/);
+           {LEVEL; METHOD} attribute per requirement and coverage per verification method
   reqs     requirement writing rules: one value per quantity, measurable wording,
            one meaning per DTC code (doc and firmware)
+  arch     dependency rules R-A1...R-A7 (docs/architecture.md §3.3) grepped in src/ and include/ (WARN only)
   process  rules from AGENTS.md checked against the branch diff:
-           safety defaults, changelog + activeContext updated, commit message format,
+           safety ranges and defaults, changelog + activeContext updated, commit message format,
            debug leftovers, secrets, new libraries, firmware size, build identity,
            problems log (docs/problems.md) and PB-n citations in commits
   board   live config of the board (GET /api/config/system) against the safety limits,
            and which commit the board runs. Needs the board; not part of 'all'.
-  release  gate before push / PR to main: an OK acceptance row for a build equal to HEAD,
-           no open safety problem, APP_VERSION not already released. Not part of 'all'.
+  release  gate before push / PR to main: OK acceptance rows for a build equal to HEAD that cover the
+           AGENTS.md §3 safety IDs, no open safety problem, APP_VERSION not already released. Not part of 'all'.
+
+Findings already tracked (docs/process.md §3, §8):
+  KNOWN    an ERROR containing the Checker text of an open, analysing or rejected PB-n in docs/problems.md;
+           it does not fail the run, so CI fails only on new errors
+  waived   a trace / reqs WARN containing the WARN text of an approved row of docs/requirements_review.md
+           '## 7. Accepted checker warnings'; printed as INFO
 
 Usage:
-  python tools/sh_process_check.py                 # trace + reqs + process, diff against origin/main or main
+  python tools/sh_process_check.py                 # trace + reqs + arch + process, diff against origin/main or main
   python tools/sh_process_check.py trace --matrix docs/traceability.md
   python tools/sh_process_check.py process --base HEAD~3 --strict
   python tools/sh_process_check.py board --ip 192.168.1.20
   python tools/sh_process_check.py release
 
-Exit code 1 on any ERROR (or WARN with --strict).
+Exit code 1 on any ERROR (or WARN / KNOWN with --strict).
 """
 
 import argparse
@@ -40,7 +48,9 @@ from sh_git_version import FIRMWARE_INPUTS, firmware_commit
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 REQ_DOC = "docs/requirements_and_features.md"
+REVIEW_DOC = "docs/requirements_review.md"
 ARCH_DOC = "docs/architecture.md"
+AGENTS = "AGENTS.md"
 TEST_FILE = "tools/sh_test_system.py"
 CODE_DIRS = ("src", "include", "web")
 CODE_SKIP = re.compile(r"_html_gz\.h$|git_version\.h$")
@@ -52,6 +62,14 @@ VERSION_H = "include/Version.h"
 PB_ID = re.compile(r"\bPB-\d+\b")
 PB_STATUS = ("open", "analysing", "fixed", "closed", "rejected")
 PB_OPEN = ("open", "analysing")
+PB_KNOWN = PB_OPEN + ("rejected",)  # a matching ERROR is KNOWN; after fixed / closed it is a regression
+PB_COLUMNS = ("id", "date", "symptom", "requirements", "board commit", "safety", "cause", "missed by", "checker",
+              "fix", "status")
+WAIVER_CHECKS = ("reqs", "trace")
+# {LEVEL; METHOD} after the phase tag (process R7). Only test / board need a test in TEST_FILE.
+LEVELS = ("SW", "HW", "install")
+METHODS = ("test", "board", "inspection", "analysis")
+TESTED_METHODS = ("test", "board")
 CODE_PATHS = ("src/", "include/", "web/", "tools/", "platformio.ini")
 FIRMWARE_MAX_BYTES = int(1.25 * 1024 * 1024)
 
@@ -134,18 +152,48 @@ DTC_RAISE_RE = re.compile(r'raiseDtc\("(DTC-\d+)"')
 
 
 class Report:
-    def __init__(self):
-        self.errors = 0
-        self.warnings = 0
+    """Prints and counts findings. `known`: [(PB id, status, Checker text)] from the problems log; `waivers`:
+    [(#, check, WARN text, approved)] from the review record. `check` is the check now running (for waivers)."""
 
-    def section(self, title):
+    def __init__(self, known=(), waivers=()):
+        self.errors = self.warnings = self.known = self.waived = 0
+        self.check = None
+        self.known_texts = list(known)
+        self.waivers = list(waivers)
+        self.matched = set()  # ("pb", id, text) / ("waiver", #) that matched a finding
+
+    def section(self, title, check=None):
+        self.check = check
         print(f"\n== {title} ==")
 
     def error(self, msg):
+        # The release gate and the problems log itself are never KNOWN: a PB row must not hide them.
+        tracked = [] if self.check == "release" or msg.startswith(PROBLEMS) else self.known_texts
+        for pid, status, text in tracked:
+            if text in msg:
+                self.matched.add(("pb", pid, text))
+                if status in PB_KNOWN:
+                    self.known += 1
+                    print(f"  KNOWN  {msg} ({pid}{' rejected' if status == 'rejected' else ''})")
+                    return
+                msg += f" - matches {pid} ({status}): regression?"
+                break
         self.errors += 1
         print(f"  ERROR  {msg}")
 
+    def waive(self, msg):
+        """True (and an INFO line) if an approved waiver of the running check covers msg."""
+        for n, check, text, approved in self.waivers:
+            if approved and check == self.check and text in msg:
+                self.matched.add(("waiver", n))
+                self.waived += 1
+                print(f"  INFO   waived (#{n}): {msg}")
+                return True
+        return False
+
     def warn(self, msg):
+        if self.waive(msg):
+            return
         self.warnings += 1
         print(f"  WARN   {msg}")
 
@@ -203,20 +251,46 @@ def parse_requirements(text):
     return reqs, defined
 
 
-def parse_modules(text):
-    """Return {req id: [modules]} from the architecture table with a Module and a Requirements column
-    (§3.2): the requirement -> module allocation, kept by hand in that one direction."""
-    alloc, cols = {}, None
+ATTR_RE = re.compile(rf"\s*[-*]\s+\*\*({REQ_ID})\b[^*]*\*\*:?\s*(?:\*\[[^\]]*\]\*\s*)?(\{{[^}}\n]*\}})?")
+
+
+def parse_attributes(text):
+    """Return {req id: (line, attribute text or None, [levels], [methods])} for every active bold label.
+    The attribute `{LEVEL; METHOD}` follows the phase tag (process R7); both parts may be comma lists."""
+    attrs = {}
+    for n, line in enumerate(text.splitlines(), 1):
+        m = ATTR_RE.match(line)
+        if not m or "~~" in line:
+            continue
+        raw = m.group(2)
+        parts = raw[1:-1].split(";") if raw else []
+        split = lambda part: [x.strip() for x in part.split(",") if x.strip()]
+        attrs[m.group(1)] = (n, raw, *(map(split, parts) if len(parts) == 2 else ([], [])))
+    return attrs
+
+
+def module_rows(text):
+    """Rows {column: cell} of the architecture table with a Module and a Requirements column (§3.2)."""
+    rows, cols = [], None
     for line in text.splitlines():
         if not line.startswith("|"):
             cols = None
             continue
         cells = [c.strip() for c in line.strip().strip("|").split("|")]
         if cols is None:  # header row of a new table
-            cols = (cells.index("Module"), cells.index("Requirements")) if {"Module", "Requirements"} <= set(cells) else ()
+            cols = cells if {"Module", "Requirements"} <= set(cells) else []
         elif cols and not re.fullmatch(r"[-: ]+", cells[0]):
-            for rid in re.findall(REQ_ID, cells[cols[1]]):
-                alloc.setdefault(rid, []).append(cells[cols[0]].strip("`"))
+            rows.append(dict(zip(cols, cells)))
+    return rows
+
+
+def parse_modules(text):
+    """Return {req id: [modules]} from the architecture §3.2 table: the requirement -> module allocation,
+    kept by hand in that one direction."""
+    alloc = {}
+    for row in module_rows(text):
+        for rid in re.findall(REQ_ID, row.get("Requirements", "")):
+            alloc.setdefault(rid, []).append(row["Module"].strip("`"))
     return alloc
 
 
@@ -323,9 +397,26 @@ def parent_of(rid):
     return rid.rsplit(".", 1)[0] if "." in rid else None
 
 
+def check_attributes(rep, attrs):
+    """Each active requirement carries {LEVEL; METHOD} with known values (process R7)."""
+    for rid, (n, raw, levels, methods) in sorted(attrs.items(), key=lambda kv: sort_key(kv[0])):
+        where = f"{REQ_DOC}:{n} {rid}"
+        if not raw:
+            rep.warn(f"{where}: no {{LEVEL; METHOD}} attribute after the phase tag (process R7)")
+        elif not levels or not methods:
+            rep.warn(f"{where}: attribute {raw} is not {{LEVEL; METHOD}} (process R7)")
+        else:
+            bad = [x for x in levels if x not in LEVELS] + [x for x in methods if x not in METHODS]
+            if bad:
+                rep.warn(f"{where}: unknown level / method {', '.join(bad)} in {raw} - "
+                         f"LEVEL {'|'.join(LEVELS)}, METHOD {'|'.join(METHODS)} (process R7)")
+
+
 def check_trace(rep, matrix_path=None):
-    rep.section("Traceability (SWE.1 requirements <-> SWE.2 modules <-> SWE.5 tests <-> code)")
+    rep.section("Traceability (SWE.1 requirements <-> SWE.2 modules <-> SWE.6 tests <-> code)", "trace")
     reqs, defined = parse_requirements(read(REQ_DOC))
+    attrs = parse_attributes(read(REQ_DOC))
+    check_attributes(rep, attrs)
     modules = parse_modules(read(ARCH_DOC))
     registry, tests = parse_tests(read(TEST_FILE))
     tags = scan_code_tags()
@@ -339,7 +430,9 @@ def check_trace(rep, matrix_path=None):
     for rid, mods in sorted(modules.items(), key=lambda kv: sort_key(kv[0])):
         if rid not in defined:
             rep.error(f"{ARCH_DOC} §3.2: {rid} ({mods[0]}) is not an active requirement in {REQ_DOC}")
-    for rid in sorted(set(defined) - set(modules), key=sort_key):
+    # A requirement met only by hardware or the installer (LEVEL without SW, R7) needs no software module.
+    no_sw = {r for r, a in attrs.items() if a[2] and "SW" not in a[2]}
+    for rid in sorted(set(defined) - set(modules) - no_sw, key=sort_key):
         rep.warn(f"{rid} '{reqs[rid]}' has no module in {ARCH_DOC} §3.2")
 
     seen_tc = {}
@@ -371,10 +464,13 @@ def check_trace(rep, matrix_path=None):
 
     # Coverage is counted on leaves cited by their own ID; a test citing only the parent (FR-10 for
     # FR-10.1) is reported separately, it does not prove the leaf.
+    # Only leaves verified by `test` / `board` need a test; without an attribute a leaf needs one too (R7).
     leaves = [r for r in reqs if not any(o.startswith(r + ".") for o in reqs)]
     test_of = {r: [t["tc"] for t in tests if r in t["refs"]] for r in reqs}
     via_parent = {r: test_of.get(parent_of(r), []) for r in leaves}
-    untested = [r for r in leaves if not test_of[r]]
+    method_of = {r: set(attrs[r][3]) if r in attrs and attrs[r][3] else None for r in leaves}
+    needs_test = [r for r in leaves if method_of[r] is None or method_of[r] & set(TESTED_METHODS)]
+    untested = [r for r in needs_test if not test_of[r]]
     for rid in sorted(untested, key=sort_key):
         if via_parent[rid]:
             rep.warn(f"{rid} '{reqs[rid]}' only covered via parent {parent_of(rid)} ({len(via_parent[rid])} tests)")
@@ -382,7 +478,15 @@ def check_trace(rep, matrix_path=None):
             rep.warn(f"{rid} '{reqs[rid]}' has no test")
     tagged = sum(1 for r in leaves if r in tags)
     rep.info(f"{len(reqs)} requirement IDs ({len(leaves)} leaves), {len(tests)} tests, {len(tags)} tagged IDs in code")
-    rep.info(f"coverage (own ID): tests {len(leaves) - len(untested)}/{len(leaves)}, code tags {tagged}/{len(leaves)}")
+    rep.info(f"coverage (own ID): tests {len(needs_test) - len(untested)}/{len(needs_test)} leaves that need a test, "
+             f"code tags {tagged}/{len(leaves)}")
+    per_method = []
+    for m in METHODS:
+        with_m = [r for r in leaves if method_of[r] and m in method_of[r]]
+        tested = sum(1 for r in with_m if test_of[r])
+        per_method.append(f"{m} {tested}/{len(with_m)} tested" if m in TESTED_METHODS else f"{m} {len(with_m)}")
+    no_attr = sum(1 for r in leaves if method_of[r] is None)
+    rep.info(f"verification method (R7): {', '.join(per_method)}, no attribute {no_attr}")
     rep.info(f"allocated to a module: {len(set(defined) & set(modules))}/{len(defined)} requirements")
 
     if matrix_path:
@@ -497,7 +601,7 @@ def check_dtcs(rep, text):
 
 
 def check_reqs(rep):
-    rep.section("Requirement rules (one value per quantity, measurable wording, one meaning per DTC)")
+    rep.section("Requirement rules (one value per quantity, measurable wording, one meaning per DTC)", "reqs")
     text = read(REQ_DOC)
     lines = list(requirement_lines(text))
 
@@ -518,10 +622,18 @@ def check_reqs(rep):
                 values = [format_value(kind, m) for m in VALUE_RE[kind].finditer(line)]
             for value in filter(None, values):
                 seen[name].setdefault(value, {})[f"{rid}:{n}"] = None
+    # A waiver matches one value 'quantity: value (ID:line)'; that value is left out of the comparison.
     for name, values in seen.items():
-        if len(values) > 1:
-            shown = " | ".join(f"{v} ({', '.join(where)})" for v, where in values.items())
-            rep.warn(f"{name}: {len(values)} different values - {shown}")
+        if len(values) < 2:
+            continue
+        kept = {}
+        for v, where in values.items():
+            for w in where:
+                if not rep.waive(f"{name}: {v} ({w})"):
+                    kept.setdefault(v, []).append(w)
+        if len(kept) > 1:
+            shown = " | ".join(f"{v} ({', '.join(where)})" for v, where in kept.items())
+            rep.warn(f"{name}: {len(kept)} different values - {shown}")
 
     vague = {}
     for rid, n, line, is_definition in lines:
@@ -544,28 +656,44 @@ def resolve_base(base):
 
 
 @functools.lru_cache(maxsize=None)
-def param_ranges():
-    """{parameter name: Range cell} of the requirements §6 table."""
+def param_table():
+    """{parameter name: (Default cell, Range cell)} of the requirements §6 table. A row naming several
+    parameters (`burnerMinRun` / `burnerMinPause`) gives each its own part of a cell split at ' / '."""
     text = read(REQ_DOC)
     start = text.index("\n## 6.")
     end = text.find("\n## ", start + 1)
-    ranges = {}
+    params = {}
     for line in text[start:end if end > 0 else None].splitlines():
         cells = [c.strip() for c in line.strip().strip("|").split("|")]
         if len(cells) == 4:
-            for name in re.findall(r"`(\w+)`", cells[0]):
-                ranges.setdefault(name, cells[2])
-    return ranges
+            names = re.findall(r"`(\w+)`", cells[0])
+            parts = [c.split(" / ") for c in cells[1:3]]
+            for i, name in enumerate(names):
+                pick = [p[i] if len(p) == len(names) else c for p, c in zip(parts, cells[1:3])]
+                params.setdefault(name, tuple(pick))
+    return params
+
+
+def param_value(cell, unit):
+    """(first, second or None) of a §6 cell in `unit` (ms, s or C), or None without a value and unit."""
+    kind = "temp" if unit == "C" else "time"
+    m = VALUE_RE[kind].search(cell)
+    if not m:
+        return None
+    scale = (TO_BASE[m.group(3).lower()] if kind == "time" else 1) * (1000 if unit == "ms" else 1)
+    return tuple(float(g.replace(",", ".")) * scale if g else None for g in m.groups()[:2])
 
 
 def param_limits(param, unit):
     """Allowed (min, max) of a §6 parameter in `unit` (ms, s or C), or None if §6 gives no such range."""
-    kind = "temp" if unit == "C" else "time"
-    m = VALUE_RE[kind].search(param_ranges().get(param, ""))
-    if not m or not m.group(2):
-        return None
-    scale = (TO_BASE[m.group(3).lower()] if kind == "time" else 1) * (1000 if unit == "ms" else 1)
-    return float(m.group(1).replace(",", ".")) * scale, float(m.group(2).replace(",", ".")) * scale
+    v = param_value(param_table().get(param, ("", ""))[1], unit)
+    return v if v and v[1] is not None else None
+
+
+def param_default(param, unit):
+    """Default of a §6 parameter in `unit`, or None."""
+    v = param_value(param_table().get(param, ("", ""))[0], unit)
+    return v[0] if v and v[1] is None else None
 
 
 def limit_rule(param, unit, what):
@@ -577,17 +705,23 @@ def limit_rule(param, unit, what):
 
 
 def check_safety_limits(rep):
-    """One captured group is a single value; two groups are a [min, max] clamp range."""
+    """One captured group is a single value (a default: in range, and equal to the §6 default, else WARN);
+    two groups are a [min, max] clamp range."""
     for rel, pattern, unit, param, what in SAFETY_LIMITS:
         lo, hi, rule = limit_rule(param, unit, what)
         m = re.search(pattern, read(rel), re.MULTILINE)
         if lo is None:
             rep.error(rule)
-        elif not m:
+            continue
+        if not m:
             rep.error(f"{rel}: safety limit not found ({rule}) - pattern needs update?")
-        elif float(m.group(1)) < lo or float(m.groups()[-1]) > hi:
-            shown = "-".join(f"{float(g):g}" for g in m.groups())
-            rep.error(f"{rel}: {' '.join(m.group(0).split())[:80]} -> {shown} {unit} violates {rule}")
+            continue
+        found = f"{rel}: {' '.join(m.group(0).split())[:80]} -> {'-'.join(f'{float(g):g}' for g in m.groups())} {unit}"
+        default = param_default(param, unit)
+        if float(m.group(1)) < lo or float(m.groups()[-1]) > hi:
+            rep.error(f"{found} violates {rule}")
+        elif len(m.groups()) == 1 and default is not None and abs(float(m.group(1)) - default) > 1e-6:
+            rep.warn(f"{found} differs from the {REQ_DOC} §6 default of `{param}` ({default:g} {unit}) - {what}")
 
 
 def check_build_identity(rep):
@@ -604,31 +738,96 @@ def check_build_identity(rep):
                     rep.error(f"{rel}:{n}: hard-coded APP_GIT_COMMIT - it must come from git_version.h")
 
 
-def read_table(rel):
-    """Rows of the first Markdown table in a file as [(line number, {lower-case header: cell})]."""
+def read_table(rel, columns=()):
+    """(header, [(line number, {lower-case header: cell})]) of the first Markdown table in a file whose header
+    has all `columns`; (None, None) if the file is missing, ([], []) without such a table. `\\|` is a literal |."""
     if not os.path.exists(os.path.join(ROOT, rel)):
-        return None
+        return None, None
     header, rows = None, []
-    for n, line in enumerate(read(rel).splitlines(), 1):
+    for n, line in enumerate(read(rel).splitlines() + [""], 1):
         if not line.startswith("|"):
-            if header:
-                break
+            if header and set(columns) <= set(header):
+                return header, rows
+            header, rows = None, []
             continue
-        cells = [c.strip() for c in line.strip().strip("|").split("|")]
+        cells = [c.strip().replace("\\|", "|") for c in re.split(r"(?<!\\)\|", line.strip().strip("|"))]
         if header is None:
             header = [c.lower() for c in cells]
         elif not all(re.fullmatch(r":?-+:?", c) for c in cells):
             rows.append((n, dict(zip(header, cells))))
-    return rows
+    return [], []
+
+
+def unquote(cell):
+    """Text inside `code` or ``code`` (one space of padding removed for double backticks), else the cell."""
+    m = re.fullmatch(r"(`+)(.*?)\1", cell.strip())
+    if not m:
+        return cell.strip()
+    return m.group(2)[1:-1] if len(m.group(1)) > 1 and m.group(2).startswith(" ") and m.group(2).endswith(" ") \
+        else m.group(2)
+
+
+def load_known():
+    """[(PB id, status, Checker text)] of docs/problems.md (process §8): the ERROR texts a problem explains."""
+    _, rows = read_table(PROBLEMS)
+    out = []
+    for _, row in rows or []:
+        if PB_ID.fullmatch(row.get("id", "")):
+            for text in re.findall(r"`([^`]+)`", row.get("checker", "")):
+                out.append((row["id"], row.get("status", "").lower(), text))
+    return out
+
+
+def load_waivers():
+    """[(#, check, WARN text, approved)] of the review record table '## 7. Accepted checker warnings' (process §3)."""
+    _, rows = read_table(REVIEW_DOC, ("check", "warn text"))
+    out = []
+    for _, row in rows or []:
+        check, text = row.get("check", "").strip("` ").lower(), unquote(row.get("warn text", ""))
+        if check in WAIVER_CHECKS and text:
+            out.append((row.get("#", "?"), check, text, "✅" in row.get("owner", "")))
+    return out
+
+
+@functools.lru_cache(maxsize=None)
+def active_ids():
+    """Active requirement IDs (defined, or parent of a defined one)."""
+    return set(parse_requirements(read(REQ_DOC))[0])
+
+
+def check_req_cell(rep, where, cell):
+    """A Requirements cell cites active IDs in full, or is '—'."""
+    ids = re.findall(rf"\b({REQ_ID})\b", cell)
+    if not ids and cell.strip() not in ("—", "-"):
+        rep.warn(f"{where}: Requirements '{cell}' cites no requirement ID (or '—')")
+    for rid in sorted(set(ids) - active_ids(), key=sort_key):
+        rep.warn(f"{where}: Requirements cites {rid}, not an active requirement in {REQ_DOC}")
+    return set(ids)
+
+
+def safety_ids():
+    """Requirement IDs of the AGENTS.md §3 safety list: the 'Never cut safety corners' item and its sub-items."""
+    ids, inside = [], False
+    for line in read(AGENTS).splitlines():
+        if "Never cut safety corners" in line:
+            inside = True
+        elif inside and not line.startswith((" ", "\t")):
+            break
+        if inside:
+            ids += [rid for rid in re.findall(rf"\b({REQ_ID})\b", line) if rid not in ids]
+    return ids
 
 
 def check_problems(rep, release=False):
-    """docs/problems.md rows: unique IDs, known status, fix commit for fixed/closed. Returns {id: row}.
-    An open safety problem is a WARN, and an ERROR at the release gate."""
-    rows = read_table(PROBLEMS)
+    """docs/problems.md rows: columns, unique IDs, known status, fix commit for fixed/closed, cause for rejected,
+    requirement IDs. Returns {id: row}. An open safety problem is a WARN, and an ERROR at the release gate."""
+    header, rows = read_table(PROBLEMS, ("id",))
     if rows is None:
         rep.error(f"{PROBLEMS} missing (docs/process.md §8)")
         return {}
+    for col in PB_COLUMNS:
+        if col not in header:
+            rep.error(f"{PROBLEMS}: table has no '{col}' column (docs/process.md §8)")
     problems = {}
     for n, row in rows:
         where, pid, status = f"{PROBLEMS}:{n}", row.get("id", ""), row.get("status", "").lower()
@@ -644,6 +843,12 @@ def check_problems(rep, release=False):
             rep.error(f"{where}: {pid} Safety must be yes or no")
         if status in ("fixed", "closed") and not re.search(r"\b[0-9a-f]{7,}\b", row.get("fix", "")):
             rep.error(f"{where}: {pid} is {status} but Fix has no commit")
+        if status == "rejected" and not row.get("cause", "").strip():
+            rep.error(f"{where}: {pid} is rejected but Cause gives no reason")
+        checker = row.get("checker", "").strip()
+        if checker not in ("", "—", "-") and "`" not in checker:
+            rep.warn(f"{where}: {pid} Checker text must be in backticks to be matched")
+        check_req_cell(rep, f"{where} {pid}", row.get("requirements", ""))
         problems[pid] = row
     open_safety = [p for p, r in problems.items() if r.get("status", "").lower() in PB_OPEN
                    and r.get("safety", "").lower() == "yes"]
@@ -720,6 +925,94 @@ def check_process(rep, base, strict_size):
                             rep.warn(f"{path}:{n}: debug leftover? {line.strip()[:100]}")
 
 
+# ---------------------------------------------------------------- architecture rules
+
+# A file belongs to the §3.2 module it is named after (src/OutputBank.cpp -> OutputBank). Files with other names:
+# (layer, module they turn into or None). Today's files shrink out of this map with the migration (architecture §18).
+FILE_MODULES = {
+    "main": ("L1", "App"), "DiagnosticEngine": ("L1", "Diagnostics"),
+    "BleSensorScanner": ("L2", "SensorHub"), "TimeAndWeatherService": ("L2", "Weather"),
+    "BoilerRadioTrigger": ("L2", "BoilerLink"), "ThermalZoneManager": ("L4", None),
+    "WebApi": ("L6", "WebApi"), "ConsoleCommands": ("L6", "Console"), "NetworkConsole": ("L6", "Console"),
+    "TelemetryHistoryManager": ("L6", "History"),
+    "Rf433Link": ("L2", "BoilerLink"), "ContactLink": ("L2", "BoilerLink"), "ReceiverLink": ("L2", "BoilerLink"),
+}
+# Today's instances of L2-L4 objects, for R-A6.
+LEGACY_LOWER = r"thermalZones|boilerRadio|bleScanner|timeAndWeather|ThermalZoneManager|BoilerRadioTrigger|" \
+               r"BleSensorScanner|TimeAndWeatherService"
+OUTPUT_CALL = r"\b(?:applyRelay|sendBoilerOn|sendBoilerOff)\s*\(|\b(?:outputBank|outputs|boilerLink)\s*(?:\.|->)\s*" \
+              r"(?:apply|send)\w*\s*\("
+DECLARATION = re.compile(r"(?:^|\s)(?:void|bool|int|u?int\d+_t|esp_err_t)\s+(?:\w+::)?\w+\s*\([^;]*\)\s*(?:const\s*)?"
+                         r"(?:[{;]|$)")
+# (rule, finding, regex on code without comments and strings, modules where it is allowed, files it applies to:
+#  None = every file, else a set of layers / modules, skip declarations)
+ARCH_RULES = [
+    ("R-A1", "relay pinMode / digitalWrite outside OutputBank",
+     r"\b(?:pinMode|digitalWrite)\s*\(\s*(?!PIN_STATUS_LED\b|_dataPin\b|PIN_RF_DATA\b)", {"OutputBank"}, None, False),
+    ("R-A2", "radio pin / frame transmitter outside BoilerLink", r"\bPIN_RF_DATA\b|\btransmitBurst\s*\(",
+     {"BoilerLink"}, None, False),
+    ("R-A3", "output or boiler command outside SafetySupervisor", OUTPUT_CALL, {"SafetySupervisor"}, None, True),
+    ("R-A4", "Preferences outside ParamStore", r"\bPreferences\b", {"ParamStore"}, None, False),
+    ("R-A4", "LittleFS outside History / Diagnostics", r"\bLittleFS\b", {"History", "Diagnostics"}, None, False),
+    ("R-A5", "FaultInjector used outside L2 inputs / BoilerLink", r"\b[Ff]aultInjector\b",
+     {"FaultInjector", "SensorHub", "Weather", "Clock", "FlowInput", "BoilerLink", "Commands", "App"}, None, False),
+    ("R-A5", "FaultInjector refers to L3 or outputs", r"\b(?:SafetySupervisor|OutputBank|BoilerLink)\b", set(),
+     {"FaultInjector"}, False),
+    ("R-A6", "L6 module uses an L2-L4 module (only Commands / StatusModel)", None, {"StatusModel"}, {"L6"}, False),
+    ("R-A7", "String / new / growing container in L2-L4 (allowed only at boot - check by hand)",
+     r"\bString\b|\bnew\s+[A-Za-z_]|\bstd::(?:vector|string|map|unordered_map|list|deque)\b|\.push_back\s*\(",
+     set(), {"L2", "L3", "L4"}, False),
+]
+
+
+def code_lines(path):
+    """(line number, code) with comments and string literals removed."""
+    in_block = False
+    with open(path, encoding="utf-8", errors="replace") as f:
+        for n, line in enumerate(f, 1):
+            if in_block:
+                end = line.find("*/")
+                if end < 0:
+                    continue
+                line, in_block = line[end + 2:], False
+            line = re.sub(r'"(?:\\.|[^"\\])*"', '""', line)
+            line = re.sub(r"/\*.*?\*/", "", line)
+            if "/*" in line:
+                line, in_block = line[:line.index("/*")], True
+            yield n, line.split("//", 1)[0]
+
+
+def check_arch(rep):
+    """Dependency rules R-A1...R-A7 (architecture §3.3) as grep heuristics: WARN, one line per rule and file."""
+    rep.section("Architecture rules (SWE.2 dependency rules R-A1...R-A7, architecture.md §3.3)", "arch")
+    layers = {r["Module"].strip("`"): r.get("Layer", "")[:2] for r in module_rows(read(ARCH_DOC))}
+    lower = [m for m, layer in layers.items() if layer in ("L2", "L3", "L4")]
+    rules = [(rid, what, re.compile(rx or rf"\b(?:{'|'.join(lower)}|{LEGACY_LOWER})\b"), allowed, scope, decl)
+             for rid, what, rx, allowed, scope, decl in ARCH_RULES]
+    files = sorted(p for d in ("src", "include") for p in glob.glob(os.path.join(ROOT, d, "**", "*"), recursive=True)
+                   if os.path.isfile(p) and p.endswith((".cpp", ".h")) and not CODE_SKIP.search(p))
+    findings = 0
+    for path in files:
+        stem = os.path.splitext(os.path.basename(path))[0]
+        layer, module = (layers[stem], stem) if stem in layers else FILE_MODULES.get(stem, (None, None))
+        rel = os.path.relpath(path, ROOT).replace(os.sep, "/")
+        hits = {}
+        for n, code in code_lines(path):
+            if code.lstrip().startswith("#define"):  # a pin or constant definition is not a use
+                continue
+            for rid, what, rx, allowed, scope, decl in rules:
+                if module in allowed or (scope is not None and layer not in scope and module not in scope):
+                    continue
+                if rx.search(code) and not (decl and DECLARATION.search(code)):
+                    hits.setdefault((rid, what), []).append(n)
+        for (rid, what), lines in sorted(hits.items()):
+            more = f" (+{len(lines) - 1} more)" if len(lines) > 1 else ""
+            rep.warn(f"{rid} {what}: {rel}:{lines[0]}{more}")
+            findings += 1
+    rep.info(f"{len(files)} files, {findings} rule findings - today's code predates the architecture "
+             f"({ARCH_DOC} §17); the migration (§18) removes them step by step")
+
+
 # ---------------------------------------------------------------- release
 
 def same_firmware(commit, ref="HEAD"):
@@ -729,32 +1022,44 @@ def same_firmware(commit, ref="HEAD"):
 
 def check_release(rep):
     """Gate before push / PR to main (docs/process.md §5): what goes out is what the owner tested."""
-    rep.section("Release gate (acceptance, problems, version)")
+    rep.section("Release gate (acceptance, problems, version)", "release")
     head = firmware_commit(ROOT)
     if head.endswith("-dirty"):
         rep.error(f"uncommitted firmware changes ({head}) - commit, build, flash and test that build")
 
-    rows = read_table(ACCEPTANCE)
+    header, rows = read_table(ACCEPTANCE, ("board commit",))
     if rows is None:
         rep.error(f"{ACCEPTANCE} missing (docs/process.md §5)")
-        rows = []
-    accepted = []
+        header, rows = [], []
+    if "requirements" not in header:
+        rep.error(f"{ACCEPTANCE}: table has no 'Requirements' column (docs/process.md §5)")
+    accepted, covered = [], set()
     for n, row in rows:
         commit, result = row.get("board commit", ""), row.get("result", "").upper()
         if result not in ("OK", "NOK") or not re.fullmatch(r"[0-9a-f]{7,}(?:-dirty)?", commit):
             rep.error(f"{ACCEPTANCE}:{n}: Board commit must be a hash as the board reports it, Result OK or NOK")
             continue
+        ids = check_req_cell(rep, f"{ACCEPTANCE}:{n}", row.get("requirements", ""))
         if result != "OK" or commit.endswith("-dirty"):
             continue
         if not git("rev-parse", "--verify", "--quiet", commit + "^{commit}", probe=True):
             rep.warn(f"{ACCEPTANCE}:{n}: commit {commit} not in this repository (rebased away?)")
         elif same_firmware(commit):
             accepted.append(f"{commit} ({row.get('date', '?')}, line {n})")
+            covered |= ids
     if accepted:
         rep.info(f"HEAD firmware accepted by the owner: {', '.join(accepted)}")
     else:
         rep.error(f"no OK row in {ACCEPTANCE} for a clean build with the same firmware as HEAD ({head}) "
                   f"- flash HEAD, test on the board, add the row")
+    safety = safety_ids()
+    if not safety:
+        rep.error(f"{AGENTS} §3 safety list ('Never cut safety corners') cites no requirement ID")
+    elif accepted and set(safety) - covered:
+        rep.error(f"OK rows for HEAD firmware do not cover the {AGENTS} §3 safety IDs "
+                  f"{', '.join(r for r in safety if r not in covered)} - test them on the board, list them in the row")
+    elif accepted:
+        rep.info(f"OK rows cover the safety IDs {', '.join(safety)}")
 
     check_problems(rep, release=True)
 
@@ -825,20 +1130,23 @@ def main():
     if hasattr(sys.stdout, "reconfigure"):
         sys.stdout.reconfigure(encoding="utf-8", errors="replace")
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("check", nargs="?", choices=["all", "trace", "reqs", "process", "board", "release"], default="all")
+    ap.add_argument("check", nargs="?", choices=["all", "trace", "reqs", "arch", "process", "board", "release"],
+                    default="all")
     ap.add_argument("--ip", default=BOARD_IP, help=f"board address for 'board' (default {BOARD_IP})")
     ap.add_argument("--base", help="git ref to diff against (default: origin/main, then main)")
     ap.add_argument("--matrix", metavar="PATH", nargs="?", const="docs/traceability.md",
                     help="write the traceability matrix as Markdown (default PATH: docs/traceability.md)")
     ap.add_argument("--require-firmware", action="store_true", help="missing firmware.bin is an error (CI)")
-    ap.add_argument("--strict", action="store_true", help="warnings fail the run")
+    ap.add_argument("--strict", action="store_true", help="warnings and known errors fail the run")
     args = ap.parse_args()
 
-    rep = Report()
+    rep = Report(load_known(), load_waivers())
     if args.check in ("all", "trace"):
         check_trace(rep, args.matrix)
     if args.check in ("all", "reqs"):
         check_reqs(rep)
+    if args.check in ("all", "arch"):
+        check_arch(rep)
     if args.check in ("all", "process"):
         try:
             check_process(rep, args.base, args.require_firmware)
@@ -854,10 +1162,31 @@ def main():
             check_release(rep)
         except GitError as e:
             rep.error(f"release check aborted: {e}")
+    report_tracked(rep, args.check)
 
-    failed = rep.errors or (args.strict and rep.warnings)
-    print(f"\nResult: {rep.errors} errors, {rep.warnings} warnings -> {'FAIL' if failed else 'PASS'}")
+    failed = rep.errors or (args.strict and (rep.warnings or rep.known))
+    print(f"\nResult: {rep.errors} errors, {rep.known} known, {rep.warnings} warnings, {rep.waived} waived "
+          f"-> {'FAIL' if failed else 'PASS'}")
     return 1 if failed else 0
+
+
+def report_tracked(rep, check):
+    """Which PB-n explain errors, and which waivers or Checker texts match nothing (so they can be removed)."""
+    rep.section("Tracked findings (problems.md Checker, requirements_review.md §7 waivers)")
+    hit_pb = sorted({pid for pid, status, text in rep.known_texts
+                     if status in PB_KNOWN and ("pb", pid, text) in rep.matched}, key=lambda p: int(p[3:]))
+    rep.info(f"{rep.known} known errors" + (f" ({', '.join(hit_pb)})" if hit_pb else "")
+             + f", {rep.waived} waived warnings, {len(rep.waivers)} waiver rows in {REVIEW_DOC}")
+    ran = WAIVER_CHECKS if check == "all" else (check,)
+    for n, wcheck, text, approved in rep.waivers:
+        if not approved:
+            rep.info(f"waiver #{n} ({wcheck}) has no owner ✅ - not applied")
+        elif wcheck in ran and ("waiver", n) not in rep.matched:
+            rep.info(f"waiver #{n} ({wcheck}) `{text}` matches no WARN - still needed?")
+    if check == "all":  # board-only texts cannot match here
+        for pid, status, text in rep.known_texts:
+            if status in PB_OPEN and ("pb", pid, text) not in rep.matched:
+                rep.info(f"{pid} ({status}): Checker text `{text}` matches no error - fixed, or a board finding?")
 
 
 if __name__ == "__main__":

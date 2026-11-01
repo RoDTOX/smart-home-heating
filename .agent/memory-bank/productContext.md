@@ -1,20 +1,34 @@
-# Product Context: Smart Heating System
+# Product Context
+
+Rewritten 01.11.2026 (process review QA-25). Behaviour and values are defined in
+[`docs/requirements_and_features.md`](../../docs/requirements_and_features.md) (baseline v2); this file only says why.
 
 ## Problem
-In standard residential heating installations, a single central thermostat controls the entire house. As a result, individual rooms become either too hot or too cold, energy is wasted, and heating comfort is uneven. Furthermore, when the primary wireless thermostat remote unit broke, manual boiler switching became necessary. Commercial multi-zone kits cost hundreds or thousands of euros.
+
+One thermostat for a whole home leaves rooms too hot or too cold and wastes energy. In the reference home the
+original wireless room thermostat broke, so the boiler had to be switched by hand. Commercial multi-zone kits cost
+hundreds to thousands of euros.
 
 ## Users
-Homeowner and family members controlling apartment heating from smartphones (Android / iOS) or local PCs, with complete hands-off automatic heating based on room temperatures and schedules.
 
-## User Journey
-1. User opens the local web app on their phone (or PWA home-screen icon) pointing to `http://heating.local` (or direct IP).
-2. The user sees an interactive SVG floorplan of their apartment with real-time room temperatures, humidity, and valve status.
-3. The user can adjust any room's target setpoint via slider, toggle presets (`Confort`, `Eco`, `Noapte`, `Plecat`), or set schedules.
-4. When a room drops below its setpoint minus hysteresis, the controller powers the corresponding 230V NC actuator.
-5. Once the valve physically opens (after ~2.5 minutes), the boiler flame triggers via the reverse-engineered radio transmitter.
-6. When all rooms reach setpoint, the boiler flame cuts off immediately, while valves stay open briefly for pump overrun cooling.
+- **Family:** sees rooms, temperatures and alarms, sets a boost or Home / Away on one page (FR-8.1); otherwise has
+  nothing to do.
+- **Owner / installer:** commissions once (FR-68), then maintains through the `#admin` view, the API and the console
+  (`tools/sh_esp_cli.py`).
 
-## UX Goals
-- **Instantaneous local feedback**: Zero cloud lag, fast HTTP/REST and WebSocket updates.
-- **Visual clarity**: Interactive apartment floorplan showing heat flow, active zones glowing, and easy setpoint adjustment.
-- **Zero maintenance**: Sensor batteries last 2+ years; controller recovers automatically from power or network outages.
+## How it behaves
+
+1. Each zone follows its schedule level (day / night / away, FR-29, FR-31); a warmer level starts early depending on
+   the outdoor temperature (FR-48).
+2. A zone's valve opens for part of each hour (time-proportional control, FR-47).
+3. The boiler is switched ON only after a valve has been open long enough for the wax actuator (FR-2); after OFF one
+   valve stays open for the overrun (FR-3); the burner guard limits starts and stops (FR-4).
+4. Faults are not felt in the rooms: a zone that loses its sensor keeps heating at its learned duty (FR-51), missing
+   weather or time data have fallbacks (NFR-5.1, NFR-5.2), alarms show in the page (FR-62).
+
+## UX goals
+
+- **Local only:** no cloud, no app store; the page is served by the controller (FR-8.1, NFR-1.1).
+- **One page:** family view plus `#admin` (FR-8.1); family view in Romanian or English (NFR-3.1).
+- **Zero maintenance:** the controller recovers from power and network loss by itself (NFR-1.1, NFR-1.4); alarms are
+  page-only, there is no push channel (FR-62).

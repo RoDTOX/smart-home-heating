@@ -1,49 +1,27 @@
-# System Patterns: Smart Heating System
+# System Patterns
 
-## Architecture Overview
+This file is a pointer. The design is [`docs/architecture.md`](../../docs/architecture.md) (SWE.2, approved by the
+owner 01.11.2026); behaviour, parameter defaults and ranges are in
+[`docs/requirements_and_features.md`](../../docs/requirements_and_features.md) (baseline v2, values only in §6).
 
-```text
-[ Xiaomi LYWSD03MMC Thermometers ]
-   │ (BTHome v2 BLE Advertising Beacons - 10s-20s interval)
-   ├──────────────────────────────┐
-   ▼                              ▼ (weak RSSI fallback)
-[ ESP32 Heating Controller ]   [ Samsung Galaxy A6 ("Cinderella") ]
-   ├── NimBLE-Arduino Scanner     ├── BTSnoop Tailer / btsnoop_scanner.py
-   ├── ThermalZoneManager Engine  ├── Mosquitto MQTT Broker (:1883)
-   │     ├── Hysteresis loop      ├── PostgreSQL DB & Grafana (:3000)
-   │     ├── Actuator Delay       └── Telemetry Forwarder (WiFi/MQTT)
-   │     └── Boiler Interlock             │
-   ├── DiagnosticEngine (DTCs)            │
-   ├── DevicePassport (NVS)               │
-   ├── TimeAndWeatherService (NTP)        │
-   ├── Web Server & REST API ◄────────────┘
-   ├── Relay Driver (230V NC Actuators)
-   └── Boiler Radio Trigger Driver
-         ▼
-      [ Gas Boiler Flame On/Off ]
-```
+Rewritten 01.11.2026 (process review QA-25). Earlier versions of this file described a system that no longer exists;
+the decisions behind them are listed in [`decisions.md`](decisions.md), entry "Superseded decisions".
 
-## Components
-- **`BleSensorScanner` (ESP32):** Passive BLE beacon receiver parsing BTHome v2 (UUID 0xFCD2) and PVVX/ATC (UUID 0x181A) frames.
-- **`MqttTelemetryClient` (ESP32):** Secondary redundant telemetry channel subscribing to room topics from Galaxy A6; publishes boiler and relay state for Grafana logging.
-- **`ThermalZoneManager` (ESP32):** State machine evaluating temperature vs setpoint per zone; commands actuator relays and manages boiler heat demand. Persists config to NVS.
-- **`BoilerRadioTrigger` (ESP32):** Hardware abstraction driving the reverse-engineered wireless 433.92 MHz boiler trigger.
-- **`DiagnosticEngine` (ESP32):** Real-time monitoring of subsystems, standard DTC management, onboard self-test routine, and remote Service Mode.
-- **`DevicePassport` (ESP32):** Manages device serial number, first commissioning timestamp, client profile, and technician maintenance log in NVS.
-- **`TimeAndWeatherService` (ESP32):** Wi-Fi NTP synchronization with Europe/Bucharest timezone and periodic exterior temperature retrieval via Open-Meteo REST API.
-- **`NetworkConsole` (ESP32):** Dual Telnet (TCP 23) and Web console (`/console`) with synchronized bidirectional command handling.
-- **`sh_esp_cli.py` (Host/PC):** Command-line client for zero-overhead headless management and rapid validation.
+| Topic | Where |
+|---|---|
+| Context, constraints, principles P1…P9 | `architecture.md` §1, §2 |
+| Modules, layers, dependency rules R-A1…R-A7 | `architecture.md` §3 |
+| Interfaces, user commands | `architecture.md` §4 |
+| Tasks, control tick, timing budget, boot sequence | `architecture.md` §5 |
+| Safety layer (`SafetySupervisor`), invariants I-1…I-8 | `architecture.md` §6 |
+| State machines: zone, valve, boiler, boiler link, mode, season, boot / OTA | `architecture.md` §7 |
+| Validity `Ok` / `Held` / `Lost` and the fallback of every input | `architecture.md` §8 |
+| Parameter store, NVS budget | `architecture.md` §9; values in requirements §6 |
+| DTC and event store | `architecture.md` §10; codes in requirements §5 |
+| Fault injection | `architecture.md` §11 |
+| Resource budget: flash, RAM, timing, flash wear | `architecture.md` §14 |
+| Today's code vs the target, migration steps | `architecture.md` §17, §18; status in [`docs/plan.md`](../../docs/plan.md) |
+| Process rules: requirements, tests, reviews, decisions, commits, problems | [`docs/process.md`](../../docs/process.md) |
 
-## Key Patterns
-- **Headless API-First Pattern:** Microcontroller serves as an ultra-fast, robust REST backend (<100ms response). UI logic is decoupled from core safety firmware.
-- **Autonomous Edge Pattern:** Control decisions are made strictly on ESP32. Loss of Wi-Fi, MQTT, or Cloud never stops heating.
-- **Thermal Actuator Interlock Pattern:** NC wax actuators require 2–3 minutes to open. Boiler flame ignition is delayed until at least one actuator is physically open.
-- **Pump Overrun & Bypass Pattern:** Prevents boiler heat exchanger damage by keeping at least one zone valve open for 180s post flame shutdown.
-- **Anti-Short-Cycling & Reversal Pattern:** Enforces minimum 60s burn time and minimum 60s cooldown before state reversals; transitions during active flame are safely queued as `PENDING_OFF` with live countdown telemetric feedback (`boilerCooldownSec`).
-- **Non-Destructive Host Automation Pattern:** Automated host test suites (`sh_test_system.py`) capture live user operational state (`activePreset`, actuator polarity, zone setpoints) at launch and reliably restore it in the final cleanup phase.
-- **Embedded Reverse Proxy Dev Server Pattern:** `tools/sh_dev_server.py` transparently proxies `/api/*` to the ESP32 hardware, enabling native live console streaming and rapid UI iteration on localhost without CORS or connection friction.
-- **Hybrid Sensor Fallback Pattern:** Zone listens to direct BLE; if no packet received within 90s, uses MQTT payload from Galaxy A6. If no telemetry received for > 30 minutes, zone trips sensor fault failsafe (`DTC-101`).
-- **NVS Persistence Pattern:** All configuration, calibration, sensor mappings, and passport metadata survive power cycles and reboots via ESP32 Preferences with strict wear-leveling (`if (oldVal != newVal)`).
-- **Test Integrity & Anti-Weakening Invariant (ASPICE SWE.5):** The primary purpose of tests is to discover bugs, race conditions, edge cases, and architectural defects in the firmware. **Weakening or relaxing test assertions to force a passing status is strictly forbidden.** If a test fails, the root cause must be diagnosed and resolved in the C++ firmware logic or documented as a verified defect.
-- **Daily Zero-Gap Requirements Audit Protocol:** At the start of every session / day, the agent systematically audits the codebase against `requirements_and_features.md` and `sh_test_system.py`. If any implementation or API endpoint lacks formal requirements coverage or automated test verification, the agent proactively alerts the user and requests explicit approval to specify and test it before proceeding.
-
+The rules on test integrity (anti-weakening) and on gaps between code, requirements and tests (zero-gap audit) are in
+`docs/process.md` §3.2 (moved there, process review QA-25).

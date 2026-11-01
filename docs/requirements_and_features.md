@@ -1,6 +1,9 @@
 # System and Software Requirements — Smart Home Heating
 
-**Baseline:** v2, 31.10.2026 — derived from the owner-approved review [`requirements_review.md`](requirements_review.md).
+**Baseline:** v2.1, 01.11.2026 — v2 (31.10.2026, derived from the owner-approved review
+[`requirements_review.md`](requirements_review.md)) plus the owner-approved process review rows QA-7, QA-8, QA-9,
+QA-10, QA-11, QA-12, QA-13, QA-14, QA-16 ([`process_review.md`](process_review.md); applied as listed in
+`requirements_review.md` §8).
 **Replaces:** the Romanian specification of 07.10.2026 (v1). IDs are kept where the meaning did not change.
 **Related:** [`plan.md`](plan.md), [`changelog.md`](changelog.md), [`hardware_esp32_relay.md`](hardware_esp32_relay.md),
 [`underfloor_heating_hydraulics_and_failsafes.md`](underfloor_heating_hydraulics_and_failsafes.md), [`api_reference.md`](api_reference.md).
@@ -10,14 +13,50 @@
 ## 0. How to read this document
 
 - `- **FR-x (Title):**` defines a requirement. Struck-through items (`~~`) are retired and keep their ID reserved.
-- **Phase tag** after the title says *when* it is implemented, not *whether* it is required:
-  `[now]` current phase · `[phase 4]` predictive control · `[later]` after phase 4 · `[nice to have]` optional.
+- **Phase tag** after the title of a functional requirement says *when* it is implemented, not *whether* it is
+  required; the table below maps each tag to the migration steps of [`architecture.md`](architecture.md) §18.
+  A sub-item without a tag has its parent's tag. Non-functional requirements have no tag: each applies from the
+  step that builds what it constrains.
+- **Attribute** `{LEVEL; METHOD}` follows the phase tag, or the title where there is no tag. Retired items have none.
+  - LEVEL — who meets the requirement: `SW` the firmware, `HW` hardware (controller board, boiler receiver,
+    sensors, actuators, flow probes), `install` the installer at commissioning (FR-68).
+  - METHOD — how it is verified: `test` automated on the board by `tools/sh_test_system.py`; `board` measured or
+    observed on the board by the owner, over hours or days where the requirement needs it; `inspection` review of
+    code, documents or the installation; `analysis` calculation, build output or recorded data evaluated off the
+    board.
+  - A comma list (`{SW, HW; test, inspection}`) means each level meets its part and each method verifies its part.
 - Every functional requirement states its **inputs**, **fallback** and **reports** (NFR-5.2); fallbacks follow the
   priorities of NFR-5.1.
 - Configuration parameters are written as `name`; default, range and storage are defined once, in §6.
+  Requirements cite the name, never the number (process rule R2).
 - DTC codes are defined once, in §5.
 - IDs are cited in full (`FR-6.1, FR-6.2`), never as a range, so the checker can trace them. A parent ID (`FR-6`)
   groups its children and is not a requirement of its own.
+
+**Phase tags and migration steps** ([`architecture.md`](architecture.md) §18):
+
+| Tag | Built in |
+|---|---|
+| `[now]` | steps 1–13, in the step that builds the module the requirement is allocated to (architecture §3.2) |
+| `[phase 4]` | step 14, one advisor or monitor per step |
+| `[later]` | step 14, after the advisors (export / import, factory reset) |
+| `[nice to have]` | optional, only on the owner's request; step 14 lists humidity compensation (FR-71) as the last advisor and extra BLE receivers (FR-72) with the `[later]` items |
+| `[now; sensors optional]` | step 13, after the owner has chosen the probe type (FR-54) |
+| `[now; receiver hardware later]`, `[now: configuration; hardware later]` | the firmware part in steps 1–13; the named hardware has no step until it is chosen (FR-55, FR-69) |
+| `[now, documentation]` | the commissioning document, no firmware step; the firmware functions it uses have their own requirements (FR-68) |
+
+**Glossary.** These terms are used with exactly this meaning; a value given here is part of every requirement that
+uses the term.
+
+| Term | Meaning |
+|---|---|
+| control tick | One pass of input, control and safety evaluation, every 1 s (architecture §5.3). "At the next control tick" means in the first tick after the trigger; the time until the output has changed is bounded by NFR-1.8. |
+| TPI cycle | The 60 min period of time-proportional control (FR-47); a zone's valve is ON for duty × TPI cycle in each cycle. "Cycle" alone always means a TPI cycle, never a control tick. |
+| request | What a function or a user asks for: open valve n, boiler ON. API and console calls that change an output are requests. |
+| command | What is actually sent to an output: a relay state, a boiler link frame or contact state. Only the safety layer turns requests into commands (architecture §0). A *console command* (FR-7.3) is a text command, not an output command. |
+| demand | A zone has demand while a request to open its valve is active: the ON time of its TPI cycle (FR-47) or of its sensor-loss duty (FR-51), frost protection (FR-16.1), a MANUAL request or relay test (FR-1.3, FR-43), valve exercise (FR-19) or a self-test step (FR-60). Demand from valve exercise never asks for boiler ON (FR-19). |
+| accepted reading | A room sensor reading that passed the plausibility rules of FR-53; control uses it with the zone offset of FR-49. Control, frost protection, window detection and the sensor timeout use only accepted readings (FR-16.1, FR-16.2, FR-40, FR-53). |
+| flame lit | Tier A (boiler switched ON/OFF without feedback, the reference install, §2): an ON frame (or contact close) was sent since the last OFF. A start cancelled before the ON went out — during the interlock or in `PENDING_ON` (FR-32) — never lit the flame. Tier B (a boiler link that reports the burner state, not specified yet) may use that feedback instead. |
 
 ---
 
@@ -66,36 +105,36 @@ one example:
 
 ### 3.1 Room control
 
-- **FR-47 (Time-proportional valve control):** *[now]* Each zone is controlled by time-proportional control (TPI):
-  - cycle 60 min; ON time per cycle = duty × cycle;
+- **FR-47 (Time-proportional valve control):** *[now]* {SW; test, board} Each zone is controlled by time-proportional control (TPI):
+  - TPI cycle (§0) 60 min; ON time per TPI cycle = duty × TPI cycle;
   - duty = (target − room temperature) / 1.5 °C + learned base duty, limited to 0–100 %;
   - learned base duty 0–60 %, adapted per zone and per outdoor band of 5 °C (7 bands), stored in NVS when it
     changes by ≥ 5 % (NFR-2.9);
   - minimum valve ON time and OFF time 10 min each (wax actuators need 3–5 min to open);
-  - a new cycle starts when the target changes by more than 0.4 °C;
+  - a new TPI cycle starts when the target changes by more than 0.4 °C;
   - the valve closes when the room exceeds target + `hysteresis`.
-  - *Inputs:* room temperature (accepted readings, FR-53), target. *Fallback:* sensor lost → FR-51; learned duty
+  - *Inputs:* room temperature (accepted readings, §0, FR-53), target. *Fallback:* sensor lost → FR-51; learned duty
     out of bounds → default (NFR-5.3). *Reports:* duty per zone in the admin view (FR-8.1).
   - Acceptance examples: 1.5 °C below target → 100 %; 0.2 °C below target → 13 % with zero base duty, 25 % with
     a learned base duty of 12 % (blueprint example).
 - ~~**FR-1.1 (Hysteresis ON/OFF loop):** retired, replaced by FR-47; hysteresis remains only as overshoot cut.~~
-- **FR-1.2 (Boost):** *[now]* A boost raises one zone's target above its current schedule level by 0.5–2.0 °C in
+- **FR-1.2 (Boost):** *[now]* {SW; test} A boost raises one zone's target above its current schedule level by 0.5–2.0 °C in
   0.5 °C steps; it never lowers the target (to cool use away, FR-44). Firmware enforces the limits for every
   source (page, API, console). The boost ends as defined in FR-39.
   - *Fallback:* request outside the limits → rejected, current target kept.
-- **FR-39 (Boost end):** *[now]* A boost ends at the first of: `boostDuration` elapsed, next schedule slot change,
+- **FR-39 (Boost end):** *[now]* {SW; test} A boost ends at the first of: `boostDuration` elapsed, next schedule slot change,
   `POST /api/zones/hold/clear`. The schedule level is never modified by a boost.
   - *Fallback:* no valid time → the boost ends after `boostDuration` measured on uptime.
-- **FR-1.3 (Operating modes):** *[now]* AUTO: zones and boiler follow FR-47. MANUAL: relays and boiler are commanded
-  by the user (maintenance, tests). In MANUAL, boiler ON requires at least one valve open for ≥ `interlockDelay`
+- **FR-1.3 (Operating modes):** *[now]* {SW; test} AUTO: zones and boiler follow FR-47. MANUAL: relays and boiler follow the
+  user's requests (maintenance, tests). In MANUAL, boiler ON requires at least one valve open for ≥ `interlockDelay`
   (FR-2), unless `openLoopBypass` is set. Frost protection (FR-16.1) and burner guards (FR-4) apply in both modes.
-- **FR-52 (Manual mode timeout):** *[now]* MANUAL returns to AUTO after `manualTimeout`. While MANUAL is active,
+- **FR-52 (Manual mode timeout):** *[now]* {SW; test} MANUAL returns to AUTO after `manualTimeout`. While MANUAL is active,
   the page shows a warning with the remaining time.
-- **FR-48 (Weather-shifted pre-heat):** *[now]* If the next schedule slot has a higher level, it starts early by
+- **FR-48 (Weather-shifted pre-heat):** *[now]* {SW; test} If the next schedule slot has a higher level, it starts early by
   120 + 9 × (5 − outdoor °C) min, limited to 45–240 min (2 h at +5 °C, 3.5 h at −5 °C).
   - *Inputs:* outdoor temperature (FR-9), schedule. *Fallback:* outdoor value older than 6 h or missing → 90 min.
     Replaced by the learned model when FR-67 is available. *Reports:* lead time in the admin view.
-- **FR-51 (Zone without sensor):** *[now]* A zone whose sensor is in timeout (FR-16.2) keeps heating with its learned
+- **FR-51 (Zone without sensor):** *[now]* {SW; test} A zone whose sensor is in timeout (FR-16.2) keeps heating with its learned
   duty for the current outdoor temperature (bounded by NFR-5.3); if nothing is learned, with `faultDuty`.
   Frost protection (FR-16.1), interlock (FR-2) and burner guards (FR-4) stay active. Normal control resumes on the
   first accepted reading.
@@ -105,36 +144,37 @@ one example:
 
 ### 3.2 Hydraulic safety
 
-- **FR-2 (Actuator opening interlock):** *[now]* Boiler ON is commanded only after at least one zone valve has been
-  energised (opened) for ≥ `interlockDelay` (default 180 s). Values below the range in §6 are rejected.
+- **FR-2 (Actuator opening interlock):** *[now]* {SW; test} Boiler ON is commanded only after at least one zone
+  valve has been energised (opened) for ≥ `interlockDelay`. Values below the range in §6 are rejected.
   - *Fallback:* this is the safe state; if the demand ends during the interlock, FR-37 applies.
-- **FR-3 (Overrun after flame OFF):** *[now]* The last zone valve that was open stays open while the boiler is ON
-  or `PENDING_OFF` (FR-32), and after a boiler OFF that followed a lit flame for `overrun` (default 180 s),
+- **FR-3 (Overrun after flame OFF):** *[now]* {SW; test} The last zone valve that was open stays open while the
+  boiler is ON or `PENDING_OFF` (FR-32) and, if the flame was lit (§0), for `overrun` after the boiler OFF,
   independent of the pump setting. The boiler never burns with all zone valves closed.
-  - **FR-3.2 (No overrun without flame):** If the flame was never lit (start cancelled during the interlock), the
-    overrun is 0 s and valves without demand close at once.
+  - **FR-3.2 (No overrun without flame):** {SW; test} If the flame was never lit (§0: the start was cancelled
+    before the ON was sent), there is no overrun: valves without demand close at the next control tick (FR-37).
 - ~~**FR-38 (Flame-conditioned pump overrun):** retired, merged into FR-3 / FR-3.2.~~
-- **FR-4 (Burner anti-short-cycling):** *[now]* Burner minimum run time 180 s and minimum pause 180 s, applied to
-  every ON/OFF source (automatic, API, console). Values below the range in §6 are rejected.
+- **FR-4 (Burner anti-short-cycling):** *[now]* {SW; test} The burner stays ON for at least `burnerMinRun` and OFF
+  for at least `burnerMinPause`, for every ON/OFF source (automatic, API, console); only a forced OFF (FR-17.3,
+  FR-54) may end a run earlier. Values below the range in §6 are rejected.
   - *Fallback:* a request inside the guard is deferred (FR-32), never dropped silently.
-- **FR-37 (Valve follows demand):** *[now]* A zone without demand has its valve de-energised (closed, per FR-15)
-  within one control cycle (1 s), except the overrun valve of FR-3. If demand drops during the interlock, the valve
-  closes and no boiler ON is sent for that zone.
-- **FR-14.1 (Optional circulation pump):** *[now]* One relay may be configured as circulation pump; disabled by
+- **FR-37 (Valve follows demand):** *[now]* {SW; test} A zone without demand (§0) has its valve de-energised
+  (closed, per FR-15.1) at the next control tick, except the overrun valve of FR-3. If demand ends during the
+  interlock, the valve closes and no boiler ON is sent for that zone.
+- **FR-14.1 (Optional circulation pump):** *[now]* {SW; test} One relay may be configured as circulation pump; disabled by
   default.
-- **FR-14.2 (Pump interlock):** *[now]* The pump starts only after a valve has been open for ≥ `interlockDelay`.
-- **FR-14.3 (Pump overrun):** *[now]* The pump runs during the overrun of FR-3.
-- **FR-14.5 (No pump against closed valves):** *[now]* The pump runs only while at least one valve is open, or during
+- **FR-14.2 (Pump interlock):** *[now]* {SW; test} The pump starts only after a valve has been open for ≥ `interlockDelay`.
+- **FR-14.3 (Pump overrun):** *[now]* {SW; test} The pump runs during the overrun of FR-3.
+- **FR-14.5 (No pump against closed valves):** *[now]* {SW; test} The pump runs only while at least one valve is open, or during
   the overrun with the overrun valve open.
 - ~~**FR-14.4 (Weekly anti-seize 20 s):** retired, replaced by FR-19.~~
 
 ### 3.3 Boiler link
 
-- **FR-5.1 (Radio frame):** *[now]* The 433.92 MHz OOK frame reproduces the original thermostat: 409 level
+- **FR-5.1 (Radio frame):** *[now]* {SW; inspection} The 433.92 MHz OOK frame reproduces the original thermostat: 409 level
   transitions, 65 ms silence before and after the data train.
-- **FR-5.2 (Radio range):** *[now]* The boiler receiver switches the burner ON and OFF on command from the
+- **FR-5.2 (Radio range):** *[now]* {HW, install; inspection} The boiler receiver switches the burner ON and OFF on command from the
   controller's installed position — verified at commissioning (FR-68).
-- **FR-55 (Fail-safe boiler link):** *[now; receiver hardware later]* Loss of the controller shall switch the boiler
+- **FR-55 (Fail-safe boiler link):** *[now; receiver hardware later]* {SW, HW; test, inspection} Loss of the controller shall switch the boiler
   OFF:
   - wireless link: the controller sends its state every `hbInterval`; the receiver opens the boiler contact if no
     valid frame arrives within 3 × `hbInterval`;
@@ -142,30 +182,30 @@ one example:
   - The heartbeat can be disabled (`boilerLinkHeartbeat` = off) for receivers without timeout.
   - *Reports:* while disabled, DTC-207 `WARN_BOILER_LINK_NOT_FAILSAFE` is active.
   - Note: the reference receiver has no timeout and will be replaced by an ESP32-class receiver (link type open).
-- **FR-17.1 (Idempotent command):** *[now]* An ON request while ON (or OFF while OFF) sends no radio frame and returns
+- **FR-17.1 (Idempotent command):** *[now]* {SW; test} An ON request while ON (or OFF while OFF) sends no radio frame and returns
   HTTP 200 with `"idempotent":true`.
-- **FR-17.2 (Radio cooldown):** *[now]* At least 3 s between two radio frames; a frame requested earlier is rejected
+- **FR-17.2 (Radio cooldown):** *[now]* {SW; test} At least 3 s between two radio frames; a frame requested earlier is rejected
   by the driver.
-- **FR-17.3 (Manual boiler requests):** *[now]* Manual ON/OFF requests are subject to FR-4. Only OFF may be forced
+- **FR-17.3 (Manual boiler requests):** *[now]* {SW; test} Manual ON/OFF requests are subject to FR-4. Only OFF may be forced
   (`force=true`), which stops the burner at once. No mechanism starts the burner inside the guard.
-- **FR-17.4 (Rejected request response):** *[now]* A request rejected by the guard returns HTTP 429 with
+- **FR-17.4 (Rejected request response):** *[now]* {SW; test} A request rejected by the guard returns HTTP 429 with
   `status` = `rate_limited` or `pending`, the remaining `waitSec` and the current boiler state.
-- **FR-17.5 (Request spam):** *[now]* More than 3 rejected requests within 10 s raise DTC-201 `WARN_BOILER_SPAM_DETECTED`.
-- **FR-17.6 (Radio timing):** *[now]* One radio frame blocks `loop()` for ≤ 300 ms with interrupts disabled for
+- **FR-17.5 (Request spam):** *[now]* {SW; test} More than 3 rejected requests within 10 s raise DTC-201 `WARN_BOILER_SPAM_DETECTED`.
+- **FR-17.6 (Radio timing):** *[now]* {SW; test, analysis} One radio frame blocks `loop()` for ≤ 300 ms with interrupts disabled for
   ≤ 150 ms; rejected requests send no frame.
-- **FR-17.7 (State repeat / heartbeat):** *[now]* While no command is pending, the controller re-sends the current
+- **FR-17.7 (State repeat / heartbeat):** *[now]* {SW; test} While no command is pending, the controller re-sends the current
   boiler state every `hbInterval`, so a lost OFF is repeated and FR-55 has its heartbeat.
-- **FR-32 (Deferred boiler request):** *[now]* A request rejected by FR-4 is queued (`PENDING_ON` / `PENDING_OFF`)
+- **FR-32 (Deferred boiler request):** *[now]* {SW; test} A request rejected by FR-4 is queued (`PENDING_ON` / `PENDING_OFF`)
   and executed when the guard expires. An opposite request or `POST /api/boiler/cancel` cancels it.
 
 ### 3.4 Sensors
 
-- **FR-6.1 (Supported sensors):** *[now]* Xiaomi LYWSD03MMC with PVVX / ATC firmware, BTHome v2 or ATC format.
-- **FR-6.2 (Sensor values):** *[now]* Temperature (0.1 °C), relative humidity (1 %), battery (%), RSSI (dBm).
-- **FR-6.3 (Passive scan):** *[now]* Sensors are received by passive BLE scan on the controller (NimBLE).
-- **FR-28 (Scan duty):** *[now]* BLE passive scan at ≥ 90 % duty cycle.
-- **FR-49 (Sensor offset):** *[now]* Per-zone offset −3.0…+3.0 °C added to the reading, stored in NVS.
-- **FR-53 (Reading plausibility):** *[now]* Only accepted readings drive control and window detection:
+- **FR-6.1 (Supported sensors):** *[now]* {SW; test, inspection} Xiaomi LYWSD03MMC with PVVX / ATC firmware, BTHome v2 or ATC format.
+- **FR-6.2 (Sensor values):** *[now]* {SW; test} Temperature (0.1 °C), relative humidity (1 %), battery (%), RSSI (dBm).
+- **FR-6.3 (Passive scan):** *[now]* {SW; inspection} Sensors are received by passive BLE scan on the controller (NimBLE).
+- **FR-28 (Scan duty):** *[now]* {SW; inspection} BLE passive scan at ≥ 90 % duty cycle.
+- **FR-49 (Sensor offset):** *[now]* {SW; test} Per-zone offset −3.0…+3.0 °C added to the reading, stored in NVS.
+- **FR-53 (Reading plausibility):** *[now]* {SW; test} Only accepted readings drive control and window detection:
   - a reading outside `validMin`–`validMax` is ignored and raises DTC-103 `ERR_TEMP_OUT_OF_BOUNDS`;
   - a reading differing from the last accepted one by more than `maxJump` is held and accepted only if the next
     reading confirms it within 0.5 °C, otherwise discarded and counted;
@@ -173,38 +213,38 @@ one example:
   - A real temperature drop (open window) repeats in consecutive readings and therefore passes.
   - *Fallback:* the last accepted reading is used until the sensor timeout (FR-16.2).
   - Optional later: per-sensor BTHome encryption key; unencrypted adverts ignored when a key is set.
-- **FR-20 (Link quality):** *[now]* Each sensor is classed by RSSI: EXCELLENT ≥ −72 dBm, GOOD −73…−82 dBm,
+- **FR-20 (Link quality):** *[now]* {SW; test} Each sensor is classed by RSSI: EXCELLENT ≥ −72 dBm, GOOD −73…−82 dBm,
   MARGINAL −83…−88 dBm, POOR < −88 dBm; shown via API and console.
-- **FR-22 (Boot warmup):** *[now]* After every boot, automatic heating waits up to 300 s for zone sensors. The warmup
+- **FR-22 (Boot warmup):** *[now]* {SW; test} After every boot, automatic heating waits up to 300 s for zone sensors. The warmup
   ends early when all mapped sensors were received. Zones whose sensors were received control normally during the
   warmup. At the end, each zone still without reading enters FR-51 and raises DTC-101 `ERR_SENSOR_TIMEOUT`.
   Frost protection is active during the warmup.
-- **FR-11.1 (No installation data in firmware):** *[now]* The firmware ships without sensor MAC addresses or zone
+- **FR-11.1 (No installation data in firmware):** *[now]* {SW; inspection} The firmware ships without sensor MAC addresses or zone
   names; they are set at commissioning and stored in NVS.
-- **FR-11.3 (Zone mapping):** *[now]* Each zone maps to a name, one sensor (MAC), one relay output and a target;
+- **FR-11.3 (Zone mapping):** *[now]* {SW; test} Each zone maps to a name, one sensor (MAC), one relay output and a target;
   set via API (`/api/setup/...`) and console. `/api/setup/discovered-sensors` lists received sensors by RSSI.
-- **FR-11.4 (Persistence):** *[now]* Mapping, names and settings are stored in NVS and survive reboot and power loss.
+- **FR-11.4 (Persistence):** *[now]* {SW; test} Mapping, names and settings are stored in NVS and survive reboot and power loss.
 - ~~**FR-11.2 (Setup wizard page `/setup`):** retired, page removed; discovery kept in FR-11.3.~~
-- **FR-72 (Additional BLE receivers):** *[nice to have]* Optional extra ESP32 receivers forward sensor adverts to the
+- **FR-72 (Additional BLE receivers):** *[nice to have]* {SW, HW; test} Optional extra ESP32 receivers forward sensor adverts to the
   controller over the LAN; the controller uses the most recent accepted reading.
   - Interim: a sensor below −90 dBm for 1 h raises DTC-105 `WARN_SENSOR_WEAK_SIGNAL`.
 
 ### 3.5 Protections and fault detection
 
-- **FR-16.1 (Frost protection):** *[now]* If any zone — enabled or disabled — with an accepted reading is below
-  `frostTemp` (default 12 °C), that zone heats in any mode (AUTO, MANUAL, global OFF) until it reaches
-  `frostTemp` + 1.5 °C. Interlock (FR-2) and burner guards (FR-4) still apply.
-- **FR-16.2 (Sensor timeout):** *[now]* A zone with no accepted reading for longer than `sensorTimeout`
-  (default 20 min) enters FAULT, raises DTC-101 `ERR_SENSOR_TIMEOUT` and continues with FR-51. Normal control
-  resumes on the first accepted reading.
-- **FR-18 (Sensor timeout setting):** *[now]* `sensorTimeout` is set via API and console, stored in NVS; one value
+- **FR-16.1 (Frost protection):** *[now]* {SW; test} If any zone — enabled or disabled — with an accepted reading
+  is below `frostTemp`, that zone heats in any mode (AUTO, MANUAL, global OFF) until it reaches `frostTemp` + 1.5 °C.
+  Interlock (FR-2) and burner guards (FR-4) still apply.
+- **FR-16.2 (Sensor timeout):** *[now]* {SW; test} A zone with no accepted reading for longer than `sensorTimeout`
+  enters FAULT, raises DTC-101 `ERR_SENSOR_TIMEOUT` and continues with FR-51. Normal control resumes on the first
+  accepted reading.
+- **FR-18 (Sensor timeout setting):** *[now]* {SW; test} `sensorTimeout` is set via API and console, stored in NVS; one value
   is used for control and for DTC-101 `ERR_SENSOR_TIMEOUT`.
-- **FR-40 (Window detection, simple rule):** *[now]* One global `windowThreshold` for all zones: a drop of at least
+- **FR-40 (Window detection, simple rule):** *[now]* {SW; test} One global `windowThreshold` for all zones: a drop of at least
   the threshold within 5 min closes that zone's valve for 30 min, or until the temperature rebounds by 0.6 °C from
   the minimum, or until `POST /api/zones/window/clear`. Per-zone thresholds are removed.
   - Used whenever FR-40.2 lacks outdoor or humidity data.
   - *Fallback:* a false detection ends after 30 min at most; frost protection overrides the pause.
-- **FR-40.2 (Smart window detection):** *[phase 4]* Each zone evaluates a sliding window of ≥ 3 accepted readings
+- **FR-40.2 (Smart window detection):** *[phase 4]* {SW; board, analysis} Each zone evaluates a sliding window of ≥ 3 accepted readings
   (default 5 min). A window-open event is declared when
   - the temperature slope ≤ −`windowK` × (room − outdoor) °C/min **and** absolute humidity (from temperature and
     relative humidity) drops by ≥ `windowAhDrop` g/m³ in the same window, or
@@ -215,7 +255,7 @@ one example:
   - Acceptance on recorded traces of the reference install: ≥ 90 % of openings longer than 3 min detected within
     5 min; ≤ 1 false event per zone per week.
   - *Fallback:* no outdoor or humidity data → FR-40.
-- **FR-54 (Flow temperature limit):** *[now; sensors optional]* Optional flow and return temperature sensors at the
+- **FR-54 (Flow temperature limit):** *[now; sensors optional]* {SW, HW; test} Optional flow and return temperature sensors at the
   manifold, enabled in configuration (`flowSensors`). If the flow exceeds `flowMax` for more than 2 min, the boiler
   is switched OFF without waiting for the burner minimum run (forced OFF, FR-17.3) until the flow is 5 °C below
   `flowMax`, then normal control resumes with all guards (no lockout). The 2 min filter prevents chatter.
@@ -223,10 +263,10 @@ one example:
   - *Fallback:* sensors absent or implausible → function disabled, DTC-206 `WARN_FLOW_SENSOR_FAULT`; protection
     relies on the boiler setpoint (§2 preconditions).
   - Sensor type is open (wired DS18B20 would need new libraries — owner approval per AGENTS.md).
-- **FR-56 (Zone overheat):** *[phase 4]* If a zone is above target + `overheatMargin` and still rising for
+- **FR-56 (Zone overheat):** *[phase 4]* {SW; board} If a zone is above target + `overheatMargin` and still rising for
   `overheatTime` with its valve commanded closed, DTC-203 `ERR_ZONE_OVERHEAT` is raised (valve stuck open or wrong
   NC/NO setting). Other zones continue normally.
-- **FR-57 (Heating without effect):** *[phase 4]*
+- **FR-57 (Heating without effect):** *[phase 4]* {SW; board}
   - A zone with duty ≥ `noEffectDuty` for `noEffectTime` that rises less than `noEffectRise` raises
     DTC-202 `ERR_ZONE_NO_EFFECT`.
   - If all demanding zones show it, or the flow temperature (FR-54) does not rise within 15 min of boiler ON, the
@@ -236,19 +276,19 @@ one example:
 
 ### 3.6 Schedule, modes and season
 
-- **FR-29 (Levels):** *[now]* Each zone has three levels: day, night, away (5–30 °C; factory 23 / 21 / 18 °C).
-- **FR-30 (Level storage):** *[now]* Level temperatures are stored in NVS, written only on change.
-- **FR-31 (Schedule):** *[now]* One weekday and one weekend list of up to 8 slots `HH:MM=level`, kept sorted.
-- **FR-44 (Away):** *[now]* Global away sets every zone's target to its away level and ends boosts; switching away off
+- **FR-29 (Levels):** *[now]* {SW; test} Each zone has three levels: day, night, away (5–30 °C; factory 23 / 21 / 18 °C).
+- **FR-30 (Level storage):** *[now]* {SW; test, inspection} Level temperatures are stored in NVS, written only on change.
+- **FR-31 (Schedule):** *[now]* {SW; test} One weekday and one weekend list of up to 8 slots `HH:MM=level`, kept sorted.
+- **FR-44 (Away):** *[now]* {SW; test} Global away sets every zone's target to its away level and ends boosts; switching away off
   returns to the schedule.
-- **FR-12.1 (Time):** *[now]* Time from NTP with the Romanian time zone (`EET-2EEST,M3.5.0/3,M10.5.0/4`), including
+- **FR-12.1 (Time):** *[now]* {SW; test} Time from NTP with the Romanian time zone (`EET-2EEST,M3.5.0/3,M10.5.0/4`), including
   daylight-saving changes.
-- **FR-61 (No valid time):** *[now]* Without valid time, each zone keeps the last active schedule level (stored in NVS
+- **FR-61 (No valid time):** *[now]* {SW; test} Without valid time, each zone keeps the last active schedule level (stored in NVS
   on level change) until NTP succeeds.
   - *Reports:* DTC-302 `WARN_TIME_NOT_SET`, 'time not set' in the page.
-- **FR-64 (Global OFF):** *[now]* Global OFF mode: no heating except frost protection (FR-16.1), valve exercise
+- **FR-64 (Global OFF):** *[now]* {SW; test} Global OFF mode: no heating except frost protection (FR-16.1), valve exercise
   (FR-19) and zones in sensor FAULT when it is cold outside (FR-51). Entered manually or by the season logic (FR-12.2).
-- **FR-12.2 (Heating season):** *[now]* Season mode AUTO / ON / OFF; season OFF = global OFF (FR-64).
+- **FR-12.2 (Heating season):** *[now]* {SW; test, board} Season mode AUTO / ON / OFF; season OFF = global OFF (FR-64).
   - AUTO switches ON when the daily mean outdoor temperature is below `heatLimit` for `seasonOnDays` consecutive
     days, and OFF when it is above `heatLimit` + 2 °C for `seasonOffDays` consecutive days.
   - Safety net (season mode AUTO only): in season OFF, if an enabled zone with accepted readings stays below its
@@ -260,37 +300,37 @@ one example:
 
 ### 3.7 Weather and predictive control
 
-- **FR-9 (Outdoor temperature):** *[now]* Outdoor temperature from Open-Meteo every 15 min; retry after 5 min on
+- **FR-9 (Outdoor temperature):** *[now]* {SW; test} Outdoor temperature from Open-Meteo every 15 min; retry after 5 min on
   failure.
   - *Fallback:* last value is used for 6 h, then functions that need it use their own fallback;
     DTC-401 `WARN_WIFI_SIGNAL_DEGRADED` covers a network loss.
-- **FR-9.2 (Location):** *[now]* Weather location as latitude, longitude stored in NVS; set via API and console.
-- **FR-67 (Learned heat-up model):** *[phase 4]* Per zone, the heat-up rate (°C/h as a function of outdoor
+- **FR-9.2 (Location):** *[now]* {SW; test} Weather location as latitude, longitude stored in NVS; set via API and console.
+- **FR-67 (Learned heat-up model):** *[phase 4]* {SW; board} Per zone, the heat-up rate (°C/h as a function of outdoor
   temperature) is learned from operation, stored in NVS, and used for the pre-heat lead instead of the FR-48 formula.
   - *Fallback:* too little data or values out of bounds → FR-48 formula (NFR-5.3).
-- **FR-63 (Aligned cycles, boiler minimum load):** *[phase 4]* TPI cycles of all zones start aligned, so open valves
+- **FR-63 (Aligned cycles, boiler minimum load):** *[phase 4]* {SW; test} TPI cycles of all zones start aligned, so open valves
   overlap. A zone below `minLoops` circuits demanding alone is extended or grouped with another zone, so the boiler
   does not short-cycle on its own thermostat.
-- **FR-70 (Solar gain throttling):** *[phase 4]* For zones flagged `solarGain`, if the Open-Meteo irradiance forecast
+- **FR-70 (Solar gain throttling):** *[phase 4]* {SW; board} For zones flagged `solarGain`, if the Open-Meteo irradiance forecast
   for the next 3 h exceeds `solarLimit`, the TPI duty is reduced by `solarReduction`. Values are set from recorded data.
   - *Fallback:* no forecast → no reduction.
-- **FR-71 (Humidity compensation):** *[nice to have]* Per-zone opt-in (`humidityComp`): at relative humidity ≥ 60 % the control target
+- **FR-71 (Humidity compensation):** *[nice to have]* {SW; test} Per-zone opt-in (`humidityComp`): at relative humidity ≥ 60 % the control target
   is lowered by up to 0.5 °C; the effective target is shown in the admin view.
   - *Fallback:* no humidity reading → no compensation.
 
 ### 3.8 Diagnostics
 
-- **FR-10.2 (Diagnostic codes):** *[now]* The controller raises the codes listed in §5 and shows active codes in the
+- **FR-10.2 (Diagnostic codes):** *[now]* {SW; test} The controller raises the codes listed in §5 and shows active codes in the
   page and `/api/status`.
-- **FR-10.4 (Basic self-test):** *[now]* `/api/diag/selftest` reports Wi-Fi, heap, BLE, zones, radio and a health
+- **FR-10.4 (Basic self-test):** *[now]* {SW; test} `/api/diag/selftest` reports Wi-Fi, heap, BLE, zones, radio and a health
   score 0–100 %, without switching any output. The full self-test is FR-60.
-- **FR-62 (Event history and alarms):** *[now]* The last 50 safety events (DTC raised / cleared, frost, FAULT,
+- **FR-62 (Event history and alarms):** *[now]* {SW; test} The last 50 safety events (DTC raised / cleared, frost, FAULT,
   watchdog reset, controlled restart) are kept across reboots with time stamp (uptime if time is not set), written
   only when an event occurs. Alarms are shown in the page and `/api/status`; there is no push channel.
   - *Fallback:* event store cannot be written → events are kept in RAM until reboot, with a log line.
-- **FR-21 (Firmware identity):** *[now]* Version, build date and time, git commit and reset reason are reported in
+- **FR-21 (Firmware identity):** *[now]* {SW; test} Version, build date and time, git commit and reset reason are reported in
   status, console `STATUS` and the boot message.
-- **FR-23 (Console status):** *[now]* `STATUS` shows zones, sensors, boiler, protections, heap (free, minimum, largest
+- **FR-23 (Console status):** *[now]* {SW; test} `STATUS` shows zones, sensors, boiler, protections, heap (free, minimum, largest
   block) and OTA margin. Layout is not specified.
 - ~~**FR-24 (Hardware telemetry in STATUS):** retired, merged into FR-23.~~
 - ~~**FR-25 (Zone cards, UTF-8 degree sign):** retired.~~
@@ -302,65 +342,65 @@ one example:
 
 ### 3.9 Interfaces and security
 
-- **FR-7.1 (Telnet console):** *[now]* Telnet server on port 23.
-- **FR-7.3 (Console commands):** *[now]* Console commands are accepted via Serial, Telnet and HTTP (FR-45); `HELP`
+- **FR-7.1 (Telnet console):** *[now]* {SW; test} Telnet server on port 23.
+- **FR-7.3 (Console commands):** *[now]* {SW; test} Console commands are accepted via Serial, Telnet and HTTP (FR-45); `HELP`
   lists them.
-- **FR-45 (Console over HTTP):** *[now]* `POST /api/console/send` executes a console command and returns the new log
+- **FR-45 (Console over HTTP):** *[now]* {SW; test} `POST /api/console/send` executes a console command and returns the new log
   lines; `CLEAR` empties the log buffer.
 - ~~**FR-7.2 (Web console page `/console`):** retired, page removed.~~
-- **FR-8.1 (Web page):** *[now]* One page served at `/`:
+- **FR-8.1 (Web page):** *[now]* {SW; test, inspection} One page served at `/`:
   - family view: rooms (temperature, target, humidity, state), outdoor weather, boost, one global Home / Away switch,
     active alarms;
   - admin view (`#admin`): duty per zone, RSSI per sensor, pre-heat lead, active DTCs, configuration.
   - Family view language configurable (Romanian / English, NFR-3.1).
 - ~~**FR-8.2 (Remote access via Tailscale):** retired, user network setup, not product behaviour.~~
-- **FR-8.3 (Firmware update):** *[now]* Firmware update via `/update` with authentication (FR-58);
+- **FR-8.3 (Firmware update):** *[now]* {SW; test} Firmware update via `/update` with authentication (FR-58);
   `tools/sh_ota_upload.py` completes a 1.25 MB image in < 30 s on the home LAN. OTA rules: FR-60.
-- **FR-15.1 (Actuator polarity):** *[now]* NC or NO actuator type is configurable (API, console), stored in NVS; all
+- **FR-15.1 (Actuator polarity):** *[now]* {SW; test} NC or NO actuator type is configurable (API, console), stored in NVS; all
   valve commands respect it.
 - ~~**FR-15.2 (Compatibility statement):** retired, merged into FR-15.1.~~
-- **FR-34 (Telemetry history):** *[now]* History in LittleFS: 24 h at 5 min and 5 days at 30 min resolution, served by
+- **FR-34 (Telemetry history):** *[now]* {SW; test} History in LittleFS: 24 h at 5 min and 5 days at 30 min resolution, served by
   `GET /api/history?range=24h|5d`.
-- **FR-35 (Burner counters):** *[now]* Burner time counters: total, today, yesterday, this month, last month,
+- **FR-35 (Burner counters):** *[now]* {SW; test} Burner time counters: total, today, yesterday, this month, last month,
   current burn; reported in boiler status.
-- **FR-41 (Wi-Fi supervisor):** *[now]* Wi-Fi is checked every 10 s and reconnected; after 90 s down the stack is
+- **FR-41 (Wi-Fi supervisor):** *[now]* {SW; test} Wi-Fi is checked every 10 s and reconnected; after 90 s down the stack is
   re-initialised. DTC-401 `WARN_WIFI_SIGNAL_DEGRADED` while down or RSSI < −82 dBm. Control continues (NFR-1.1).
-- **FR-42 (Configuration API limits):** *[now]* `/api/config/system` exposes hydraulic and radio timings and rejects
+- **FR-42 (Configuration API limits):** *[now]* {SW; test} `/api/config/system` exposes hydraulic and radio timings and rejects
   values outside the §6 ranges, in particular below the safety floors of FR-2, FR-3 and FR-4.
-- **FR-43 (Relay test):** *[now]* Relay test is accepted only in MANUAL mode and only for configured relay outputs,
+- **FR-43 (Relay test):** *[now]* {SW; test} Relay test is accepted only in MANUAL mode and only for configured relay outputs,
   respecting NC/NO; otherwise HTTP 409.
-- **FR-50 (Setup access point):** *[now]* If the configured Wi-Fi is not joined at boot, the controller opens access
+- **FR-50 (Setup access point):** *[now]* {SW; board} If the configured Wi-Fi is not joined at boot, the controller opens access
   point `SmartHeating-Setup`; control continues.
-- **FR-58 (Authentication):** *[now]* These actions require authentication (same credentials as OTA):
+- **FR-58 (Authentication):** *[now]* {SW; test} These actions require authentication (same credentials as OTA):
   - changing a safety parameter of §6: `interlockDelay`, `overrun`, `burnerMinRun`, `burnerMinPause`,
     `openLoopBypass`, `sensorTimeout`, `faultDuty`, `faultFrostOutdoor`, `frostTemp`, `hbInterval`,
     `boilerLinkHeartbeat`, `boilerLinkType`, `flowSensors`, `flowMax`, `actuatorType`, `pumpOutput`, zone outputs;
-  - boiler commands, relay test, MANUAL mode, fault injection (NFR-5.5), credentials.
+  - manual boiler requests (FR-17.3, FR-32), relay test, MANUAL mode, fault injection (NFR-5.5), credentials.
   - Comfort settings (levels, schedule, boost, away, `windowThreshold`) need no authentication.
   - CORS is limited to the controller's own origin.
   - *Fallback:* unauthenticated request → HTTP 401, no change.
-- **FR-59 (Credentials):** *[now]* The first flash may use universal default credentials (OTA, access point, Wi-Fi).
+- **FR-59 (Credentials):** *[now]* {SW; test} The first flash may use universal default credentials (OTA, access point, Wi-Fi).
   Credentials are changed via API or console without re-flashing and stored in NVS.
   - *Reports:* while any default is active, DTC-403 `WARN_DEFAULT_CREDENTIALS`; everything else works.
 
 ### 3.10 Maintenance and commissioning
 
-- **FR-19 (Valve exercise):** *[now]* A valve closed for ≥ `exerciseIdleDays` is opened for 5 min with the boiler
+- **FR-19 (Valve exercise):** *[now]* {SW; board} A valve closed for ≥ `exerciseIdleDays` is opened for 5 min with the boiler
   OFF; the optional pump runs during the exercise. Idle time is tracked per valve on epoch time and stored in NVS
   (on change only). Runs in every mode, including global OFF.
-- **FR-60 (OTA safety and self-test):** *[now]*
+- **FR-60 (OTA safety and self-test):** *[now]* {SW; test}
   - OTA starts only with the boiler OFF.
-  - After boot of a new image, automatic checks without the boiler (loop and watchdog alive, Wi-Fi up, sensors
-    received within 60 s); the image is marked valid only if they pass, otherwise the previous image is restored
-    and DTC-303 `ERR_OTA_ROLLBACK` is raised.
+  - After boot of a new image, automatic checks without the boiler must pass within 60 s: loop and watchdog
+    alive, Wi-Fi up, and at least one advert received from a mapped sensor. Only then is the image marked valid;
+    otherwise the previous image is restored and DTC-303 `ERR_OTA_ROLLBACK` is raised.
   - Full self-test on request only (API, console): each zone relay switched, boiler link frame sent, one zone
     opened (interlock respected), boiler ON for `selfTestBurn`, flow rise checked if FR-54 sensors are enabled,
     boiler OFF with all guards. Result stored and shown. Failures raise DTC-304 `ERR_SELFTEST_FAILED`; a plant
     failure never causes a rollback. The boiler step is skipped in global OFF.
-- **FR-65 (Configuration export / import):** *[later]* The complete configuration (zones, sensors, offsets, learned
+- **FR-65 (Configuration export / import):** *[later]* {SW; test} The complete configuration (zones, sensors, offsets, learned
   values, credentials excluded) is exported and imported as JSON via API.
-- **FR-66 (Factory reset):** *[later]* Factory reset via console or API, with confirmation; keeps Wi-Fi credentials.
-- **FR-68 (Commissioning checklist):** *[now, documentation]* Commissioning follows a checklist; the result is stored:
+- **FR-66 (Factory reset):** *[later]* {SW; test} Factory reset via console or API, with confirmation; keeps Wi-Fi credentials.
+- **FR-68 (Commissioning checklist):** *[now, documentation]* {install; inspection} Commissioning follows a checklist; the result is stored:
   1. installation — manifold flow meters balanced per zone; always-open bypass present; boiler flow setpoint
      ≤ 45 °C (§2);
   2. sensors — PVVX / BTHome firmware, advert interval ≤ 10 s; all sensors 24 h side by side next to a reference,
@@ -368,7 +408,7 @@ one example:
      doors and drafts;
   3. function — relay test per zone (FR-43), valve opening time measured, boiler ON/OFF confirmed by the full
      self-test (FR-60), radio range (FR-5.2).
-- **FR-69 (Number of zones):** *[now: configuration; hardware later]* 1–32 zones, each with name, sensor and output.
+- **FR-69 (Number of zones):** *[now: configuration; hardware later]* {SW, HW; test} 1–32 zones, each with name, sensor and output.
   The number of outputs is limited by the configured hardware; a zone without an output is rejected. Memory for
   32 zones is reserved statically (NFR-2.6). Relay 4 is a zone or the pump.
   - *Fallback:* an output expansion that stops responding → its outputs count as closed (their unpowered state),
@@ -387,11 +427,21 @@ one example:
 
 ### 4.1 Safety
 
-- **NFR-1.1 (Local autonomy):** Loss of Wi-Fi, router or internet does not stop heating control; all decisions run on
+- **NFR-1.1 (Local autonomy):** {SW; board, inspection} Loss of Wi-Fi, router or internet does not stop heating control; all decisions run on
   the controller.
-- **NFR-1.4 (Safe boot):** At every boot the controller drives all zone valves to closed (per FR-15.1), sends one
-  boiler OFF, and enters the boot warmup (FR-22) before any heating command.
-- **NFR-1.5 (Task watchdog):** A 90 s task watchdog on `loop()` resets the controller on a software hang.
+- **NFR-1.4 (Safe boot):** {SW; test} At every boot the controller drives all zone valves to closed (per FR-15.1),
+  sends one boiler OFF, which starts `burnerMinPause` (FR-4), and enters the boot warmup (FR-22) before any heating
+  command.
+- **NFR-1.5 (Task watchdog):** {SW; inspection} A 90 s task watchdog on `loop()` resets the controller on a software hang.
+- **NFR-1.8 (Safety reaction time):** {SW; test, analysis} Every safety reaction has changed the outputs within 2 s
+  of its trigger; the 2 s are fixed, not a configuration parameter. Safety reactions are:
+  - closing a valve without demand (FR-37);
+  - opening the valve of a zone below `frostTemp` (FR-16.1);
+  - the forced boiler OFF of the flow limit, once its filter time has elapsed (FR-54);
+  - interlock and burner-guard decisions: boiler ON once `interlockDelay` and the guard have elapsed, a deferred
+    request when its guard expires (FR-2, FR-4, FR-32).
+  - The only exception is an OTA upload (FR-8.3), which may hold `loop()` longer; it is accepted only with the
+    boiler OFF (FR-60).
 - ~~**NFR-1.2 (Sensor failsafe):** retired, merged into FR-16.2.~~
 - ~~**NFR-1.3 (Frost protection):** retired, merged into FR-16.1.~~
 - ~~**NFR-1.6 (Burner cycle limit 60 s + 60 s):** retired, merged into FR-4.~~
@@ -399,44 +449,44 @@ one example:
 
 ### 4.2 Resources and performance
 
-- **NFR-2.2 (Free heap):** Free heap ≥ 100 KB during normal operation. Below 60 KB
+- **NFR-2.2 (Free heap):** {SW; test, board} Free heap ≥ 100 KB during normal operation. Below 60 KB
   DTC-402 `WARN_HEAP_FRAGMENTATION` is raised; below 30 KB a controlled restart is performed while the boiler is OFF,
   with state restored from NVS (FR-62 records it).
-- **NFR-2.3 (API response):** Local API response time < 100 ms.
-- **NFR-2.4 (Log time stamps):** Every console line carries a `[HH:MM:SS]` time stamp.
-- **NFR-2.6 (No heap drift):** No heap decrease > 5 KB over 24 h of operation; buffers are bounded and reserved
+- **NFR-2.3 (API response):** {SW; test} Local API response time < 100 ms.
+- **NFR-2.4 (Log time stamps):** {SW; test} Every console line carries a `[HH:MM:SS]` time stamp.
+- **NFR-2.6 (No heap drift):** {SW; board} No heap decrease > 5 KB over 24 h of operation; buffers are bounded and reserved
   statically.
-- **NFR-2.8 (Firmware size):** Firmware image < 1.25 MB, so OTA fits.
-- **NFR-2.9 (Flash wear):** NVS is written only when a value changes.
+- **NFR-2.8 (Firmware size):** {SW; analysis} Firmware image < 1.25 MB, so OTA fits.
+- **NFR-2.9 (Flash wear):** {SW; inspection} NVS is written only when a value changes.
 - ~~**NFR-2.1 (Power < 1.2 W):** retired.~~
 - ~~**NFR-2.5 (Paced OTA upload):** retired, merged into FR-8.3.~~
 - ~~**NFR-2.7 (Development server):** retired, tooling, documented in the README.~~
 
 ### 4.3 Code and language
 
-- **NFR-3.1 (Language):** Code, identifiers, API messages, logs and documentation in English. The family view of the
+- **NFR-3.1 (Language):** {SW; test, inspection} Code, identifiers, API messages, logs and documentation in English. The family view of the
   page is available in Romanian and English (configurable).
-- **NFR-3.2 (Modules):** Firmware is split into the modules of [`architecture.md`](architecture.md), one
+- **NFR-3.2 (Modules):** {SW; inspection} Firmware is split into the modules of [`architecture.md`](architecture.md), one
   responsibility each.
 
 ### 4.4 Comfort
 
-- **NFR-4.1 (Comfort accuracy):** In steady state (no schedule change for 3 h, window closed) the room temperature
+- **NFR-4.1 (Comfort accuracy):** {SW; board} In steady state (no schedule change for 3 h, window closed) the room temperature
   stays within ±0.3 °C of the target.
 
 ### 4.5 Graceful degradation
 
-- **NFR-5.1 (Priorities):** When goals conflict: safety > comfort > economy. A fallback may give up economy, never
+- **NFR-5.1 (Priorities):** {SW; inspection} When goals conflict: safety > comfort > economy. A fallback may give up economy, never
   safety, and gives up comfort only when safety requires it. Faults are logged and raised as DTC; occupants shall
   not notice them.
-- **NFR-5.2 (Fallback clause):** Every functional requirement states its inputs, its fallback when an input is
+- **NFR-5.2 (Fallback clause):** {SW; inspection} Every functional requirement states its inputs, its fallback when an input is
   missing or implausible, and the DTC or log entry raised. A requirement without a fallback is incomplete.
-- **NFR-5.3 (Bounded learning):** Learned values (TPI base duty, heat-up model, window and solar parameters) are
+- **NFR-5.3 (Bounded learning):** {SW; test, inspection} Learned values (TPI base duty, heat-up model, window and solar parameters) are
   bounded; a learned value outside its bounds or a corrupt NVS record is discarded, the default is used and
   DTC-301 `WARN_LEARNING_RESET` is raised. Learning never stops control.
-- **NFR-5.4 (Short interruptions):** Heating interruptions shorter than 60 min are acceptable as fallback (the screed
+- **NFR-5.4 (Short interruptions):** {SW; analysis} Heating interruptions shorter than 60 min are acceptable as fallback (the screed
   buffers them, room drop < 0.3 °C). Longer fallbacks keep heating at an estimated duty (FR-51).
-- **NFR-5.5 (Fault injection):** Every fallback can be triggered on the board for test via console / API (sensor
+- **NFR-5.5 (Fault injection):** {SW; test} Every fallback can be triggered on the board for test via console / API (sensor
   lost, no weather, no time, no humidity, boiler link lost, flow over limit), so `tools/sh_test_system.py` can verify
   it. Fault injection is refused where it would bypass a safety rule, and ends with a reboot.
 
