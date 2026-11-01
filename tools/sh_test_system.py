@@ -1662,7 +1662,9 @@ class SystemTestSuite:
             return TestResult(test_id, name, req, "FAIL", (time.time() - start)*1000, str(e))
         finally:
             if orig is not None:
-                requests.post(f"{self.base_url}/api/zones/window/threshold?threshold={orig:.1f}", timeout=self.timeout)
+                r = requests.post(f"{self.base_url}/api/zones/window/threshold?threshold={orig:.1f}", timeout=self.timeout)
+                if r.status_code != 200:
+                    print(f"  [!] TC26.2 could not restore windowThreshold {orig}: HTTP {r.status_code}")
 
     def test_tc26_3_open_window_clear_api(self):
         """SWE.5-TC26.3: Open Window Manual Clear API (/api/zones/window/clear) (FR-40)"""

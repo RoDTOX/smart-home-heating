@@ -319,9 +319,8 @@ void handleApiZoneWindowClear() {
 
 void handleApiZoneWindowThreshold() {
   server.sendHeader("Access-Control-Allow-Origin", "*");
-  if (!server.hasArg("id") || !server.hasArg("threshold")) {
-    server.send(400, "application/json",
-                F("{\"error\":\"Missing parameter (id or threshold)\"}"));
+  if (!server.hasArg("threshold")) {
+    server.send(400, "application/json", F("{\"error\":\"Missing parameter threshold\"}"));
     return;
   }
   // One global `windowThreshold` for all zones (FR-40); a zone id, if sent, is ignored.
