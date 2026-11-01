@@ -1,20 +1,20 @@
 # Software Architecture — Smart Home Heating
 
 **ASPICE:** SWE.2 (software architectural design); SYS.3 and SWE.3 are merged into it (§0, process §1.1).
-**Baseline:** requirements v2.2 ([`requirements_and_features.md`](requirements_and_features.md), 01.11.2026: v2 of
+**Baseline:** requirements v2.4 ([`requirements_and_features.md`](requirements_and_features.md), 01.11.2026: v2 of
 31.10.2026, v2.1 the process review rows, v2.2 the owner decisions D37, D38, D39 and the observations O-12, O-13,
-O-14, O-15; `requirements_review.md` §6 and §8) and the owner decisions D1–D39 in
-[`requirements_review.md`](requirements_review.md).
+O-14, O-15, v2.3 O-16, v2.4 the change C-1 — NFR-1.8 at 10 s, D39 superseded; `requirements_review.md` §6, §8 and
+§9) and the owner decisions D1–D39 in [`requirements_review.md`](requirements_review.md).
 **Status:** approved by the owner, 01.11.2026 — every decision AR-1…AR-22 (§19); AR-21 amends AR-3 and P6. The
-observations O-1…O-11 (§16) are applied in requirements baseline v2 (commit 925ea91), O-12…O-15 in baseline v2.2;
-this document follows them. No firmware or test was changed.
-**Revision 01.11.2026 (baseline v2.2):** aligned with the approved process review rows QA-7, QA-10, QA-11, QA-16,
-QA-17, QA-19 ([`process_review.md`](process_review.md)) and the owner decisions D38, D39: safety reaction time NFR-1.8
-with the control tick in its own task (AR-21: §1, §2 P6, §3, §4.2, §5.1, §5.2, §5.3, §5.4, §5.4.1, §5.5, §6.1, §14.2,
-§18), FR-60 without a mapped sensor (§7.7), the boot OFF starts `burnerMinPause` (§5.5, §6.1, §7.3), glossary terms
+observations O-1…O-11 (§16) are applied in requirements baseline v2 (commit 925ea91), O-12…O-15 in baseline v2.2,
+O-16 in baseline v2.3; this document follows them. No firmware or test was changed.
+**Revision 01.11.2026 (baseline v2.4):** aligned with the approved process review rows QA-7, QA-10, QA-11, QA-16,
+QA-17, QA-19 ([`process_review.md`](process_review.md)), the owner decision D38 and the change C-1: safety reaction
+time NFR-1.8 (10 s) with the control tick in its own task (AR-21: §1, §2 P6, §3, §4.2, §5.1, §5.2, §5.3, §5.4,
+§5.4.1, §5.5, §6.1, §14.2, §18), FR-60 without a mapped sensor (§7.7), the boot OFF starts `burnerMinPause` (§5.5, §6.1, §7.3), glossary terms
 (§0, §6.2, §7.2, §7.3), LEVEL of the requirements in the allocation (§3.2), the problems `PB-n` of each gap and step
-(Problems column, §17, §18). The owner decided AR-21, AR-22 (§19) and O-12, O-13, O-14, O-15 (§16) on 01.11.2026;
-O-16 is open. The rest of this revision waits for the owner's review.
+(Problems column, §17, §18). The owner decided AR-21, AR-22 (§19) and O-12, O-13, O-14, O-15, O-16 (§16) on
+01.11.2026. The rest of this revision waits for the owner's review.
 **Reference:** the requirements. The current code (`src/`, `include/`) was read as input only; §17 lists where it differs
 from this architecture and §18 the order in which to close the gaps.
 
@@ -41,7 +41,7 @@ from this architecture and §18 the order in which to close the gaps.
   [`underfloor_heating_hydraulics_and_failsafes.md`](underfloor_heating_hydraulics_and_failsafes.md). SWE.4 unit
   verification is not applied yet; P9 keeps the logic ready for it.
 - `O-n` rows (§16) are the observations this architecture raised on the requirements; O-1…O-11 are applied in baseline
-  v2, O-12…O-15 in baseline v2.2, the later rows are open for the requirements chat.
+  v2, O-12…O-15 in baseline v2.2, O-16 in baseline v2.3; later rows are open for the requirements chat.
 
 ---
 
@@ -61,7 +61,7 @@ from this architecture and §18 the order in which to close the gaps.
 | Libraries | vendored `ArduinoJson`, `NimBLE-Arduino`; core libraries (WiFi, WebServer, HTTPClient, Preferences, LittleFS, Update, Wire) may be used; any other library needs owner approval | AGENTS.md §3 |
 | Firmware size | < 1.25 MB = 1 310 720 B (`FIRMWARE_MAX_BYTES` in `tools/sh_process_check.py`) | NFR-2.8 |
 | Heap | ≥ 100 KB free in normal operation | NFR-2.2 |
-| Timing | every safety reaction within 2 s (NFR-1.8): the control tick runs every 1 s in its own task (AR-21), ≤ 20 ms plus one radio frame (FR-17.6), and never waits for `loop()`, which serves page, API and console with the core's normal waits (§5.1); a radio frame may add the FR-17.2 cooldown (D39) | AGENTS.md §3, NFR-1.8, FR-17.6 |
+| Timing | every safety reaction has changed the outputs within 10 s of its trigger (NFR-1.8); the only exception is a firmware update with the boiler OFF. The control tick runs every 1 s in its own task (AR-21) and never waits for `loop()`, which serves page, API and console with the core's normal waits (§5.1) | AGENTS.md §3, NFR-1.8 |
 | Zones | 1–32 zones, memory reserved statically | FR-69, NFR-2.6 |
 | Autonomy | all decisions on the controller; network loss never stops control | NFR-1.1 |
 | Priorities | safety > comfort > economy; faults are invisible to occupants, visible in DTC and log | NFR-5.1 |
@@ -123,7 +123,7 @@ listed in §3.3.
 | 13 | `Schedule` | L4 | Target temperature per zone | levels, slots, boosts, last level, pre-heat lead | FR-1.2 (apply), FR-29, FR-30, FR-31, FR-39, FR-44 (target), FR-48, FR-61, NFR-4.1 | `ThermalZoneManager` |
 | 14 | `ZoneController` | L4 | Valve request per zone (TPI, sensor-loss duty, window pause) | zone control state, TPI cycle, learned duty table, window state | FR-16.2, FR-22 (zone), FR-40, FR-47, FR-51, NFR-4.1, NFR-5.3, NFR-5.4 | `ThermalZoneManager::evaluateTpi`, `evaluateWindowDetection` |
 | 15 | `Maintenance` | L4 | Valve exercise, self-tests, OTA checks | idle times, self-test sequence, OTA verify state | FR-8.3 (gate), FR-10.4, FR-19, FR-60 | `ThermalZoneManager` anti-seize, `DiagnosticEngine::runSelfTest` |
-| 16 | `SafetySupervisor` | L3 | Last word over every output (§6) | valve states, interlock and overrun timers, burner guard, pending boiler action, pump state, flow and frost latches | FR-1.3, FR-2, FR-3, FR-3.2, FR-4, FR-14.2, FR-14.3, FR-14.5, FR-16.1, FR-17.3, FR-17.4 (data), FR-17.5, FR-19, FR-22, FR-32, FR-37, FR-43 (execution), FR-54 (action), FR-60 (boiler OFF gate), FR-64, NFR-1.4 (boot gate; the boot OFF starts `burnerMinPause`), NFR-1.8 (decision in one tick, relays before the boiler frame), NFR-2.2 (restart gate), NFR-5.1 (order), NFR-5.4 | `ThermalZoneManager::update`, `BoilerRadioTrigger::canTransmit`, `WebApi`, `ConsoleCommands` |
+| 16 | `SafetySupervisor` | L3 | Last word over every output (§6) | valve states, interlock and overrun timers, burner guard, pending boiler action, pump state, flow and frost latches | FR-1.3, FR-2, FR-3, FR-3.2, FR-4, FR-14.2, FR-14.3, FR-14.5, FR-16.1, FR-17.3, FR-17.4 (data), FR-17.5, FR-19, FR-22, FR-32, FR-37, FR-43 (execution), FR-54 (action), FR-60 (boiler OFF gate), FR-64, NFR-1.4 (boot gate; the boot OFF starts `burnerMinPause`), NFR-1.8 (decision in one tick), NFR-2.2 (restart gate), NFR-5.1 (order), NFR-5.4 | `ThermalZoneManager::update`, `BoilerRadioTrigger::canTransmit`, `WebApi`, `ConsoleCommands` |
 | 17 | `Advisors` | L4 plug-in, phase 4 | Bounded hints (§13) | learned models | FR-40.2, FR-63, FR-67, FR-70, FR-71, NFR-5.3 | — |
 | 18 | `PlantMonitor` | L4 observer, phase 4 | Detect plant faults (valve stuck, no effect, boiler not heating) | per-zone trend windows | FR-56, FR-57 | — |
 | 19 | `Commands` | L5 | Every user action, identical for every source; runs in `loop()` | the command queue I15 | FR-1.2 (limits), FR-7.3, FR-11.3 (mapping), FR-17.1 (response), FR-17.3, FR-17.4, FR-42, FR-43 (MANUAL check), FR-58 (auth level), FR-59, FR-65, FR-66, NFR-1.8 (a command reaches the next control tick through I15) | `WebApi.cpp`, `ConsoleCommands.cpp` |
@@ -273,7 +273,8 @@ pages, API answers and console output that `loop()` serves meanwhile, never the 
 (history, FR-34) are streamed (AR-15).
 
 **OTA.** The upload runs in `loop()` (up to 30 s) only while `QuietGate` reports quiet, so the boiler is OFF (FR-60,
-AR-17); the control task keeps running, delayed at most by the single flash erases of the upload (§5.4.1).
+AR-17); the control task keeps running, delayed by the single flash writes and erases of the upload — the OTA
+exception of NFR-1.8 (§5.4.1, O-16).
 
 **Watchdog.** Both tasks are registered with the 90 s task watchdog (NFR-1.5, O-16): the control task feeds it once
 per tick, `loop()` once per pass. A hung tick or a hung `loop()` resets the controller into the safe boot (NFR-1.4).
@@ -295,7 +296,7 @@ counter (I9) is what the `loop()` readers check.
 5. `ParamStore.flush()` (debounced writes, e.g. page sliders); `Diagnostics` writes the queued events to LittleFS.
 
 `App` measures the delay of every control tick after its due time and the duration of every loop pass, and keeps the
-longest of each since boot for `STATUS` and `/api/status` (FR-23); a tick delay over its budget (§5.4) is a log line.
+longest of each since boot for `STATUS` and `/api/status` (FR-23); a tick delay over 0.5 s (§5.4.1) is a log line.
 
 ### 5.3 Control tick (1 s, fixed order)
 
@@ -340,16 +341,15 @@ flowchart LR
 | 2 Modes | `ModeManager` | manual timeout, season, away |
 | 3 Targets | `Schedule` | slot, boost end, pre-heat lead (advice from `HeatUpModel`) |
 | 4 Control | `ZoneController` (window, TPI, fault duty, advice) → `Maintenance` | requests only |
-| 5 Safety | `SafetySupervisor` → `OutputBank`, `BoilerLink` | §6.1 order; relay commands before the boiler frame (NFR-1.8) |
+| 5 Safety | `SafetySupervisor` → `OutputBank`, `BoilerLink` | §6.1 order |
 | 6 Observe | `PlantMonitor`, `Diagnostics` (DTC changes flagged in steps 0–5), publish the snapshot I16 | read-only |
 
 ### 5.4 Timing budget
 
 | Activity | Budget | Source |
 |---|---|---|
-| Control tick, 32 zones | ≤ 20 ms from the tick start to the relay commands (§5.3 steps 0–5), period 1 s (control tick, requirements §0), in the control task | FR-37, NFR-1.8 |
-| Tick start delay | ≤ 30 ms after the due time: the tick preempts `loop()` at once; only a flash write started by `loop()` (AR-18) delays it, a rare sector erase longer (§5.4.1) | NFR-1.8 |
-| Radio frame | ≤ 300 ms, interrupts off ≤ 150 ms; sent by the control task after its relay commands; `loop()` pauses meanwhile (same core); at most one per `hbInterval` plus state changes | FR-17.6, NFR-1.8 |
+| Control tick, 32 zones | ≤ 20 ms without the radio frame (§5.3), period 1 s (control tick, requirements §0), in the control task | FR-37, NFR-1.8 |
+| Radio frame | ≤ 300 ms, interrupts off ≤ 150 ms; sent by the control task; `loop()` pauses meanwhile (same core); at most one per `hbInterval` plus state changes | FR-17.6, NFR-1.8 |
 | Loop pass | no safety bound (AR-21), measured (FR-23); the rows below keep page and API responsive; a slow client holds a pass up to the core waits (5 s each, §5.1) | NFR-2.3 |
 | HTTP handler | < 100 ms; status from the snapshot I16, changes posted to I15 | NFR-2.3 |
 | Console poll | ≤ 50 ms; writes only what the UART or Telnet buffer takes, the rest stays in the log ring | AGENTS.md §3 |
@@ -357,12 +357,13 @@ flowchart LR
 | NVS write | on change only, ≤ 30 ms (AR-18), from `loop()` | NFR-2.9 |
 | LittleFS record append | ≤ 30 ms, every 5 min and per event (AR-18), from `loop()` | FR-34, FR-62 |
 | BLE callback | < 100 µs, no logging (NimBLE task) | P6 |
-| OTA upload | `loop()` held up to 30 s, only while `QuietGate` reports quiet (boiler OFF, no overrun), watchdog fed by the upload; the control task keeps running | FR-8.3, FR-60 |
+| OTA upload | `loop()` held up to 30 s, only while `QuietGate` reports quiet (boiler OFF, no overrun), watchdog fed by the upload; the control task keeps running, delayed only by the upload's flash operations (the NFR-1.8 exception, O-16) | FR-8.3, FR-60, NFR-1.8 |
 | Boot Wi-Fi join | ≤ 12 s in `setup()`, after the outputs are in the safe state and before the control task starts: no reading is accepted yet, every valve is closed and the boiler is OFF, so no safety reaction can be due | NFR-1.4, FR-50 |
 
 #### 5.4.1 Safety reaction time (NFR-1.8)
 
-The trigger is the event a safety reaction answers (the NFR-1.8 list): an accepted reading (frost, FR-16.1), demand
+The trigger is the event a safety reaction answers (the NFR-1.8 list, which also covers every output change decided
+in a control tick): an accepted reading (frost, FR-16.1), demand
 that ends (valve close, FR-37; pump stop when no valve is open any more, FR-14.5), a forced manual OFF accepted by
 `Commands` (FR-17.3), or a timer that reaches its parameter (`interlockDelay`, `burnerMinRun`, `burnerMinPause`, a
 deferred request, the FR-54 filter time). Worst case from the trigger, with the control task of AR-21:
@@ -370,23 +371,22 @@ deferred request, the FR-54 filter time). Worst case from the trigger, with the 
 | Link of the chain | Worst case |
 |---|---|
 | trigger → next control tick due | ≤ 1 s (tick period; a manual OFF waits in the command queue I15 for this tick) |
-| tick due → tick starts | ≤ 30 ms: the tick preempts `loop()` at once — a slow client, the console or an OTA upload does not delay it; only a flash write started by `loop()` stalls both cores (AR-18) |
-| tick starts → decision made and relay command written (§5.3 steps 0–5) | ≤ 20 ms |
-| relay command → contact switched | ≈ 10 ms (relay operate time) |
-| **trigger → decision and relay changed** | **≤ 1.06 s, inside the 2 s of NFR-1.8** |
-| boiler frame of the same reaction | after the relays: ≤ 300 ms (FR-17.6), plus the FR-17.2 cooldown when another frame was sent just before (worst case 2 s + 3 s, D39, §7.3) |
+| tick due → tick starts | ≤ 0.5 s: the tick preempts `loop()` at once — a slow client, the console or an OTA upload does not delay it; only a flash operation started by `loop()` stalls both cores (a write ≤ 30 ms, AR-18; a rare sector erase longer) |
+| tick: decision and commands written (§5.3) | ≤ 20 ms |
+| relay switched | ≈ 10 ms (relay operate time) |
+| boiler frame | ≤ 300 ms (FR-17.6), plus up to 3 s FR-17.2 cooldown when another frame was sent just before (§7.3) |
+| **trigger → outputs changed** | **≤ 5 s, inside the 10 s of NFR-1.8** |
 
-- A flash sector erase (NVS page change, OTA upload) stalls the tick longer than a write; even the datasheet worst
-  case of common 4 MB flash parts (≈ 0.4 s) keeps the chain ≤ 1.43 s. The tick delay of FR-23 measures it on the board.
-- During an OTA upload the control task keeps running (only the erases above delay it) and the boiler is OFF
-  (`QuietGate`, AR-17), so this design does not need the OTA exception of NFR-1.8 (O-16).
-- The transport before `Commands` accepts a manual request (HTTP, console) is outside the chain, like the network:
-  while `WebServer` serves a slow client, a second client's request waits as well (§5.1, O-16).
+- During an OTA upload the control task keeps running, but the upload's flash writes and erases stall both cores
+  and delay ticks; the firmware update therefore stays the exception of NFR-1.8, with the boiler OFF (`QuietGate`,
+  AR-17, O-16).
+- The network before `Commands` accepts a manual request (HTTP, console) is outside the bound (NFR-1.8): while
+  `WebServer` serves a slow client, a second client's request waits as well (§5.1).
 - Verification (NFR-1.8 `{test, analysis}`): analysis = this chain, re-checked in every step review (process §9);
   test = a board test that holds `loop()` with a slow HTTP client and reads the longest control-tick delay from
   status (FR-23).
-- Today's code does not meet the budget: the control logic runs in `loop()` behind the core `WebServer` waits and the
-  weather fetch (§17 G11, G33); step 10 (§18) closes both.
+- Today's code can miss the bound: the control logic runs in `loop()` behind the core `WebServer` waits (5 s each)
+  and the weather fetch (§17 G11, G33); step 10 (§18) closes both.
 
 ### 5.5 Boot sequence (NFR-1.4)
 
@@ -413,7 +413,7 @@ deferred request, the FR-54 filter time). Worst case from the trigger, with the 
 |---|---|---|---|
 | S0 | `BootGate` | no heating command until the outputs are closed and the OFF frame is sent; that frame starts `burnerMinPause` (S8 starts in `OFF`) | NFR-1.4, FR-4 |
 | S1 | `FlowLimit` | flow > `flowMax` for 2 min → latch boiler-OFF override; release at `flowMax` − 5 °C | FR-54 |
-| S2 | `QuietGate` | on a request from OTA or a controlled restart: hold the boiler OFF (through S8), report "quiet" when the boiler is OFF and no overrun runs | FR-60, NFR-2.2 |
+| S2 | `QuietGate` | on a request from OTA or a controlled restart: hold the boiler OFF (through S8), report "quiet" when the boiler is OFF and no overrun runs | FR-60, NFR-1.8 (OTA exception), NFR-2.2 |
 | S3 | `FrostGuard` | every zone, enabled or disabled, with an accepted reading below `frostTemp` → valve request open (counts for boiler) until `frostTemp` + 1.5 °C, in every mode | FR-16.1 |
 | S4 | Request merge | per zone: requests of the active source (AUTO: `ZoneController`; MANUAL: manual; OFF: only the FR-51 sensor-loss duty, §7.1) ∪ frost ∪ exercise ∪ self-test | FR-1.3, FR-64, FR-19 |
 | S5 | `ValveArbiter` | valve state machine per output (§7.2): open / close per merged request, close at the next control tick when demand ends, overrun hold, MANUAL relay test | FR-37, FR-3, FR-3.2, FR-43, NFR-1.8 |
@@ -421,7 +421,7 @@ deferred request, the FR-54 filter time). Worst case from the trigger, with the 
 | S7 | Boiler decision | desired ON = boiler-counting demand ∧ permitted ∧ ¬`FlowLimit` ∧ ¬`QuietGate`; in MANUAL = manual boiler request ∧ permitted | FR-2, FR-19, FR-54 |
 | S8 | `BurnerGuard` | `burnerMinRun` / `burnerMinPause` on every change from every source, the boot OFF included; inside the guard → `PENDING_ON` / `PENDING_OFF`; opposite request or cancel clears it; only OFF can be forced (FR-17.3, FR-54); rejections counted | FR-4, FR-32, FR-17.3, FR-17.4 (data), FR-17.5, NFR-1.4 |
 | S9 | `PumpGuard` | pump ON only while a valve is `OPEN` ≥ `interlockDelay`, during exercise, or during overrun with the hold valve open | FR-14.2, FR-14.3, FR-14.5, FR-19 |
-| S10 | Emit + self-check | write changed relay commands first, then the boiler frame, so a frame never delays a relay; then check invariants I-1…I-8; a violation forces boiler and pump OFF without waiting for `burnerMinRun` (the self-check of FR-4) and records an event | P1, FR-4, NFR-1.8 |
+| S10 | Emit + self-check | write the changed relay commands and the boiler frame; then check invariants I-1…I-8; a violation forces boiler and pump OFF without waiting for `burnerMinRun` (the self-check of FR-4) and records an event | P1, FR-4, NFR-1.8 |
 
 ### 6.2 Invariants
 
@@ -434,7 +434,7 @@ deferred request, the FR-54 filter time). Worst case from the trigger, with the 
 | I-5 | Zone with accepted reading < `frostTemp` ⇒ its valve is requested open, in every mode. | FR-16.1 |
 | I-6 | Only `SafetySupervisor` writes outputs. | P1 (R-A3) |
 | I-7 | No heating command before the boot safe state is complete. | NFR-1.4 |
-| I-8 | Flow > `flowMax` for 2 min ⇒ boiler OFF commanded (its frame may still wait for the FR-17.2 cooldown, D39). | FR-54 |
+| I-8 | Flow > `flowMax` for 2 min ⇒ boiler OFF commanded. | FR-54 |
 
 ### 6.3 What the safety layer does not do
 
@@ -504,8 +504,8 @@ earliest `burnerMinPause` after that frame.
 
 A transition that sends a frame is complete when `BoilerLink::send` returns `Ok`; flame lit, the run and pause timers
 and the overrun count from that moment (AR-22). While the link answers `Cooldown` (FR-17.2) the state stays as it is
-and the send is retried at every control tick, so a due OFF waits at most the cooldown: the 2 s of NFR-1.8 hold for
-the decision and the relays, the frame may add the cooldown (D39). `Idempotent` (same state, no frame, FR-17.1)
+and the send is retried at every control tick, so a due OFF waits at most the cooldown of 3 s, inside the 10 s of
+NFR-1.8. `Idempotent` (same state, no frame, FR-17.1)
 completes the transition without a frame.
 
 Rejected manual requests return `RateLimited` / `Pending` with `waitSec` (FR-17.4); more than 3 within 10 s raise
@@ -517,7 +517,7 @@ DTC-201 (FR-17.5).
 |---|---|---|
 | `IDLE` | last state delivered | new state, or `hbInterval` elapsed with heartbeat on → `SENDING` (FR-17.7) |
 | `SENDING` | one frame (radio) or contact switch | done → `COOLDOWN` |
-| `COOLDOWN` | 3 s; a new frame is refused (FR-17.2), the supervisor retries at the next control tick — the only wait a safety frame may add to NFR-1.8 (D39) | 3 s elapsed → `IDLE` |
+| `COOLDOWN` | 3 s; a new frame is refused (FR-17.2), the supervisor retries at the next control tick (inside the 10 s of NFR-1.8) | 3 s elapsed → `IDLE` |
 
 - Fail-safe status: `ContactLink` always fail-safe; `Rf433Link` and `ReceiverLink` fail-safe only with
   `boilerLinkHeartbeat` on; otherwise DTC-207 stays active (FR-55).
@@ -871,7 +871,8 @@ Struck (`~~`) requirements are retired and have no module; remnants in the code 
 O-1…O-11 are applied in requirements baseline v2, commit 925ea91 (decision log: `requirements_review.md` §6);
 FR-58 was clarified afterwards. The columns keep the original observation; the requirements are the reference.
 O-12, O-13, O-14, O-15 were raised on 01.11.2026 while aligning with baseline v2.1; the owner decided them the same
-day and they are applied in baseline v2.2. O-16 follows from AR-21 and is open for the requirements chat.
+day and they are applied in baseline v2.2. O-16 follows from AR-21; the owner decided it on 01.11.2026 (baseline
+v2.3).
 
 | # | Requirement | Observation | Proposal for the requirements chat |
 |---|---|---|---|
@@ -890,7 +891,7 @@ day and they are applied in baseline v2.2. O-16 follows from AR-21 and is open f
 | O-13 | NFR-1.8, FR-14.5, FR-17.3 | The list of safety reactions in NFR-1.8 does not name stopping the pump when the last valve closes (FR-14.5) or the forced manual OFF of FR-17.3, whose "stops the burner at once" has no number (rule R3). The architecture runs both through the same tick path (§5.4.1), so they would meet the bound. **Safety.** | Add FR-14.5 and FR-17.3 to the NFR-1.8 list; FR-17.3: "stops the burner at the next control tick (NFR-1.8)". ✅ owner 01.11.2026 (NFR-1.8, FR-17.3) |
 | O-14 | FR-68 | LEVEL `{install}`, but "the result is stored" does not say where. If the controller stores it, that part is software and needs a `SW` leaf and a module; today §3.2 allocates nothing to FR-68 (QA-7). | "The result is recorded in the commissioning record (document)", or a separate `SW` leaf if the controller shall store it. **A** ✅ owner 01.11.2026: the result is recorded in the commissioning document; FR-68 stays `{install}` with no module. |
 | O-15 | FR-4 | FR-4 (v2.1) allows only a forced OFF of FR-17.3 or FR-54 to end a run early. The safety self-check (§6.1 S10, P1) also switches the boiler OFF at once when an invariant is violated, e.g. boiler ON without an energised valve (I-1) — a software fault, where waiting for `burnerMinRun` would keep the burner on with the fault active. **Safety.** | FR-4: "only a forced OFF (FR-17.3, FR-54) or a violated safety rule found by the self-check may end a run earlier", or the owner decides that the self-check waits for the guard. ✅ owner 01.11.2026, first wording (FR-4) |
-| O-16 | NFR-1.5, NFR-1.8 | Both are written for the single-loop design. With the control tick in its own task (AR-21): NFR-1.5 watches only `loop()`, so a hung control task would not reset the controller; the OTA exception of NFR-1.8 ("may hold `loop()` longer") is no longer needed, because the upload does not hold the tick; NFR-1.8 checks the bound with the web/loop pass, which no longer bounds the tick; the trigger of a manual request (FR-17.3) is not defined, and the transport before the controller has it is not bounded (a slow client holds `WebServer`, §5.1). **Safety.** | NFR-1.5: the watchdog covers every task that runs control or interfaces (with AR-21: `loop()` and the control task). NFR-1.8: the trigger of a manual request is its acceptance by the controller; the bound is checked with the control-tick delay of FR-23; the OTA exception dropped or kept as margin. Open. |
+| O-16 | NFR-1.5, NFR-1.8 | Both are written for the single-loop design. With the control tick in its own task (AR-21): NFR-1.5 watches only `loop()`, so a hung control task would not reset the controller; the OTA exception of NFR-1.8 ("may hold `loop()` longer") is no longer needed, because the upload does not hold the tick; NFR-1.8 checks the bound with the web/loop pass, which no longer bounds the tick; the trigger of a manual request (FR-17.3) is not defined, and the transport before the controller has it is not bounded (a slow client holds `WebServer`, §5.1). **Safety.** | NFR-1.5: the watchdog covers every task that runs control or interfaces (with AR-21: `loop()` and the control task). NFR-1.8: the trigger of a manual request is its acceptance by the controller; the bound is checked with the control-tick delay of FR-23; the OTA exception dropped or kept as margin. ✅ owner 01.11.2026 (baseline v2.3): watchdog on `loop()` and the control task; the manual trigger is the acceptance by the controller, checked with the control-tick delay of FR-23; the OTA exception stays, because flash writes stall both cores (boiler OFF during OTA). |
 
 ---
 
@@ -922,7 +923,7 @@ day and they are applied in baseline v2.2. O-16 follows from AR-21 and is open f
 | G22 | DTCs in RAM only (C12); DTC-401 raised in two places | FR-62, R4 | `Diagnostics` | 2 | — |
 | G23 | No authentication, CORS `*` (C13); credentials compile-time only; API messages Romanian (C11) | FR-58, FR-59, NFR-3.1 | `Commands`, `WebApi`, `ParamStore` | 9 | — |
 | G24 | Anti-seize 20 s weekly | FR-19 | `Maintenance::Exercise` | 12 | — |
-| G25 | OTA without boiler-OFF gate, no image verification | FR-60 (sensor check skipped without a mapped sensor, D38) | `Maintenance::Ota`, `QuietGate` | 12 | — |
+| G25 | OTA without boiler-OFF gate, no image verification | FR-60 (sensor check skipped without a mapped sensor, D38), NFR-1.8 (OTA exception) | `Maintenance::Ota`, `QuietGate` | 12 | — |
 | G26 | No full self-test | FR-60 | `Maintenance::SelfTest` | 12 | — |
 | G27 | No fault injection | NFR-5.5 | `FaultInjector` | 7 (+ per input later) | — |
 | G28 | Telemetry rewrites both files every 5 min; 5.3 KB RAM rings | FR-34, P5 | `History` in LittleFS, streamed | 11 | — |
@@ -996,5 +997,5 @@ step 4; step 1 (`ParamStore`) is unaffected (§5.1).
 | AR-18 | Resource rules of §14: flash margin ≥ 40 KB, RAM measured at every step, ≤ 30 ms per flash write. | margin today 112 KB flash, 10 KB heap | ✅ owner 01.11.2026 |
 | AR-19 | Migration order of §18, one step at a time with board test and owner acceptance. | smallest change that works (AGENTS.md §3) | ✅ owner 01.11.2026 |
 | AR-20 | Dependency rules R-A1…R-A7 become a grep check in `sh_process_check.py` (process chat). | architecture checked like the requirements | ✅ owner 01.11.2026 |
-| AR-21 | NFR-1.8 timing: the control tick runs in its own FreeRTOS task (core 1, priority above `loop()`, period 1 s, registered with the task watchdog); `WebServer` and the console stay in `loop()` with the core's normal waits, so a slow phone delays only pages, never control. `Commands` reach the control task through the bounded command queue I15, `loop()` reads the published snapshot I16, and the control task never waits for `loop()` (R-A8); relay commands before the boiler frame; `App` measures the longest tick delay and loop pass (FR-23). Built in step 10 (§5.1, §5.3, §5.4.1, §14.2, §18). Amends AR-3 and P6. The proposal of the same day — `WebServer` bounded inside `loop()`, no third task — was rejected by the owner. | the owner's priority: the page stays responsive, control may react later in the background (the plant is slow); the chain stays ≤ 1.06 s (§5.4.1); one writer per state, no lock across I/O; ≈ 5.7 KB RAM (§14.2) | ✅ owner 01.11.2026 |
+| AR-21 | NFR-1.8 timing: the control tick runs in its own FreeRTOS task (core 1, priority above `loop()`, period 1 s, registered with the task watchdog); `WebServer` and the console stay in `loop()` with the core's normal waits, so a slow phone delays only pages, never control. `Commands` reach the control task through the bounded command queue I15, `loop()` reads the published snapshot I16, and the control task never waits for `loop()` (R-A8); `App` measures the longest tick delay and loop pass (FR-23). Built in step 10 (§5.1, §5.3, §5.4.1, §14.2, §18). Amends AR-3 and P6. The proposal of the same day — `WebServer` bounded inside `loop()`, no third task — was rejected by the owner. | the owner's priority: the page stays responsive, control may react later in the background (the plant is slow); the reaction stays ≤ 5 s, inside the 10 s of NFR-1.8 (§5.4.1); one writer per state, no lock across I/O; ≈ 5.7 KB RAM (§14.2) | ✅ owner 01.11.2026 |
 | AR-22 | A boiler state change counts from the frame actually sent (`BoilerLink::send` = `Ok`): flame lit, run and pause timers and the overrun start from it, the boot OFF included; a frame refused by the cooldown is retried at every control tick (§7.3). | the guard and the overrun measure what the receiver got (glossary "flame lit", D39) | ✅ owner 01.11.2026 |

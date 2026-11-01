@@ -1,10 +1,10 @@
 # System and Software Requirements — Smart Home Heating
 
-**Baseline:** v2.2, 01.11.2026 — review closed by the owner. v2 (31.10.2026) derived from the owner-approved
-review [`requirements_review.md`](requirements_review.md); v2.1 adds the process review rows QA-7, QA-8, QA-9,
-QA-10, QA-11, QA-12, QA-13, QA-14, QA-16 ([`process_review.md`](process_review.md)); v2.2 adds the owner decisions
-D37, D38, D39 and the architecture observations O-12, O-13, O-14, O-15 (applied as listed in
-`requirements_review.md` §6 and §8).
+**Baseline:** v2.4, 01.11.2026. v2 (31.10.2026) derived from the owner-approved review
+[`requirements_review.md`](requirements_review.md); v2.1 adds the process review rows QA-7, QA-8, QA-9, QA-10,
+QA-11, QA-12, QA-13, QA-14, QA-16 ([`process_review.md`](process_review.md)); v2.2 adds the owner decisions D37,
+D38, D39 and the architecture observations O-12, O-13, O-14, O-15, and closes the review (applied as listed in
+`requirements_review.md` §6 and §8); v2.3 adds O-16 and v2.4 the 10 s bound of NFR-1.8, changes after closure (`requirements_review.md` §9).
 **Replaces:** the Romanian specification of 07.10.2026 (v1). IDs are kept where the meaning did not change.
 **Related:** [`plan.md`](plan.md), [`changelog.md`](changelog.md), [`hardware_esp32_relay.md`](hardware_esp32_relay.md),
 [`underfloor_heating_hydraulics_and_failsafes.md`](underfloor_heating_hydraulics_and_failsafes.md), [`api_reference.md`](api_reference.md).
@@ -438,20 +438,22 @@ one example:
 - **NFR-1.4 (Safe boot):** {SW; test} At every boot the controller drives all zone valves to closed (per FR-15.1),
   sends one boiler OFF, which starts `burnerMinPause` (FR-4), and enters the boot warmup (FR-22) before any heating
   command.
-- **NFR-1.5 (Task watchdog):** {SW; inspection} A 90 s task watchdog on `loop()` resets the controller on a software hang.
-- **NFR-1.8 (Safety reaction time):** {SW; test, analysis} Every safety reaction is decided, and every relay it
-  switches has changed, within 2 s of its trigger; the 2 s are fixed, not a configuration parameter. A radio frame
-  of the reaction may additionally wait for the cooldown of FR-17.2 (worst case 2 s + 3 s). Safety reactions are:
+- **NFR-1.5 (Task watchdog):** {SW; inspection} A 90 s task watchdog covers every task that runs control or
+  interfaces (with the control tick in its own task, architecture AR-21: `loop()` and the control task); if either
+  hangs, the controller resets into the safe boot (NFR-1.4).
+- **NFR-1.8 (Safety reaction time):** {SW; test, analysis} Every safety reaction has changed the outputs within
+  10 s of its trigger; the 10 s are fixed, not a configuration parameter. Safety reactions are:
+  - the output changes decided in each control tick (§0);
   - closing a valve without demand (FR-37);
   - stopping the pump when no valve is open any more (FR-14.5);
   - opening the valve of a zone below `frostTemp` (FR-16.1);
   - the forced boiler OFF of the flow limit, once its filter time has elapsed (FR-54);
-  - the forced manual boiler OFF (FR-17.3);
+  - the forced manual boiler OFF (FR-17.3); its trigger is the acceptance of the request by the controller (the
+    network before that is outside the bound);
   - interlock and burner-guard decisions: boiler ON once `interlockDelay` and the guard have elapsed, a deferred
     request when its guard expires (FR-2, FR-4, FR-32).
-  - The only exception is an OTA upload (FR-8.3), which may hold `loop()` longer; it is accepted only with the
-    boiler OFF (FR-60).
-  - On the board the bound is checked with the longest control-tick delay and web/loop pass of FR-23.
+  - The only exception is a firmware update (FR-8.3), which runs only with the boiler OFF (FR-60).
+  - On the board the bound is checked with the longest control-tick delay reported by FR-23.
 - ~~**NFR-1.2 (Sensor failsafe):** retired, merged into FR-16.2.~~
 - ~~**NFR-1.3 (Frost protection):** retired, merged into FR-16.1.~~
 - ~~**NFR-1.6 (Burner cycle limit 60 s + 60 s):** retired, merged into FR-4.~~

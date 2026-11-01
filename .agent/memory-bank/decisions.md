@@ -482,3 +482,23 @@ NFR-1.8) and AR-22, and raised O-12…O-15 on the requirements. The owner answer
 **Affects**: AR-3, AR-21, AR-22, P6, NFR-1.8, FR-4, FR-14.5, FR-17.3, FR-23, FR-68, `architecture.md` §5, §14.2, §16, §18.
 **Consequences**: firmware migration may start at step 1 (`ParamStore`); the task split is placed in a later step by
 the architecture.
+
+## 2026-11-01 — Watchdog on both tasks, NFR-1.8 trigger and OTA exception (O-16)
+**Context**: With the control tick in its own task (AR-21), NFR-1.5 watched only `loop()` and NFR-1.8 had no defined
+trigger for a manual request; flash writes during OTA stall both cores.
+**Decision**: Recommended option applied — the task watchdog covers `loop()` and the control task (either hang resets
+into the safe boot); a manual request's reaction time counts from its acceptance by the controller, verified with the
+longest control-tick delay (FR-23); the OTA exception of NFR-1.8 stays (boiler OFF during OTA, FR-60).
+**Decided by**: owner (chat, 01.11.2026: "no preference", so the recommended option).
+**Affects**: NFR-1.5, NFR-1.8, FR-17.3, FR-23, AR-21, `architecture.md` §5, §16.
+**Consequences**: requirements baseline v2.3 with a post-closure review row.
+
+## 2026-11-01 — Safety reaction bound simplified to 10 s (NFR-1.8)
+**Context**: NFR-1.8 (2 s, from process review QA-16) produced follow-up exceptions (radio cooldown D39, OTA, task
+watchdog). The plant reacts in minutes, and since AR-21 the web page can no longer hold up control.
+**Decision**: Every safety reaction changes the outputs within 10 s of its trigger; the only exception is a firmware
+update, which runs only with the boiler OFF. The radio-cooldown clause of D39 is superseded. Watchdog on both tasks,
+"next control tick" in FR-37 / FR-17.3 and the measured longest control-tick delay (FR-23) stay.
+**Decided by**: owner (chat, 01.11.2026, option B).
+**Affects**: NFR-1.8, D39, AR-21, `architecture.md` §1, §5.
+**Consequences**: one simple, testable bound; no special handling of radio frames for timing.

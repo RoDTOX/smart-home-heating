@@ -4,8 +4,8 @@
 > Date: 31.10.2026. Status: **closed 01.11.2026, owner (chat).** Every row approved by the owner (31.10.2026;
 > architecture observations §6 and process review rows §8 on 01.11.2026) and applied in requirements baseline v2.2;
 > the exit criteria of `process.md` §3 hold (§7). **Open action** (not a decision): the blueprint's location and
-> version, to be given by the owner (D37, §4.5). Tests and firmware follow in the migration steps
-> (`architecture.md` §18).
+> version, to be given by the owner (D37, §4.5). Changes after closure: §9 (baselines v2.3, v2.4). Tests and firmware
+> follow in the migration steps (`architecture.md` §18).
 
 ## 1. Scope and method
 
@@ -424,4 +424,17 @@ architecture, 0 requirements without attribute.
 |---|---|---|---|---|
 | D37 | Where is the owner's blueprint `underfloor_heating_blueprint_2.pdf`, the source of B-01…B-21, and which version was reviewed? It is not in the repository (QA-15). | A add the PDF to `docs/` / B record its location and version (file date, page count or SHA-256) in §4.5 | A — the rows can be re-checked against the same file | ✅ owner 01.11.2026: B. Open action: location and version, to be given by the owner (§4.5) |
 | D38 | FR-60 on a controller with no mapped sensor (before commissioning, FR-11.1): "at least one advert from a mapped sensor within 60 s" can never pass, so every OTA would roll back. | A skip the sensor check while no zone has a mapped sensor / B accept an advert from any sensor / C keep: OTA only after commissioning | A | ✅ owner 01.11.2026: A (FR-60; loop / watchdog and Wi-Fi checks stay) |
-| D39 | NFR-1.8 vs FR-17.2: a boiler OFF that is due (flow limit FR-54, deferred OFF FR-32) can wait up to 3 s for the radio cooldown when another frame (e.g. the FR-17.7 state repeat) was just sent, so the 2 s bound cannot hold for a radio frame. NFR-1.8 as approved names OTA as the only exception. | A the 2 s apply to the decision and to every relay; a radio frame may also wait for the FR-17.2 cooldown (worst case 2 s + 3 s) / B a safety OFF frame skips the cooldown / C shorter cooldown | A — the cooldown protects the receiver; the valves keep the 2 s | ✅ owner 01.11.2026: A (NFR-1.8) |
+| D39 | NFR-1.8 vs FR-17.2: a boiler OFF that is due (flow limit FR-54, deferred OFF FR-32) can wait up to 3 s for the radio cooldown when another frame (e.g. the FR-17.7 state repeat) was just sent, so the 2 s bound cannot hold for a radio frame. NFR-1.8 as approved names OTA as the only exception. | A the 2 s apply to the decision and to every relay; a radio frame may also wait for the FR-17.2 cooldown (worst case 2 s + 3 s) / B a safety OFF frame skips the cooldown / C shorter cooldown | A — the cooldown protects the receiver; the valves keep the 2 s | ✅ owner 01.11.2026: A (NFR-1.8); **superseded** 01.11.2026 by the 10 s bound (§9): the 3 s cooldown fits inside it |
+
+## 9. Changes after closure
+
+A requirement change after the review was closed gets a row here (`process.md` §3: "after any requirement change")
+and a new baseline version; the review stays closed.
+
+| # | Requirement | Change | Owner | Applied to |
+|---|---|---|---|---|
+| O-16 | NFR-1.5, NFR-1.8 | With the control tick in its own task (AR-21): the task watchdog covers every task that runs control or interfaces (`loop()` and the control task), either one hanging resets into the safe boot (NFR-1.4); the trigger of a manual request (FR-17.3) is its acceptance by the controller, the network before it is outside the bound; the bound is checked with the longest control-tick delay of FR-23; the OTA exception stays (flash writes stall both cores, boiler OFF per FR-60). **Safety.** | no preference — recommended option, 01.11.2026 | NFR-1.5, NFR-1.8; baseline v2.3 |
+| C-1 | NFR-1.8 | One simple bound: every safety reaction has changed the outputs within **10 s** of its trigger (was 2 s); the only exception is a firmware update, which runs only with the boiler OFF (FR-60). The radio-cooldown clause of D39 is removed (the 3 s fit inside 10 s), so D39 is superseded. Kept from O-16: watchdog on both tasks (NFR-1.5), a manual request counts from its acceptance by the controller, verification with the longest control-tick delay of FR-23; FR-37 and FR-17.3 keep "at the next control tick". Reason: the owner wants one simple bound; the plant reacts in minutes, and since AR-21 control no longer depends on the web page. **Safety.** | ✅ owner 01.11.2026 | NFR-1.8; D39 superseded; baseline v2.4 |
+
+Checker after O-16 (baseline v2.3) and after C-1 (baseline v2.4): `reqs` 0 ERROR, 14 WARN (DTC never raised, code
+side), 1 waived (W-1); `trace` 0 ERROR, 16 KNOWN (PB-11), 75 WARN.

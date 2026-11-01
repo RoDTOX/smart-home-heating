@@ -5,6 +5,17 @@ Corelat cu planul activ: [`docs/plan.md`](file:///c:/Users/BSeceleanu/.github_re
 
 
 
+## [01.11.2026] - Requirements v2.4: watchdog on both tasks, safety reaction bound 10 s
+
+- **Who / when / why:** requirements and architecture sessions, 01.11.2026, after two owner decisions
+  (`decisions.md`): O-16 (no preference, recommended option) and the simplified NFR-1.8 (option B).
+- **Requirements:** v2.3 — NFR-1.5 task watchdog covers `loop()` and the control task, a manual request counts from
+  its acceptance; v2.4 — NFR-1.8 one bound of 10 s for every safety reaction, only exception a firmware update with
+  the boiler OFF; D39 radio-cooldown clause superseded. Recorded as post-closure changes (`requirements_review.md` §9).
+- **Architecture:** O-16 decided, 10 s bound everywhere, detail that existed only for 2 s removed; AR-21 (own control
+  task) kept.
+- **Checks:** `sh_process_check.py` 0 errors, 21 known, PASS. **Not changed:** firmware, tests.
+
 ## [01.11.2026] - Requirements v2.2 frozen; control tick in its own task (AR-21)
 
 - **Who / when / why:** requirements and architecture sessions, 01.11.2026, after the owner's questionnaire
