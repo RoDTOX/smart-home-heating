@@ -5,6 +5,27 @@ Corelat cu planul activ: [`docs/plan.md`](file:///c:/Users/BSeceleanu/.github_re
 
 
 
+## [01.11.2026] - Traceability: SWE.1 ↔ SWE.2 kept in one place and checked
+
+- **Who / when / why:** `/simplify` chat (Claude, branch `claude/vibrant-ride-95fick`), 01.11.2026 02:10, asked by the
+  owner to simplify SWE.1, SWE.2 and the trace between them. The requirement → module links were written twice by
+  hand (`architecture.md` §3.2 column and §15 matrix), disagreed on 37 requirements and no tool read them.
+- **Where:**
+  - `docs/architecture.md`: §3.2 Requirements column is the only allocation (union of both old tables, no link
+    dropped; FR-64 → `SafetySupervisor` taken from §6.1 S4; new "all modules" row for cross-cutting NFRs; DTC IDs
+    removed, §10 is the DTC → module table, now one row per code); §15 matrix replaced by a pointer; the FR-51
+    sensor-loss rule stated once in §7.1 (S4 had dropped "outdoor unknown" and the disabled zone); §9.2 cites FR-58
+    instead of copying its list.
+  - `docs/requirements_and_features.md`: ID lists removed from section headings (they had drifted: FR-39, FR-72
+    missing, FR-44 misplaced); §0 says IDs are cited in full, never as ranges; §7 names the hand-kept links.
+    No requirement text changed.
+  - `tools/sh_process_check.py trace`: reads the §3.2 allocation (ERROR on a retired / unknown / parent ID, WARN on an
+    active requirement without a module), derives parent IDs from children instead of headings, matrix gets a
+    Modules column, `--matrix` works without a path. Output otherwise identical (16 errors, 84 warnings, as before).
+  - `docs/process.md`: SWE.2 row, rule R1 (no ID ranges), §7 gap partly closed.
+- **Owner review:** the 37 merged rows in §3.2. **Not changed:** firmware, tests. Committed locally with the
+  first commit of `tools/sh_process_check.py`, `tools/sh_git_version.py` and `docs/process.md` (owner OK); not pushed.
+
 ## [29.10.2026] - Level schedule, new UI, TPI control
 
 - **Schedule:** bio-schedule, presets, anchors and named blocks replaced by day/night/away levels per zone,

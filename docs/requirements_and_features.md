@@ -12,12 +12,12 @@
 - `- **FR-x (Title):**` defines a requirement. Struck-through items (`~~`) are retired and keep their ID reserved.
 - **Phase tag** after the title says *when* it is implemented, not *whether* it is required:
   `[now]` current phase · `[phase 4]` predictive control · `[later]` after phase 4 · `[nice to have]` optional.
-- Every functional requirement states its **inputs**, its **fallback** when an input is missing or implausible,
-  and what it **reports** (NFR-5.2). Fallbacks stay inside the comfort and safety zone; the occupants shall not
-  notice a fault — it is only logged and raised as a DTC (NFR-5.1).
-- Configuration parameters are written as `name`. Their default, allowed range and storage are defined once,
-  in §6. A value outside its range is rejected (HTTP 400 / console error) and never stored.
+- Every functional requirement states its **inputs**, **fallback** and **reports** (NFR-5.2); fallbacks follow the
+  priorities of NFR-5.1.
+- Configuration parameters are written as `name`; default, range and storage are defined once, in §6.
 - DTC codes are defined once, in §5.
+- IDs are cited in full (`FR-6.1, FR-6.2`), never as a range, so the checker can trace them. A parent ID (`FR-6`)
+  groups its children and is not a requirement of its own.
 
 ---
 
@@ -64,7 +64,7 @@ one example:
 
 ## 3. Functional requirements
 
-### 3.1 Room control (FR-1, FR-47, FR-48, FR-51, FR-52)
+### 3.1 Room control
 
 - **FR-47 (Time-proportional valve control):** *[now]* Each zone is controlled by time-proportional control (TPI):
   - cycle 60 min; ON time per cycle = duty × cycle;
@@ -103,7 +103,7 @@ one example:
     below `faultFrostOutdoor` or unknown (a lost sensor must not remove frost safety; safety > economy).
   - *Reports:* DTC-101 `ERR_SENSOR_TIMEOUT`, zone state FAULT in the page.
 
-### 3.2 Hydraulic safety (FR-2, FR-3, FR-4, FR-14, FR-37)
+### 3.2 Hydraulic safety
 
 - **FR-2 (Actuator opening interlock):** *[now]* Boiler ON is commanded only after at least one zone valve has been
   energised (opened) for ≥ `interlockDelay` (default 180 s). Values below the range in §6 are rejected.
@@ -128,7 +128,7 @@ one example:
   the overrun with the overrun valve open.
 - ~~**FR-14.4 (Weekly anti-seize 20 s):** retired, replaced by FR-19.~~
 
-### 3.3 Boiler link (FR-5, FR-17, FR-32, FR-55)
+### 3.3 Boiler link
 
 - **FR-5.1 (Radio frame):** *[now]* The 433.92 MHz OOK frame reproduces the original thermostat: 409 level
   transitions, 65 ms silence before and after the data train.
@@ -158,7 +158,7 @@ one example:
 - **FR-32 (Deferred boiler request):** *[now]* A request rejected by FR-4 is queued (`PENDING_ON` / `PENDING_OFF`)
   and executed when the guard expires. An opposite request or `POST /api/boiler/cancel` cancels it.
 
-### 3.4 Sensors (FR-6, FR-11, FR-20, FR-22, FR-28, FR-49, FR-53)
+### 3.4 Sensors
 
 - **FR-6.1 (Supported sensors):** *[now]* Xiaomi LYWSD03MMC with PVVX / ATC firmware, BTHome v2 or ATC format.
 - **FR-6.2 (Sensor values):** *[now]* Temperature (0.1 °C), relative humidity (1 %), battery (%), RSSI (dBm).
@@ -189,7 +189,7 @@ one example:
   controller over the LAN; the controller uses the most recent accepted reading.
   - Interim: a sensor below −90 dBm for 1 h raises DTC-105 `WARN_SENSOR_WEAK_SIGNAL`.
 
-### 3.5 Protections and fault detection (FR-16, FR-18, FR-40, FR-54, FR-56, FR-57)
+### 3.5 Protections and fault detection
 
 - **FR-16.1 (Frost protection):** *[now]* If any zone — enabled or disabled — with an accepted reading is below
   `frostTemp` (default 12 °C), that zone heats in any mode (AUTO, MANUAL, global OFF) until it reaches
@@ -234,7 +234,7 @@ one example:
     is raised.
   - Other functions continue.
 
-### 3.6 Schedule, modes and season (FR-12, FR-29, FR-30, FR-31, FR-44, FR-61, FR-64)
+### 3.6 Schedule, modes and season
 
 - **FR-29 (Levels):** *[now]* Each zone has three levels: day, night, away (5–30 °C; factory 23 / 21 / 18 °C).
 - **FR-30 (Level storage):** *[now]* Level temperatures are stored in NVS, written only on change.
@@ -258,7 +258,7 @@ one example:
 - ~~**FR-12.3 (Open-Meteo weather):** retired, merged into FR-9.~~
 - ~~**FR-12.4 (City search, county list, GPS button):** retired, replaced by FR-9.2.~~
 
-### 3.7 Weather and predictive control (FR-9, FR-63, FR-67, FR-70, FR-71)
+### 3.7 Weather and predictive control
 
 - **FR-9 (Outdoor temperature):** *[now]* Outdoor temperature from Open-Meteo every 15 min; retry after 5 min on
   failure.
@@ -278,7 +278,7 @@ one example:
   is lowered by up to 0.5 °C; the effective target is shown in the admin view.
   - *Fallback:* no humidity reading → no compensation.
 
-### 3.8 Diagnostics (FR-10, FR-21, FR-23, FR-62)
+### 3.8 Diagnostics
 
 - **FR-10.2 (Diagnostic codes):** *[now]* The controller raises the codes listed in §5 and shows active codes in the
   page and `/api/status`.
@@ -300,7 +300,7 @@ one example:
 - ~~**FR-10.3 (Service mode):** retired, removed in phase 2.~~
 - ~~**FR-10.5 (Fleet OTA):** retired, out of scope.~~
 
-### 3.9 Interfaces and security (FR-7, FR-8, FR-15, FR-34, FR-35, FR-41..FR-45, FR-50, FR-58, FR-59)
+### 3.9 Interfaces and security
 
 - **FR-7.1 (Telnet console):** *[now]* Telnet server on port 23.
 - **FR-7.3 (Console commands):** *[now]* Console commands are accepted via Serial, Telnet and HTTP (FR-45); `HELP`
@@ -343,7 +343,7 @@ one example:
   Credentials are changed via API or console without re-flashing and stored in NVS.
   - *Reports:* while any default is active, DTC-403 `WARN_DEFAULT_CREDENTIALS`; everything else works.
 
-### 3.10 Maintenance and commissioning (FR-19, FR-60, FR-65, FR-66, FR-68, FR-69)
+### 3.10 Maintenance and commissioning
 
 - **FR-19 (Valve exercise):** *[now]* A valve closed for ≥ `exerciseIdleDays` is opened for 5 min with the boiler
   OFF; the optional pump runs during the exercise. Idle time is tracked per valve on epoch time and stored in NVS
@@ -385,7 +385,7 @@ one example:
 
 ## 4. Non-functional requirements
 
-### 4.1 Safety (NFR-1)
+### 4.1 Safety
 
 - **NFR-1.1 (Local autonomy):** Loss of Wi-Fi, router or internet does not stop heating control; all decisions run on
   the controller.
@@ -397,7 +397,7 @@ one example:
 - ~~**NFR-1.6 (Burner cycle limit 60 s + 60 s):** retired, merged into FR-4.~~
 - ~~**NFR-1.7 (Failure-mode description):** retired, moved to the hydraulics document.~~
 
-### 4.2 Resources and performance (NFR-2)
+### 4.2 Resources and performance
 
 - **NFR-2.2 (Free heap):** Free heap ≥ 100 KB during normal operation. Below 60 KB
   DTC-402 `WARN_HEAP_FRAGMENTATION` is raised; below 30 KB a controlled restart is performed while the boiler is OFF,
@@ -412,19 +412,19 @@ one example:
 - ~~**NFR-2.5 (Paced OTA upload):** retired, merged into FR-8.3.~~
 - ~~**NFR-2.7 (Development server):** retired, tooling, documented in the README.~~
 
-### 4.3 Code and language (NFR-3)
+### 4.3 Code and language
 
 - **NFR-3.1 (Language):** Code, identifiers, API messages, logs and documentation in English. The family view of the
   page is available in Romanian and English (configurable).
 - **NFR-3.2 (Modules):** Firmware is split into the modules of [`architecture.md`](architecture.md), one
   responsibility each.
 
-### 4.4 Comfort (NFR-4)
+### 4.4 Comfort
 
 - **NFR-4.1 (Comfort accuracy):** In steady state (no schedule change for 3 h, window closed) the room temperature
   stays within ±0.3 °C of the target.
 
-### 4.5 Graceful degradation (NFR-5)
+### 4.5 Graceful degradation
 
 - **NFR-5.1 (Priorities):** When goals conflict: safety > comfort > economy. A fallback may give up economy, never
   safety, and gives up comfort only when safety requires it. Faults are logged and raised as DTC; occupants shall
@@ -473,7 +473,8 @@ Every raise and clear is recorded in the event history (FR-62).
 
 ## 6. Configuration parameters
 
-Set via API and console, stored in NVS (written on change only). Out-of-range values are rejected.
+Set via API and console, stored in NVS (written on change only). A value outside its range is rejected
+(HTTP 400 / console error) and never stored.
 
 | Parameter | Default | Range | Requirement |
 |---|---|---|---|
@@ -522,7 +523,9 @@ Set via API and console, stored in NVS (written on change only). Out-of-range va
 
 ## 7. Traceability
 
-The matrix requirements ↔ tests ↔ code is generated, not maintained by hand:
+The only hand-kept links are requirement → module (Requirements column of [`architecture.md`](architecture.md)
+§3.2), test → requirement (test docstrings) and code tags. The matrix requirements ↔ modules ↔ tests ↔ code is
+generated from them:
 
 ```bash
 python tools/sh_process_check.py trace --matrix
