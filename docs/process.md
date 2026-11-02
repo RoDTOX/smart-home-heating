@@ -132,6 +132,13 @@ A requirement change a step needs goes through §3 before its tests are written.
 
 Skill `sh-review` (`reqs | tests | code | trace | all`) runs them together.
 
+**Modes (owner, 02.11.2026: tokens).** The default is light: the chat writes the tests first itself, no review
+agents, one `sh-safety-reviewer` run when the change touches the AGENTS.md §3 safety list. Full - the clean-room
+agents, the reviewers above, `sh-assessor` and the step review record (§9) - only when the owner asks and before a
+release (§5). In both modes a failing test is fixed in the code, never in the test: a hook closes the code until the
+tests are written and the test file once frozen (`tools/sh_chain.py`, `.claude/hooks/sh_chain_guard.py`), and
+`sh_process_check.py process` errors when a frozen test file changed. A bad test or requirement goes to the owner.
+
 ### 3.2 Test rules and test review gate
 
 - **Anti-weakening.** Tests exist to find defects. An assertion, tolerance, timeout or expected value is never

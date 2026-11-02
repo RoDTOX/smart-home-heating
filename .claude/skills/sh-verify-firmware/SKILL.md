@@ -1,6 +1,6 @@
 ---
 name: sh-verify-firmware
-description: Run the AGENTS.md "verification before flashing" pipeline for this firmware - build, process check, test review, safety review of the diff, OTA flash, system test and live config check on the board. Use when the user says verify, check before flash, flash and test, or before any commit that touches src/, include/ or platformio.ini. Args - "no-board" skips flash and board test (default - flash after steps 1-4 pass, owner decision 01.11.2026).
+description: Run the AGENTS.md "verification before flashing" pipeline for this firmware - build, process check, test review, safety review of the diff, OTA flash, system test and live config check on the board. Use when the user says verify, check before flash, flash and test, or before any commit that touches src/, include/ or platformio.ini. Args - "light" skips the test and code review agents (the safety review stays when the change touches the safety list); "no-board" skips flash and board test (default - flash after steps 1-4 pass, owner decision 01.11.2026).
 ---
 
 # sh-verify-firmware
@@ -31,14 +31,20 @@ WARN lines (`python tools/sh_process_check.py trace|reqs|arch|process`) only whe
 
 ## 3. Test review (changed tests)
 
-Launch the `sh-test-reviewer` agent (clean room - it cannot read the code) on the tests changed on the branch
+Skipped with `light`. Launch the `sh-test-reviewer` agent (clean room - it cannot read the code) on the tests changed on the branch
 (`docs/process.md` §3.2). Do not pass it code. Any FINDING stops the pipeline. Never edit a test to make it pass.
+Skip it when `sh-write-tests` already reviewed these tests and `git hash-object tools/sh_test_system.py` equals the
+hash in `docs/review_step_<n>.md`; otherwise one run, on the tests that changed since.
 
 ## 4. Code and safety review of the diff
 
-Launch `sh-code-reviewer` and `sh-safety-reviewer` in parallel on the branch diff (against `origin/main`, plus
-uncommitted changes). Any **BLOCKER** or code FINDING stops the pipeline - never flash with one open.
-Skip this step only if the diff touches nothing in `src/`, `include/`, `web/` or `platformio.ini`.
+With `light`: only `sh-safety-reviewer`, and only when the change touches the safety list below. Full: launch
+`sh-code-reviewer` on the branch diff (against `origin/main`, plus uncommitted changes), and
+`sh-safety-reviewer` in parallel only when the change touches the AGENTS.md §3 safety list (valves, boiler, burner
+guard, frost, sensor loss, boot, the safety parameters or the code that sets them). Any **BLOCKER** or code FINDING
+stops the pipeline - never flash with one open. Skip this step only if the diff touches nothing in `src/`,
+`include/`, `web/` or `platformio.ini`. Pass the changed files of the diff since the last review, not the whole
+branch.
 
 ## 5. Flash (OTA)
 

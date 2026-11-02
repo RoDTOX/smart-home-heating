@@ -466,3 +466,41 @@ safety list and the full EU review run with Opus high. Agents read by section, n
 **Decided by**: owner (chat, 02.11.2026: "să faci cumva ca modelul OPUS sau SONNET sau HAIKU să fie folosite optim").
 **Affects**: AGENTS.md §5; `.claude/agents/*`; skills `sh-write-tests`, `sh-review`.
 **Consequences**: the model of the main chat is the owner's setting in the app; the table says what to pick.
+
+## 2026-11-02 — Fewer agent runs per step (tokens)
+**Context**: A step started up to seven agents, each rereading the requirements, the architecture and the 4000-line
+test file; the owner saw the token use (screenshot of the export / import session).
+**Decision**: `sh-req-reviewer` only on changed requirement IDs; `sh-safety-reviewer` only when the change touches
+the AGENTS.md §3 safety list; the test reviewer once per set of tests (hash of `tools/sh_test_system.py` in the step
+record, no second run on the same hash); `sh-code-reviewer` only on the files changed since the last review; the
+test writer gets the area of the test file to read. Not done yet: splitting `tools/sh_test_system.py` by area (it is
+being edited by the firmware session; later).
+**Decided by**: owner (chat, 02.11.2026: "ok, fa ce trebuie sa faci").
+**Affects**: skills `sh-change`, `sh-write-tests`, `sh-verify-firmware`.
+**Consequences**: less assurance per run on changes outside the safety list; the checker, the tests and the owner's
+board test stay as they were.
+
+## 2026-11-02 — Light workflow by default, full on request and at release
+**Context**: The full chain (up to eight agents per change) took the owner to 45 % of the weekly limit on a Monday;
+at the start of the project most changes do not need it (owner: "nu vad necesar pentru orice scărpinat").
+**Decision**: two modes of `sh-change`. Light (default): the chat does every step, tests first written by itself,
+no review agents; the one exception kept by the assistant: a change that touches the AGENTS.md §3 safety list gets
+one `sh-safety-reviewer` run. Full: all agents, `sh-assessor`, `sh-compliance-reviewer` - when the owner asks and
+before a release. Replaces the "Fewer agent runs per step" rules for the default path.
+**Decided by**: owner (chat, 02.11.2026).
+**Affects**: AGENTS.md §4, §5; `docs/process.md` §3.1; skills `sh-change`, `sh-verify-firmware`.
+**Consequences**: in light mode no clean-room hook protects the tests, so "tests follow the requirement" rests on
+the rule and on `trace`; the checker, the system tests on the board, the board check and the owner's test stay.
+
+## 2026-11-02 — The order "tests before code" is kept by a hook, not by an agent
+**Context**: In light mode no reviewer guards "tests are not written after the code, to pass". The owner: it must hold,
+and a bad test or requirement must come to them for clarification.
+**Decision**: `tools/sh_chain.py` keeps a local marker; the hook `.claude/hooks/sh_chain_guard.py` (project
+`.claude/settings.json`) closes `src/`, `include/`, `web/` until the tests are frozen and closes the test file after
+the freeze; `sh_process_check.py process` errors when a frozen test file changed (shell edits). No marker, no limits.
+Unfreezing needs the owner's decision (`--because PB-n | D-n | C-n | O-n`). The semantic test review stays in full mode
+(Sonnet): a hook cannot judge whether a test checks the whole requirement.
+**Decided by**: owner (chat, 02.11.2026).
+**Affects**: skill `sh-change`, AGENTS.md §5, `docs/process.md` §3.1, `tools/sh_process_check.py`.
+**Consequences**: the chat can still read the code before writing the tests; the guard fixes the order and the
+immutability, not the independence of the author.

@@ -38,6 +38,7 @@ import argparse
 import ast
 import functools
 import glob
+import hashlib
 import json
 import os
 import re
@@ -882,10 +883,26 @@ def check_problems(rep, release=False):
     return problems
 
 
+def check_chain(rep):
+    """Tests frozen by `sh_chain.py freeze` must still be what was frozen (the guard hook cannot see shell edits)."""
+    try:
+        state = json.loads(read(".claude/state/chain.json"))
+    except (OSError, ValueError):
+        return
+    if state.get("phase") != "code":
+        return
+    with open(os.path.join(ROOT, TEST_FILE), "rb") as f:
+        now = hashlib.sha256(f.read()).hexdigest()
+    if now != state.get("hash"):
+        rep.error(f"{TEST_FILE} changed after the tests were frozen ('{state.get('label')}') - a bad test or "
+                  f"requirement goes to the owner; `sh_chain.py unfreeze --because <id>` only after their decision")
+
+
 def check_process(rep, base, strict_size):
     rep.section("Process (AGENTS.md rules)", "process")
     check_safety_limits(rep)
     check_build_identity(rep)
+    check_chain(rep)
     problems = check_problems(rep)
 
     if git("ls-files", "include/secrets.h"):

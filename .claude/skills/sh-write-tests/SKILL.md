@@ -19,8 +19,9 @@ written against an undecided requirement.
 
 ## 2. Write (clean room)
 
-Launch `sh-test-writer` with the ID list. It reads only the documents and edits only `tools/sh_test_system.py`
-(a hook enforces it). Do not pass it code or hints from the code. When the list holds a requirement of the
+Launch `sh-test-writer` with the ID list and the area of the test file to read (find it with `grep -n "TC"` on
+the nearest existing tests of the same requirement group). It reads only the documents and edits only
+`tools/sh_test_system.py` (a hook enforces it). Do not pass it code or hints from the code. When the list holds a requirement of the
 AGENTS.md §3 safety list, launch it and `sh-test-reviewer` with model `opus`, effort `high` (AGENTS.md §5, model per work);
 otherwise they keep their own model.
 
@@ -29,8 +30,10 @@ the requirements review (§3), not something to work around.
 
 ## 3. Review (clean room)
 
-Launch `sh-test-reviewer` on the changed tests. A FINDING goes back to `sh-test-writer` once with the finding text;
-what remains goes into the report.
+Launch `sh-test-reviewer` once on the changed tests. A FINDING goes back to `sh-test-writer` once with the finding
+text; the fixed tests are checked by the owner's gate, not by a second review run; what remains goes into the
+report. Write `git hash-object tools/sh_test_system.py` into `docs/review_step_<n>.md` (`sh-verify-firmware` step 3
+skips a second review of the same hash).
 
 ## 4. Red run
 

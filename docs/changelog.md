@@ -430,3 +430,31 @@ Entries before 29.10.2026 (the system before the lean clean-up):
 - Removed unused web pages `web/index_v2.html`, `web/public_landing.html` (not compiled into firmware).
 - Rewrote `AGENTS.md` and `docs/plan.md` as short, phase-based documents.
 - Firmware (`src/`, `include/`) untouched.
+
+## [02.11.2026] - Process: fewer agent runs per step
+
+- **Who / when / why:** process chat (Claude), 02.11.2026; token use of the export / import session.
+- **Where:** `sh-change` (`sh-req-reviewer` on changed IDs only), `sh-write-tests` (one test review, hash of the test
+  file in the step record, area for the writer), `sh-verify-firmware` steps 3-4 (no second test review on the same
+  hash; `sh-safety-reviewer` only for the safety list; reviewers see what changed since their last run).
+- **Also:** every agent's report is capped (40 lines, passed checks as one line, no restating).
+- **Also:** every agent's report is capped (40 lines, passed checks as one line, no restating).
+- **Not done:** splitting `tools/sh_test_system.py` by area (the firmware session is editing it).
+
+## [02.11.2026] - Process: light workflow by default, full on request
+
+- **Who / when / why:** process chat (Claude), 02.11.2026; the owner reached 45 % of the weekly limit on a Monday.
+- **Where:** `sh-change` (modes), `sh-verify-firmware` (`light`), AGENTS.md §4 and §5, `docs/process.md` §3.1.
+  Light: the chat does everything, one safety review only for the safety list. Full: all agents, when the owner asks
+  and before a release.
+- **Not verified:** neither mode has run; the export / import session still runs its step in the full chain.
+
+## [02.11.2026] - Process: guard hook for the order tests before code
+
+- **Who / when / why:** process chat (Claude), 02.11.2026; the owner: tests must never be written after the code just
+  to pass; a bad test or requirement goes to them.
+- **Where:** `.claude/hooks/sh_chain_guard.py` + `.claude/settings.json` (PreToolUse on Edit / Write), `tools/sh_chain.py`
+  (start, freeze, unfreeze, done), `check_chain` in `tools/sh_process_check.py`, `.gitignore` (`.claude/state/`),
+  `sh-change`, AGENTS.md §5, `docs/process.md` §3.1.
+- **Verified:** the hook exits 2 / 0 as designed in both phases and without a marker (Windows paths); the checker errors
+  on a changed frozen test file. **Not verified:** a real chain run; new sessions load the hook, running ones do not.

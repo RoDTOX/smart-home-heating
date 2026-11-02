@@ -13,6 +13,25 @@ The owner has three moments; everything else runs without asking:
 
 Always top-down, in this order. Never start at the code, never skip a level, never change a test to make it pass.
 
+## Modes (owner, 02.11.2026: tokens)
+
+- **Light - the default.** The chat does every step itself, no review agents. The only agent: a change that touches
+  the AGENTS.md §3 safety list (valves, boiler, burner guard, frost, sensor loss, boot) gets one `sh-safety-reviewer`
+  run. Step 3: the chat writes the tests itself, before the code. Step 5: `sh-verify-firmware no-board light`. No
+  `sh-assessor`, no `sh-compliance-reviewer`.
+- **Full.** Only when the owner asks ("serios", "full", "complet") and before a release (`docs/process.md` §5):
+  everything below as written, with all agents.
+
+When unsure, light. Say the mode in the first line of the report.
+
+## The guard (both modes, no tokens)
+
+A hook (`.claude/hooks/sh_chain_guard.py`, state `tools/sh_chain.py`) keeps the order: `start "<label>"` before the
+tests - the code (`src/`, `include/`, `web/`) is closed; `freeze` after the red run - the test file is closed and
+its hash recorded (`sh_process_check.py process` errors when it differs); `done` after the commit. A test or a
+requirement that looks wrong or unclear is never adjusted by the chat: stop and ask the owner (moment 2, options in
+the house); `unfreeze --because <PB-n|D-n|C-n>` only after their decision.
+
 ## 1. Understand and log
 
 - Restate the observation in one sentence about the house (room, valve, boiler, time of day). If it can be read
@@ -28,17 +47,21 @@ Find the requirement that covers it (`docs/requirements_and_features.md`, values
 
 - **Requirement right, firmware wrong** - go on, no question.
 - **Requirement missing, wrong or unclear** - moment 2: one question, 2-3 options with what each means in the
-  house, recommended first. Then rewrite the requirement (rules `docs/process.md` §2), add a row to
+  house, recommended first. Then rewrite the requirement (rules `docs/process.md` §2); in full mode run `sh-req-reviewer`
+  on the changed IDs only; add a row to
   `docs/requirements_review.md` and an entry to `.agent/memory-bank/decisions.md` (§4). If the change moves work
   between modules, update `docs/architecture.md` §3.2; `trace` shows no ERROR.
 - **Works as specified, and the owner agrees** - `PB-n` `rejected` with the reason; stop.
 
 A requirement about access, credentials, updates, user data or the radio is checked against `docs/compliance.md`
-before it is written (`sh-compliance-reviewer` on those IDs): the device is to be sold in the EU (AGENTS.md §2).
+before it is written (full mode: `sh-compliance-reviewer` on those IDs; light: the chat reads the matching `CMP-n` rows): the device is to be sold in the EU (AGENTS.md §2).
 
 ## 3. Tests first
 
-Skill `sh-write-tests` with the requirement IDs: clean-room writer, reviewer, red run (new tests fail on the
+Start the guard: `python tools/sh_chain.py start "<label>"`; after the red run `python tools/sh_chain.py freeze`.
+**Light:** the chat writes the tests itself, before the code, from the requirement text and §6 (leaf ID in the
+docstring, the written value asserted) and runs them on the board: the new ones fail. **Full:** skill
+`sh-write-tests` with the requirement IDs: clean-room writer, reviewer, red run (new tests fail on the
 board's current firmware). An existing test is changed only there, by `sh-test-writer`, citing the `PB-n` or the
 requirement change.
 
@@ -46,18 +69,19 @@ requirement change.
 
 Change `src/`, `include/`, `web/` until the new tests pass. Smallest change (AGENTS.md §3), only this change; code
 tags cite the leaf ID. A test that cannot pass sends you back to step 2 (the requirement may be wrong), never to
-the test.
+the test: stop and ask the owner what the requirement should say; the guard blocks edits of the frozen test file.
 
 ## 5. Gates, commit, board
 
-1. `sh-verify-firmware no-board` - build, checker, test review, code and safety review. Fix code findings; what
+1. `sh-verify-firmware no-board` (light: `no-board light`) - build, checker, and in full mode the test, code and
+   safety reviews. Fix code findings; what
    is not fixed becomes a `PB-n`. A BLOCKER stops the chain and goes to the owner.
 2. Update `docs/changelog.md`, `.agent/memory-bank/activeContext.md`, and `docs/plan.md` when a step changes
    status.
 3. Commit on the work branch (owner, 02.11.2026): `type(scope): subject (PB-n)`; the `PB-n` row gets the commit and
-   status `fixed`. Never on `main`, never push.
+   status `fixed`. Never on `main`, never push. Then `python tools/sh_chain.py done`.
 4. `sh-verify-firmware` steps 5-7: flash, system test, board config. A failing test sends you back to step 4.
-5. End of a migration step: `sh-assessor` (the step's evidence) and `sh-compliance-reviewer` (EU rules) in
+5. Full mode only - end of a migration step: `sh-assessor` (the step's evidence) and `sh-compliance-reviewer` (EU rules) in
    parallel; their results go into `docs/review_step_<n>.md`. Evidence that can still be produced (a review, a
    record) is produced now; the rest becomes a `PB-n`. A missing requirement from the compliance review is
    moment 2. A fix outside a step runs only `sh-compliance-reviewer`, and only when it touches a `CMP-n` row.

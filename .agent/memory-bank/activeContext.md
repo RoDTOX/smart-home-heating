@@ -26,6 +26,9 @@ Only what holds now and what comes next. A line that no longer holds is replaced
   (`OutputBank`, with zones added / deleted by the user C-10 and sensor search C-11), then step 2. Board settings saved before
   the first flash: `side-session-notes/.../board_settings_2b7564f_2026-11-02.json`.
 
+- Workflow modes (02.11.2026): light by default (the chat does everything; one safety review for the safety list), full
+  (all agents) on the owner's request and before a release - AGENTS.md §5.
+
 ## Next
 - Owner: hands-on acceptance of step 1 and the page (row in `docs/acceptance.md`), then the step review record and
   step 2 (`Diagnostics`).

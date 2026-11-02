@@ -88,6 +88,9 @@ when every check has its evidence.
 
 ## Report format
 
+Length cap: at most 40 lines, no preamble, no restating the task. Quote a document only in the one line a finding
+needs. Passed checks as one line `OK: <n> checks`, not one line each. Say nothing about what you did not find.
+
 Keep it short. One section per severity, most severe first:
 
 - **BLOCKER** - violates a requirement of the safety list or an invariant; must not be flashed.

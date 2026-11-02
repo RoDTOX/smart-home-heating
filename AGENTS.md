@@ -52,10 +52,11 @@ software is in [`docs/compliance.md`](docs/compliance.md) and becomes a requirem
 
 1. `pio run` builds clean (also runs on GitHub Actions for every push).
 2. `python tools/sh_process_check.py` has no ERROR (`KNOWN` lines are errors already tracked by an open `PB-n`).
-3. Test review: `sh-test-reviewer` (no access to the code) finds no FINDING - every changed test cites a leaf ID
+3. Test review (full mode): `sh-test-reviewer` (no access to the code) finds no FINDING - every changed test cites a leaf ID
    and asserts the value written in the requirement ([`docs/process.md`](docs/process.md) §3.2). The step's
    tests were written first, by `sh-test-writer`, and failed on the old firmware (§3.1).
-4. `sh-code-reviewer` and `sh-safety-reviewer` report no FINDING / BLOCKER when `src/`, `include/`, `web/` or
+4. `sh-code-reviewer` (full mode) and `sh-safety-reviewer` (full mode, or light when the §3 safety list is touched)
+   report no FINDING / BLOCKER when `src/`, `include/`, `web/` or
    `platformio.ini` changed.
 5. `python tools/sh_test_system.py` passes against the board.
 6. `python tools/sh_process_check.py board` has no ERROR (live NVS values within the safety limits).
@@ -76,8 +77,13 @@ The full process (requirement rules, requirements review, test review, decisions
 - **The owner's chain.** When the owner tells what they see on the heating or asks for a change (or for the next
   migration step), run skill `sh-change`: log → requirement → tests first → code → gates → commit → board.
   The owner is asked only to decide a requirement change and to test on the board; everything else runs without
-  asking. At the end of a migration step `sh-assessor` checks the step's evidence and `sh-compliance-reviewer`
-  the EU rules, before the owner tests.
+  asking. Two modes (owner, 02.11.2026: tokens): **light** by default - the chat does everything itself, with one
+  `sh-safety-reviewer` run only when the change touches the §3 safety list; **full** - all agents, and
+  `sh-assessor` with `sh-compliance-reviewer` at the end of a step - only when the owner asks for it and before a
+  release.
+- **A test or a requirement that looks wrong or unclear goes to the owner** for clarification; never change a test
+  to make it pass. A hook (`sh_chain_guard.py`) closes the code until the tests are written and the tests once
+  frozen (`tools/sh_chain.py`), without spending tokens.
 - **Commit** on the work branch inside `sh-change` once its gates pass (owner, 02.11.2026); outside the chain only
   on request. **Push, PR and `main` only on explicit request.** Deletions need confirmation.
 - Logs (`docs/changelog.md`, `docs/problems.md`, `docs/acceptance.md`, `.agent/memory-bank/decisions.md`) are

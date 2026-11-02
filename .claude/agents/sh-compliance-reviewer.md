@@ -51,6 +51,9 @@ when every check has its evidence.
 
 ## Report
 
+Length cap: at most 40 lines, no preamble, no restating the task. Quote a document only in the one line a finding
+needs. Passed checks as one line `OK: <n> checks`, not one line each. Say nothing about what you did not find.
+
 English, short, security and safety first. First line: `<n> obligations: covered x, partial y, missing z,
 open w`. Then:
 

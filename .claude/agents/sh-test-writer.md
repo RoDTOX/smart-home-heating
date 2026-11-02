@@ -57,6 +57,9 @@ when every check has its evidence.
 
 ## Report
 
+Length cap: at most 40 lines, no preamble, no restating the task. Quote a document only in the one line a finding
+needs. Passed checks as one line `OK: <n> checks`, not one line each. Say nothing about what you did not find.
+
 English, short:
 
 - tests added or changed: `TCxx.y` - requirement ID - the value asserted and the requirement line it comes from;

@@ -36,3 +36,4 @@ __pycache__/
 
 # Generated test report (tools/sh_test_system.py --report)
 docs/system_test_report.md
+.claude/state/
