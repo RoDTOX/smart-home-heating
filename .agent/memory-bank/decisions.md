@@ -523,3 +523,15 @@ restores them (a test proves it). An old file with `target` skips it as unknown 
 **Decided by**: owner (chat, 02.11.2026).
 **Affects**: FR-65.1, `api_reference.md`, `ConfigTransfer.cpp`, tests TC29.2, TC29.9.
 **Consequences**: none for the heating; the file is smaller.
+
+## 2026-11-03 — Underfloor thermal deficit full duty, weather compensation & UI ergonomics (C-14)
+**Context**: PB-66 (misleading "Temperatură atinsă" status in UI when below target), PB-67 (corner room underheating due to 60 min cycle 33% duty shutting off after 20 min, dissipating screed momentum), plus UI inputs wiped by polling refresh on blur, and confusing separate sensor search/stop buttons.
+**Decision**:
+1. For FR-47 (Option 1): When thermal deficit `(target - room) >= 0.4 °C`, duty is 100% (continuous heat, no TPI inter-pulse off) to heat screed. When deficit `< 0.4 °C`, modulated TPI engages with outdoor temperature compensation (+1.5% base duty per °C below 15 °C outdoor, up to 30%) and learned base duty.
+2. UI Sensor Search: Single 2-in-1 toggle button (Caută senzori / Oprește căutarea).
+3. UI Input Protection & Undo: Form editing marks inputs dirty, preventing periodic refresh poll overwriting; add Undo (Anulează) button.
+4. Schedule: Visual slot editing with add/remove moments, placing Away (Plecat) last.
+5. UI Zone State: In `IDLE`, if `currentTemp < target - 0.2`, show "Pauză TPI", reserving "Temperatură atinsă" for when target is actually reached.
+**Decided by**: owner (chat, 03.11.2026).
+**Affects**: FR-47, FR-8.1, FR-8.4, FR-31, `web/index.html`, `src/ThermalZoneManager.cpp`, `include/ThermalZoneManager.h`.
+**Consequences**: corner rooms heat reliably without premature cutoff; user form edits cannot be wiped by polling.

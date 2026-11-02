@@ -444,3 +444,39 @@ class ControlTests:
             return TestResult(test_id, name, req, "PASS", latency, "Bad level, zone and slot time rejected with HTTP 400")
         except Exception as e:
             return TestResult(test_id, name, req, "FAIL", (time.time() - start)*1000, str(e))
+
+    def test_tc11_5_tpi_deficit_duty(self):
+        """SWE.5-TC11.5: TPI 100% Duty on Thermal Deficit >= 0.4 C (FR-47)"""
+        test_id = "SWE.5-TC11.5"
+        name = "TPI Thermal Deficit Full Duty"
+        req = "FR-47"
+        start = time.time()
+        orig_hold = False
+        target_zone_id = 1
+        try:
+            r = requests.get(f"{self.base_url}/api/zones", timeout=self.timeout)
+            zones = r.json().get("zones", [])
+            assert len(zones) >= 1, "No zones"
+            z = zones[0]
+            target_zone_id = z["id"]
+            orig_hold = z.get("isManualHold", False)
+            cur = z.get("currentTemp", 22.0)
+            target = min(round(cur + 0.6, 1), 26.0)
+
+            # Set setpoint creating >= 0.4 C deficit
+            r_set = requests.post(f"{self.base_url}/api/zones/setpoint?id={target_zone_id}&target={target}", timeout=self.timeout)
+            assert r_set.status_code == 200, f"Failed setting setpoint: {r_set.status_code}"
+            time.sleep(1.2)  # Allow control tick to evaluate TPI
+
+            r_ver = requests.get(f"{self.base_url}/api/zones", timeout=self.timeout)
+            z_after = [x for x in r_ver.json().get("zones", []) if x["id"] == target_zone_id][0]
+            err = z_after["effectiveTarget"] - z_after["currentTemp"]
+            assert err >= 0.35, f"Thermal error {err:.2f} < 0.4 C"
+            assert z_after["duty"] == 100, f"Zone {target_zone_id} error {err:.2f} C >= 0.4 C expected duty 100%, got {z_after['duty']}%"
+            latency = (time.time() - start) * 1000
+            return TestResult(test_id, name, req, "PASS", latency, f"Zone {target_zone_id} deficit {err:.2f}C produced 100% duty")
+        except Exception as e:
+            return TestResult(test_id, name, req, "FAIL", (time.time() - start)*1000, str(e))
+        finally:
+            if not orig_hold:
+                requests.post(f"{self.base_url}/api/zones/hold/clear?id={target_zone_id}", timeout=self.timeout)

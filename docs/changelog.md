@@ -7,6 +7,12 @@ Entries before 29.10.2026 (the system before the lean clean-up):
 
 
 
+## [03.11.2026] - Underfloor thermal deficit full duty, weather compensation & UI ergonomics (C-14, PB-66, PB-67)
+
+- **Who / when / why:** firmware session (light mode), 03.11.2026; the owner observed that corner rooms with high heat loss (Adults bedroom) remained cold due to rigid TPI duty (~33 % for 0.5 °C error shutting off after 20 min, dissipating screed momentum) while the UI falsely reported "Temperatură atinsă"; plus UI inputs were wiped by polling refresh before saving, and separate sensor search buttons were confusing.
+- **Where:** `FR-47` (deficit rule: 100 % duty when error >= 0.4 °C; weather compensation up to 30 % when outdoor < 15 °C), `FR-8.1`, `FR-8.4` (accurate idle status text distinguishing TPI pause vs target reached, 2-in-1 sensor toggle, dirty tracking with undo for schedule/levels, dynamic visual schedule moments with Away last), `src/ThermalZoneManager.cpp`, `web/index.html`, test `test_tc11_5_tpi_deficit_duty` in `tools/sh_tests/t_control.py`.
+- **Not changed:** hydronic safety invariants (interlock delay, pump overrun, burner anti-short-cycling).
+
 ## [03.11.2026] - `OutputBank`, second half of step 3 (R-A1, FR-15.1)
 
 - **Who / when / why:** firmware session (Claude), 03.11.2026; migration step 3 as decided by the owner.

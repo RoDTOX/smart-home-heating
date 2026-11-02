@@ -807,8 +807,17 @@ bool ThermalZoneManager::evaluateTpi(size_t index, float target, uint32_t now) {
     float err = target - temp;
     bool cycleDone = t.cycleStartMs != 0 && now - t.cycleStartMs >= TPI_CYCLE_MS;
 
-    // New cycle every hour, or immediately when the target moves (schedule level change, boost)
-    if (t.cycleStartMs == 0 || cycleDone || fabsf(target - t.target) > 0.4f) {
+    // Full 100% duty on thermal deficit >= 0.4 C (underfloor screed inertia, PB-67, C-14, FR-47)
+    if (err >= 0.4f) {
+        t.duty = 1.0f;
+        t.onMs = TPI_CYCLE_MS;
+        t.cycleStartMs = now;
+        t.target = target;
+        return true;
+    }
+
+    // New cycle every hour, when transitioning from deficit, or when target moves > 0.4 C
+    if (t.cycleStartMs == 0 || cycleDone || t.duty >= 1.0f || fabsf(target - t.target) > 0.4f) {
         // Learn the base duty that holds the target; only near target so big setpoint jumps do not wind it up
         if (cycleDone && fabsf(err) < 1.0f) {
             t.integral = constrain(t.integral + TPI_KI * err, 0.0f, TPI_MAX_INTEGRAL);
@@ -818,22 +827,31 @@ bool ThermalZoneManager::evaluateTpi(size_t index, float target, uint32_t now) {
                 t.savedIntegral = t.integral;
             }
         }
-        t.duty = constrain(err / TPI_BAND_C + t.integral, 0.0f, 1.0f);
+        // Outdoor temperature compensation: colder weather adds base duty (PB-67, C-14, FR-47)
+        float outdoorComp = 0.0f;
+        if (timeAndWeather.isWeatherValid()) {
+            float outT = timeAndWeather.getOutdoorTemperature();
+            if (outT < 15.0f) {
+                outdoorComp = constrain((15.0f - outT) * 0.015f, 0.0f, 0.30f);
+            }
+        }
+        t.duty = constrain(err / TPI_BAND_C + outdoorComp + t.integral, 0.0f, 1.0f);
         uint32_t onMs = (uint32_t)(t.duty * TPI_CYCLE_MS);
         if (onMs < TPI_MIN_ON_MS) onMs = 0;
         else if (TPI_CYCLE_MS - onMs < TPI_MIN_ON_MS) onMs = TPI_CYCLE_MS;
         t.cycleStartMs = now;
         t.onMs = onMs;
         t.target = target;
-        netConsole.printf("[Thermal][TPI] Zone %u (%s): %.2f C -> target %.1f C, duty %u%% (learned %u%%), valve %u min/h\n",
+        netConsole.printf("[Thermal][TPI] Zone %u (%s): %.2f C -> target %.1f C, duty %u%% (learned %u%%, extComp %u%%), valve %u min/h\n",
             _configs[index].id, _configs[index].name, temp, target,
-            (unsigned int)(t.duty * 100), (unsigned int)(t.integral * 100), (unsigned int)(onMs / 60000UL));
+            (unsigned int)(t.duty * 100), (unsigned int)(t.integral * 100), (unsigned int)(outdoorComp * 100), (unsigned int)(onMs / 60000UL));
     }
 
     // Overshoot cut: stop for the rest of the cycle once above target + hysteresis (e.g. solar gain)
     uint32_t elapsed = now - t.cycleStartMs;
     if (temp >= target + _hysteresis && elapsed < t.onMs) {
         t.onMs = elapsed;
+        t.duty = 0.0f;
     }
     return elapsed < t.onMs;
 }

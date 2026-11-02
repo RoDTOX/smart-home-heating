@@ -14,7 +14,7 @@ header{display:flex;flex-wrap:wrap;gap:8px 16px;align-items:center;justify-conte
 header h1{font-size:20px;margin:0}
 .meta{color:var(--mut);display:flex;gap:14px;flex-wrap:wrap}
 button{font:inherit;border:1px solid var(--line);background:var(--card);color:var(--fg);border-radius:10px;padding:8px 14px;cursor:pointer}
-button.on{background:var(--fg);color:var(--bg)}
+button.on{background:var(--fg);color:var(--bg)}button.danger{border-color:var(--bad);color:var(--bad)}button.sm{padding:3px 8px;font-size:13px;border-radius:6px}.slot-chip{display:inline-flex;gap:6px;align-items:center;background:var(--bg);padding:4px 8px;border-radius:8px;border:1px solid var(--line);margin:4px 4px 4px 0}
 .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:12px}
 .room{background:var(--card);border:1px solid var(--line);border-left:6px solid var(--idle);border-radius:14px;padding:14px;cursor:pointer}
 .room.heat{border-left-color:var(--heat)}.room.away{border-left-color:var(--away)}.room.bad{border-left-color:var(--bad)}
@@ -68,7 +68,7 @@ code,.mono{font:13px/1.35 ui-monospace,SFMono-Regular,Consolas,monospace}
   </section>
   <section>
     <h2>Senzori (FR-11.5)</h2>
-    <div class="row"><button id="searchStart">Caută senzori</button><button id="searchStop">Stop</button><span id="searchInfo" class="s"></span></div>
+    <div class="row"><button id="searchToggle">Caută senzori</button><span id="searchInfo" class="s"></span></div>
     <div class="s">Căutarea ține până apeși Stop, cel mult 10 minute. În afara căutării controlerul ține doar senzorii zonelor.</div>
     <div class="scroll"><table id="sensors"></table></div>
   </section>
@@ -76,10 +76,14 @@ code,.mono{font:13px/1.35 ui-monospace,SFMono-Regular,Consolas,monospace}
     <h2>Program (același pentru toate zonele)</h2>
     <div class="row"><label><input type="checkbox" id="schedOn"> Program activ</label></div>
     <div class="scroll"><table id="levels"></table></div>
-    <div class="row"><span style="width:90px">Luni–Vineri</span><input class="w" id="wd"></div>
-    <div class="row"><span style="width:90px">Weekend</span><input class="w" id="we"></div>
-    <div class="row s">Format: 06:30=day,08:30=away,17:00=day,22:30=night</div>
-    <div class="row"><button id="saveSched">Salvează programul</button><span id="schedMsg" class="s"></span></div>
+    <div style="margin-top:10px"><b>Momente Luni–Vineri:</b></div>
+    <div id="wdSlots" class="row"></div>
+    <div class="row"><button id="addWdSlot" type="button" class="sm">+ Adaugă moment (L-V)</button></div>
+    <div style="margin-top:10px"><b>Momente Weekend:</b></div>
+    <div id="weSlots" class="row"></div>
+    <div class="row"><button id="addWeSlot" type="button" class="sm">+ Adaugă moment (Weekend)</button></div>
+    <div class="row s" style="margin-top:8px">Editare text direct (sincronizat): <input class="w" id="wd" style="font-size:12px;max-width:260px"> <input class="w" id="we" style="font-size:12px;max-width:260px"></div>
+    <div class="row"><button id="saveSched">Salvează programul</button><button id="undoSched" type="button" style="display:none">↩ Anulează modificările</button><span id="schedMsg" class="s"></span></div>
   </section>
   <section>
     <h2>Sistem</h2>
@@ -323,7 +327,7 @@ function renderRooms() {
     return `<div class="room ${roomClass(z)} ${openRoom === i ? "open" : ""}" data-i="${i}">
       <div>${esc(z.name)}</div><div class="t">${t}</div>
       <div class="s">țintă ${z.effectiveTarget.toFixed(1)}°${h}${hold}</div>
-      <div class="s">${esc(STATE_RO[z.state] || z.state)}</div>
+      <div class="s">${esc((z.state === "IDLE") ? (z.sensorValid && z.currentTemp < (z.effectiveTarget - 0.15) ? "Pauză TPI (Așteaptă ciclu)" : "Temperatură atinsă") : (z.state === "HEATING" && z.duty === 100 ? "Încălzește (100% continuu)" : (STATE_RO[z.state] || z.state)))}</div>
       <div class="ctl">
         <button data-a="dn" data-i="${i}">−</button><b>${z.effectiveTarget.toFixed(1)}°</b><button data-a="up" data-i="${i}">+</button>
         ${z.isManualHold ? `<button data-a="clr" data-i="${i}">Înapoi la program</button>` : ""}
@@ -395,6 +399,11 @@ function renderSensors() {
   const F = RAW["api/setup/discovered-sensors"] || {sensors: [], active: false, remainingSec: 0};
   if (F.active) lastFound = F.sensors;  // the page keeps the result of the last search so a sensor can still be chosen after Stop
   const shown = F.active || !lastFound.length ? F.sensors : lastFound;
+  const btn = $("searchToggle");
+  if (btn) {
+    btn.textContent = F.active ? "Oprește căutarea" : "Caută senzori";
+    btn.classList.toggle("danger", !!F.active);
+  }
   $("searchInfo").textContent = F.active ? `Caut… mai sunt ${F.remainingSec} s` : (lastFound.length ? "Căutare oprită – rezultatul ultimei căutări; controlerul ține doar senzorii zonelor" : "Căutare oprită");
   $("macList").innerHTML = shown.map(s => `<option value="${esc(s.mac)}">${s.temp.toFixed(1)}° · ${s.rssi} dBm</option>`).join("");
   $("sensors").innerHTML = "<tr><th>Nume</th><th>MAC</th><th>°C</th><th>%</th><th>Bat</th><th>RSSI</th><th>Văzut</th><th>Zonă</th></tr>" + shown.map(s => {
@@ -403,11 +412,39 @@ function renderSensors() {
   }).join("");
 }
 
+let schedDirty = false;
+function parseSlots(str) {
+  if (!str || !str.trim()) return [];
+  return str.split(",").map(part => {
+    const [t, lvl] = part.trim().split("=");
+    return {time: (t || "08:00").trim(), level: (lvl || "day").trim()};
+  }).filter(s => /^\d\d:\d\d$/.test(s.time));
+}
+function serializeSlots(arr) {
+  return arr.slice().sort((a, b) => a.time.localeCompare(b.time)).map(s => `${s.time}=${s.level}`).join(",");
+}
+function renderSlotChips(containerId, rawInputId) {
+  const cont = $(containerId);
+  if (!cont) return;
+  const slots = parseSlots($(rawInputId).value);
+  cont.innerHTML = slots.map((s, idx) => `
+    <span class="slot-chip">
+      <input type="time" class="slot-time" data-raw="${rawInputId}" data-idx="${idx}" value="${esc(s.time)}">
+      <select class="slot-lvl" data-raw="${rawInputId}" data-idx="${idx}">
+        <option value="day" ${s.level === "day" ? "selected" : ""}>Zi</option>
+        <option value="night" ${s.level === "night" ? "selected" : ""}>Noapte</option>
+        <option value="away" ${s.level === "away" ? "selected" : ""}>Plecat</option>
+      </select>
+      <button type="button" class="sm danger del-slot" data-raw="${rawInputId}" data-idx="${idx}" title="Șterge moment">✕</button>
+    </span>`).join("");
+}
 function renderSchedule() {
-  if (!S || editing) return;
+  if (!S || schedDirty || editing) return;
   $("schedOn").checked = S.enabled;
   $("wd").value = S.weekday;
   $("we").value = S.weekend;
+  renderSlotChips("wdSlots", "wd");
+  renderSlotChips("weSlots", "we");
   $("levels").innerHTML = "<tr><th>Zonă</th><th>Zi</th><th>Noapte</th><th>Plecat</th></tr>" + S.zones.map((z, i) =>
     `<tr><td>${esc(z.name)}</td>${LEVELS.map(l => `<td><input class="n" type="number" step="0.5" min="5" max="30" data-z="${i + 1}" data-l="${l}" value="${z[l].toFixed(1)}"></td>`).join("")}</tr>`).join("");
 }
@@ -588,8 +625,10 @@ async function searchAction(action) {
   try { RAW["api/setup/discovered-sensors"] = await api("api/setup/sensor-search", {action}); } catch (err) { $("searchInfo").textContent = err.message; }
   renderSensors();
 }
-$("searchStart").onclick = () => searchAction("start");
-$("searchStop").onclick = () => searchAction("stop");
+$("searchToggle").onclick = () => {
+  const F = RAW["api/setup/discovered-sensors"] || {active: false};
+  searchAction(F.active ? "stop" : "start");
+};
 $("setup").addEventListener("click", async e => {
   const d = e.target.closest("button[data-del]");
   if (d) {
@@ -630,10 +669,76 @@ $("zonesSave").onclick = async () => {
   if (!dirtyRows.size) refresh();
 };
 
-// While the schedule form is being edited, refreshes must not overwrite the inputs
+// While the schedule form is being edited, refreshes must not overwrite the inputs (PB-66, C-14)
 const schedForm = $("saveSched").closest("section");
+function markSchedDirty() {
+  schedDirty = true;
+  $("undoSched").style.display = "";
+}
+schedForm.addEventListener("input", e => {
+  if (e.target.id === "wd") renderSlotChips("wdSlots", "wd");
+  else if (e.target.id === "we") renderSlotChips("weSlots", "we");
+  markSchedDirty();
+});
+schedForm.addEventListener("change", markSchedDirty);
 schedForm.addEventListener("focusin", () => editing = true);
-schedForm.addEventListener("focusout", e => { if (!schedForm.contains(e.relatedTarget)) editing = false; });
+schedForm.addEventListener("focusout", () => {
+  if (!schedForm.contains(document.activeElement) && !schedDirty) editing = false;
+});
+
+// Slot interactive buttons (+ and x)
+document.addEventListener("click", e => {
+  const delBtn = e.target.closest(".del-slot");
+  if (delBtn) {
+    const rawId = delBtn.dataset.raw, idx = +delBtn.dataset.idx;
+    const slots = parseSlots($(rawId).value);
+    slots.splice(idx, 1);
+    $(rawId).value = serializeSlots(slots);
+    renderSlotChips(rawId === "wd" ? "wdSlots" : "weSlots", rawId);
+    markSchedDirty();
+    return;
+  }
+  if (e.target.id === "addWdSlot") {
+    const slots = parseSlots($("wd").value);
+    slots.push({time: "18:00", level: "day"});
+    $("wd").value = serializeSlots(slots);
+    renderSlotChips("wdSlots", "wd");
+    markSchedDirty();
+    return;
+  }
+  if (e.target.id === "addWeSlot") {
+    const slots = parseSlots($("we").value);
+    slots.push({time: "18:00", level: "day"});
+    $("we").value = serializeSlots(slots);
+    renderSlotChips("weSlots", "we");
+    markSchedDirty();
+    return;
+  }
+});
+
+// Slot interactive edits (time / select)
+document.addEventListener("change", e => {
+  if (e.target.classList.contains("slot-time") || e.target.classList.contains("slot-lvl")) {
+    const rawId = e.target.dataset.raw, idx = +e.target.dataset.idx;
+    const chip = e.target.closest(".slot-chip");
+    if (!chip) return;
+    const slots = parseSlots($(rawId).value);
+    if (slots[idx]) {
+      slots[idx].time = chip.querySelector(".slot-time").value;
+      slots[idx].level = chip.querySelector(".slot-lvl").value;
+      $(rawId).value = serializeSlots(slots);
+      markSchedDirty();
+    }
+  }
+});
+
+$("undoSched").onclick = () => {
+  schedDirty = false;
+  editing = false;
+  $("undoSched").style.display = "none";
+  $("schedMsg").textContent = "Modificări anulate.";
+  renderSchedule();
+};
 
 $("saveSched").onclick = async () => {
   try {
@@ -645,8 +750,11 @@ $("saveSched").onclick = async () => {
     if ($("wd").value !== S.weekday) await api("api/schedule/slots", {weekend: 0, slots: $("wd").value});
     if ($("we").value !== S.weekend) await api("api/schedule/slots", {weekend: 1, slots: $("we").value});
     $("schedMsg").textContent = "Salvat.";
+    schedDirty = false;
+    editing = false;
+    $("undoSched").style.display = "none";
   } catch (e) { $("schedMsg").textContent = "Eroare: " + e.message; }
-  editing = false; refresh();
+  refresh();
 };
 
 $("saveLoc").onclick = async () => {

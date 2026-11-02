@@ -110,16 +110,18 @@ one example:
 
 - **FR-47 (Time-proportional valve control):** *[now]* {SW; test, board} Each zone is controlled by time-proportional control (TPI):
   - TPI cycle (§0) 60 min; ON time per TPI cycle = duty × TPI cycle;
-  - duty = (target − room temperature) / 1.5 °C + learned base duty, limited to 0–100 %;
+  - when (target − room temperature) >= 0.4 °C, duty = 100 % (underfloor heating deficit: continuous heating without TPI pause to overcome thermal inertia, C-14, PB-67);
+  - when (target − room temperature) < 0.4 °C, duty = (target − room temperature) / 1.5 °C + outdoor compensation + learned base duty, limited to 0–100 %;
+  - outdoor compensation = max(0, min(0.30, (15 °C − outdoor temperature) * 0.015)) when outdoor temperature is valid (FR-9);
   - learned base duty 0–60 %, adapted per zone and per outdoor band of 5 °C (7 bands), stored in NVS when it
-    changes by ≥ 5 % (NFR-2.9);
+    changes by >= 5 % (NFR-2.9);
   - minimum valve ON time and OFF time 10 min each (wax actuators need 3–5 min to open);
   - a new TPI cycle starts when the target changes by more than 0.4 °C;
   - the valve closes when the room exceeds target + `hysteresis`.
-  - *Inputs:* room temperature (accepted readings, §0, FR-53), target. *Fallback:* sensor lost → FR-51; learned duty
-    out of bounds → default (NFR-5.3). *Reports:* duty per zone in the admin view (FR-8.1).
-  - Acceptance examples: 1.5 °C below target → 100 %; 0.2 °C below target → 13 % with zero base duty, 25 % with
-    a learned base duty of 12 % (blueprint example).
+  - *Inputs:* room temperature (accepted readings, §0, FR-53), target, outdoor temperature (FR-9). *Fallback:* sensor lost -> FR-51; learned duty
+    out of bounds -> default (NFR-5.3). *Reports:* duty per zone in the admin view (FR-8.1).
+  - Acceptance examples: 0.5 °C below target -> 100 % (deficit rule); 0.2 °C below target with 15 °C outdoor -> 13 % with zero base duty, 25 % with
+    a learned base duty of 12 %; 0.2 °C below target with 5 °C outdoor -> 28 % with zero base duty (15 % weather compensation).
 - ~~**FR-1.1 (Hysteresis ON/OFF loop):** retired, replaced by FR-47; hysteresis remains only as overshoot cut.~~
 - **FR-1.2 (Boost):** *[now]* {SW; test} A boost raises one zone's target above its current schedule level by 0.5–2.0 °C in
   0.5 °C steps; it never lowers the target (to cool use away, FR-44). Firmware enforces the limits for every
@@ -433,7 +435,7 @@ one example:
   | `ACQUIRING` | Așteaptă senzorul | after boot, no reading yet, at most the warmup (FR-22) |
   | `WINDOW` | Fereastră deschisă | window pause (FR-40) |
   | `HEATING` | Încălzește | valve opening or open |
-  | `IDLE` | Temperatură atinsă | valve closed, no heat demand |
+  | `IDLE` | Temperatură atinsă / Pauză TPI | valve closed, no heat demand; page shows 'Temperatură atinsă' when room >= target - 0.2 °C, else 'Pauză TPI' (PB-66, C-14) |
 - **FR-8.3 (Firmware update):** *[now]* {SW; test} Firmware update via `/update` with authentication (FR-58);
   `tools/sh_ota_upload.py` completes a 1.25 MB image in < 30 s on the home LAN. OTA rules: FR-60.
 - **FR-15.1 (Actuator polarity):** *[now]* {SW; test} NC or NO actuator type is configurable (API, console), stored in NVS; all
