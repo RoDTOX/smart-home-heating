@@ -433,3 +433,13 @@ software by the owner, no third-party certification.
 a consultant or test lab confirms the product category, the software class and the standards before the first
 sale. The first compliance review will find requirement gaps (e.g. universal default credentials, FR-59) for the
 owner to decide.
+
+## 2026-11-02 — Model and effort per kind of work
+**Context**: The owner runs Opus at a high effort everywhere and the token use is too high, also in the main chat.
+**Decision**: the strongest model only where a mistake can burn the boiler or the floor. Main chat Sonnet medium;
+code on the safety list, safety decisions and cross-module design Opus high; other code, tests and documents
+Sonnet medium; lookups and records Haiku low. Agents carry `model` / `effort` in their frontmatter; tests of the
+safety list and the full EU review run with Opus high. Agents read by section, never whole documents.
+**Decided by**: owner (chat, 02.11.2026: "să faci cumva ca modelul OPUS sau SONNET sau HAIKU să fie folosite optim").
+**Affects**: AGENTS.md §5; `.claude/agents/*`; skills `sh-write-tests`, `sh-review`.
+**Consequences**: the model of the main chat is the owner's setting in the app; the table says what to pick.

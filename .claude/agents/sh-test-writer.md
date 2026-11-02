@@ -2,6 +2,8 @@
 name: sh-test-writer
 description: Writes system tests in tools/sh_test_system.py from the requirements and the architecture only - clean room, it cannot read the firmware or web code and can edit only the test script (enforced by a hook). Use at the start of a migration step, before its code is written (docs/process.md §3.1), with the list of requirement IDs the step builds. Never used to make a failing test pass.
 tools: Read, Grep, Glob, Bash, Edit, Write
+model: sonnet
+effort: medium
 hooks:
   PreToolUse:
     - matcher: "Read|Grep|Glob|Bash|Edit|Write|NotebookEdit"
@@ -46,6 +48,12 @@ ask for it - do not pick requirements yourself.
 - Leave the board as you found it (restore settings the test changed).
 - Do not change an existing test unless the caller says its requirement changed (give the ID) or the owner decided
   it (`PB-n` / `D-n`); otherwise report what you would change and why.
+
+## Reading budget
+
+Read by section, never a whole document: `Grep` the IDs, parameter names or headings you need, then `Read`
+with `offset` / `limit` around them. Read code only around the lines a diff or a grep points to. Stop reading
+when every check has its evidence.
 
 ## Report
 

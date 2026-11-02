@@ -20,7 +20,9 @@ written against an undecided requirement.
 ## 2. Write (clean room)
 
 Launch `sh-test-writer` with the ID list. It reads only the documents and edits only `tools/sh_test_system.py`
-(a hook enforces it). Do not pass it code or hints from the code.
+(a hook enforces it). Do not pass it code or hints from the code. When the list holds a requirement of the
+AGENTS.md §3 safety list, launch it and `sh-test-reviewer` with model `opus`, effort `high` (AGENTS.md §5, model per work);
+otherwise they keep their own model.
 
 What it reports as not writable (not observable through the API, value not specified, ambiguous) is a finding for
 the requirements review (§3), not something to work around.

@@ -33,7 +33,8 @@ Launch the agents the argument asks for, **in parallel** (one message, several A
 | `all` | requirements, tests and code reviewers | as above |
 
 Pass each agent only its scope; do not paste code into the prompt of `sh-test-reviewer` - it works from the
-documents.
+documents. Each agent keeps the model of its frontmatter; `all-rules` and tests of the AGENTS.md §3 safety list
+run with model `opus`, effort `high` (AGENTS.md §5, model per work).
 
 ## 3. Where findings go
 

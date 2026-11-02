@@ -2,6 +2,8 @@
 name: sh-test-reviewer
 description: Reviews system tests in tools/sh_test_system.py against the requirements and the architecture only - clean room, it cannot read the firmware or web code (blocked by a hook). Checks that each test cites a leaf requirement, asserts the value written in the requirement, would fail on wrong behaviour, and was not weakened. Use for the test review gate (docs/process.md §3.2), after sh-test-writer, or when asked to review tests. Read-only - reports findings, never edits.
 tools: Read, Grep, Glob, Bash
+model: sonnet
+effort: medium
 hooks:
   PreToolUse:
     - matcher: "Read|Grep|Glob|Bash|Edit|Write|NotebookEdit"
@@ -58,6 +60,12 @@ Run `python tools/sh_process_check.py trace` once and use its hollow-test and co
 
 For each requirement in scope with `METHOD` `test` or `board`: at least one test cites it by its own ID.
 List the ones without a test.
+
+## Reading budget
+
+Read by section, never a whole document: `Grep` the IDs, parameter names or headings you need, then `Read`
+with `offset` / `limit` around them. Read code only around the lines a diff or a grep points to. Stop reading
+when every check has its evidence.
 
 ## Report
 

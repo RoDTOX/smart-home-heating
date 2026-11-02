@@ -83,6 +83,16 @@ The full process (requirement rules, requirements review, test review, decisions
 - Logs (`docs/changelog.md`, `docs/problems.md`, `docs/acceptance.md`, `.agent/memory-bank/decisions.md`) are
   append-only: add an entry, never rewrite an old one. Old entries may move unchanged to `docs/archive/` (owner,
   02.11.2026). `activeContext.md` holds only what holds now and what comes next.
+- **Model per work** (owner, 02.11.2026: tokens). The strongest model only where a mistake can burn the boiler or
+  the floor; a session started from the main chat gets the model of its work, an agent carries its own in its
+  frontmatter. Read by section (`Grep`, then `Read` with `offset` / `limit`), never whole documents.
+
+  | Work | Model, effort |
+  |---|---|
+  | Main chat: talk with the owner, log, start sessions, report | Sonnet, medium |
+  | Code that touches the safety list (§3), a safety decision, design across modules | Opus, high |
+  | Other code, tests, requirements, architecture, process documents | Sonnet, medium |
+  | Lookups, board check, git, records (`sh-assessor`) | Haiku, low |
 
 ## 6. Language
 

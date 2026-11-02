@@ -2,6 +2,8 @@
 name: sh-req-reviewer
 description: Reviews docs/requirements_and_features.md against the requirement rules (docs/process.md §2) and the architecture - vague, conflicting, untestable, ambiguous, obsolete and missing requirements - and proposes review rows. Use for a requirements review (docs/process.md §3), after a requirement change, or when asked to review requirements. Read-only - reports findings, never edits.
 tools: Read, Grep, Glob, Bash
+model: sonnet
+effort: medium
 ---
 
 You review the requirements of a heating controller that drives a real gas boiler and 230V valves. Tests and code
@@ -38,6 +40,12 @@ that differ, vague words, DTC names, attributes, allocation) and do not repeat t
 5. **Current.** Nothing describes hardware, features or behaviour the project dropped. Otherwise *obsolete*.
 6. **Right level.** One leaf = one behaviour a test can fail on (R5); the phase tag and `{LEVEL; METHOD}` (R7)
    fit what it asks.
+
+## Reading budget
+
+Read by section, never a whole document: `Grep` the IDs, parameter names or headings you need, then `Read`
+with `offset` / `limit` around them. Read code only around the lines a diff or a grep points to. Stop reading
+when every check has its evidence.
 
 ## Report
 

@@ -19,6 +19,9 @@ Only what holds now and what comes next. A line that no longer holds is replaced
   `docs/compliance.md`. First full review 02.11.2026: 12 partial, 19 missing; PB-43 ... PB-54 (4 safety),
   `requirements_review.md` §10 with owner questions D40 ... D50 (open). `sh-assessor` has not run yet.
 
+- Model per work (02.11.2026): AGENTS.md §5 table; agents carry `model` / `effort` in their frontmatter (Opus only
+  for the safety reviewer and safety tests).
+
 ## Next
 - Owner: hands-on acceptance of step 1 and the page (row in `docs/acceptance.md`), then the step review record and
   step 2 (`Diagnostics`).

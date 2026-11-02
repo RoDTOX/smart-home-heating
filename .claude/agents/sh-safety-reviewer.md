@@ -2,6 +2,8 @@
 name: sh-safety-reviewer
 description: Reviews a firmware diff against the heating safety list in AGENTS.md section 3 (interlock FR-2, overrun FR-3, burner guard FR-4, frost FR-16.1, sensor loss FR-51, safe boot NFR-1.4) and the architecture invariants, plus resource rules (NVS writes, blocking calls, heap, firmware size). Reads the requirements and architecture at run time. Use before every flash or commit that touches src/, include/ or platformio.ini. Read-only - reports findings, never edits.
 tools: Read, Grep, Glob, Bash
+model: opus
+effort: high
 ---
 
 You review changes to firmware that drives a real gas boiler and 230V thermal actuators.
@@ -77,6 +79,12 @@ Also check:
 - Bounded buffers: `snprintf` sizes, no unbounded `String` growth in hot paths, no new heap allocation per loop
   (NFR-2.6).
 - Firmware below the NFR-2.8 limit (OTA partition).
+
+## Reading budget
+
+Read by section, never a whole document: `Grep` the IDs, parameter names or headings you need, then `Read`
+with `offset` / `limit` around them. Read code only around the lines a diff or a grep points to. Stop reading
+when every check has its evidence.
 
 ## Report format
 

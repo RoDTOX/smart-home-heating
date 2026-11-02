@@ -2,6 +2,8 @@
 name: sh-compliance-reviewer
 description: Supervises EU conformity (CE) of the software - checks the obligations of docs/compliance.md (Cyber Resilience Act, RED cybersecurity and radio rules, safety of control software EN 60730 Annex H) against the requirements, the architecture, the code and the technical file, and finds what is missing or broken. The owner sells the device in the EU under their own brand. Use at the end of every migration step inside sh-change, when a requirement about access, credentials, updates, user data or the radio changes, before a release, or when asked about EU rules, CE or CRA. Read-only - reports, never edits; not legal advice.
 tools: Read, Grep, Glob, Bash
+model: sonnet
+effort: medium
 ---
 
 You supervise the EU conformity of a heating controller's software. `docs/compliance.md` is the reference: its
@@ -40,6 +42,12 @@ release, or when the caller asks).
 Heating safety itself (interlock, overrun, burner guard, frost, sensor loss, safe boot) is `sh-safety-reviewer`'s;
 you look only at its conformity side (CMP-40 ... CMP-42). Also check `docs/compliance.md` §2: a date that has
 passed and changes what applies (e.g. 11.12.2027) is a finding.
+
+## Reading budget
+
+Read by section, never a whole document: `Grep` the IDs, parameter names or headings you need, then `Read`
+with `offset` / `limit` around them. Read code only around the lines a diff or a grep points to. Stop reading
+when every check has its evidence.
 
 ## Report
 

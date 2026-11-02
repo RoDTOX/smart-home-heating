@@ -7,6 +7,16 @@ Entries before 29.10.2026 (the system before the lean clean-up):
 
 
 
+## [02.11.2026] - Process: model and effort per work, reading budget
+
+- **Who / when / why:** process chat (Claude), 02.11.2026; the owner: too many tokens, also in the main chat.
+- **Where:** `model` / `effort` in every agent's frontmatter: `sh-safety-reviewer` Opus high; test writer and
+  reviewer, code, requirements and compliance reviewers Sonnet medium; `sh-assessor` Haiku low. `sh-write-tests`
+  and `sh-review` pass Opus high for tests of the safety list and the full EU review. Every agent has a
+  "Reading budget" (grep, then read by section). AGENTS.md §5 "Model per work" table for the main chat and the
+  sessions it starts. Field names checked in the Claude Code docs (sub-agents, skills, settings).
+- **Not changed:** the model of the main chat and the project's default model are the owner's settings.
+
 ## [02.11.2026] - EU conformity: first full review logged
 
 - **Who / when / why:** `sh-compliance-reviewer` (scope `all`), logged by the process chat with the owner's OK
