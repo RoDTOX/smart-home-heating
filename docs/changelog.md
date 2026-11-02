@@ -17,6 +17,17 @@ Entries before 29.10.2026 (the system before the lean clean-up):
   sessions it starts. Field names checked in the Claude Code docs (sub-agents, skills, settings).
 - **Not changed:** the model of the main chat and the project's default model are the owner's settings.
 
+## [02.11.2026] - Zones added and deleted by the user, sensor search (C-10, C-11), first half of step 3
+
+- **Who / when / why:** firmware session (Claude), owner decisions 02.11.2026: a new controller has no zone, the user adds
+  and deletes zones and picks sensors by MAC or by a search; fixes PB-55 (sensor table filled by neighbours' sensors).
+- **Where:** requirements baseline v2.8 (FR-69, FR-73, FR-74, FR-11.3, FR-11.5, FR-11.6, FR-43); `ThermalZoneManager`
+  (32 slots, `addZone`, `deleteZone`), `ParamStore` (zone count, records read from NVS), `BleSensorScanner` (search,
+  assigned sensors kept), `WebApi` (zone-add, zone-delete, sensor-search, relay test per FR-43), page, API reference.
+  A controller that has zone records keeps its three zones; the old schedule is converted.
+- **Board:** flashed, system test 123 pass, 0 fail, 3 skip; free heap 102 KB. Review: `docs/review_step_3.md`.
+- **Not done:** `OutputBank` module, assessor and compliance review of the step, owner test.
+
 ## [02.11.2026] - Configuration export / import (FR-65, change C-9)
 
 - **Who / when / why:** firmware session (Claude), owner decision 02.11.2026: keep using the board while the software
