@@ -1,5 +1,6 @@
 """System tests: configuration export / import (TC29)."""
 from .base import *  # noqa: F401,F403
+from .base import _orig_post
 
 
 class ExportImportTests:
@@ -28,7 +29,7 @@ class ExportImportTests:
                    "rfSafetyHeartbeatEnabled", "freezeProtectionTemp", "sensorTimeoutSec", "hysteresis",
                    "windowThreshold", "openLoopBypass", "actuatorNormallyClosed", "pumpControlEnabled")
     FR65_TOP_KEYS = ("format", "firmwareVersion", "params", "zones", "schedule", "location", "learnedDuty")
-    FR65_ZONE_KEYS = ("id", "name", "mac", "sensorName", "relayPin", "enabled", "offset", "target")
+    FR65_ZONE_KEYS = ("id", "name", "mac", "sensorName", "relayPin", "enabled", "offset")
     FR65_SCHEDULE_KEYS = ("enabled", "preheat", "window", "weekday", "weekend", "levels")
     FR65_SWITCHES = ("enabled", "preheat", "window")
     FR65_LEVELS = ("day", "night", "away")
@@ -233,7 +234,7 @@ class ExportImportTests:
             if not w:
                 continue
             data = {arg: form(w[f]) for f, arg in (("name", "name"), ("mac", "mac"), ("sensorName", "sname"),
-                                                   ("target", "target"), ("offset", "offset"))
+                                                   ("offset", "offset"))
                     if f in w and self._fr65_diff(w[f], z.get(f)) and not (f in ("name", "mac") and w[f] == "")}
             if data:
                 requests.post(f"{b}/api/setup/map-zone", data={"zone": z["id"] - 1, **data}, timeout=to)
@@ -327,7 +328,7 @@ class ExportImportTests:
                 assert k in params, f"params.{k} missing"
                 assert not self._fr65_diff(params[k], cfg.get(k)), \
                     f"params.{k} = {params[k]!r}, /api/config/system {cfg.get(k)!r}"
-            # Per zone: name, MAC, relay, on / off as /api/config/system; offset as /api/zones; sensor name, target
+            # Per zone: name, MAC, relay, on / off as /api/config/system; offset as /api/zones; sensor name; no target (C-13)
             ez = {z.get("id"): z for z in exp.get("zones") or []}
             cz = {z.get("id"): z for z in cfg.get("zones") or []}
             assert ez and set(ez) == set(cz), \
@@ -343,8 +344,7 @@ class ExportImportTests:
                 assert zid in live, f"zone {zid} not in /api/zones"
                 assert not self._fr65_diff(z["offset"], live[zid].get("tempOffset")), \
                     f"zones[{zid}].offset {z['offset']!r}, /api/zones tempOffset {live[zid].get('tempOffset')!r}"
-                assert isinstance(z["target"], (int, float)) and 15.0 <= z["target"] <= 30.0, \
-                    f"zones[{zid}].target {z['target']!r} outside the zone target range 15-30 °C (api_reference.md map-zone)"
+                assert "target" not in z, f"zones[{zid}] holds the current target {z['target']!r}: the schedule sets it (FR-65.1)"
             # Schedule: slots and switch as /api/schedule, pre-heat and window detection on / off, levels per zone
             sch = requests.get(f"{b}/api/schedule", timeout=to).json()
             es = exp.get("schedule")
@@ -400,9 +400,8 @@ class ExportImportTests:
             z = self._fr65_pick(snap, 1, named=True)[0]
             zid, b, to, st = z["id"], self.base_url, self.timeout, self._fr65_step
             new_name = "TC29 export" if z["name"] != "TC29 export" else "TC29 export 2"
-            tgt = st(z["target"], 0.5, 30.0)    # zone target 15-30 °C (api_reference.md map-zone)
             off = st(z["offset"], 0.5, 3.0)     # sensor offset -3.0...+3.0 °C (FR-49), upward: no frost effect
-            r = requests.post(f"{b}/api/setup/map-zone", data={"zone": zid - 1, "name": new_name, "target": tgt,
+            r = requests.post(f"{b}/api/setup/map-zone", data={"zone": zid - 1, "name": new_name,
                                                                "offset": off}, timeout=to)
             assert r.status_code == 200, f"map-zone: HTTP {r.status_code}"
             night = st((self._fr65_find(snap["schedule"]["levels"], zid) or {})["night"], 0.5, 30.0)   # levels 5-30 °C
@@ -428,7 +427,6 @@ class ExportImportTests:
             exp = self._fr65_export()
             ez = self._fr65_find(exp.get("zones"), zid) or {}
             assert ez.get("name") == new_name, f"zones[{zid}].name {ez.get('name')!r}, set {new_name!r}"
-            assert not self._fr65_diff(ez.get("target"), tgt), f"zones[{zid}].target {ez.get('target')!r}, set {tgt}"
             assert not self._fr65_diff(ez.get("offset"), off), f"zones[{zid}].offset {ez.get('offset')!r}, set {off}"
             el = self._fr65_find(exp["schedule"].get("levels"), zid) or {}
             assert not self._fr65_diff(el.get("night"), night), f"schedule.levels[{zid}].night {el.get('night')!r}, set {night}"
@@ -444,7 +442,7 @@ class ExportImportTests:
                     f"location {exp['location']!r}, set {loc[0]:.4f},{loc[1]:.4f}"
             latency = (time.time() - start) * 1000
             res = TestResult(test_id, name, req, "PASS", latency,
-                             f"zone {zid} name / target / offset, night level, weekend slots, pre-heat, window, hysteresis"
+                             f"zone {zid} name / offset, night level, weekend slots, pre-heat, window, hysteresis"
                              f"{', location' if loc else ''} follow their endpoints; restored")
         except Exception as e:
             res = self._fr65_error(test_id, name, req, start, e)
@@ -717,8 +715,6 @@ class ExportImportTests:
                    ({"sensorName": "s\tb"}, "sensor name with a control character"),
                    ({"relayPin": 99}, "relay output that is not a relay of the board"),   # same pin 99 as TC27.3
                    ({"mac": "nonsense"}, "malformed MAC"),
-                   ({"target": 14.9}, "target below 15 °C"),       # zone target 15-30 °C
-                   ({"target": 30.1}, "target above 30 °C"),
                    ({"offset": -3.1}, "offset below -3.0 °C"),     # sensor offset -3.0...+3.0 °C (FR-49)
                    ({"offset": 3.1}, "offset above +3.0 °C")]
             for fields, what in bad:
@@ -728,31 +724,30 @@ class ExportImportTests:
                 assert f"zones[{zid}]" not in applied, f"{what}: zones[{zid}] applied"
             left = self._fr65_diff(self._fr65_export(), snap)
             assert not left, f"refused zones changed settings: {left}"
-            # The limits are accepted: 31-byte name, target 30.0 °C, offset +3.0 °C ...
+            # The limits are accepted: 31-byte name, offset +3.0 °C ...
             name31 = "TC29" + "x" * (self.FR65_NAME_MAX - 4)
             applied, _, skipped = self._fr65_report(self._fr65_post(
-                {"format": 1, "zones": [{"id": zid, "name": name31, "target": 30.0, "offset": 3.0}]}))
+                {"format": 1, "zones": [{"id": zid, "name": name31, "offset": 3.0}]}))
             assert f"zones[{zid}]" in applied, f"zone at the upper limits not applied: {skipped.get(f'zones[{zid}]')!r}"
             ez = self._fr65_find(self._fr65_export().get("zones"), zid) or {}
-            assert ez.get("name") == name31 and not self._fr65_diff(ez.get("target"), 30.0) \
+            assert ez.get("name") == name31 \
                 and not self._fr65_diff(ez.get("offset"), 3.0), f"zone {zid} after import: {ez}"
-            # ... and target 15.0 °C, offset -3.0 °C - the offset only where it cannot pull a room reading near
+            # ... and offset -3.0 °C - the offset only where it cannot pull a room reading near
             # frostTemp (it would start frost heating on the real valves)
             live = self._fr65_find(requests.get(f"{b}/api/zones", timeout=to).json().get("zones"), zid) or {}
             t_now = live.get("currentTemp")
             frost = snap["params"]["freezeProtectionTemp"]
             low_ok = not isinstance(t_now, (int, float)) or t_now - 3.0 - 3.0 >= frost + 2.0
-            low = {"target": 15.0, **({"offset": -3.0} if low_ok else {})}
+            low = {"offset": -3.0} if low_ok else {"offset": 0.0}
             applied, _, skipped = self._fr65_report(self._fr65_post({"format": 1, "zones": [{"id": zid, **low}]}))
             assert f"zones[{zid}]" in applied, f"zone at the lower limits not applied: {skipped.get(f'zones[{zid}]')!r}"
             ez = self._fr65_find(self._fr65_export().get("zones"), zid) or {}
-            assert not self._fr65_diff(ez.get("target"), 15.0), f"zones[{zid}].target {ez.get('target')!r}, imported 15.0"
             if low_ok:
                 assert not self._fr65_diff(ez.get("offset"), -3.0), f"zones[{zid}].offset {ez.get('offset')!r}, imported -3.0"
             latency = (time.time() - start) * 1000
             res = TestResult(test_id, name, req, "PASS", latency,
-                             f"{len(bad)} bad zone values skipped 'invalid', nothing changed; 31-byte name, target "
-                             f"30.0 / 15.0, offset +3.0{' / -3.0' if low_ok else ' (-3.0 not sent: room reading)'} "
+                             f"{len(bad)} bad zone values skipped 'invalid', nothing changed; 31-byte name, "
+                             f"offset +3.0{' / -3.0' if low_ok else ' (-3.0 not sent: room reading)'} "
                              "applied; restored")
         except Exception as e:
             res = self._fr65_error(test_id, name, req, start, e)
@@ -997,8 +992,7 @@ class ExportImportTests:
                  "zones": [],
                  "schedule": {k: not s[k] for k in self.FR65_SWITCHES}}
             for z in snap["zones"]:
-                e = {"id": z["id"], "target": st(z["target"], 0.5, 30.0),    # zone target 15-30 °C
-                     "offset": st(z["offset"], 0.5, 3.0)}                    # sensor offset ±3.0 °C, upward
+                e = {"id": z["id"], "offset": st(z["offset"], 0.5, 3.0)}    # sensor offset ±3.0 °C, upward
                 if z.get("name"):
                     e["name"] = f"TC29 t{z['id']}" if z["name"] != f"TC29 t{z['id']}" else f"TC29 u{z['id']}"
                 f["zones"].append(e)
@@ -1689,6 +1683,72 @@ class ExportImportTests:
             res = TestResult(test_id, name, req, "PASS", latency,
                              f"{', '.join(want)} twice: skipped 'duplicate', nothing changed"
                              f"{'' if len(want) == 3 else ' (learnedDuty not sent: no learned duty above 0 %)'}")
+        except Exception as e:
+            res = self._fr65_error(test_id, name, req, start, e)
+        finally:
+            res = self._fr65_restore(snap, res)
+        return res
+
+    def test_tc29_36_target_not_in_file(self):
+        """SWE.5-TC29.36: The Current Zone Target Is Not in the Export and a Target in a File Is Skipped as Unknown (FR-65.1, FR-65.4)"""
+        test_id = "SWE.5-TC29.36"
+        name = "Target Not in File"
+        req = "FR-65.1, FR-65.4"
+        start = time.time()
+        snap, res = None, None
+        try:
+            snap = self._fr65_begin()
+            for z in self._fr65_export().get("zones") or []:
+                assert "target" not in z, f"zones[{z.get('id')}] holds target {z.get('target')!r}"
+            zid = self._fr65_pick(snap, 1)[0]["id"]
+            applied, _, skipped = self._fr65_report(self._fr65_post(
+                {"format": 1, "zones": [{"id": zid, "target": 25.0}]}))
+            n = f"zones[{zid}].target"
+            assert skipped.get(n) == "unknown" and n not in applied, f"{n}: {skipped.get(n)!r}, expected skipped 'unknown'"
+            left = self._fr65_diff(self._fr65_export(), snap)
+            assert not left, f"settings changed: {left}"
+            latency = (time.time() - start) * 1000
+            res = TestResult(test_id, name, req, "PASS", latency,
+                             "no zone has a target in the export; a target in a file is skipped 'unknown', nothing changed")
+        except Exception as e:
+            res = self._fr65_error(test_id, name, req, start, e)
+        finally:
+            res = self._fr65_restore(snap, res)
+        return res
+
+    def test_tc29_37_levels_restored_from_export(self):
+        """SWE.5-TC29.37: Day, Night and Away Setpoints of a Zone Are Restored by Importing an Earlier Export (FR-65.1, FR-65.3)"""
+        test_id = "SWE.5-TC29.37"
+        name = "Setpoints Restored From Export"
+        req = "FR-65.1, FR-65.3"
+        start = time.time()
+        snap, res = None, None
+        try:
+            snap = self._fr65_begin()
+            zid, b, to, st = self._fr65_pick(snap, 1)[0]["id"], self.base_url, self.timeout, self._fr65_step
+            old = self._fr65_find(snap["schedule"]["levels"], zid) or {}
+            mine = {lv: st(old[lv], 0.5, 30.0) for lv in ("day", "night", "away")}    # levels 5-30 °C (FR-29)
+            for lv, v in mine.items():
+                r = requests.post(f"{b}/api/schedule/level", data={"zone": zid, "level": lv, "temp": v}, timeout=to)
+                assert r.status_code == 200, f"schedule/level {lv}: HTTP {r.status_code}"
+            earlier = self._fr65_export()                  # the file the owner keeps
+            for lv in mine:                                # a test or a reflash overwrites the setpoints
+                requests.post(f"{b}/api/schedule/level", data={"zone": zid, "level": lv, "temp": old[lv]}, timeout=to)
+            now = self._fr65_find(self._fr65_export()["schedule"]["levels"], zid) or {}
+            assert all(not self._fr65_diff(now[lv], old[lv]) for lv in mine), f"levels were not overwritten: {now}"
+            applied, _, skipped = self._fr65_report(self._fr65_post(earlier))
+            for lv in mine:
+                n = f"schedule.levels[{zid}].{lv}"
+                assert n in applied, f"{n} not applied: {skipped.get(n)!r}"
+            got = self._fr65_find(self._fr65_export()["schedule"]["levels"], zid) or {}
+            for lv, v in mine.items():
+                assert not self._fr65_diff(got.get(lv), v), f"zone {zid} {lv} {got.get(lv)!r} after import, expected {v}"
+            sch = (requests.get(f"{b}/api/schedule", timeout=to).json().get("zones") or [])[zid - 1]
+            for lv, v in mine.items():
+                assert not self._fr65_diff(sch.get(lv), v), f"/api/schedule zone {zid} {lv} {sch.get(lv)!r}, expected {v}"
+            latency = (time.time() - start) * 1000
+            res = TestResult(test_id, name, req, "PASS", latency,
+                             f"zone {zid} day / night / away {mine} restored from an earlier export; restored")
         except Exception as e:
             res = self._fr65_error(test_id, name, req, start, e)
         finally:

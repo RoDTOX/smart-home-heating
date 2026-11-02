@@ -182,6 +182,8 @@ class SystemTestSuite(SuiteBase, HealthTests, HydraulicsTests, ControlTests, UiH
             self.test_tc29_31_no_cross_origin,
             self.test_tc29_32_import_duplicate_ids,
             self.test_tc29_33_round_trip,
+            self.test_tc29_36_target_not_in_file,
+            self.test_tc29_37_levels_restored_from_export,
             self.test_tc29_34_import_sensor_swap,
             self.test_tc29_35_import_sensor_of_other_zone,
             self.test_tc30_1_zone_add,

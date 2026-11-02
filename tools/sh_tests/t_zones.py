@@ -167,18 +167,20 @@ class ZoneTests:
         def body(cfg0):
             n0 = cfg0["zonesCount"]
             self._t30_add()
-            t_def = next(z for z in self._fr65_export()["zones"] if z["id"] == n0 + 1)["target"]
+            live = lambda: next(z for z in requests.get(f"{self.base_url}/api/zones", timeout=self.timeout).json()["zones"]
+                                if z["id"] == n0 + 1)
+            t_def = live()["targetTemp"]    # the target is not in the settings file (C-13)
             t_new = 24.0 if t_def != 24.0 else 25.0   # target range 15-30 °C
             r = requests.post(f"{self.base_url}/api/setup/map-zone",
                               data={"zone": n0, "name": "Tmp zone", "target": t_new}, timeout=self.timeout)
             assert r.status_code == 200, f"map-zone of the added zone: HTTP {r.status_code}"
             z = next(z for z in self._fr65_export()["zones"] if z["id"] == n0 + 1)
-            assert z["name"] == "Tmp zone" and z["target"] == t_new, f"mapping not set: {z}"
+            assert z["name"] == "Tmp zone" and live()["targetTemp"] == t_new, f"mapping not set: {z}, target {live()['targetTemp']}"
             assert self._t30_del(n0 + 1).status_code == 200
             self._t30_add()
             z = next(z for z in self._fr65_export()["zones"] if z["id"] == n0 + 1)
             assert z["name"] == f"Zone {n0 + 1}", f"name of the deleted zone came back: {z['name']!r}"
-            assert z["target"] == t_def, f"target {z['target']} of the deleted zone came back, default was {t_def}"
+            assert live()["targetTemp"] != t_new, f"target {t_new} of the deleted zone came back"
             return "name and target of a deleted zone are gone when a zone is added again"
         return self._t30_run("SWE.5-TC30.5", "Zone Delete Removes Mapping", "FR-74", body)
 
