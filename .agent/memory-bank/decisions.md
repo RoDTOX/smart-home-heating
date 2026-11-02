@@ -434,6 +434,29 @@ a consultant or test lab confirms the product category, the software class and t
 sale. The first compliance review will find requirement gaps (e.g. universal default credentials, FR-59) for the
 owner to decide.
 
+## 2026-11-02 — Configuration export / import now (C-9); zones and sensors set by the user (C-10, C-11); order
+**Context**: The owner wants to keep using the board while the software changes, and to set up zones and sensors
+themselves like a new user would. The board lists the first 8 sensors it hears and never drops one (PB-55); zones
+come in fixed slots. FR-65 (export / import) was `[later]`, after step 14.
+**Decision**:
+- C-9: export / import (FR-65.1, FR-65.2, FR-65.3, FR-65.4, FR-65.5, FR-65.6, FR-65.7, FR-65.8) is built now, as its own
+  change before any migration step. Import applies what is valid and reports the rest: unknown names are skipped,
+  missing ones keep their value, out-of-range values are skipped; zones are checked together and applied or skipped
+  whole; not JSON or an unknown format → HTTP 400, nothing changed. Credentials are never exported or imported.
+  Import joins the FR-58 list (authentication from step 9); whether the export needs authentication stays with D49.
+- C-10: a new controller starts with no zone; the user adds and deletes zones, at most one per free relay output;
+  a zone with an energised valve cannot be deleted.
+- C-11: a zone's sensor is set by typing its MAC or from a search the user starts (until Stop, at most 10 min);
+  outside a search only the sensors assigned to zones are kept (fixes PB-55).
+- Order: the FR-65 change first, then migration step 3 (`OutputBank`, with C-10 and C-11), then step 2.
+**Decided by**: owner (chat, 02.11.2026, through the coordinator session: decisions 1-4 of the owner's request).
+**Affects**: FR-65.1, FR-65.2, FR-65.3, FR-65.4, FR-65.5, FR-65.6, FR-65.7, FR-65.8, FR-65.8, FR-58, FR-8.1, FR-11.3, FR-69, requirements §6 `number of zones`;
+`docs/requirements_review.md` §9 C-9 (C-10, C-11 when step 3 starts), `docs/plan.md`, `docs/architecture.md` §3.2,
+§9.3, §18, `docs/api_reference.md`, `docs/compliance.md` CMP-5.
+**Consequences**: the board can be exported before each flash and restored after; an import is a full
+reconfiguration in one request, so it waits for FR-58 (step 9) like every other write (PB-44); the unbounded HTTP
+body of every POST is logged as PB-56.
+
 ## 2026-11-02 — Model and effort per kind of work
 **Context**: The owner runs Opus at a high effort everywhere and the token use is too high, also in the main chat.
 **Decision**: the strongest model only where a mistake can burn the boiler or the floor. Main chat Sonnet medium;

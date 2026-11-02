@@ -109,7 +109,7 @@ listed in §3.3.
 | # | Module | Layer | One responsibility | Owns | Requirements | Today in |
 |---|---|---|---|---|---|---|
 | 1 | `App` | L1 | Boot order, the control task and its 1 s schedule, task watchdog for both tasks, timing measurement | boot phase, control task, tick timers, longest tick delay and loop pass since boot | FR-21 (boot message), FR-23 (timing values), NFR-1.4 (order), NFR-1.5, NFR-1.8 (control task, tick schedule, measurement) | `main.cpp` |
-| 2 | `ParamStore` | L1 | The only NVS user: §6 parameters, zone configuration, persistent state; export, import, factory reset | NVS namespaces, RAM shadow, parameter table | §6, FR-9.2, FR-11.1 (empty defaults), FR-11.3, FR-11.4, FR-14.1, FR-18, FR-29, FR-30, FR-42, FR-49, FR-55, FR-58, FR-59, FR-61, FR-65, FR-66, FR-69, NFR-2.9, NFR-5.3 (load check) | `Preferences` in 4 files |
+| 2 | `ParamStore` | L1 | The only NVS user: §6 parameters, zone configuration, persistent state; export, import, factory reset | NVS namespaces, RAM shadow, parameter table | §6, FR-9.2, FR-11.1 (empty defaults), FR-11.3, FR-11.4, FR-14.1, FR-18, FR-29, FR-30, FR-42, FR-49, FR-55, FR-58, FR-59, FR-61, FR-65.1, FR-65.2, FR-65.3, FR-65.4, FR-65.5, FR-65.8, FR-66, FR-69, NFR-2.9, NFR-5.3 (load check) | `Preferences` in 4 files |
 | 3 | `Diagnostics` | L1 | DTC table, event history, heap health | active DTC masks, event ring | FR-10.2, FR-17.5, FR-21, FR-55, FR-59, FR-62, NFR-2.2 | `DiagnosticEngine` |
 | 4 | `FaultInjector` | L1 | Test-only masking of inputs | injection flags (RAM only) | NFR-5.5 | — |
 | 5 | `Network` | L1 | Wi-Fi supervisor, setup access point, network worker task | Wi-Fi state, worker job slot | FR-9 (worker), FR-41, FR-50, NFR-1.1, NFR-2.3 (no network wait in `loop()`) | `main.cpp` |
@@ -126,8 +126,8 @@ listed in §3.3.
 | 16 | `SafetySupervisor` | L3 | Last word over every output (§6) | valve states, interlock and overrun timers, burner guard, pending boiler action, pump state, flow and frost latches | FR-1.3, FR-2, FR-3, FR-3.2, FR-4, FR-14.2, FR-14.3, FR-14.5, FR-16.1, FR-17.3, FR-17.4 (data), FR-17.5, FR-19, FR-22, FR-32, FR-37, FR-43 (execution), FR-54 (action), FR-60 (boiler OFF gate), FR-64, NFR-1.4 (boot gate; the boot OFF starts `burnerMinPause`), NFR-1.8 (decision in one tick), NFR-2.2 (restart gate), NFR-5.1 (order), NFR-5.4 | `ThermalZoneManager::update`, `BoilerRadioTrigger::canTransmit`, `WebApi`, `ConsoleCommands` |
 | 17 | `Advisors` | L4 plug-in, phase 4 | Bounded hints (§13) | learned models | FR-40.2, FR-63, FR-67, FR-70, FR-71, NFR-5.3 | — |
 | 18 | `PlantMonitor` | L4 observer, phase 4 | Detect plant faults (valve stuck, no effect, boiler not heating) | per-zone trend windows | FR-56, FR-57 | — |
-| 19 | `Commands` | L5 | Every user action, identical for every source; runs in `loop()` | the command queue I15 | FR-1.2 (limits), FR-7.3, FR-11.3 (mapping), FR-17.1 (response), FR-17.3, FR-17.4, FR-42, FR-43 (MANUAL check), FR-58 (auth level), FR-59, FR-65, FR-66, NFR-1.8 (a command reaches the next control tick through I15) | `WebApi.cpp`, `ConsoleCommands.cpp` |
-| 20 | `WebApi` | L6 | HTTP transport: routes, JSON, authentication check, CORS, page, OTA upload | — | FR-8.1 (serve), FR-8.3, FR-42, FR-45, FR-58, NFR-2.3, NFR-3.1 | `WebApi.cpp` |
+| 19 | `Commands` | L5 | Every user action, identical for every source; runs in `loop()` | the command queue I15 | FR-1.2 (limits), FR-7.3, FR-11.3 (mapping), FR-17.1 (response), FR-17.3, FR-17.4, FR-42, FR-43 (MANUAL check), FR-58 (auth level), FR-59, FR-65.2 (credential skipped), FR-65.3 (one check per setting), FR-65.4, FR-65.5, FR-65.6 (report), FR-66, NFR-1.8 (a command reaches the next control tick through I15) | `WebApi.cpp`, `ConsoleCommands.cpp` |
+| 20 | `WebApi` | L6 | HTTP transport: routes, JSON, authentication check, CORS, page, OTA upload | — | FR-8.1 (serve), FR-8.3, FR-42, FR-45, FR-58, FR-65.1 (route), FR-65.7 (`Content-Type`, body size, JSON, format version, no CORS header), NFR-2.3, NFR-3.1 | `WebApi.cpp` |
 | 21 | `Console` | L6 | Serial / Telnet / HTTP console and the log ring | log ring, Telnet client | FR-7.1, FR-7.3, FR-23, FR-45, NFR-2.4 | `NetworkConsole`, `ConsoleCommands` |
 | 22 | `StatusModel` | L6 | Page, API and `STATUS` data from the published snapshot I16 | static output buffer | FR-8.1 (data), FR-8.4, FR-10.2 (show), FR-20 (show), FR-21, FR-23, FR-35 (show), FR-47 / FR-48 (admin view), FR-52 (warning), NFR-2.3 | `WebApi.cpp` handlers |
 | 23 | `History` | L6 | Telemetry history and burner counters | LittleFS ring files, counters | FR-34, FR-35, NFR-4.1 (measurement) | `TelemetryHistoryManager`, counters in `BoilerRadioTrigger` |
@@ -644,8 +644,11 @@ One `const` table in flash; each entry: id, NVS key, unit, integer scale, defaul
   `windowThreshold` is used).
 - A schema version key drives a one-time migration from today's keys (`zones/*`, `sched/cfg2`, `boiler/*`, weather
   location); old keys are removed after a successful copy.
-- Export / import (FR-65) and factory reset (FR-66, keeps Wi-Fi) are `ParamStore` operations; import uses the same range
-  check as `set`.
+- Export / import (FR-65.1, FR-65.2, FR-65.3, FR-65.4, FR-65.5, FR-65.6, FR-65.7, FR-65.8) and factory reset (FR-66, keeps Wi-Fi) are `ParamStore` operations; import uses
+  the same range check as `set`. `Commands` runs the import: each value through the check of the same setting set
+  alone, zones together against the resulting relay and pump use, and builds the report (FR-65.6). An import is one command: `Commands` checks the whole file against the snapshot I16,
+  puts the accepted values in one static import buffer and posts one I15 message; the control task applies the buffer
+  in one tick (RAM only, R-A8); `loop()` then writes NVS on change and sends the report.
 
 ### 9.4 NVS budget (20 KB partition, about 16 KB usable)
 
@@ -941,7 +944,10 @@ Problems without a code gap: PB-8, PB-10, PB-11 (tests; PB-10 is rewritten with 
 
 ## 18. Migration steps (no code changed by this document)
 
-Order (owner, 01.11.2026): requirements → architecture → code; no separate test step first. Each step changes the code
+Order (owner, 01.11.2026): requirements → architecture → code; since 02.11.2026 the tests of a step are written
+first and fail on the old firmware (`process.md` §3.1). Order of the steps (owner, 02.11.2026): after step 1 the
+configuration export / import (FR-65, change C-9, outside the table, `ParamStore` and `Commands` as allocated in §3.2),
+then step 3, then step 2, then steps 4–14. Each step changes the code
 and its tests together; before flashing, `pio run`, `sh_process_check.py` and the full `tools/sh_test_system.py`
 pass (AGENTS.md §4), and the owner tests hands-on before the next step starts (process §5). Steps 3–5 and 10 touch
 the safety list (step 10 moves the control tick into its own task): each needs `sh-safety-reviewer` with no BLOCKER.
@@ -969,7 +975,7 @@ step 4; step 1 (`ParamStore`) is unaffected (§5.1).
 | 11 | `History` in LittleFS with streamed output; `StatusModel` static buffer | G20 (record), G28, G29 | — | heap ≥ 100 KB with 32 zones configured on the bench |
 | 12 | `Maintenance`: OTA quiet gate and rollback, full self-test, valve exercise | G24, G25, G26 | — | rollback tested with a deliberately failing image |
 | 13 | `FlowInput` + `FlowLimit` + `flow-high` / `flow-lost` injection | G30 | — | after the owner decides the probe type (library approval) |
-| 14 | Phase 4, one advisor per step: `PlantMonitor` → `HeatUpModel` → `SmartWindow` (needs recorded traces, D33) → `CycleAligner` → `SolarThrottle` → `HumidityComp`; later `RemoteGateway`, export / import, factory reset | G32 | — | each with its fallback test (§8.2) |
+| 14 | Phase 4, one advisor per step: `PlantMonitor` → `HeatUpModel` → `SmartWindow` (needs recorded traces, D33) → `CycleAligner` → `SolarThrottle` → `HumidityComp`; later `RemoteGateway`, factory reset | G32 | — | each with its fallback test (§8.2) |
 
 
 ---

@@ -51,11 +51,11 @@ Obligations are paraphrased with their source; the law's text is in EUR-Lex. `Re
 | CMP-2 | No known exploitable vulnerability at release, in own code and in components (libraries, Arduino core, ESP-IDF) | CRA Annex I.1 (2)(a) | — | missing | no vulnerability check; `NimBLE-Arduino` is the unreleased 3.0.0-dev |
 | CMP-3 | Secure by default configuration, with a reset to the original state; no universal default password | CRA Annex I.1 (2)(b); EN 18031-1 | FR-59 (conflict, D40), FR-66 | partial | PB-53 |
 | CMP-4 | Security updates can be delivered; where applicable automatic by default with an opt-out, and the user is told | CRA Annex I.1 (2)(c) | FR-8.3 | partial | D43 |
-| CMP-5 | Protection from unauthorised access (authentication, access control); possible unauthorised access is reported | CRA Annex I.1 (2)(d) | FR-58, FR-59 | partial | FR-58 not built (step 9); PB-44, PB-45, PB-46; D49 |
+| CMP-5 | Protection from unauthorised access (authentication, access control); possible unauthorised access is reported | CRA Annex I.1 (2)(d) | FR-58, FR-59, FR-65.3 | partial | FR-58 not built (step 9); PB-44, PB-45, PB-46; D49 (also the export, FR-65.1); configuration import / export without authentication until step 9 (PB-44) |
 | CMP-6 | Confidentiality of stored and transmitted data (credentials, settings, traffic) | CRA Annex I.1 (2)(e) | — | missing | D41 |
-| CMP-7 | Integrity of data, commands, firmware and configuration; corruption is reported | CRA Annex I.1 (2)(f) | FR-42, FR-53, FR-60, NFR-5.3 | partial | PB-48, PB-52; D45 |
+| CMP-7 | Integrity of data, commands, firmware and configuration; corruption is reported | CRA Annex I.1 (2)(f) | FR-42, FR-53, FR-60, NFR-5.3, FR-65.3, FR-65.5, FR-65.7 | partial | PB-48, PB-52; D45 |
 | CMP-8 | Only the data the function needs (data minimisation) | CRA Annex I.1 (2)(g) | — | missing | PB-54; D48 |
-| CMP-9 | Essential functions stay available under attack or overload (heating continues) | CRA Annex I.1 (2)(h) | NFR-1.1, NFR-1.5, NFR-1.8, FR-41 | partial | PB-47, PB-48, PB-49, PB-50; control task not built (step 10) |
+| CMP-9 | Essential functions stay available under attack or overload (heating continues) | CRA Annex I.1 (2)(h) | NFR-1.1, NFR-1.5, NFR-1.8, FR-41, FR-65.7 (import only) | partial | PB-47, PB-48, PB-49, PB-50, PB-56; control task not built (step 10) |
 | CMP-10 | Minimal negative impact on other devices and on the network | CRA Annex I.1 (2)(i) | FR-17.2, FR-17.7, FR-9 | partial | PB-47 |
 | CMP-11 | Limited attack surface, external interfaces included (ports, services, setup access point) | CRA Annex I.1 (2)(j) | — (FR-7.1, FR-45, FR-50 widen the surface) | missing | PB-43; D42 |
 | CMP-12 | Exploitation mitigation: an incident has limited impact | CRA Annex I.1 (2)(k) | FR-42, FR-55, FR-58, NFR-5.1 | partial | PB-1 |
@@ -123,3 +123,4 @@ Obligations are paraphrased with their source; the law's text is in EUR-Lex. `Re
 |---|---|---|
 | 02.11.2026 | Created: the owner sells the device in the EU under their brand | owner (decision), Claude |
 | 02.11.2026 | First full review: statuses of §3, GDPR row of §2, WEEE and GPSR rows of §4; findings in `requirements_review.md` §10 (D40 ... D50) and PB-43 ... PB-54 | `sh-compliance-reviewer`, owner (log) |
+| 02.11.2026 | FR-65 (configuration export / import) checked before it was written (C-9): import joins FR-58, credentials never in the file, size bound, JSON only, no cross-origin header; CMP-5, CMP-7, CMP-9 cite it; HTTP body gap PB-56. For the risk assessment (CMP-1): export = household profile (location, room names, sensor IDs, schedule), import = full reconfiguration. For the user manual (CMP-31): the export file holds no password but should be kept private | `sh-compliance-reviewer`, Claude (chain) |

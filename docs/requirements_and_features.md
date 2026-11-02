@@ -1,11 +1,12 @@
 # System and Software Requirements — Smart Home Heating
 
-**Baseline:** v2.6, 01.11.2026. v2 (31.10.2026) derived from the owner-approved review
+**Baseline:** v2.7, 02.11.2026. v2 (31.10.2026) derived from the owner-approved review
 [`requirements_review.md`](requirements_review.md); v2.1 adds the process review rows QA-7, QA-8, QA-9, QA-10,
 QA-11, QA-12, QA-13, QA-14, QA-16 ([`process_review.md`](process_review.md)); v2.2 adds the owner decisions D37,
 D38, D39 and the architecture observations O-12, O-13, O-14, O-15, and closes the review (applied as listed in
-`requirements_review.md` §6 and §8); v2.3 adds O-16, v2.4 the 10 s bound of NFR-1.8, v2.5 the proxy clause of FR-8.1 and v2.6 the owner's page test
-(C-3…C-8), changes after closure (`requirements_review.md` §9).
+`requirements_review.md` §6 and §8); v2.3 adds O-16, v2.4 the 10 s bound of NFR-1.8, v2.5 the proxy clause of FR-8.1, v2.6 the owner's page test
+(C-3…C-8) and v2.7 the configuration export / import FR-65.1, FR-65.2, FR-65.3, FR-65.4, FR-65.5, FR-65.6, FR-65.7, FR-65.8, FR-65.8 (C-9), changes after closure
+(`requirements_review.md` §9).
 **Replaces:** the Romanian specification of 07.10.2026 (v1). IDs are kept where the meaning did not change.
 **Related:** [`plan.md`](plan.md), [`changelog.md`](changelog.md), [`hardware_esp32_relay.md`](hardware_esp32_relay.md),
 [`underfloor_heating_hydraulics_and_failsafes.md`](underfloor_heating_hydraulics_and_failsafes.md), [`api_reference.md`](api_reference.md).
@@ -41,7 +42,7 @@ D38, D39 and the architecture observations O-12, O-13, O-14, O-15, and closes th
 |---|---|
 | `[now]` | steps 1–13, in the step that builds the module the requirement is allocated to (architecture §3.2) |
 | `[phase 4]` | step 14, one advisor or monitor per step |
-| `[later]` | step 14, after the advisors (export / import, factory reset) |
+| `[later]` | step 14, after the advisors (factory reset) |
 | `[nice to have]` | optional, only on the owner's request; step 14 lists humidity compensation (FR-71) as the last advisor and extra BLE receivers (FR-72) with the `[later]` items |
 | `[now; sensors optional]` | step 13, after the owner has chosen the probe type (FR-54) |
 | `[now; receiver hardware later]`, `[now: configuration; hardware later]` | the firmware part in steps 1–13; the named hardware has no step until it is chosen (FR-55, FR-69) |
@@ -228,6 +229,7 @@ one example:
 - **FR-11.3 (Zone mapping):** *[now]* {SW; test} Each zone maps to a name, one sensor (MAC), one relay output and a target;
   set in the engineering view of the page (FR-8.1), via API (`/api/setup/...`) and console.
   `/api/setup/discovered-sensors` lists received sensors by RSSI.
+  - A zone name is 1-31 bytes and a sensor name 0-31 bytes, UTF-8, without `"`, `\` or a control character.
   - A relay output serves at most one zone, and not the one the pump uses (FR-14.1); a zone is switched on only with
     a sensor and a relay output. A rejected setting returns HTTP 400 and changes nothing.
   - The number of zones is the number of zones switched on, up to the configured zone slots (FR-69).
@@ -386,7 +388,10 @@ one example:
     API name (e.g. `zones[2].relayEngaged`) and a short explanation, and on tap the requirement it belongs to; a value
     without an explanation is still shown; a value that changed since the last refresh is highlighted; while the view
     is open it keeps a trace of every change with its time, exportable as CSV; it holds the zone commissioning
-    (FR-11.3) and the checks of FR-10.4;
+    (FR-11.3), the checks of FR-10.4 and the configuration export and import with the import report (FR-65.1,
+    FR-65.6): the export saves the answer of `GET /api/config/export` as a `.json` file; the import sends the chosen
+    file unchanged as the body of `POST /api/config/import` with `Content-Type: application/json` (FR-65.7) and shows
+    the lists and reasons of FR-65.6;
   - zone states are shown with the codes and texts of FR-8.4;
   - Family view language configurable (Romanian / English, NFR-3.1).
   - Behind a reverse proxy that serves the controller under a path prefix (e.g. `/heating/` on a home server) the
@@ -425,7 +430,8 @@ one example:
   - changing a safety parameter of §6: `interlockDelay`, `overrun`, `burnerMinRun`, `burnerMinPause`,
     `openLoopBypass`, `sensorTimeout`, `faultDuty`, `faultFrostOutdoor`, `frostTemp`, `hbInterval`,
     `boilerLinkHeartbeat`, `boilerLinkType`, `flowSensors`, `flowMax`, `actuatorType`, `pumpOutput`, zone outputs;
-  - manual boiler requests (FR-17.3, FR-32), relay test, MANUAL mode, fault injection (NFR-5.5), credentials.
+  - manual boiler requests (FR-17.3, FR-32), relay test, MANUAL mode, fault injection (NFR-5.5), credentials,
+    configuration import (FR-65.3) whatever the file contains.
   - Comfort settings (levels, schedule, boost, away, `windowThreshold`) need no authentication.
   - CORS is limited to the controller's own origin.
   - *Fallback:* unauthenticated request → HTTP 401, no change.
@@ -448,8 +454,62 @@ one example:
     opened (interlock respected), boiler ON for `selfTestBurn`, flow rise checked if FR-54 sensors are enabled,
     boiler OFF with all guards. Result stored and shown. Failures raise DTC-304 `ERR_SELFTEST_FAILED`; a plant
     failure never causes a rollback. The boiler step is skipped in global OFF.
-- **FR-65 (Configuration export / import):** *[later]* {SW; test} The complete configuration (zones, sensors, offsets, learned
-  values, credentials excluded) is exported and imported as JSON via API.
+- **FR-65.1 (Configuration export):** *[now]* {SW; test, analysis} `GET /api/config/export` returns one JSON file with
+  the format version (`format` = 1), the firmware version of FR-21 and every setting the user or the installer made:
+  - `params`: every field that `POST /api/config/system` accepts (`api_reference.md`), with the name, unit, JSON type
+    and current value that `GET /api/config/system` reports; no credential;
+  - per zone: name, sensor MAC, sensor name, relay output, on / off, sensor offset and target (FR-11.3, FR-49);
+  - the schedule: weekday and weekend slots (FR-31), its switches (schedule, pre-heat, window detection) and the
+    level temperatures of each zone (FR-29);
+  - the location (FR-9.2), when it is set;
+  - `learnedDuty`: the learned base duty of each zone in %, one value per zone, equal to `learnedDuty` of
+    `GET /api/zones`. The step that builds the outdoor bands of FR-47 changes this item and `format`.
+  - The export is valid JSON whatever text is stored (test: names with non-ASCII UTF-8 and every character FR-11.3
+    accepts). The export of 32 zones (FR-69) with every name at its maximum length of FR-11.3, in its longest JSON
+    escaping, is at most 16 384 bytes (analysis).
+  - *Purpose:* the settings survive a firmware change or a replaced controller.
+- **FR-65.2 (Not exported):** *[now]* {SW; test} The export has only the keys of FR-65.1 and `api_reference.md`
+  format 1 (`format`, `firmwareVersion`, `params`, `zones`, `schedule`, `location`, `learnedDuty` and their fields):
+  no credential (FR-59), no counter, and no state other than the learned base duty, in particular no burner counter,
+  operating mode (FR-1.3), away, boost, DTC, event, history or sensor reading. An import never changes a credential:
+  a credential in the file is skipped like an unknown name (FR-65.4).
+- **FR-65.3 (Import check):** *[now]* {SW; test, analysis} `POST /api/config/import` with a file of FR-65.1 checks each
+  value like the same setting set alone: the §6 range (FR-42), the zone rules of FR-11.3, the level range of FR-29, the
+  slots of FR-31, the location of FR-9.2 and the learned duty bounds of FR-47. Each value that passes is in effect
+  when the answer is sent (the export and the setting's own GET endpoint return it from then on) and is stored (NVS
+  on change only, NFR-2.9). An imported learned duty outside the bounds of FR-47 is skipped like any other value: the
+  current value stays and DTC-301 `WARN_LEARNING_RESET` is not raised.
+  - Receiving and applying an import of at most 16 384 bytes delays no safety reaction beyond NFR-1.8 (analysis: the
+    chain of architecture §5.4.1 with the NVS writes of the import). The answer comes within 2 s after the last byte
+    of the request; the 100 ms of NFR-2.3 does not apply.
+- **FR-65.4 (Partial import):** *[now]* {SW; test} A name the firmware does not know is skipped; a setting missing
+  from the file keeps its current value; a value that fails its check is skipped and the current value stays. Unless
+  FR-58 or FR-65.7 refuses the request, the answer is HTTP 200, also when every setting is skipped.
+  - *Fallback:* a setting that cannot be applied keeps its current value (safety > comfort, NFR-5.1).
+- **FR-65.5 (Zones checked together):** *[now]* {SW; test} A zone of the file is applied or skipped as a whole: one
+  field that fails its check skips the zone; an unknown field is skipped alone (FR-65.4); a missing field keeps its
+  value; a zone `id` the controller does not have is skipped (reason `no-zone`). The pump setting of the file is
+  checked first, like set alone, against the zones as they are before the import; the zones of the file are then
+  checked against the resulting pump. In the configuration that results, a relay output serves at most one zone and
+  not the pump (FR-11.3, FR-14.1): every zone of the file that would break this is skipped (reasons `relay-taken`,
+  `pump-relay`), and the check repeats until no conflict is left. A zone that FR-11.3 would reject if set alone
+  because its valve is energised is skipped (reason `valve-energised`). The same `id` twice in `zones`,
+  `schedule.levels` or `learnedDuty` skips every entry with that `id` (reason `duplicate`).
+- **FR-65.6 (Import report):** *[now]* {SW; test} The HTTP 200 answer has the lists `applied`, `kept` and `skipped`,
+  with the names of `api_reference.md`. Every setting of the export (FR-65.1, not `format` or `firmwareVersion`) and
+  every unknown key of the file is in exactly one list; `kept` = missing from the file. Each `skipped` entry has a
+  `reason`: `unknown`, `invalid`, `no-zone`, `relay-taken`, `pump-relay`, `valve-energised` or `duplicate`. For each
+  applied setting the console log has one line with its report name and new value.
+- **FR-65.7 (Rejected file):** *[now]* {SW; test} The checks run in this order and the first that fails answers, with
+  nothing changed: authentication (HTTP 401, FR-58); `Content-Type` other than `application/json` (HTTP 415; a
+  parameter such as `charset=utf-8` is accepted); body larger than 16 384 bytes (HTTP 413); body not a JSON object,
+  or `format` missing or not the number 1 (HTTP 400). No answer of `GET /api/config/export` or
+  `POST /api/config/import`, the answer to an `OPTIONS` request on either path included, carries an
+  `Access-Control-Allow-Origin` or `Access-Control-Allow-Headers` header, whatever the `Origin` of the request
+  (FR-58).
+- **FR-65.8 (Round trip):** *[now]* {SW; test} `POST /api/config/import` with the unchanged body of
+  `GET /api/config/export` from the same controller answers HTTP 200 with `skipped` empty, and a following export is
+  identical to the first.
 - **FR-66 (Factory reset):** *[later]* {SW; test} Factory reset via console or API, with confirmation; keeps Wi-Fi credentials.
 - **FR-68 (Commissioning checklist):** *[now, documentation]* {install; inspection} Commissioning follows a checklist; the installer records the result in the commissioning document (the controller does not store it):
   1. installation — manifold flow meters balanced per zone; always-open bypass present; boiler flow setpoint
@@ -509,7 +569,7 @@ one example:
 - **NFR-2.2 (Free heap):** {SW; test, board} Free heap ≥ 100 KB during normal operation. Below 60 KB
   DTC-402 `WARN_HEAP_FRAGMENTATION` is raised; below 30 KB a controlled restart is performed while the boiler is OFF,
   with state restored from NVS (FR-62 records it).
-- **NFR-2.3 (API response):** {SW; test} Local API response time < 100 ms.
+- **NFR-2.3 (API response):** {SW; test} Local API response time < 100 ms, except `POST /api/config/import` (FR-65.3).
 - **NFR-2.4 (Log time stamps):** {SW; test} Every console line carries a `[HH:MM:SS]` time stamp.
 - **NFR-2.6 (No heap drift):** {SW; board} No heap decrease > 5 KB over 24 h of operation; buffers are bounded and reserved
   statically.

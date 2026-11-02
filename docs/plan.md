@@ -59,10 +59,15 @@ Gate for every step (AR-19, owner decision 01.11.2026, [`process.md`](process.md
 Requirement phase tags map to the steps: `[now]` = steps 1–13, `[phase 4]` = step 14, `[nice to have]` and
 `[later]` = the end of step 14.
 
+**Order (owner, 02.11.2026):** after step 1 come the configuration export / import (FR-65, change C-9, its own
+change, so the owner can save the board's settings before every flash and restore them after), then step 3 with the
+zones and sensors the user sets up (C-10, C-11), then step 2; the rest in the order of the table.
+
 | Step | Module / change (details: `architecture.md` §18) | Status | Board commit | Accepted |
 |---|---|---|---|---|
 | 0 | Process review rows QA-1…QA-28 applied by the documentation sessions, committed by the main chat | in progress | — | — |
 | 1 | `ParamStore`: one parameter table with requirements §6 defaults and ranges, all NVS access | flashed, board test 81/81 PASS; owner acceptance pending | 7743c26 | — |
+| C-9 | Configuration export / import (FR-65.1, FR-65.2, FR-65.3, FR-65.4, FR-65.5, FR-65.6, FR-65.7, FR-65.8), before step 3 | in progress | — | — |
 | 2 | `Diagnostics`: DTC enum of requirements §5, event history in LittleFS | open | — | — |
 | 3 | `OutputBank`: logical channels, polarity in one place, static tables for 32 zones | open | — | — |
 | 4 | `SafetySupervisor`: valve states, interlock, overrun without pump, burner guard, frost on all zones, pump guard | open | — | — |
@@ -70,12 +75,12 @@ Requirement phase tags map to the steps: `[now]` = steps 1–13, `[phase 4]` = s
 | 6 | `SensorHub`: mailbox, plausibility filter, validity, one sensor timeout | open | — | — |
 | 7 | `ZoneController`: TPI, learned duty per outdoor band, FR-51 fault duty, window state; `FaultInjector` | open | — | — |
 | 8 | `ModeManager` + `Schedule`: MANUAL timeout, automatic season, global OFF, boost limits, last level without time | open | — | — |
-| 9 | `Commands` + authentication: one command path, FR-58, FR-59, CORS, English messages | open | — | — |
+| 9 | `Commands` + authentication: one command path, FR-58 (also `/api/config/import`, FR-65.3), FR-59, CORS, English messages | open | — | — |
 | 10 | `Weather` in the network worker | open | — | — |
 | 11 | `History` in LittleFS, `StatusModel` static buffer | open | — | — |
 | 12 | `Maintenance`: OTA quiet gate and rollback, full self-test, valve exercise | open | — | — |
 | 13 | `FlowInput` + `FlowLimit` — waits for the probe decision (risk R-4) | open | — | — |
-| 14 | Phase 4, one advisor per step: `PlantMonitor`, `HeatUpModel`, `SmartWindow` (risk R-5), `CycleAligner`, `SolarThrottle`, `HumidityComp`; later `RemoteGateway`, export / import, factory reset | open | — | — |
+| 14 | Phase 4, one advisor per step: `PlantMonitor`, `HeatUpModel`, `SmartWindow` (risk R-5), `CycleAligner`, `SolarThrottle`, `HumidityComp`; later `RemoteGateway`, factory reset (export / import moved before step 3, C-9) | open | — | — |
 
 ## Risks
 
