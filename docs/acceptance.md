@@ -13,3 +13,4 @@ checked by `tools/sh_process_check.py release`.
 
 | Date | Board commit | Version | Requirements | Checked | Result | Problems |
 |---|---|---|---|---|---|---|
+| 02.11.2026 | ce8a58b | 1.11.02.03 | FR-65.1, FR-65.2, FR-65.3, FR-65.4, FR-65.5, FR-65.6, FR-65.7, FR-65.8 | Owner tested export and import in the engineering view; answered OK (chat). One open question: the zone target in the file (PB-62) | OK | PB-62 |
