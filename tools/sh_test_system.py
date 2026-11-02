@@ -2040,7 +2040,7 @@ class SystemTestSuite:
     FR65_MAX_ZONES = 32      # FR-69: 1-32 zones
     FR65_NAME_MAX = 31       # FR-11.3 / map-zone: a zone name has at most 31 bytes
     # FR-65.6: the only reasons of a skipped entry
-    FR65_REASONS = ("unknown", "invalid", "no-zone", "relay-taken", "pump-relay", "valve-energised", "duplicate")
+    FR65_REASONS = ("unknown", "invalid", "no-zone", "relay-taken", "pump-relay", "sensor-taken", "valve-energised", "duplicate")
 
     @staticmethod
     def _fr65_copy(doc):
@@ -3325,12 +3325,10 @@ class SystemTestSuite:
         try:
             snap = self._fr65_begin()
             a, bz = self._fr65_pick(snap, 2, idle=True)
-            m1, m2 = "02:00:00:00:C1:01", "02:00:00:00:C1:02"
-            applied, _, skipped = self._fr65_report(self._fr65_post(
-                {"format": 1, "zones": [{"id": a["id"], "mac": m1}, {"id": bz["id"], "mac": m2}]}))
-            for zz in (a, bz):
-                nz = f"zones[{zz['id']}]"
-                assert nz in applied, f"setup: {nz}: {skipped.get(nz)!r}"
+            # the real sensors are exchanged: a made-up MAC would make the scanner drop the real sensor's reading
+            m1, m2 = str(a.get("mac") or "").upper(), str(bz.get("mac") or "").upper()
+            if not m1 or not m2 or m1 == m2:
+                raise self.Fr65Skip("needs two switched-off zones with different sensors")
             # A sensor MAC serves one zone; the check is on the configuration that results (FR-11.3)
             applied, _, skipped = self._fr65_report(self._fr65_post(
                 {"format": 1, "zones": [{"id": a["id"], "mac": m2}, {"id": bz["id"], "mac": m1}]}))
@@ -3360,8 +3358,9 @@ class SystemTestSuite:
         try:
             snap = self._fr65_begin()
             a, bz = self._fr65_pick(snap, 2, idle=True)
-            m1, m2 = "02:00:00:00:C1:01", "02:00:00:00:C1:02"
-            self._fr65_post({"format": 1, "zones": [{"id": a["id"], "mac": m1}, {"id": bz["id"], "mac": m2}]})
+            m1, m2 = str(a.get("mac") or "").upper(), str(bz.get("mac") or "").upper()
+            if not m1 or not m2 or m1 == m2:
+                raise self.Fr65Skip("needs two switched-off zones with different sensors")
             applied, _, skipped = self._fr65_report(self._fr65_post(
                 {"format": 1, "zones": [{"id": a["id"], "mac": m2}]}))
             na = f"zones[{a['id']}]"
