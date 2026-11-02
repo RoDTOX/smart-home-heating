@@ -2,6 +2,7 @@
 #include "BleSensorScanner.h"
 #include "BoilerRadioTrigger.h"
 #include "Config.h"
+#include "ConfigTransfer.h"
 #include "DiagnosticEngine.h"
 #include "NetworkConsole.h"
 #include "ThermalZoneManager.h"
@@ -237,7 +238,7 @@ void handleApiZones() {
     json += "\"openSec\":" + String(openSec) + ",";
     json += "\"isManualHold\":" + String(st.isManualHold ? "true" : "false") + ",";
     json += "\"duty\":" + String((int)(thermalZones.getDuty(i) * 100)) + ",";
-    json += "\"learnedDuty\":" + String((int)(thermalZones.getLearnedDuty(i) * 100)) + ",";
+    json += "\"learnedDuty\":" + String(thermalZones.getLearnedDutyPct(i), 1) + ",";
     json += "\"tempOffset\":" + String(cfg.tempOffset, 1) + ",";
     json += "\"state\":\"" + String(thermalZones.getStateCode(i)) + "\"";
     json += "}";
@@ -1004,6 +1005,32 @@ void handleApiConfigSystemPost() {
   handleApiConfigSystemGet();
 }
 
+// FR-65.1: the settings file. No Access-Control-Allow-Origin header (FR-65.7).
+void handleApiConfigExport() {
+  server.send(200, "application/json", configExportJson());
+}
+
+// FR-65.7: checks in this order, the first that fails answers and nothing is changed: media type (415), size (413),
+// JSON object with "format": 1 (400, inside configImport). Authentication (401, FR-58) comes with migration step 9.
+void handleApiConfigImport() {
+  String type = server.header("Content-Type");
+  type.toLowerCase();
+  type.trim();
+  bool json = type.startsWith("application/json") && (type.length() == 16 || type[16] == ';' || type[16] == ' ');
+  if (!json) {
+    server.send(415, "application/json", F("{\"status\":\"error\",\"message\":\"Content-Type must be application/json; nothing changed\"}"));
+    return;
+  }
+  const String& body = server.arg("plain");
+  if (body.length() > CONFIG_IMPORT_MAX_BYTES) {
+    server.send(413, "application/json", F("{\"status\":\"error\",\"message\":\"Body over 16384 bytes; nothing changed\"}"));
+    return;
+  }
+  String answer;
+  int code = configImport(body, answer);
+  server.send(code, "application/json", answer);
+}
+
 void handleApiRelayTest() {
   server.sendHeader("Access-Control-Allow-Origin", "*");
   if (!server.hasArg("pin")) {
@@ -1023,6 +1050,8 @@ void handleApiRelayTest() {
 }
 
 void registerWebRoutes() {
+  static const char* headerKeys[] = {"Content-Type"};  // FR-65.7
+  server.collectHeaders(headerKeys, 1);
   // Web Server routes
   server.on("/", HTTP_GET, handleRoot);
   server.on("/api/setup/location", handleApiSetupLocation);
@@ -1061,5 +1090,7 @@ void registerWebRoutes() {
   server.on("/api/config/system", HTTP_GET, handleApiConfigSystemGet);
   server.on("/api/config/system", HTTP_POST, handleApiConfigSystemPost);
   server.on("/api/relay/test", HTTP_POST, handleApiRelayTest);
+  server.on("/api/config/export", HTTP_GET, handleApiConfigExport);
+  server.on("/api/config/import", HTTP_POST, handleApiConfigImport);
 
 }

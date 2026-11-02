@@ -177,6 +177,9 @@ public:
     // TPI control state (for diagnostics)
     float getDuty(size_t index) const { return index < MAX_THERMAL_ZONES ? _tpi[index].duty : 0.0f; }
     float getLearnedDuty(size_t index) const { return index < MAX_THERMAL_ZONES ? _tpi[index].integral : 0.0f; }
+    // Learned base duty in % with one decimal (the resolution of the stored per-mille value), 0..60 (FR-47)
+    float getLearnedDutyPct(size_t index) const;
+    void setLearnedDutyPct(size_t index, float pct);  // FR-65.3: stored on change only (NFR-2.9)
     uint32_t getPreHeatLeadMinutes() const;
     void mapZone(size_t index, const char* name, const char* sensorMac, const char* sensorName, uint8_t relayPin, float targetTemp, bool enabled);
     void setAutoMode(bool autoMode);

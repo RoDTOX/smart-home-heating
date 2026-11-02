@@ -431,6 +431,20 @@ void ThermalZoneManager::mapZone(size_t index, const char* name, const char* sen
 }
 
 
+float ThermalZoneManager::getLearnedDutyPct(size_t index) const {
+    if (index >= MAX_THERMAL_ZONES) return 0.0f;
+    return (float)lroundf(_tpi[index].integral * 1000) / 10.0f;
+}
+
+void ThermalZoneManager::setLearnedDutyPct(size_t index, float pct) {
+    if (index >= MAX_THERMAL_ZONES || !(pct >= 0.0f && pct <= PARAM_LEARNED_MAX / 10.0f)) return;
+    int16_t perMille = (int16_t)lroundf(pct * 10);
+    if (lroundf(_tpi[index].integral * 1000) == perMille) return;
+    _tpi[index].integral = perMille / 1000.0f;
+    paramStore.saveLearned(index, perMille);
+    _tpi[index].savedIntegral = _tpi[index].integral;
+}
+
 void ThermalZoneManager::setOpenLoopBypass(bool en) {
     _openLoopBypass = en;
     paramStore.set(Param::OpenLoopBypass, en ? 1 : 0);

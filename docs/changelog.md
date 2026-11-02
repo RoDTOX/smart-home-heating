@@ -17,6 +17,19 @@ Entries before 29.10.2026 (the system before the lean clean-up):
   sessions it starts. Field names checked in the Claude Code docs (sub-agents, skills, settings).
 - **Not changed:** the model of the main chat and the project's default model are the owner's settings.
 
+## [02.11.2026] - Configuration export / import (FR-65, change C-9)
+
+- **Who / when / why:** firmware session (Claude), owner decision 02.11.2026: keep using the board while the software
+  changes. Own change before migration step 3 (order: this, step 3, step 2).
+- **Where:** requirements baseline v2.7 (FR-65.1 ... FR-65.8, FR-58, FR-8.1, NFR-2.3, FR-11.3 name limits);
+  `src/ConfigTransfer.cpp` (new), `WebApi.cpp` (`GET /api/config/export`, `POST /api/config/import`), `ThermalZoneManager`
+  (`getLearnedDutyPct`, `setLearnedDutyPct`; `/api/zones` `learnedDuty` now one decimal), `web/index.html` (export /
+  import buttons, import report, doc table), `docs/api_reference.md`, `docs/architecture.md`, `docs/compliance.md`.
+  Tests TC29.1 ... TC29.33 written first, red on 2b7564f (33 of 33), commit e73fdb6.
+- **Problems:** PB-55 (sensor table), PB-56 (unbounded HTTP body), PB-57 ... PB-61 from the safety review (heap growth of
+  one import, valve-moving settings while valves are open, loop timing, frost on a disabled zone, tiny learned duty).
+- **Not verified:** board test and owner acceptance pending (entry updated after the board run).
+
 ## [02.11.2026] - EU conformity: first full review logged
 
 - **Who / when / why:** `sh-compliance-reviewer` (scope `all`), logged by the process chat with the owner's OK

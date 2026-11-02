@@ -22,6 +22,10 @@ Only what holds now and what comes next. A line that no longer holds is replaced
 - Model per work (02.11.2026): AGENTS.md §5 table; agents carry `model` / `effort` in their frontmatter (Opus only
   for the safety reviewer and safety tests).
 
+- Firmware session (02.11.2026): change C-9 (config export / import, FR-65.1 ... FR-65.8) in progress, then migration step 3
+  (`OutputBank`, with zones added / deleted by the user C-10 and sensor search C-11), then step 2. Board settings saved before
+  the first flash: `side-session-notes/.../board_settings_2b7564f_2026-11-02.json`.
+
 ## Next
 - Owner: hands-on acceptance of step 1 and the page (row in `docs/acceptance.md`), then the step review record and
   step 2 (`Diagnostics`).

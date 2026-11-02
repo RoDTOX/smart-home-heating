@@ -81,6 +81,10 @@ code,.mono{font:13px/1.35 ui-monospace,SFMono-Regular,Consolas,monospace}
     <h2>Sistem</h2>
     <div class="row">Locație (lat,lon) <input id="loc" placeholder="45.65,25.60"><button id="saveLoc">Salvează</button><span id="locMsg" class="s"></span></div>
     <div class="row"><a href="update">Actualizare firmware (OTA)</a></div>
+    <div class="row"><button id="cfgExport">Export setări</button><button id="cfgImportBtn">Import setări…</button>
+      <input type="file" id="cfgFile" accept=".json,application/json" style="display:none"><span id="cfgMsg" class="s"></span></div>
+    <div class="s">Fișierul conține locația, numele camerelor, senzorii și programul, nu parole. Păstrează-l privat.</div>
+    <div id="cfgReport" class="s"></div>
   </section>
   <section>
     <h2>Semnale – tot ce raportează API-ul (FR-8.1)</h2>
@@ -100,7 +104,7 @@ code,.mono{font:13px/1.35 ui-monospace,SFMono-Regular,Consolas,monospace}
 </main>
 <!-- FR-8.1: API names watched by the engineering view and their explanation [text, requirement, "v" = changes continuously] -->
 <script type="application/json" id="doc">
-{"endpoints": ["api/zones", "api/boiler/status", "api/ble/sensors", "api/diag/status", "api/config/system", "api/schedule", "api/setup/time", "api/setup/location"],
+{"endpoints": ["api/zones", "api/boiler/status", "api/ble/sensors", "api/diag/status", "api/config/system", "api/config/export", "api/schedule", "api/setup/time", "api/setup/location"],
 "doc": {
 "status": ["Răspunsul API: ok", "FR-42"],
 "autoMode": ["true = automat (program și reglaj), false = manual", "FR-1.3"],
@@ -157,6 +161,35 @@ code,.mono{font:13px/1.35 ui-monospace,SFMono-Regular,Consolas,monospace}
 "zones[].day": ["Temperatura treptei zi (°C)", "FR-29"],
 "zones[].night": ["Temperatura treptei noapte (°C)", "FR-29"],
 "zones[].away": ["Temperatura treptei plecat (°C)", "FR-29"],
+"format": ["Versiunea formatului fișierului de setări (1)", "FR-65.1"],
+"location": ["Locația pentru vreme, lat,lon (apare doar dacă e setată)", "FR-65.1"],
+"params.actuatorDelaySec": ["interlockDelay: secunde de la deschiderea unui robinet până la pornirea centralei", "FR-2"],
+"params.pumpOverrunSec": ["overrun: secunde cât rămâne deschis ultimul robinet după oprirea flăcării", "FR-3"],
+"params.burnerMinRunSec": ["burnerMinRun: timp minim de ardere (s)", "FR-4"],
+"params.burnerMinPauseSec": ["burnerMinPause: pauză minimă între două porniri (s)", "FR-4"],
+"params.rfSafetyHeartbeatSec": ["hbInterval: la câte secunde se retrimite starea centralei", "FR-17.7"],
+"params.rfSafetyHeartbeatEnabled": ["boilerLinkHeartbeat: starea centralei se retrimite periodic", "FR-55"],
+"params.freezeProtectionTemp": ["frostTemp: sub această temperatură camera se încălzește oricum (°C)", "FR-16.1"],
+"params.sensorTimeoutSec": ["sensorTimeout: secunde fără citire până la eroare de senzor", "FR-16.2"],
+"params.hysteresis": ["hysteresis: robinetul se închide la țintă + histerezis (°C)", "FR-47"],
+"params.windowThreshold": ["windowThreshold: scăderea care înseamnă fereastră deschisă (°C)", "FR-40"],
+"params.openLoopBypass": ["openLoopBypass: pornire centrală fără robinet deschis (doar mentenanță)", "FR-1.3"],
+"params.actuatorNormallyClosed": ["actuatorType: true = robineți NC (închiși fără curent)", "FR-15.1"],
+"params.pumpControlEnabled": ["pumpOutput: releul 4 comandă pompa", "FR-14.1"],
+"zones[].sensorName": ["Alias senzor al zonei (gol = după MAC)", "FR-11.3"],
+"zones[].offset": ["Corecția senzorului zonei (°C)", "FR-49"],
+"zones[].target": ["Ținta setată a zonei (°C)", "FR-29"],
+"schedule.enabled": ["Programul e activ", "FR-31"],
+"schedule.preheat": ["Pornire anticipată activă", "FR-48"],
+"schedule.window": ["Detectarea ferestrei deschise activă", "FR-40"],
+"schedule.weekday": ["Intervalele de luni până vineri, HH:MM=nivel", "FR-31"],
+"schedule.weekend": ["Intervalele de weekend, HH:MM=nivel", "FR-31"],
+"schedule.levels[].id": ["Numărul zonei", "FR-29"],
+"schedule.levels[].day": ["Temperatura de zi a zonei (°C)", "FR-29"],
+"schedule.levels[].night": ["Temperatura de noapte a zonei (°C)", "FR-29"],
+"schedule.levels[].away": ["Temperatura pentru plecat a zonei (°C)", "FR-29"],
+"learnedDuty[].id": ["Numărul zonei", "FR-47"],
+"learnedDuty[].duty": ["Duty de bază învățat al zonei (%)", "FR-47"],
 "firmwareVersion": ["Versiunea firmware 1.LL.ZZ.NN (luna, ziua, al câtelea commit al zilei)", "FR-21"],
 "buildDate": ["Data și ora build-ului", "FR-21"],
 "gitCommit": ["Commit-ul firmware-ului (-dirty = modificări necomise)", "FR-21"],
@@ -484,6 +517,41 @@ $("rooms").addEventListener("click", async e => {
   const card = e.target.closest(".room[data-i]");
   if (card) { openRoom = openRoom === +card.dataset.i ? -1 : +card.dataset.i; renderRooms(); }
 });
+
+// FR-65.1 / FR-65.6: save the settings file; send a chosen file unchanged and show what the controller did with it
+const REASON_RO = {unknown: "nume necunoscut", invalid: "valoare nepermisă", "no-zone": "zonă inexistentă",
+  "relay-taken": "releu folosit de altă zonă", "pump-relay": "releul pompei", "valve-energised": "robinet deschis", duplicate: "id repetat"};
+function renderImport(j) {
+  const sk = j.skipped.map(x => `<tr><td><code>${esc(x.name)}</code></td><td>${esc(REASON_RO[x.reason] || x.reason)} (${esc(x.reason)})</td></tr>`).join("");
+  $("cfgReport").innerHTML = `Aplicat: <b>${j.applied.length}</b> · Rămas neschimbat: <b>${j.kept.length}</b> · Sărit: <b>${j.skipped.length}</b>` +
+    (sk ? `<div class="scroll"><table>${sk}</table></div>` : "") + (j.applied.length ? `<div>Aplicat: ${j.applied.map(esc).join(", ")}</div>` : "");
+}
+$("cfgExport").onclick = async () => {
+  try {
+    const r = await fetch("api/config/export");
+    if (!r.ok) throw new Error("export HTTP " + r.status);
+    const text = await r.text();
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(new Blob([text], {type: "application/json"}));
+    a.download = "setari-" + JSON.parse(text).firmwareVersion + ".json";
+    a.click();
+    $("cfgMsg").textContent = "Salvat " + a.download;
+  } catch (e) { $("cfgMsg").textContent = e.message; }
+};
+$("cfgImportBtn").onclick = () => $("cfgFile").click();
+$("cfgFile").onchange = async e => {
+  const f = e.target.files[0];
+  if (!f) return;
+  try {
+    const r = await fetch("api/config/import", {method: "POST", headers: {"Content-Type": "application/json"}, body: await f.text()});
+    const j = await r.json();
+    if (!r.ok) throw new Error(j.message || "import HTTP " + r.status);
+    $("cfgMsg").textContent = "";
+    renderImport(j);
+  } catch (err) { $("cfgMsg").textContent = err.message; }
+  e.target.value = "";
+  refresh();
+};
 
 $("away").onclick = async () => { await api("api/schedule/enable", {away: Z.away ? 0 : 1}); refresh(); };
 
