@@ -7,6 +7,16 @@ Entries before 29.10.2026 (the system before the lean clean-up):
 
 
 
+## [02.11.2026] - Zone target out of the settings file (C-13, PB-62)
+
+- **Who / when / why:** firmware session (Claude), 02.11.2026; the owner: what must survive a test or a reflash is the
+  day, night and away setpoint of every zone, so they can re-import it and not be cold at night.
+- **Where:** FR-65.1 (baseline v2.10), `ConfigTransfer.cpp` (no `target` in the zone entries; an old file with it skips
+  it as unknown), `api_reference.md`; tests TC29.36 (no target in the file), TC29.37 (setpoints restored from an
+  earlier export), TC29.1, TC29.5, TC29.9, TC29.18, TC30.5 follow. Test infrastructure from the split of the test
+  script: TC29.16 (`_orig_post` import) and TC15.1 (repository root) fixed.
+- **Not changed:** the day, night and away levels were already in the file (`schedule.levels`).
+
 ## [02.11.2026] - One Save for all zones (C-12)
 
 - **Who / when / why:** firmware session (Claude), 02.11.2026; the owner on the board: sensors assigned to the wrong

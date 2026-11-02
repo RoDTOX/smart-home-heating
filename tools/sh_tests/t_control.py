@@ -281,7 +281,7 @@ class ControlTests:
             assert re.fullmatch(r"1\.(0[1-9]|1[0-2])\.(0[1-9]|[12]\d|3[01])\.\d{2}", ver), f"Not 1.MM.DD.NN: {ver}"
             # Same firmware, same version: recompute it from git for the commit the board reports
             commit = data.get("gitCommit", "").replace("-dirty", "")
-            root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+            root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
             sys.path.insert(0, os.path.join(root, "tools"))
             from sh_git_version import firmware_version
             expected = firmware_version(root, commit) if commit else None
