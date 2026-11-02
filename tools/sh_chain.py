@@ -6,6 +6,7 @@
   python tools/sh_chain.py unfreeze --because PB-12     only after the owner decided: tests open again
   python tools/sh_chain.py done                         the change is committed: no limits
   python tools/sh_chain.py status
+  python tools/sh_chain.py hash                         hash of all test files (for the step record)
 
 The marker `.claude/state/chain.json` is local (not committed). `sh_process_check.py process` reports an ERROR
 when the test file differs from the frozen hash, which also catches edits made through the shell.
@@ -21,12 +22,18 @@ import time
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 STATE = os.path.join(ROOT, ".claude", "state", "chain.json")
 TEST_FILE = "tools/sh_test_system.py"
+TEST_DIR = "tools/sh_tests"
 REASON = re.compile(r"^(PB|D|C|O)-\d+$")
 
 
 def test_hash():
-    with open(os.path.join(ROOT, TEST_FILE), "rb") as f:
-        return hashlib.sha256(f.read()).hexdigest()
+    """One hash over the runner and every tools/sh_tests/*.py (same rule as sh_process_check.check_chain)."""
+    names = [TEST_FILE] + sorted(f"{TEST_DIR}/{n}" for n in os.listdir(os.path.join(ROOT, TEST_DIR)) if n.endswith(".py"))
+    h = hashlib.sha256()
+    for name in names:
+        with open(os.path.join(ROOT, name), "rb") as f:
+            h.update(name.encode() + b"\0" + f.read())
+    return h.hexdigest()
 
 
 def load():
@@ -45,12 +52,15 @@ def save(state):
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("cmd", choices=["start", "freeze", "unfreeze", "done", "status"])
+    ap.add_argument("cmd", choices=["start", "freeze", "unfreeze", "done", "status", "hash"])
     ap.add_argument("label", nargs="?", default="")
     ap.add_argument("--because", default="")
     args = ap.parse_args()
     state = load()
 
+    if args.cmd == "hash":
+        print(test_hash())
+        return
     if args.cmd == "start":
         if state:
             sys.exit(f"a change is already running ('{state.get('label')}', phase {state.get('phase')}): "

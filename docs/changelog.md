@@ -479,3 +479,20 @@ Entries before 29.10.2026 (the system before the lean clean-up):
   `sh-change`, AGENTS.md §5, `docs/process.md` §3.1.
 - **Verified:** the hook exits 2 / 0 as designed in both phases and without a marker (Windows paths); the checker errors
   on a changed frozen test file. **Not verified:** a real chain run; new sessions load the hook, running ones do not.
+
+## [02.11.2026] - Process: system tests split by area
+
+- **Who / when / why:** process chat (Claude), 02.11.2026; the owner: the test file is far too long (4,511 lines, one
+  agent run read it whole for ~96k tokens).
+- **Where:** `tools/sh_test_system.py` is now the runner (list of tests, traceability, report, `main`);
+  `tools/sh_tests/base.py` (HTTP helpers, requirement registry, `TestResult`, `SuiteBase`) and seven area modules
+  `t_health`, `t_hydraulics`, `t_control`, `t_ui_history`, `t_safety_features`, `t_export_import`, `t_zones`, each one a
+  mixin class. Tests only moved: all 164 methods and class constants are identical (AST comparison with the old file),
+  129 tests listed. Adapted: `tools/sh_process_check.py` (`test_files()`, tests parsed per file, `file:line` refs,
+  frozen-hash check over all files), `tools/sh_chain.py` (hash over all test files, new command `hash`),
+  `sh_chain_guard.py` and `sh_clean_room.py` (the whole `tools/sh_tests/` folder), agents `sh-test-writer`,
+  `sh-test-reviewer`, `sh-assessor`, skills `sh-write-tests`, `sh-verify-firmware`, `docs/process.md` §2 R7, §3.1, SWE.6 row.
+- **Verified:** AST identical for every method; `trace` output equal to the old one apart from `file:line`; checker
+  PASS (0 errors); guard and clean-room hook exit codes for the folder in both phases; a changed test file after
+  `freeze` gives the ERROR, restored gives PASS. **Not verified:** a run against the board (the suite itself was not
+  started; the firmware session owns the board).

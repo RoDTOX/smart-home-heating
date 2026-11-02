@@ -14,7 +14,7 @@ owner accepted is shown as `INFO waived` (§3). The default run prints each sect
 | SYS.2 / SWE.1 | Requirements (`FR-x`, `NFR-x`) with level and verification method (R7) | `docs/requirements_and_features.md` | `sh_process_check.py reqs`, `trace`, `sh-req-reviewer` |
 | SYS.2 / SWE.1 | Requirements review record, with the accepted checker warnings (its §7) | `docs/requirements_review.md` | §3 exit criteria; `reqs` / `trace` read the waivers |
 | SWE.2 | Architecture; requirement → module allocation (§3.2 Requirements column); dependency rules R-A1…R-A7 (§3.3) | `docs/architecture.md` | `trace`, `arch`, `sh-code-reviewer` (code against it) |
-| SWE.6 | Qualification tests against the requirements, run on the board. IDs keep their historical `SWE.5-TCxx.y` prefix so they stay stable | `tools/sh_test_system.py` → `docs/system_test_report.md` | `trace` (incl. hollow tests), `sh-test-reviewer` (§3.2, clean room); written first by `sh-test-writer` (§3.1) |
+| SWE.6 | Qualification tests against the requirements, run on the board. IDs keep their historical `SWE.5-TCxx.y` prefix so they stay stable | `tools/sh_tests/t_<area>.py` (runner `tools/sh_test_system.py`) → `docs/system_test_report.md` | `trace` (incl. hollow tests), `sh-test-reviewer` (§3.2, clean room); written first by `sh-test-writer` (§3.1) |
 | VAL.1 | Owner acceptance: the owner uses the heating on the board | `docs/acceptance.md` | `release` (§5) |
 | SUP.1 | Quality assurance: one review record per migration step | `docs/process_review.md`, then `docs/review_step_<n>.md` (§9) | `sh-assessor` (independent check of the evidence), owner ✅ |
 | SUP.8 | Configuration management: branches, commits, tags, build identity, baselines | git, `tools/sh_git_version.py`, `include/Version.h` | `process`, `release`, `board` |
@@ -52,7 +52,7 @@ goes through §2-§9 in order and asks the owner only to decide a requirement ch
 | R4 DTC | A DTC is defined once, in the DTC list, as `` `DTC-xxx`: `ERR_NAME` `` (meaning). Every other citation carries the name. The firmware raises only defined DTCs. | WARN on 2 names, unnamed citation, undefined, never raised |
 | R5 Testable leaf | One requirement = one behaviour a test can fail on. Tests cite the leaf ID (`FR-10.2`), not the parent. | WARN "only covered via parent" |
 | R6 Language | English (AGENTS.md §6). | — |
-| R7 Level and method | Right after the phase tag (after the label when there is none): `{LEVEL; METHOD}`, e.g. `- **FR-2 (Title):** *[now]* {SW; test} …`. LEVEL is `SW`, `HW` or `install`; METHOD is `test`, `board`, `inspection` or `analysis`; both may be comma lists (`{SW, install; test, inspection}`). `test` and `board` are verified by a test in `tools/sh_test_system.py` (`board`: needs the installed plant or a long run); `inspection` and `analysis` are verified without a test, the result goes into the step review record (§9). A LEVEL without `SW` needs no software module. Retired (`~~`) items have none. | WARN missing / unknown value; `trace` counts coverage per method, only `test` / `board` need a test |
+| R7 Level and method | Right after the phase tag (after the label when there is none): `{LEVEL; METHOD}`, e.g. `- **FR-2 (Title):** *[now]* {SW; test} …`. LEVEL is `SW`, `HW` or `install`; METHOD is `test`, `board`, `inspection` or `analysis`; both may be comma lists (`{SW, install; test, inspection}`). `test` and `board` are verified by a test in `tools/sh_tests/` (`board`: needs the installed plant or a long run); `inspection` and `analysis` are verified without a test, the result goes into the step review record (§9). A LEVEL without `SW` needs no software module. Retired (`~~`) items have none. | WARN missing / unknown value; `trace` counts coverage per method, only `test` / `board` need a test |
 
 `reqs` is a heuristic: it finds a quantity by keyword and takes the nearest value. A WARN is a question for the
 review, not a verdict. When a new safety quantity appears, add it to `QUANTITIES` in the checker.
@@ -114,7 +114,7 @@ A requirement change a step needs goes through §3 before its tests are written.
 
 1. **Tests first, in a clean room.** `sh-test-writer` writes the step's tests from the requirements, the
    architecture and `api_reference.md`; `sh-test-reviewer` reviews them. Both agents cannot read `src/`,
-   `include/`, `web/`, `lib/` or the other tools, and the writer can edit only `tools/sh_test_system.py`
+   `include/`, `web/`, `lib/` or the other tools, and the writer can edit only the tests (`tools/sh_tests/`, `tools/sh_test_system.py`)
    (hook `.claude/hooks/sh_clean_room.py`). Skill `sh-write-tests`.
 2. **Red run.** On the firmware before the step, every new test fails. One that passes is behaviour that exists
    already (the owner confirms it) or a hollow test (rewritten).

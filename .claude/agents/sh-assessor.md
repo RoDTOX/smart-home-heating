@@ -39,7 +39,7 @@ against the rules of its time: test-first evidence (E2) is not required there - 
   none has an open row in `requirements_review.md` or an open `D-n`.
 - **E2 Tests first.** The step record names the red run: board commit, the new tests and their result (failed).
   A commit `test(...)` with the frozen tests is an ancestor of the step's first code commit
-  (`git merge-base --is-ancestor`). After it, `tools/sh_test_system.py` changed only in commits that cite a
+  (`git merge-base --is-ancestor`). After it, the test files (`tools/sh_test_system.py`, `tools/sh_tests/`) changed only in commits that cite a
   `PB-n`, a `D-n` or a requirement change (read their messages).
 - **E3 Reviews acted on.** The step record has the results of `sh-test-reviewer`, `sh-code-reviewer`,
   `sh-safety-reviewer` (when code changed) and `sh-compliance-reviewer`. Each FINDING, BLOCKER or GAP is fixed

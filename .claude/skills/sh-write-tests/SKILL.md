@@ -19,9 +19,9 @@ written against an undecided requirement.
 
 ## 2. Write (clean room)
 
-Launch `sh-test-writer` with the ID list and the area of the test file to read (find it with `grep -n "TC"` on
+Launch `sh-test-writer` with the ID list and the area module of `tools/sh_tests/` to read (find it with `grep -rn "TC" tools/sh_tests` on
 the nearest existing tests of the same requirement group). It reads only the documents and edits only
-`tools/sh_test_system.py` (a hook enforces it). Do not pass it code or hints from the code. When the list holds a requirement of the
+`tools/sh_tests/` and the runner list in `tools/sh_test_system.py` (a hook enforces it). Do not pass it code or hints from the code. When the list holds a requirement of the
 AGENTS.md §3 safety list, launch it and `sh-test-reviewer` with model `opus`, effort `high` (AGENTS.md §5, model per work);
 otherwise they keep their own model.
 
@@ -32,7 +32,7 @@ the requirements review (§3), not something to work around.
 
 Launch `sh-test-reviewer` once on the changed tests. A FINDING goes back to `sh-test-writer` once with the finding
 text; the fixed tests are checked by the owner's gate, not by a second review run; what remains goes into the
-report. Write `git hash-object tools/sh_test_system.py` into `docs/review_step_<n>.md` (`sh-verify-firmware` step 3
+report. Write `python tools/sh_chain.py hash` into `docs/review_step_<n>.md` (`sh-verify-firmware` step 3
 skips a second review of the same hash).
 
 ## 4. Red run
@@ -59,7 +59,7 @@ result (`docs/process.md` §9).
 
 Inside `sh-change`, commit the frozen tests alone on the work branch, before any code:
 `test(<scope>): step <n> tests, red on <board commit>` - the evidence `sh-assessor` checks that the tests came
-first. Outside the chain, record `git hash-object tools/sh_test_system.py` in the step record instead.
+first. Outside the chain, record `python tools/sh_chain.py hash` in the step record instead.
 
 ## Report
 

@@ -26,6 +26,10 @@ Only what holds now and what comes next. A line that no longer holds is replaced
   (`OutputBank`, with zones added / deleted by the user C-10 and sensor search C-11), then step 2. Board settings saved before
   the first flash: `side-session-notes/.../board_settings_2b7564f_2026-11-02.json`.
 
+- Tests (02.11.2026): the system tests are split by area: `tools/sh_tests/t_<area>.py` (one mixin class each) and
+  `base.py`; `tools/sh_test_system.py` is the runner. Checker, guard, chain hash and clean-room hook cover the
+  whole set. Largest module: `t_export_import.py` (1,700 lines), split further when it grows.
+
 - Workflow modes (02.11.2026): light by default (the chat does everything; one safety review for the safety list), full
   (all agents) on the owner's request and before a release - AGENTS.md §5.
 

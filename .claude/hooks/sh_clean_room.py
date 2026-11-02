@@ -11,9 +11,11 @@ import re
 import shlex
 import sys
 
-TEST_FILE = "tools/sh_test_system.py"
-READ_OK = ("docs/", ".agent/", ".claude/", "AGENTS.md", TEST_FILE, "tools/test_system.py")  # old name, for git diff
-EDIT_OK = (TEST_FILE,)
+TEST_FILE = "tools/sh_test_system.py"  # the runner; the tests are in tools/sh_tests/ (one module per area)
+TEST_DIR = "tools/sh_tests/"
+TESTS = f"{TEST_FILE} and {TEST_DIR}"
+READ_OK = ("docs/", ".agent/", ".claude/", "AGENTS.md", TEST_FILE, TEST_DIR, "tools/test_system.py")  # old name, for git diff
+EDIT_OK = (TEST_FILE, TEST_DIR)
 SHELL_META = re.compile(r"[|;&<>`$\n]")
 PATCH_FLAGS = re.compile(r"^(-p|-u|-c|-m|--patch|--cc|--word-diff.*|-L.*|-U.*|--unified.*|--ext-diff|--textconv)$")
 WHY = "Clean room (docs/process.md §3.1): tests come from the requirements and the architecture, not from the code."
@@ -63,7 +65,7 @@ def check_bash(cmd, cwd):
             block("Blocked: git diff needs '-- <paths>', e.g. git diff origin/main -- tools/sh_test_system.py")
         bad = [p for p in paths if not allowed(p, cwd, READ_OK)]
         if bad:
-            block(f"Blocked: {', '.join(bad)} is outside docs/, .agent/, AGENTS.md and {TEST_FILE}.")
+            block(f"Blocked: {', '.join(bad)} is outside docs/, .agent/, AGENTS.md and {TESTS}.")
         return
     block("Blocked: allowed commands are 'python tools/sh_process_check.py trace|reqs', 'git status', "
           "'git log ...' and 'git diff <refs> -- <docs or test paths>'.")
@@ -74,15 +76,15 @@ def main():
     tool, inp, cwd = data.get("tool_name", ""), data.get("tool_input") or {}, data.get("cwd") or os.getcwd()
     if tool == "Read":
         if not allowed(inp.get("file_path"), cwd, READ_OK):
-            block(f"Blocked: {inp.get('file_path')} - read only docs/, .agent/, AGENTS.md and {TEST_FILE}.")
+            block(f"Blocked: {inp.get('file_path')} - read only docs/, .agent/, AGENTS.md and {TESTS}.")
     elif tool in ("Grep", "Glob"):
         if not allowed(inp.get("path"), cwd, READ_OK):
-            block(f"Blocked: give {tool} a path inside docs/, .agent/, AGENTS.md or {TEST_FILE} "
+            block(f"Blocked: give {tool} a path inside docs/, .agent/, AGENTS.md or {TESTS} "
                   f"(got {inp.get('path') or 'the repo root'}).")
     elif tool in ("Edit", "Write", "NotebookEdit"):
         target = inp.get("file_path") or inp.get("notebook_path")
         if not allowed(target, cwd, EDIT_OK):
-            block(f"Blocked: {target} - this agent edits only {TEST_FILE}.")
+            block(f"Blocked: {target} - this agent edits only {TESTS}.")
     elif tool == "Bash":
         check_bash(inp.get("command", ""), cwd)
     # Other tools (e.g. the report hand-back) touch no files; the agent's `tools` list limits what exists.

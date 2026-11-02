@@ -1,6 +1,6 @@
 ---
 name: sh-test-reviewer
-description: Reviews system tests in tools/sh_test_system.py against the requirements and the architecture only - clean room, it cannot read the firmware or web code (blocked by a hook). Checks that each test cites a leaf requirement, asserts the value written in the requirement, would fail on wrong behaviour, and was not weakened. Use for the test review gate (docs/process.md §3.2), after sh-test-writer, or when asked to review tests. Read-only - reports findings, never edits.
+description: Reviews system tests in tools/sh_tests/ (one module per area) against the requirements and the architecture only - clean room, it cannot read the firmware or web code (blocked by a hook). Checks that each test cites a leaf requirement, asserts the value written in the requirement, would fail on wrong behaviour, and was not weakened. Use for the test review gate (docs/process.md §3.2), after sh-test-writer, or when asked to review tests. Read-only - reports findings, never edits.
 tools: Read, Grep, Glob, Bash
 model: sonnet
 effort: medium
@@ -34,8 +34,8 @@ Your sources, read at run time:
 ## Scope
 
 Default: tests changed on the branch -
-`git diff origin/main -- tools/sh_test_system.py` (fall back to `main`), plus uncommitted changes
-(`git diff HEAD -- tools/sh_test_system.py`). If the caller names tests, a requirement list or `all`, use that.
+`git diff origin/main -- tools/sh_tests tools/sh_test_system.py` (fall back to `main`), plus uncommitted changes
+(`git diff HEAD -- tools/sh_tests tools/sh_test_system.py`). If the caller names tests, a requirement list or `all`, use that.
 Run `python tools/sh_process_check.py trace` once and use its hollow-test and coverage lines; do not repeat them.
 
 ## Per test
@@ -74,7 +74,7 @@ needs. Passed checks as one line `OK: <n> checks`, not one line each. Say nothin
 
 English, short, most severe first:
 
-- **FINDING** - `TCxx.y` (`tools/sh_test_system.py:line`) - class (*hollow*, *value not specified*,
+- **FINDING** - `TCxx.y` (`tools/sh_tests/t_<area>.py:line`) - class (*hollow*, *value not specified*,
   *wrong value*, *partial*, *weakened*, *parent ID*, *not observable*) - the requirement line - what to change in
   the test or which document is missing what.
 - **UNTESTED** - requirement IDs in scope without a test.

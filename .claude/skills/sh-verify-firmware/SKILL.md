@@ -33,7 +33,7 @@ WARN lines (`python tools/sh_process_check.py trace|reqs|arch|process`) only whe
 
 Skipped with `light`. Launch the `sh-test-reviewer` agent (clean room - it cannot read the code) on the tests changed on the branch
 (`docs/process.md` §3.2). Do not pass it code. Any FINDING stops the pipeline. Never edit a test to make it pass.
-Skip it when `sh-write-tests` already reviewed these tests and `git hash-object tools/sh_test_system.py` equals the
+Skip it when `sh-write-tests` already reviewed these tests and `python tools/sh_chain.py hash` equals the
 hash in `docs/review_step_<n>.md`; otherwise one run, on the tests that changed since.
 
 ## 4. Code and safety review of the diff

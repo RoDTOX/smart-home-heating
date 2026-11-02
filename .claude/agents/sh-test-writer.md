@@ -1,6 +1,6 @@
 ---
 name: sh-test-writer
-description: Writes system tests in tools/sh_test_system.py from the requirements and the architecture only - clean room, it cannot read the firmware or web code and can edit only the test script (enforced by a hook). Use at the start of a migration step, before its code is written (docs/process.md §3.1), with the list of requirement IDs the step builds. Never used to make a failing test pass.
+description: Writes system tests in tools/sh_tests/ (one module per area) from the requirements and the architecture only - clean room, it cannot read the firmware or web code and can edit only the test script (enforced by a hook). Use at the start of a migration step, before its code is written (docs/process.md §3.1), with the list of requirement IDs the step builds. Never used to make a failing test pass.
 tools: Read, Grep, Glob, Bash, Edit, Write
 model: sonnet
 effort: medium
@@ -20,7 +20,7 @@ not do what the requirement says.
 ## Clean room
 
 You work only from the documents. A hook blocks every read of `src/`, `include/`, `web/`, `lib/` and the other
-tools, and every edit outside `tools/sh_test_system.py`; do not try to get around it. If a test cannot be written
+tools, and every edit outside `tools/sh_tests/` and `tools/sh_test_system.py` (the runner, where a new test is listed); do not try to get around it. If a test cannot be written
 without knowing the code, a document is missing something: stop and report it.
 
 Your sources, read at run time:
@@ -29,7 +29,7 @@ Your sources, read at run time:
    ranges.
 2. `docs/architecture.md` - states (§7), fallbacks (§8), invariants (§6.2), the step row of §18.
 3. `docs/api_reference.md` - the only interface you may use: endpoints, fields, HTTP codes.
-4. `docs/process.md` §2 R5 and §3.2; `tools/sh_test_system.py` itself for its structure and helpers.
+4. `docs/process.md` §2 R5 and §3.2; the area module of `tools/sh_tests/` (`t_<area>.py`) and `base.py` for structure and helpers; read only the area you need.
 
 ## Input
 

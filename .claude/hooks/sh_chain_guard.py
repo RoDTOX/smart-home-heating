@@ -11,7 +11,7 @@ import json
 import os
 import sys
 
-TEST_FILE = "tools/sh_test_system.py"
+TEST_FILES = ("tools/sh_test_system.py", "tools/sh_tests/")  # the runner and the per-area test modules
 CODE_DIRS = ("src/", "include/", "web/")
 GENERATED = ("_html_gz.h", "git_version.h")
 
@@ -43,12 +43,12 @@ def main():
 
     phase = state.get("phase")
     label = state.get("label", "")
-    if rel.lower() == TEST_FILE and phase == "code":
+    if rel.lower().startswith(TEST_FILES) and rel.endswith(".py") and phase == "code":
         block(f"the tests of '{label}' are frozen. If a test or the requirement is wrong or unclear, STOP and ask the "
               "owner (decision, plain Romanian, options); never change a test to make it pass. Only after the owner "
               "decided: python tools/sh_chain.py unfreeze --because <PB-n|D-n|C-n>.")
     if rel.startswith(CODE_DIRS) and not rel.endswith(GENERATED) and phase == "tests":
-        block(f"tests first for '{label}'. Write the tests in {TEST_FILE} from the requirement, run them on the board "
+        block(f"tests first for '{label}'. Write the tests in tools/sh_tests/ (the area file) from the requirement, run them on the board "
               "(they fail), then python tools/sh_chain.py freeze. The code opens after the freeze.")
     sys.exit(0)
 
