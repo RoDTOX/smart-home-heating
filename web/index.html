@@ -498,7 +498,7 @@ async function refresh() {
   try {
     const admin = isAdmin();
     const eps = admin ? DOC.endpoints : ["api/zones", "api/ble/sensors", "api/boiler/status", "api/diag/status"];
-    for (const ep of eps) RAW[ep] = await api(ep);
+    for (const ep of eps) RAW[ep] = ep === "api/setup/discovered-sensors" ? await api("api/setup/discovered-sensors") : await api(ep);
     Z = RAW["api/zones"]; B = RAW["api/ble/sensors"].sensors; ST = RAW["api/boiler/status"]; D = RAW["api/diag/status"];
     S = RAW["api/schedule"] || S;
     renderHeader(); renderRooms(); renderAlerts();

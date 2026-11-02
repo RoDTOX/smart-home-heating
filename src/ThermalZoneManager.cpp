@@ -648,7 +648,7 @@ ScheduleConfig ThermalZoneManager::getFactoryDefaultSchedule() {
 }
 
 bool ThermalZoneManager::setLevelTemp(size_t index, ComfortLevel level, float temp) {
-    if (index >= MAX_THERMAL_ZONES || level >= LEVEL_COUNT || temp < 5.0f || temp > 30.0f) return false;
+    if (index >= _zoneCount || level >= LEVEL_COUNT || temp < 5.0f || temp > 30.0f) return false;
     _scheduleConfig.levelTemps[level][index] = temp;
     saveSchedule();
     evaluateSchedule(millis());

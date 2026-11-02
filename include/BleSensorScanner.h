@@ -56,6 +56,7 @@ public:
     void stopSearch();
     bool isSearching() const { return _searching; }
     uint32_t searchRemainingSec() const;
+    void prune();  // outside a search: drops the sensors no zone uses (FR-11.6)
     bool isAssignedSensor(const BleSensorData* s) const { return isAssigned(s->mac, s->name); }
 
     bool isScanning() const { return _isScanning; }
@@ -73,7 +74,6 @@ private:
     bool _searching = false;
     uint32_t _searchStartMs = 0;
     uint32_t _lastPruneMs = 0;
-    void prune();  // drops the sensors no zone uses
     bool isAssigned(const char* mac, const char* name) const { return _assigned && _assigned(mac, name); }
 
     void updateOrAddSensor(const char* mac, const char* name, float temp, float hum, uint8_t bat, int8_t rssi, SensorSource src);

@@ -401,6 +401,7 @@ void handleApiZoneSensor() {
 }
 
 void handleApiBleSensors() {
+  if (!bleScanner.isSearching()) bleScanner.prune();
   String json;
   json.reserve(1536);
   json = "{";
@@ -447,6 +448,7 @@ void handleApiSetupLocation() {
 }
 
 void handleApiSetupDiscoveredSensors() {
+  if (!bleScanner.isSearching()) bleScanner.prune();  // FR-11.6: right after a zone was deleted or re-mapped
   String json;
   json.reserve(1536);
   json = "{\"active\":" + String(bleScanner.isSearching() ? "true" : "false") +
