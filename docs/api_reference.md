@@ -40,7 +40,10 @@ Invalid schedule input returns `400`.
 |---|---|---|---|
 | GET/POST | `/api/setup/location` | `coords` = `lat,lon` | Location for Open-Meteo |
 | GET | `/api/setup/time` | `refreshWeather` | NTP time and weather |
-| GET | `/api/setup/discovered-sensors` | | BLE sensors with assigned zone (0-based) |
+| POST | `/api/setup/zone-add` | `name` (optional) | Adds a zone (FR-73): `{"status":"ok","zone":N,"relayPin":P}` (N = its number, 1-based, P = the free relay output it got); HTTP 409 when no relay output is free, nothing changed |
+| POST | `/api/setup/zone-delete` | `zone` (1-based number) | Deletes the zone (FR-74); later zones move up one number; HTTP 409 while its valve is energised, 400 for a number that does not exist, nothing changed |
+| POST | `/api/setup/sensor-search` | `action` = `start`\|`stop` | Starts or stops the sensor search (FR-11.5); answers like the GET below; another `action` → 400 |
+| GET | `/api/setup/discovered-sensors` | | Sensor search result (FR-11.5): `active`, `remainingSec` (0 when not active, at most 600), `sensors[]` (`mac`, `name`, `temp`, `hum`, `bat`, `rssi`, `ageSec`, `zone` = number of the zone it is assigned to or 0). Empty outside a search except the sensors assigned to zones |
 | POST | `/api/setup/map-zone` | `zone` (0-based), `name`, `mac`, `sname`, `pin`, `target`, `hyst`, `enabled`, `offset` | Zone commissioning (FR-11.3): all fields checked first, HTTP 400 and nothing changed when a relay is used by another zone or the pump, a zone is switched on without sensor, the name is empty / > 31 bytes / has `"` or `\`, the MAC is malformed, target outside 15–30 °C or offset outside −3..+3 °C |
 | POST | `/api/zones/sensor` | | Assign sensor to zone |
 | POST | `/api/zones/toggle` | | Enable/disable zone |
@@ -50,7 +53,7 @@ Invalid schedule input returns `400`.
 | GET/POST | `/api/config/system` | see below | Safety timings and settings of requirements §6 (FR-42) |
 | GET | `/api/config/export` | | Settings file (FR-65.1), see below |
 | POST | `/api/config/import` | the settings file | Applies the valid settings, reports the rest (FR-65.3), see below |
-| POST | `/api/relay/test` | | Relay test (manual mode) |
+| POST | `/api/relay/test` | `pin`, `state` | Relay test (FR-43): `pin` = GPIO of a relay output (32, 33, 25, 26), `state` = `1` opens the valve of that output, `0` closes it, respecting NC / NO (FR-15.1); HTTP 409 unless the mode is MANUAL and the output belongs to a zone or is the pump; 400 for a pin that is no relay output |
 | POST | `/api/diag/exercise` | | Anti-seize valve exercise |
 
 ## Boiler (manual / service)
@@ -94,7 +97,8 @@ field is unknown, read-only or outside its §6 range, the request returns HTTP 4
 | `pumpControlEnabled` | `pumpOutput` | true = relay 4 | yes |
 | `rfMinCooldownSec` | FR-17.2 (fixed 3 s) | — | read only |
 | `pumpRelayPin` | relay 4 (GPIO26) | — | read only |
-| `zones[]` | `id`, `name`, `mac`, `relayPin`, `enabled` | — | read only (use `/api/setup/map-zone`) |
+| `zonesCount` | number of zones (§6), 0-32 | — | read only (use `/api/setup/zone-add`, `/api/setup/zone-delete`) |
+| `zones[]` | `id`, `name`, `mac`, `relayPin`, `enabled`: one entry per existing zone | — | read only (use `/api/setup/map-zone`) |
 
 Removed in migration step 1: `boilerDelaySec`, `turReturSensors` (stored but never used), `shortCyclingSec`
 (replaced by `burnerMinRunSec` / `burnerMinPauseSec`), per-zone `hysteresis` and `windowDropThreshold` (one global

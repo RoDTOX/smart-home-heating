@@ -450,7 +450,7 @@ come in fixed slots. FR-65 (export / import) was `[later]`, after step 14.
   outside a search only the sensors assigned to zones are kept (fixes PB-55).
 - Order: the FR-65 change first, then migration step 3 (`OutputBank`, with C-10 and C-11), then step 2.
 **Decided by**: owner (chat, 02.11.2026, through the coordinator session: decisions 1-4 of the owner's request).
-**Affects**: FR-65.1, FR-65.2, FR-65.3, FR-65.4, FR-65.5, FR-65.6, FR-65.7, FR-65.8, FR-65.8, FR-58, FR-8.1, FR-11.3, FR-69, requirements §6 `number of zones`;
+**Affects**: FR-65.1, FR-65.2, FR-65.3, FR-65.4, FR-65.5, FR-65.6, FR-65.7, FR-65.8, FR-58, FR-8.1, FR-11.3, FR-69, requirements §6 `number of zones`;
 `docs/requirements_review.md` §9 C-9 (C-10, C-11 when step 3 starts), `docs/plan.md`, `docs/architecture.md` §3.2,
 §9.3, §18, `docs/api_reference.md`, `docs/compliance.md` CMP-5.
 **Consequences**: the board can be exported before each flash and restored after; an import is a full
