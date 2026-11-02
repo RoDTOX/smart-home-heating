@@ -31,7 +31,7 @@ const NumParam NUM_PARAMS[] = {
 };
 const char* const FLAG_PARAMS[] = {"rfSafetyHeartbeatEnabled", "openLoopBypass", "actuatorNormallyClosed",
                                    "pumpControlEnabled"};
-const char* const ZONE_FIELDS[] = {"id", "name", "mac", "sensorName", "relayPin", "enabled", "offset", "target"};
+const char* const ZONE_FIELDS[] = {"id", "name", "mac", "sensorName", "relayPin", "enabled", "offset"};
 const char* const SCHEDULE_KEYS[] = {"enabled", "preheat", "window", "weekday", "weekend", "levels"};
 const char* const TOP_KEYS[] = {"format", "firmwareVersion", "params", "zones", "schedule", "location",
                                 "learnedDuty"};
@@ -245,11 +245,6 @@ void planZone(size_t i, ZonePlan& zp, Report& rep) {
         if (inRange(v, -3.0, 3.0)) zp.offset = (float)round1(v.as<double>());  // FR-49
         else bad = true;
     }
-    if (zp.obj.containsKey("target")) {
-        v = zp.obj["target"];
-        if (inRange(v, 15.0, 30.0)) zp.target = (float)round1(v.as<double>());
-        else bad = true;
-    }
     if (bad) { zp.reason = "invalid"; return; }
     // A zone is switched on only with a sensor (FR-11.3)
     if (zp.enabled && zp.mac[0] == '\0' && zp.sensorName[0] == '\0') { zp.reason = "invalid"; return; }
@@ -339,7 +334,7 @@ void importZones(JsonVariantConst zv, Report& rep) {
         thermalZones.setTempOffset(i, zp.offset);
         rep.ok(zoneName(i + 1), String("name '") + zp.name + "', mac '" + zp.mac + "', sensorName '" + zp.sensorName +
                                     "', relayPin " + zp.pin + ", enabled " + (zp.enabled ? "true" : "false") +
-                                    ", offset " + String(zp.offset, 1) + ", target " + String(zp.target, 1));
+                                    ", offset " + String(zp.offset, 1));
     }
 }
 
@@ -482,7 +477,6 @@ String configExportJson() {
         z["relayPin"] = c.relayPin;
         z["enabled"] = c.enabled;
         z["offset"] = round1(c.tempOffset);
-        z["target"] = round1(c.targetTemp);
     }
 
     JsonObject s = d["schedule"].to<JsonObject>();
