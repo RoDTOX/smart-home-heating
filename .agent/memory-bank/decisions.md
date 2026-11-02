@@ -504,3 +504,13 @@ Unfreezing needs the owner's decision (`--because PB-n | D-n | C-n | O-n`). The 
 **Affects**: skill `sh-change`, AGENTS.md §5, `docs/process.md` §3.1, `tools/sh_process_check.py`.
 **Consequences**: the chat can still read the code before writing the tests; the guard fixes the order and the
 immutability, not the independence of the author.
+
+## 2026-11-02 — One Save for all zones, sensors checked on the result (C-12)
+**Context**: with one Save button per zone, a sensor cannot move to another zone while the old zone still holds it
+(map-zone returns "Sensor already used by zone n"); the owner assigned sensors wrongly and could not correct them.
+**Decision**: the engineering view saves all zones with one button; the zones are checked together on the
+configuration that results, as the import already does for relays (FR-65.5); the import checks sensors the same way.
+Single-zone `map-zone` (API, console) keeps its strict check.
+**Decided by**: owner (chat, 02.11.2026).
+**Affects**: FR-11.3, FR-65.5, FR-65.6, `api_reference.md`, `web/index.html`, `src/ConfigTransfer.cpp`.
+**Consequences**: a bad zone is skipped alone, the others are saved; a partial save is reported on the page.

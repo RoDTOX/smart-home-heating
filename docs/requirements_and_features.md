@@ -1,11 +1,11 @@
 # System and Software Requirements — Smart Home Heating
 
-**Baseline:** v2.8, 02.11.2026. v2 (31.10.2026) derived from the owner-approved review
+**Baseline:** v2.9, 02.11.2026. v2 (31.10.2026) derived from the owner-approved review
 [`requirements_review.md`](requirements_review.md); v2.1 adds the process review rows QA-7, QA-8, QA-9, QA-10,
 QA-11, QA-12, QA-13, QA-14, QA-16 ([`process_review.md`](process_review.md)); v2.2 adds the owner decisions D37,
 D38, D39 and the architecture observations O-12, O-13, O-14, O-15, and closes the review (applied as listed in
 `requirements_review.md` §6 and §8); v2.3 adds O-16, v2.4 the 10 s bound of NFR-1.8, v2.5 the proxy clause of FR-8.1, v2.6 the owner's page test
-(C-3…C-8) v2.7 the configuration export / import FR-65.1, FR-65.2, FR-65.3, FR-65.4, FR-65.5, FR-65.6, FR-65.7, FR-65.8 (C-9) and v2.8 zones added and deleted by the user and the sensor search (C-10, C-11), changes after closure
+(C-3…C-8) v2.7 the configuration export / import FR-65.1, FR-65.2, FR-65.3, FR-65.4, FR-65.5, FR-65.6, FR-65.7, FR-65.8 (C-9) v2.8 zones added and deleted by the user and the sensor search (C-10, C-11) and v2.9 one Save for all zones (C-12), changes after closure
 (`requirements_review.md` §9).
 **Replaces:** the Romanian specification of 07.10.2026 (v1). IDs are kept where the meaning did not change.
 **Related:** [`plan.md`](plan.md), [`changelog.md`](changelog.md), [`hardware_esp32_relay.md`](hardware_esp32_relay.md),
@@ -232,6 +232,10 @@ one example:
   - A zone name is 1-31 bytes and a sensor name 0-31 bytes, UTF-8, without `"`, `\` or a control character.
   - A sensor MAC serves at most one zone; a setting that gives a MAC already used by another zone returns HTTP 400
     and changes nothing.
+  - The engineering view saves all zones with one button (`Salvează zonele`): one request carries every zone shown,
+    and the zones are checked together as in FR-65.5, on the configuration that results, so two zones can exchange
+    their sensors or relays in one save. A zone that breaks a check is not saved and the page shows its reason; the
+    other zones are saved.
   - A relay output serves at most one zone, and not the one the pump uses (FR-14.1); a zone is switched on only with
     a sensor and a relay output. A rejected setting returns HTTP 400 and changes nothing.
   - A zone exists once it is added (FR-73) and until it is deleted (FR-74); switching it on or off does not change
@@ -515,14 +519,16 @@ one example:
   the export; an import never adds or deletes a zone. The pump setting of the file is
   checked first, like set alone, against the zones as they are before the import; the zones of the file are then
   checked against the resulting pump. In the configuration that results, a relay output serves at most one zone and
-  not the pump (FR-11.3, FR-14.1): every zone of the file that would break this is skipped (reasons `relay-taken`,
-  `pump-relay`), and the check repeats until no conflict is left. A zone that FR-11.3 would reject if set alone
+  not the pump (FR-11.3, FR-14.1), and a sensor MAC serves at most one zone (FR-11.3): every zone of the file that
+  would break this is skipped (reasons `relay-taken`, `pump-relay`, `sensor-taken`), and the check repeats until no
+  conflict is left. A MAC held by a zone of the controller that the file moves away is free for another zone of the
+  file. A zone that FR-11.3 would reject if set alone
   because its valve is energised is skipped (reason `valve-energised`). The same `id` twice in `zones`,
   `schedule.levels` or `learnedDuty` skips every entry with that `id` (reason `duplicate`).
 - **FR-65.6 (Import report):** *[now]* {SW; test} The HTTP 200 answer has the lists `applied`, `kept` and `skipped`,
   with the names of `api_reference.md`. Every setting of the export (FR-65.1, not `format` or `firmwareVersion`) and
   every unknown key of the file is in exactly one list; `kept` = missing from the file. Each `skipped` entry has a
-  `reason`: `unknown`, `invalid`, `no-zone`, `relay-taken`, `pump-relay`, `valve-energised` or `duplicate`. For each
+  `reason`: `unknown`, `invalid`, `no-zone`, `relay-taken`, `pump-relay`, `sensor-taken`, `valve-energised` or `duplicate`. For each
   applied setting the console log has one line with its report name and new value.
 - **FR-65.7 (Rejected file):** *[now]* {SW; test} The checks run in this order and the first that fails answers, with
   nothing changed: authentication (HTTP 401, FR-58); `Content-Type` other than `application/json` (HTTP 415; a
