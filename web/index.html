@@ -68,7 +68,7 @@ code,.mono{font:13px/1.35 ui-monospace,SFMono-Regular,Consolas,monospace}
   </section>
   <section>
     <h2>Senzori (FR-11.5)</h2>
-    <div class="row"><button id="searchToggle">Caută senzori</button><span id="searchInfo" class="s"></span></div>
+    <div class="row"><button id="searchToggle">Caută senzori</button><button id="searchStop" style="display:none">Stop</button><span id="searchInfo" class="s"></span></div>
     <div class="s">Căutarea ține până apeși Stop, cel mult 10 minute. În afara căutării controlerul ține doar senzorii zonelor.</div>
     <div class="scroll"><table id="sensors"></table></div>
   </section>
@@ -629,6 +629,7 @@ $("searchToggle").onclick = () => {
   const F = RAW["api/setup/discovered-sensors"] || {active: false};
   searchAction(F.active ? "stop" : "start");
 };
+$("searchStop").onclick = () => searchAction("stop");
 $("setup").addEventListener("click", async e => {
   const d = e.target.closest("button[data-del]");
   if (d) {
