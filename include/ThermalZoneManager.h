@@ -6,7 +6,7 @@
 #include "ParamStore.h"
 #include "BoilerRadioTrigger.h"
 
-#define MAX_THERMAL_ZONES 3
+#define MAX_THERMAL_ZONES 32  // zone slots reserved statically (FR-69); the zones in use are getZoneCount()
 
 // Time-proportional (TPI) control: each hour the valve is open for duty * cycle.
 // Floor screed reacts in hours, so dosing energy beats ON/OFF hysteresis (no overshoot).
@@ -111,7 +111,13 @@ public:
     void persistConfig();
 
     // Getters
-    size_t getZoneCount() const { return MAX_THERMAL_ZONES; }
+    size_t getZoneCount() const { return _zoneCount; }
+    // FR-73 / FR-74: zones are added and deleted by the user; numbers stay 1..N
+    enum class ZoneResult : uint8_t { Ok, NoFreeOutput, NoSuchZone, ValveEnergised };
+    ZoneResult addZone(const char* name, size_t& index);  // name empty: "Zone n"
+    ZoneResult deleteZone(size_t index);
+    int firstFreeRelayPin() const;  // lowest free output in the order of the board's relays, -1 when none
+    bool isRelayOutput(uint8_t pin) const { return ParamStore::validRelayPin(pin); }
     const ThermalZoneConfig& getConfig(size_t index) const;
     const ThermalZoneStatus& getStatus(size_t index) const;
     bool isBoilerDemanded() const { return _boilerDemand; }
@@ -253,6 +259,8 @@ private:
     bool _preHeatActive;
     WindowDetectionState _windowStates[MAX_THERMAL_ZONES];
     TpiState _tpi[MAX_THERMAL_ZONES];
+    uint8_t _zoneCount = 0;
+    void clearZoneSlot(size_t index);
     uint32_t _lastScheduleEvalMs;
 
     bool _autoMode;

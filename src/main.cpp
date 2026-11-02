@@ -202,6 +202,15 @@ void setup() {
 
 
   // Initialize Native Passive BLE Scanner (Xiaomi BTHome v2 & PVVX)
+  // FR-11.6: the sensors a zone uses (by MAC or alias) always have their place in the sensor table
+  bleScanner.setAssignedFn([](const char* mac, const char* name) {
+    for (size_t i = 0; i < thermalZones.getZoneCount(); i++) {
+      const ThermalZoneConfig& z = thermalZones.getConfig(i);
+      if (z.sensorMac[0] && strcasecmp(z.sensorMac, mac) == 0) return true;
+      if (z.sensorName[0] && name && strcasecmp(z.sensorName, name) == 0) return true;
+    }
+    return false;
+  });
   bleScanner.begin();
 
   // Initialize Diagnostic Engine

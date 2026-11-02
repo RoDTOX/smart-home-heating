@@ -449,7 +449,8 @@ void handleApiSetupLocation() {
 void handleApiSetupDiscoveredSensors() {
   String json;
   json.reserve(1536);
-  json = "{\"sensors\":[";
+  json = "{\"active\":" + String(bleScanner.isSearching() ? "true" : "false") +
+         ",\"remainingSec\":" + String(bleScanner.searchRemainingSec()) + ",\"sensors\":[";
   size_t count = bleScanner.getSensorCount();
   size_t written = 0;
   for (size_t i = 0; i < count; i++) {
@@ -466,14 +467,16 @@ void handleApiSetupDiscoveredSensors() {
     json += "\"bat\":" + String(s->battery) + ",";
     json += "\"rssi\":" + String(s->rssi) + ",";
     json += "\"ageSec\":" + String((millis() - s->lastSeenMs) / 1000) + ",";
-    int assignedZone = -1;
+    int zoneNumber = 0;  // 1-based number of the zone that uses this sensor, 0 = none (FR-11.5)
     for (size_t z = 0; z < thermalZones.getZoneCount(); z++) {
-      if (strcasecmp(thermalZones.getConfig(z).sensorMac, s->mac) == 0) {
-        assignedZone = (int)z;
+      const ThermalZoneConfig &zc = thermalZones.getConfig(z);
+      if ((zc.sensorMac[0] && strcasecmp(zc.sensorMac, s->mac) == 0) ||
+          (zc.sensorName[0] && strcasecmp(zc.sensorName, s->name) == 0)) {
+        zoneNumber = (int)z + 1;
         break;
       }
     }
-    json += "\"assignedZone\":" + String(assignedZone);
+    json += "\"zone\":" + String(zoneNumber);
     json += "}";
     written++;
   }
@@ -506,6 +509,52 @@ static bool validMac(const String &s) {
     if (i % 3 == 2 ? c != ':' : !isxdigit((unsigned char)c)) return false;
   }
   return true;
+}
+
+// FR-73: add a zone on the lowest free relay output
+void handleApiSetupZoneAdd() {
+  String name = server.hasArg("name") ? server.arg("name") : String();
+  if (name.length() > 0 && !validLabel(name, 32, false)) {
+    sendSetupError("Name must be 1-31 characters, no quotes or backslash");
+    return;
+  }
+  size_t index = 0;
+  server.sendHeader("Access-Control-Allow-Origin", "*");
+  if (thermalZones.addZone(name.c_str(), index) != ThermalZoneManager::ZoneResult::Ok) {
+    server.send(409, "application/json", F("{\"status\":\"error\",\"message\":\"No relay output is free; nothing changed\"}"));
+    return;
+  }
+  server.send(200, "application/json",
+              "{\"status\":\"ok\",\"zone\":" + String((unsigned)(index + 1)) + ",\"relayPin\":" +
+                  String(thermalZones.getConfig(index).relayPin) + "}");
+}
+
+// FR-74: delete a zone (1-based number); later zones move up
+void handleApiSetupZoneDelete() {
+  int number = server.hasArg("zone") ? server.arg("zone").toInt() : 0;
+  if (number < 1 || number > (int)thermalZones.getZoneCount()) {
+    sendSetupError("Unknown zone number");
+    return;
+  }
+  server.sendHeader("Access-Control-Allow-Origin", "*");
+  if (thermalZones.deleteZone((size_t)number - 1) != ThermalZoneManager::ZoneResult::Ok) {
+    server.send(409, "application/json",
+                F("{\"status\":\"error\",\"message\":\"Valve is open; delete the zone once the valve is closed; nothing changed\"}"));
+    return;
+  }
+  server.send(200, "application/json", F("{\"status\":\"ok\"}"));
+}
+
+// FR-11.5: start or stop the sensor search
+void handleApiSetupSensorSearch() {
+  String action = server.arg("action");
+  if (action == "start") bleScanner.startSearch();
+  else if (action == "stop") bleScanner.stopSearch();
+  else {
+    sendSetupError("action must be start or stop");
+    return;
+  }
+  handleApiSetupDiscoveredSensors();
 }
 
 // FR-11.3: every field is checked before anything changes; a rejected setting returns 400 and changes nothing.
@@ -563,6 +612,14 @@ void handleApiSetupMapZone() {
   if (other >= 0) {
     sendSetupError("Relay already used by zone " + String(other + 1));
     return;
+  }
+  if (mac.length() > 0) {  // FR-11.3: a sensor MAC serves one zone
+    for (size_t k = 0; k < thermalZones.getZoneCount(); k++) {
+      if (k != z && strcasecmp(thermalZones.getConfig(k).sensorMac, mac.c_str()) == 0) {
+        sendSetupError("Sensor already used by zone " + String((unsigned)(k + 1)));
+        return;
+      }
+    }
   }
   if (thermalZones.isPumpControlEnabled() && pin == thermalZones.getPumpRelayPin()) {
     sendSetupError("Relay is the pump output");
@@ -1031,21 +1088,29 @@ void handleApiConfigImport() {
   server.send(code, "application/json", answer);
 }
 
+// FR-43: only in MANUAL mode, only an output of a zone or the pump, respecting NC / NO (FR-15.1)
 void handleApiRelayTest() {
   server.sendHeader("Access-Control-Allow-Origin", "*");
   if (!server.hasArg("pin")) {
     server.send(400, "application/json", F("{\"status\":\"error\",\"message\":\"Missing 'pin' parameter.\"}"));
     return;
   }
-  uint8_t pin = (uint8_t)server.arg("pin").toInt();
-  if (pin != PIN_RELAY_ZONE_1 && pin != PIN_RELAY_ZONE_2 && pin != PIN_RELAY_ZONE_3 && pin != PIN_RELAY_SPARE) {
+  long pin = server.arg("pin").toInt();
+  if (pin < 0 || pin > 255 || !ParamStore::validRelayPin((uint8_t)pin)) {
     server.send(400, "application/json", F("{\"status\":\"error\",\"message\":\"Invalid relay pin. Allowed: 32, 33, 25, 26.\"}"));
     return;
   }
+  int zone = thermalZones.zoneUsingRelay((uint8_t)pin, SIZE_MAX);
+  bool isPump = zone < 0 && thermalZones.isPumpControlEnabled() && (uint8_t)pin == thermalZones.getPumpRelayPin();
+  if (thermalZones.isAutoMode() || (zone < 0 && !isPump)) {
+    server.send(409, "application/json",
+                F("{\"status\":\"error\",\"message\":\"Relay test needs MANUAL mode and an output of a zone or the pump\"}"));
+    return;
+  }
   bool state = (server.arg("state") == "1" || server.arg("state") == "true" || server.arg("state") == "on");
-  pinMode(pin, OUTPUT);
-  digitalWrite(pin, state ? RELAY_ACTIVE_LEVEL : RELAY_INACTIVE_LEVEL);
-  netConsole.printf("[RELAY-TEST] Direct Relay Test: pin %u -> %s\n", pin, state ? "ON" : "OFF");
+  if (zone >= 0) thermalZones.setRelayManual((size_t)zone, state);
+  else thermalZones.setPumpManual(state);
+  netConsole.printf("[RELAY-TEST] Relay test: pin %ld -> %s\n", pin, state ? "ON" : "OFF");
   server.send(200, "application/json", F("{\"status\":\"ok\"}"));
 }
 
@@ -1058,6 +1123,9 @@ void registerWebRoutes() {
   server.on("/api/setup/discovered-sensors", HTTP_GET,
             handleApiSetupDiscoveredSensors);
   server.on("/api/setup/map-zone", HTTP_POST, handleApiSetupMapZone);
+  server.on("/api/setup/zone-add", HTTP_POST, handleApiSetupZoneAdd);
+  server.on("/api/setup/zone-delete", HTTP_POST, handleApiSetupZoneDelete);
+  server.on("/api/setup/sensor-search", HTTP_POST, handleApiSetupSensorSearch);
   server.on("/api/setup/time", HTTP_GET, handleApiSetupTime);
   server.on("/api/boiler/on", HTTP_POST, handleApiOn);
   server.on("/api/boiler/off", HTTP_POST, handleApiOff);

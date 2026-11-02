@@ -5,7 +5,13 @@
 #include <NimBLEDevice.h>
 #include "Config.h"
 
-#define MAX_BLE_SENSORS 8
+// FR-11.5, FR-11.6: a place for the sensor of every zone (32) and for the sensors a search lists (32)
+#define MAX_BLE_SENSORS 64
+#define BLE_SEARCH_MAX_UNASSIGNED 32
+#define BLE_SEARCH_MAX_MS (10UL * 60UL * 1000UL)  // a search ends after 10 min (FR-11.5)
+
+// true when a zone uses this sensor (by MAC or by alias)
+typedef bool (*SensorAssignedFn)(const char* mac, const char* name);
 
 enum SensorSource {
     SRC_NONE = 0,
@@ -44,6 +50,14 @@ public:
 
     void ingestExternalReading(const char* mac, const char* name, float temp, float hum, uint8_t bat, int8_t rssi);
 
+    // Sensor search (FR-11.5): outside a search only the sensors assigned to zones are kept (FR-11.6)
+    void setAssignedFn(SensorAssignedFn fn) { _assigned = fn; }
+    void startSearch();
+    void stopSearch();
+    bool isSearching() const { return _searching; }
+    uint32_t searchRemainingSec() const;
+    bool isAssignedSensor(const BleSensorData* s) const { return isAssigned(s->mac, s->name); }
+
     bool isScanning() const { return _isScanning; }
     void restartScan();
 
@@ -55,6 +69,12 @@ private:
     size_t _sensorCount;
     bool _isScanning;
     uint32_t _lastScanCheckMs;
+    SensorAssignedFn _assigned = nullptr;
+    bool _searching = false;
+    uint32_t _searchStartMs = 0;
+    uint32_t _lastPruneMs = 0;
+    void prune();  // drops the sensors no zone uses
+    bool isAssigned(const char* mac, const char* name) const { return _assigned && _assigned(mac, name); }
 
     void updateOrAddSensor(const char* mac, const char* name, float temp, float hum, uint8_t bat, int8_t rssi, SensorSource src);
     const char* resolveNameForMac(const char* mac, const char* advName, char* outBuf, size_t bufLen);

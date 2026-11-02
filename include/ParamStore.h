@@ -38,6 +38,7 @@ enum class StateKey : uint8_t {
     RuntimeLastMonth,
     RuntimeDay,
     RuntimeMonth,
+    ZoneCount,  // number of zones (FR-69, §6 `number of zones`)
     Count
 };
 
@@ -57,7 +58,7 @@ struct ParamDef {
     uint8_t flags;
 };
 
-#define PARAM_ZONES 3
+#define PARAM_ZONES 32  // zone slots reserved statically (FR-69, NFR-2.6)
 #define PARAM_LEARNED_MAX 600  // learned TPI base duty, per mille (0..60 %, FR-47)
 
 // Installation data of one zone (FR-11.3, FR-11.4). Empty strings until commissioning (FR-11.1).

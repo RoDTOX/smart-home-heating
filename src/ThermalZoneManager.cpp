@@ -59,13 +59,7 @@ ThermalZoneManager::ThermalZoneManager()
     }
 
     // No installation data in firmware (FR-11.1): names, sensors and targets come from ParamStore
-    static const uint8_t pins[MAX_THERMAL_ZONES] = {PIN_RELAY_ZONE_1, PIN_RELAY_ZONE_2, PIN_RELAY_ZONE_3};
-    for (size_t i = 0; i < MAX_THERMAL_ZONES; i++) {
-        memset(&_configs[i], 0, sizeof(_configs[i]));
-        _configs[i].id = i + 1;
-        _configs[i].relayPin = pins[i];
-        _configs[i].targetTemp = DEFAULT_SETPOINT_TEMP;
-    }
+    for (size_t i = 0; i < MAX_THERMAL_ZONES; i++) clearZoneSlot(i);
 
     for (size_t i = 0; i < MAX_THERMAL_ZONES; i++) {
         _statuses[i].state = ZONE_IDLE;
@@ -81,7 +75,20 @@ ThermalZoneManager::ThermalZoneManager()
 }
 
 static_assert(MAX_THERMAL_ZONES == PARAM_ZONES, "ParamStore zone records must match the zone count");
-static_assert(sizeof(ScheduleConfig) <= 256, "ParamStore::saveBlob compares at most 256 bytes");
+static_assert(sizeof(ScheduleConfig) <= 512, "ParamStore::saveBlob compares at most 512 bytes");
+
+// A slot that is not a zone: no output (pin 0), switched off, so no loop over the slots can act on it
+void ThermalZoneManager::clearZoneSlot(size_t i) {
+    memset(&_configs[i], 0, sizeof(_configs[i]));
+    _configs[i].id = i + 1;
+    _configs[i].targetTemp = DEFAULT_SETPOINT_TEMP;
+    _statuses[i] = ThermalZoneStatus();
+    _statuses[i].state = ZONE_DISABLED;
+    _tpi[i] = {0, 0, 0.0f, 0.0f, 0.0f, 0.0f};
+    _windowStates[i] = WindowDetectionState();
+    _windowStates[i].baselineTemp = -999.0f;
+    _windowStates[i].pauseMinTemp = 999.0f;
+}
 
 void ThermalZoneManager::loadConfig() {
     _interlockDelayMs = (uint32_t)paramStore.get(Param::InterlockDelay) * 1000UL;
@@ -96,7 +103,9 @@ void ThermalZoneManager::loadConfig() {
     _autoMode = paramStore.state(StateKey::AutoMode) != 0;
     _lastAntiSeizeEpoch = paramStore.state(StateKey::AntiSeizeEpoch);
 
-    for (size_t i = 0; i < MAX_THERMAL_ZONES; i++) {
+    uint32_t stored = paramStore.state(StateKey::ZoneCount);
+    _zoneCount = (uint8_t)(stored > MAX_THERMAL_ZONES ? 0 : stored);
+    for (size_t i = 0; i < _zoneCount; i++) {
         const ZoneRecord& z = paramStore.zone(i);
         strlcpy(_configs[i].name, z.name, sizeof(_configs[i].name));
         strlcpy(_configs[i].sensorMac, z.sensorMac, sizeof(_configs[i].sensorMac));
@@ -107,11 +116,22 @@ void ThermalZoneManager::loadConfig() {
         _configs[i].targetTemp = z.targetC10 / 10.0f;
         _tpi[i].integral = _tpi[i].savedIntegral = paramStore.learned(i) / 1000.0f;
     }
+    // A relay output serves one zone (FR-11.3): a record left half moved by a power cut is switched off, not trusted
+    for (size_t i = 0; i < _zoneCount; i++) {
+        for (size_t j = 0; j < i; j++) {
+            if (_configs[i].relayPin == _configs[j].relayPin && _configs[i].enabled) {
+                netConsole.printf("[Params] zone %u shares relay %u with zone %u: switched off\n", (unsigned)(i + 1),
+                                  _configs[i].relayPin, (unsigned)(j + 1));
+                _configs[i].enabled = false;
+            }
+        }
+    }
 }
 
 // Hands every zone record and state value to ParamStore, which writes only what changed (NFR-2.9).
 void ThermalZoneManager::persistConfig() {
-    for (size_t i = 0; i < MAX_THERMAL_ZONES; i++) {
+    paramStore.saveState(StateKey::ZoneCount, _zoneCount);
+    for (size_t i = 0; i < _zoneCount; i++) {
         ZoneRecord z;
         memset(&z, 0, sizeof(z));
         strlcpy(z.name, _configs[i].name, sizeof(z.name));
@@ -127,10 +147,36 @@ void ThermalZoneManager::persistConfig() {
     paramStore.saveState(StateKey::AntiSeizeEpoch, _lastAntiSeizeEpoch);
 }
 
+// The schedule as stored up to migration step 1: level temperatures for exactly three zones
+struct ScheduleConfigV1 {
+    bool enabled;
+    bool preHeatEnabled;
+    bool windowDetectionEnabled;
+    bool away;
+    float levelTemps[LEVEL_COUNT][3];
+    uint8_t weekdayCount;
+    ScheduleSlot weekday[MAX_SCHEDULE_SLOTS];
+    uint8_t weekendCount;
+    ScheduleSlot weekend[MAX_SCHEDULE_SLOTS];
+};
+
 void ThermalZoneManager::loadSchedule() {
     ScheduleConfig loaded;
     if (!paramStore.loadBlob("cfg2", &loaded, sizeof(loaded))) {
-        return;  // factory schedule (constructor)
+        ScheduleConfigV1 old;
+        if (!paramStore.loadBlob("cfg2", &old, sizeof(old))) return;  // factory schedule (constructor)
+        // Same settings for 32 zone slots: the old levels of the first three, factory levels for the rest
+        loaded = getFactoryDefaultSchedule();
+        loaded.enabled = old.enabled;
+        loaded.preHeatEnabled = old.preHeatEnabled;
+        loaded.windowDetectionEnabled = old.windowDetectionEnabled;
+        loaded.away = old.away;
+        for (uint8_t l = 0; l < LEVEL_COUNT; l++)
+            for (size_t i = 0; i < 3; i++) loaded.levelTemps[l][i] = old.levelTemps[l][i];
+        loaded.weekdayCount = old.weekdayCount;
+        loaded.weekendCount = old.weekendCount;
+        memcpy(loaded.weekday, old.weekday, sizeof(loaded.weekday));
+        memcpy(loaded.weekend, old.weekend, sizeof(loaded.weekend));
     }
     bool valid = loaded.weekdayCount >= 1 && loaded.weekdayCount <= MAX_SCHEDULE_SLOTS &&
                  loaded.weekendCount >= 1 && loaded.weekendCount <= MAX_SCHEDULE_SLOTS;
@@ -162,6 +208,7 @@ void ThermalZoneManager::saveSchedule() {
 }
 
 void ThermalZoneManager::applyRelay(uint8_t pin, bool active) {
+    if (!ParamStore::validRelayPin(pin)) return;  // a slot that is no zone has no output (pin 0), never drive a GPIO
     if (zoneUsingRelay(pin, SIZE_MAX) < 0) {
         // Pump, or a relay no zone uses: directly active HIGH (runs when energized), off = de-energized
         digitalWrite(pin, active ? RELAY_ACTIVE_LEVEL : RELAY_INACTIVE_LEVEL);
@@ -195,7 +242,7 @@ void ThermalZoneManager::begin() {
     }
     _pumpActive = false;
 
-    Serial.printf("[Thermal] Initialized: 3 zones, Actuators: %s, Pump Relay 4: %s\n",
+    Serial.printf("[Thermal] Initialized: %u zones, Actuators: %s, Pump Relay 4: %s\n", (unsigned)_zoneCount,
         _actuatorNormallyClosed ? "NC (Normally Closed)" : "NO (Normally Open)",
         _pumpControlEnabled ? "ENABLED" : "DISABLED");
 }
@@ -443,6 +490,68 @@ void ThermalZoneManager::setLearnedDutyPct(size_t index, float pct) {
     _tpi[index].integral = perMille / 1000.0f;
     paramStore.saveLearned(index, perMille);
     _tpi[index].savedIntegral = _tpi[index].integral;
+}
+
+// ---- Zones added and deleted by the user (FR-73, FR-74) ----------------------------------------------------
+
+int ThermalZoneManager::firstFreeRelayPin() const {
+    static const uint8_t ORDER[] = {PIN_RELAY_ZONE_1, PIN_RELAY_ZONE_2, PIN_RELAY_ZONE_3, PIN_RELAY_SPARE};
+    for (uint8_t pin : ORDER) {
+        if (zoneUsingRelay(pin, SIZE_MAX) >= 0) continue;
+        if (_pumpControlEnabled && pin == getPumpRelayPin()) continue;
+        return pin;
+    }
+    return -1;
+}
+
+ThermalZoneManager::ZoneResult ThermalZoneManager::addZone(const char* name, size_t& index) {
+    int pin = firstFreeRelayPin();
+    if (pin < 0 || _zoneCount >= MAX_THERMAL_ZONES) return ZoneResult::NoFreeOutput;
+    index = _zoneCount;
+    clearZoneSlot(index);
+    if (name && name[0] != '\0') strlcpy(_configs[index].name, name, sizeof(_configs[index].name));
+    else snprintf(_configs[index].name, sizeof(_configs[index].name), "Zone %u", (unsigned)(index + 1));
+    _configs[index].relayPin = (uint8_t)pin;
+    for (uint8_t l = 0; l < LEVEL_COUNT; l++) {  // factory levels (FR-29)
+        const ScheduleConfig f = getFactoryDefaultSchedule();
+        _scheduleConfig.levelTemps[l][index] = f.levelTemps[l][index];
+    }
+    _zoneCount++;
+    pinMode(pin, OUTPUT);
+    applyRelay((uint8_t)pin, false);
+    paramStore.saveLearned(index, 0);
+    persistConfig();
+    saveSchedule();
+    netConsole.printf("[Thermal] Zone %u added on relay pin %d\n", (unsigned)(index + 1), pin);
+    return ZoneResult::Ok;
+}
+
+ThermalZoneManager::ZoneResult ThermalZoneManager::deleteZone(size_t index) {
+    if (index >= _zoneCount) return ZoneResult::NoSuchZone;
+    if (_statuses[index].relayEngaged) return ZoneResult::ValveEnergised;  // FR-3, as FR-11.3
+    applyRelay(_configs[index].relayPin, false);  // closed per FR-15.1, while it still is a zone output
+    const ScheduleConfig f = getFactoryDefaultSchedule();
+    for (size_t j = index; j + 1 < _zoneCount; j++) {  // everything of a zone moves with it
+        _configs[j] = _configs[j + 1];
+        _configs[j].id = j + 1;
+        _statuses[j] = _statuses[j + 1];
+        _tpi[j] = _tpi[j + 1];
+        _windowStates[j] = _windowStates[j + 1];
+        for (uint8_t l = 0; l < LEVEL_COUNT; l++) _scheduleConfig.levelTemps[l][j] = _scheduleConfig.levelTemps[l][j + 1];
+        paramStore.saveLearned(j, paramStore.learned(j + 1));
+    }
+    if (_overrunKeeperZone == (int8_t)index) _overrunKeeperZone = -1;
+    else if (_overrunKeeperZone > (int8_t)index) _overrunKeeperZone--;
+    size_t last = _zoneCount - 1;
+    clearZoneSlot(last);
+    for (uint8_t l = 0; l < LEVEL_COUNT; l++) _scheduleConfig.levelTemps[l][last] = f.levelTemps[l][last];
+    paramStore.saveLearned(last, 0);
+    _zoneCount--;
+    diagEngine.clearDtc("DTC-101");  // a DTC of the deleted zone (FR-74); a zone still without a reading raises it again
+    persistConfig();
+    saveSchedule();
+    netConsole.printf("[Thermal] Zone %u deleted\n", (unsigned)(index + 1));
+    return ZoneResult::Ok;
 }
 
 void ThermalZoneManager::setOpenLoopBypass(bool en) {
@@ -864,7 +973,7 @@ String ThermalZoneManager::getScheduleJson() const {
     json += "\"pumpControlEnabled\":" + String(_pumpControlEnabled ? "true" : "false") + ",";
 
     json += "\"zones\":[";
-    for (size_t i = 0; i < MAX_THERMAL_ZONES; i++) {
+    for (size_t i = 0; i < _zoneCount; i++) {
         if (i > 0) json += ",";
         json += "{";
         json += "\"id\":" + String(_configs[i].id) + ",";

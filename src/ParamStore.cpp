@@ -38,10 +38,10 @@ static const ParamDef PARAMS[(uint8_t)Param::Count] = {
 };
 
 static const char* STATE_KEYS[(uint8_t)StateKey::Count] = {
-    "auto", "as_epoch", "b_on", "rt_tot", "rt_today", "rt_yest", "rt_mon", "rt_lmon", "rt_day", "rt_month",
+    "auto", "as_epoch", "b_on", "rt_tot", "rt_today", "rt_yest", "rt_mon", "rt_lmon", "rt_day", "rt_month", "zcount",
 };
 
-static const uint8_t DEFAULT_PINS[PARAM_ZONES] = {PIN_RELAY_ZONE_1, PIN_RELAY_ZONE_2, PIN_RELAY_ZONE_3};
+static const uint8_t DEFAULT_PINS[3] = {PIN_RELAY_ZONE_1, PIN_RELAY_ZONE_2, PIN_RELAY_ZONE_3};
 
 bool ParamStore::validRelayPin(uint8_t pin) {
     return pin == PIN_RELAY_ZONE_1 || pin == PIN_RELAY_ZONE_2 || pin == PIN_RELAY_ZONE_3 || pin == PIN_RELAY_SPARE;
@@ -56,8 +56,9 @@ static bool terminated(const char* s, size_t len) {
 }
 
 static const char* zoneKey(size_t i) {
-    static const char* keys[PARAM_ZONES] = {"z0", "z1", "z2"};
-    return keys[i];
+    static char key[8];
+    snprintf(key, sizeof(key), "z%u", (unsigned)i);
+    return key;
 }
 
 // ------------------------------------------------------------------------------------------------------------
@@ -92,14 +93,14 @@ void ParamStore::defaultZone(size_t i, ZoneRecord& z) {
     memset(&z, 0, sizeof(z));
     // FR-11.1: no installation data in firmware; the zone stays off until it is mapped at commissioning.
     snprintf(z.name, sizeof(z.name), "Zone %u", (unsigned)(i + 1));
-    z.relayPin = DEFAULT_PINS[i];
+    z.relayPin = i < 3 ? DEFAULT_PINS[i] : 0;  // 0: no output (a slot beyond the zones in use)
     z.enabled = 0;
     z.targetC10 = (int16_t)lroundf(DEFAULT_SETPOINT_TEMP * 10);
 }
 
 bool ParamStore::validZone(const ZoneRecord& z) {
     return terminated(z.name, sizeof(z.name)) && terminated(z.sensorMac, sizeof(z.sensorMac)) &&
-           terminated(z.sensorName, sizeof(z.sensorName)) && validPin(z.relayPin) && z.enabled <= 1 &&
+           terminated(z.sensorName, sizeof(z.sensorName)) && (validPin(z.relayPin) || (z.relayPin == 0 && z.enabled == 0)) && z.enabled <= 1 &&
            z.offsetC10 >= -30 && z.offsetC10 <= 30 && z.targetC10 >= 50 && z.targetC10 <= 300;
 }
 
@@ -187,6 +188,11 @@ void ParamStore::loadAll() {
         prefs.end();
     }
 
+    // A controller that ran migration step 1 or earlier has its three zone records and keeps them (FR-69)
+    if (prefs.begin(NS_ZONE, true)) {
+        if (prefs.isKey(zoneKey(0))) _state[(uint8_t)StateKey::ZoneCount] = 3;
+        prefs.end();
+    }
     if (prefs.begin(NS_STATE, true)) {
         for (uint8_t k = 0; k < (uint8_t)StateKey::Count; k++) {
             _state[k] = prefs.getUInt(STATE_KEYS[k], _state[k]);
@@ -224,7 +230,8 @@ void ParamStore::migrateLegacy() {
             _state[(uint8_t)StateKey::AntiSeizeEpoch] = prefs.getUInt("as_epoch", 0);
 
             bool hystTaken = false, windowTaken = false;
-            for (size_t i = 0; i < PARAM_ZONES; i++) {
+            _state[(uint8_t)StateKey::ZoneCount] = 3;  // the old firmware always had three zones
+            for (size_t i = 0; i < 3; i++) {
                 char k[16];
                 ZoneRecord z;
                 defaultZone(i, z);
@@ -313,7 +320,7 @@ void ParamStore::migrateLegacy() {
     // Write the new layout; the schema key last and only if every write succeeded.
     bool ok = true;
     for (uint8_t p = 0; p < (uint8_t)Param::Count; p++) ok &= writeParam((Param)p);
-    for (size_t i = 0; i < PARAM_ZONES; i++) {
+    for (size_t i = 0; i < 3; i++) {
         ok &= writeZone(i);
         ok &= writeLearned(i);
     }
@@ -410,7 +417,7 @@ bool ParamStore::loadBlob(const char* key, void* buf, size_t len) {
 void ParamStore::saveBlob(const char* key, const void* buf, size_t len) {
     Preferences prefs;
     if (!prefs.begin(NS_BLOB, false)) return;
-    uint8_t current[256];
+    uint8_t current[512];
     bool same = len <= sizeof(current) && prefs.getBytes(key, current, len) == len && memcmp(current, buf, len) == 0;
     if (!same) prefs.putBytes(key, buf, len);
     prefs.end();

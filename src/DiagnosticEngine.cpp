@@ -122,8 +122,8 @@ void DiagnosticEngine::evaluateSensors() {
 
     uint32_t ageSec = (millis() - s->lastSeenMs) / 1000;
 
-    // 1. Timeout (> 20 min)
-    if (ageSec > 1200) {
+    // 1. Timeout (> 20 min), only for the sensors a zone uses (a neighbour's sensor in a search list is no fault)
+    if (ageSec > 1200 && bleScanner.isAssignedSensor(s)) {
       char buf[48];
       snprintf(buf, sizeof(buf), "%s timeout (%u min)", s->name,
                (unsigned int)(ageSec / 60));

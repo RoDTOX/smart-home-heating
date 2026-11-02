@@ -60,8 +60,50 @@ void BleSensorScanner::restartScan() {
     }
 }
 
+static portMUX_TYPE tableMux = portMUX_INITIALIZER_UNLOCKED;  // the table is changed by the BLE task and by loop()
+
+void BleSensorScanner::startSearch() {
+    if (_searching) return;  // a second start does not restart the 10 min (FR-11.5)
+    prune();                 // the list of an earlier search is gone
+    _searchStartMs = millis();
+    _searching = true;
+    netConsole.println(F("[BLE] Sensor search started"));
+}
+
+void BleSensorScanner::stopSearch() {
+    if (!_searching) return;
+    _searching = false;
+    prune();
+    netConsole.println(F("[BLE] Sensor search ended"));
+}
+
+uint32_t BleSensorScanner::searchRemainingSec() const {
+    if (!_searching) return 0;
+    uint32_t elapsed = millis() - _searchStartMs;
+    return elapsed >= BLE_SEARCH_MAX_MS ? 0 : (BLE_SEARCH_MAX_MS - elapsed + 999) / 1000;
+}
+
+// FR-11.6: outside a search only the sensors assigned to zones stay in the table
+void BleSensorScanner::prune() {
+    portENTER_CRITICAL(&tableMux);
+    size_t kept = 0;
+    for (size_t i = 0; i < _sensorCount; i++) {
+        if (isAssigned(_sensors[i].mac, _sensors[i].name)) {
+            if (kept != i) _sensors[kept] = _sensors[i];
+            kept++;
+        }
+    }
+    _sensorCount = kept;
+    portEXIT_CRITICAL(&tableMux);
+}
+
 void BleSensorScanner::update() {
     uint32_t now = millis();
+    if (_searching && now - _searchStartMs >= BLE_SEARCH_MAX_MS) stopSearch();
+    if (!_searching && now - _lastPruneMs >= 1000UL) {  // a zone may have been deleted or given another sensor
+        _lastPruneMs = now;
+        prune();
+    }
     if (now - _lastScanCheckMs >= 30000UL) {
         _lastScanCheckMs = now;
         // Watchdog check: ensure scan is alive
@@ -257,6 +299,7 @@ void BleSensorScanner::onResult(const NimBLEAdvertisedDevice* advertisedDevice) 
 
 void BleSensorScanner::updateOrAddSensor(const char* mac, const char* name, float temp, float hum, uint8_t bat, int8_t rssi, SensorSource src) {
     BleSensorData* target = nullptr;
+    portENTER_CRITICAL(&tableMux);  // prune() in loop() compacts the table; lookup and update must not interleave
 
     for (size_t i = 0; i < _sensorCount; i++) {
         if (strcasecmp(_sensors[i].mac, mac) == 0) {
@@ -265,8 +308,21 @@ void BleSensorScanner::updateOrAddSensor(const char* mac, const char* name, floa
         }
     }
 
-    if (!target && _sensorCount < MAX_BLE_SENSORS) {
-        target = &_sensors[_sensorCount++];
+    if (!target) {
+        // A zone's sensor always has its place; others are kept only during a search, 32 at most (FR-11.5, FR-11.6)
+        bool assigned = isAssigned(mac, name);
+        size_t unassigned = 0;
+        if (!assigned && _searching) {
+            for (size_t i = 0; i < _sensorCount; i++)
+                if (!isAssigned(_sensors[i].mac, _sensors[i].name)) unassigned++;
+        }
+        bool room = _sensorCount < MAX_BLE_SENSORS && (assigned || (_searching && unassigned < BLE_SEARCH_MAX_UNASSIGNED));
+        if (room) {
+            target = &_sensors[_sensorCount++];
+            memset(target, 0, sizeof(*target));  // a slot freed by prune() still holds the old sensor
+        }
+    }
+    if (target && target->mac[0] == '\0') {
         strncpy(target->mac, mac, sizeof(target->mac) - 1);
         target->mac[sizeof(target->mac) - 1] = '\0';
         target->packetCount = 0;
@@ -288,6 +344,7 @@ void BleSensorScanner::updateOrAddSensor(const char* mac, const char* name, floa
         target->source = src;
         target->valid = true;
     }
+    portEXIT_CRITICAL(&tableMux);
 }
 
 void BleSensorScanner::ingestExternalReading(const char* mac, const char* name, float temp, float hum, uint8_t bat, int8_t rssi) {

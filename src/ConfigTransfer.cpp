@@ -251,6 +251,12 @@ void planZone(size_t i, ZonePlan& zp, Report& rep) {
         else bad = true;
     }
     if (bad) { zp.reason = "invalid"; return; }
+    // A sensor MAC serves one zone (FR-11.3)
+    if (zp.mac[0] != '\0') {
+        for (size_t k = 0; k < thermalZones.getZoneCount(); k++) {
+            if (k != i && strcasecmp(thermalZones.getConfig(k).sensorMac, zp.mac) == 0) { zp.reason = "invalid"; return; }
+        }
+    }
     // A zone is switched on only with a sensor (FR-11.3)
     if (zp.enabled && zp.mac[0] == '\0' && zp.sensorName[0] == '\0') { zp.reason = "invalid"; return; }
     // An energised valve keeps its relay and stays on (FR-11.3, FR-3)
@@ -259,7 +265,22 @@ void planZone(size_t i, ZonePlan& zp, Report& rep) {
 }
 
 void importZones(JsonVariantConst zv, Report& rep) {
-    ZonePlan plan[MAX_THERMAL_ZONES];
+    // One plan per zone in use, on the heap for the length of the import only (32 zones would be 4 KB of stack)
+    const size_t zones = thermalZones.getZoneCount();
+    if (zones == 0) {
+        if (!zv.isNull() && !zv.is<JsonArrayConst>()) rep.skip("zones", "invalid");
+        else if (zv.is<JsonArrayConst>()) {
+            size_t k = 0;
+            for (JsonVariantConst e : zv.as<JsonArrayConst>()) {
+                k++;
+                if (!e.is<JsonObjectConst>() || !e["id"].is<int>()) rep.skip("zones[#" + String((unsigned)k) + "]", "invalid");
+                else rep.skip(zoneName((size_t)(e["id"].as<int>() < 0 ? 0 : e["id"].as<int>())), "no-zone");
+            }
+        }
+        return;
+    }
+    ZonePlan* plan = new ZonePlan[zones];
+    struct Free { ZonePlan* p; ~Free() { delete[] p; } } freePlan{plan};
     bool isArr = zv.is<JsonArrayConst>();
     if (!zv.isNull() && !isArr) rep.skip("zones", "invalid");
     if (isArr) {
@@ -268,13 +289,13 @@ void importZones(JsonVariantConst zv, Report& rep) {
             k++;
             if (!e.is<JsonObjectConst>() || !e["id"].is<int>()) { rep.skip("zones[#" + String((unsigned)k) + "]", "invalid"); continue; }
             int id = e["id"].as<int>();
-            if (id < 1 || id > (int)MAX_THERMAL_ZONES) { rep.skip(zoneName((size_t)(id < 0 ? 0 : id)), "no-zone"); continue; }
+            if (id < 1 || id > (int)thermalZones.getZoneCount()) { rep.skip(zoneName((size_t)(id < 0 ? 0 : id)), "no-zone"); continue; }
             ZonePlan& zp = plan[id - 1];
             if (zp.entries < 255) zp.entries++;
             zp.obj = e.as<JsonObjectConst>();
         }
     }
-    for (size_t i = 0; i < MAX_THERMAL_ZONES; i++) {
+    for (size_t i = 0; i < thermalZones.getZoneCount(); i++) {
         if (plan[i].entries == 0) rep.keep(zoneName(i + 1));
         else if (plan[i].entries > 1) { plan[i].reason = "duplicate"; }
         else planZone(i, plan[i], rep);
@@ -286,14 +307,14 @@ void importZones(JsonVariantConst zv, Report& rep) {
     bool changed;
     do {
         changed = false;
-        for (size_t i = 0; i < MAX_THERMAL_ZONES; i++) {
+        for (size_t i = 0; i < thermalZones.getZoneCount(); i++) {
             if (plan[i].entries != 1 || plan[i].reason || plan[i].pin == thermalZones.getConfig(i).relayPin) continue;
             if (thermalZones.isPumpControlEnabled() && plan[i].pin == thermalZones.getPumpRelayPin()) {
                 plan[i].reason = "pump-relay";
                 changed = true;
                 continue;
             }
-            for (size_t j = 0; j < MAX_THERMAL_ZONES; j++) {
+            for (size_t j = 0; j < thermalZones.getZoneCount(); j++) {
                 if (j != i && pinOf(j) == plan[i].pin) {
                     plan[i].reason = "relay-taken";
                     changed = true;
@@ -302,7 +323,7 @@ void importZones(JsonVariantConst zv, Report& rep) {
             }
         }
     } while (changed);
-    for (size_t i = 0; i < MAX_THERMAL_ZONES; i++) {
+    for (size_t i = 0; i < thermalZones.getZoneCount(); i++) {
         if (plan[i].entries == 0) continue;
         if (plan[i].reason) { rep.skip(zoneName(i + 1), plan[i].reason); continue; }
         ZonePlan& zp = plan[i];
@@ -361,12 +382,12 @@ void importSchedule(JsonVariantConst sv, Report& rep) {
             k++;
             if (!e.is<JsonObjectConst>() || !e["id"].is<int>()) { rep.skip("schedule.levels[#" + String((unsigned)k) + "]", "invalid"); continue; }
             int id = e["id"].as<int>();
-            if (id < 1 || id > (int)MAX_THERMAL_ZONES) { rep.skip("schedule.levels[" + String(id < 0 ? 0 : id) + "]", "no-zone"); continue; }
+            if (id < 1 || id > (int)thermalZones.getZoneCount()) { rep.skip("schedule.levels[" + String(id < 0 ? 0 : id) + "]", "no-zone"); continue; }
             if (count[id - 1] < 255) count[id - 1]++;
             entry[id - 1] = e.as<JsonObjectConst>();
         }
     }
-    for (size_t i = 0; i < MAX_THERMAL_ZONES; i++) {
+    for (size_t i = 0; i < thermalZones.getZoneCount(); i++) {
         size_t id = i + 1;
         if (count[i] == 1) {
             for (JsonPairConst kv : entry[i])
@@ -409,12 +430,12 @@ void importLearned(JsonVariantConst dv, Report& rep) {
             k++;
             if (!e.is<JsonObjectConst>() || !e["id"].is<int>()) { rep.skip("learnedDuty[#" + String((unsigned)k) + "]", "invalid"); continue; }
             int id = e["id"].as<int>();
-            if (id < 1 || id > (int)MAX_THERMAL_ZONES) { rep.skip("learnedDuty[" + String(id < 0 ? 0 : id) + "]", "no-zone"); continue; }
+            if (id < 1 || id > (int)thermalZones.getZoneCount()) { rep.skip("learnedDuty[" + String(id < 0 ? 0 : id) + "]", "no-zone"); continue; }
             if (count[id - 1] < 255) count[id - 1]++;
             entry[id - 1] = e.as<JsonObjectConst>();
         }
     }
-    for (size_t i = 0; i < MAX_THERMAL_ZONES; i++) {
+    for (size_t i = 0; i < thermalZones.getZoneCount(); i++) {
         String name = "learnedDuty[" + String((unsigned)(i + 1)) + "]";
         if (count[i] == 1) {
             for (JsonPairConst kv : entry[i])

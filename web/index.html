@@ -61,11 +61,15 @@ code,.mono{font:13px/1.35 ui-monospace,SFMono-Regular,Consolas,monospace}
   </section>
   <section>
     <h2>Zone – punere în funcțiune (FR-11.3)</h2>
-    <div class="s">O zonă se pornește doar cu senzor; un releu servește o singură zonă și nu pompa. Numărul de zone = zonele pornite.</div>
+    <div class="s">Adaugi zone pe ieșirile libere ale plăcii. O zonă se pornește doar cu senzor; un releu și un senzor servesc o singură zonă; releul nu e al pompei.</div>
+    <div class="row"><button id="zoneAdd">Adaugă zonă</button><span id="zoneMsg" class="s"></span></div>
     <div class="scroll"><table id="setup"></table></div>
+    <datalist id="macList"></datalist>
   </section>
   <section>
-    <h2>Senzori BLE auziți</h2>
+    <h2>Senzori (FR-11.5)</h2>
+    <div class="row"><button id="searchStart">Caută senzori</button><button id="searchStop">Stop</button><span id="searchInfo" class="s"></span></div>
+    <div class="s">Căutarea ține până apeși Stop, cel mult 10 minute. În afara căutării controlerul ține doar senzorii zonelor.</div>
     <div class="scroll"><table id="sensors"></table></div>
   </section>
   <section>
@@ -104,7 +108,7 @@ code,.mono{font:13px/1.35 ui-monospace,SFMono-Regular,Consolas,monospace}
 </main>
 <!-- FR-8.1: API names watched by the engineering view and their explanation [text, requirement, "v" = changes continuously] -->
 <script type="application/json" id="doc">
-{"endpoints": ["api/zones", "api/boiler/status", "api/ble/sensors", "api/diag/status", "api/config/system", "api/config/export", "api/schedule", "api/setup/time", "api/setup/location"],
+{"endpoints": ["api/zones", "api/boiler/status", "api/ble/sensors", "api/diag/status", "api/config/system", "api/config/export", "api/setup/discovered-sensors", "api/schedule", "api/setup/time", "api/setup/location"],
 "doc": {
 "status": ["Răspunsul API: ok", "FR-42"],
 "autoMode": ["true = automat (program și reglaj), false = manual", "FR-1.3"],
@@ -227,7 +231,10 @@ code,.mono{font:13px/1.35 ui-monospace,SFMono-Regular,Consolas,monospace}
 "dtcs[].message": ["Mesajul codului", "FR-10.2"],
 "dtcs[].count": ["De câte ori a apărut", "FR-10.2"],
 "dtcs[].ageSec": ["Secunde de la ultima apariție", "FR-10.2", "v"],
-"zonesCount": ["Locuri de zonă din firmware", "FR-69"],
+"zonesCount": ["Numărul de zone (adăugate de utilizator)", "FR-69"],
+"active": ["Căutarea de senzori rulează", "FR-11.5"],
+"remainingSec": ["Secunde până se oprește căutarea de senzori (max 600)", "FR-11.5", "v"],
+"sensors[].zone": ["Numărul zonei care folosește senzorul (0 = niciuna)", "FR-11.5"],
 "openLoopBypass": ["Ocolirea buclei închise (doar test), false = normal", "FR-1.3"],
 "actuatorDelaySec": ["interlockDelay: robinetul se deschide atâtea s înainte de centrală", "FR-2"],
 "interlockDelaySec": ["interlockDelay: robinetul se deschide atâtea s înainte de centrală", "FR-2"],
@@ -375,17 +382,21 @@ function renderSetup() {
   };
   $("setup").innerHTML = "<tr><th>Nr</th><th>Nume</th><th>Senzor</th><th>Releu</th><th>Pornită</th><th>Offset °C</th><th></th><th></th></tr>" + Z.zones.map((z, i) =>
     `<tr data-z="${i}"><td>${z.id}</td><td><input class="nm" data-f="name" maxlength="31" value="${esc(z.name)}"></td>
-     <td><select data-f="mac">${sensorOpts(z.sensorMac)}</select></td>
+     <td><input class="nm" data-f="mac" list="macList" maxlength="17" placeholder="AA:BB:CC:DD:EE:FF" value="${esc(z.sensorMac || "")}"></td>
      <td><select data-f="pin">${RELAYS.map(([p, t]) => `<option value="${p}" ${p === z.relayPin ? "selected" : ""}>${t}</option>`).join("")}</select></td>
      <td><input type="checkbox" data-f="enabled" ${z.enabled ? "checked" : ""}></td>
      <td><input class="n" type="number" step="0.1" min="-3" max="3" data-f="offset" value="${z.tempOffset.toFixed(1)}"></td>
-     <td><button data-save="${i}">Salvează</button></td><td class="s" id="setupMsg${i}"></td></tr>`).join("");
+     <td><button data-save="${i}">Salvează</button><button data-del="${i}">Șterge</button></td><td class="s" id="setupMsg${i}"></td></tr>`).join("");
+  const heard = (RAW["api/setup/discovered-sensors"] || {sensors: []}).sensors;
+  $("macList").innerHTML = heard.map(s => `<option value="${esc(s.mac)}">${s.temp.toFixed(1)}° · ${s.rssi} dBm</option>`).join("");
 }
 
 function renderSensors() {
   if (busy("sensors")) return;
-  $("sensors").innerHTML = "<tr><th>Nume</th><th>MAC</th><th>°C</th><th>%</th><th>Bat</th><th>RSSI</th><th>Văzut</th><th>Zonă</th></tr>" + B.map(s => {
-    const z = Z.zones.find(z => (z.sensorMac || "").toUpperCase() === s.mac.toUpperCase());
+  const F = RAW["api/setup/discovered-sensors"] || {sensors: [], active: false, remainingSec: 0};
+  $("searchInfo").textContent = F.active ? `Caut… mai sunt ${F.remainingSec} s` : "Căutare oprită";
+  $("sensors").innerHTML = "<tr><th>Nume</th><th>MAC</th><th>°C</th><th>%</th><th>Bat</th><th>RSSI</th><th>Văzut</th><th>Zonă</th></tr>" + F.sensors.map(s => {
+    const z = s.zone ? Z.zones[s.zone - 1] : null;
     return `<tr><td>${esc(s.name)}</td><td><code>${esc(s.mac)}</code></td><td>${s.temp.toFixed(1)}</td><td>${Math.round(s.hum)}</td><td>${s.bat}%</td><td>${s.rssi}</td><td>${s.ageSec}s</td><td>${z ? esc(z.name) : "–"}</td></tr>`;
   }).join("");
 }
@@ -563,7 +574,30 @@ if (location.hash === "#admin") document.body.classList.add("admin");
 // Commissioning: a row being edited is not overwritten by the refresh until it is saved
 $("setup").addEventListener("input", e => { const tr = e.target.closest("tr[data-z]"); if (tr) dirtyRows.add(tr.dataset.z); });
 $("setup").addEventListener("change", e => { const tr = e.target.closest("tr[data-z]"); if (tr) dirtyRows.add(tr.dataset.z); });
+$("zoneAdd").onclick = async () => {
+  try {
+    const r = await api("api/setup/zone-add", {});
+    $("zoneMsg").textContent = `Zona ${r.zone} adăugată pe releul GPIO${r.relayPin}.`;
+  } catch (err) { $("zoneMsg").textContent = "Respins: " + err.message; }
+  refresh();
+};
+async function searchAction(action) {
+  try { RAW["api/setup/discovered-sensors"] = await api("api/setup/sensor-search", {action}); } catch (err) { $("searchInfo").textContent = err.message; }
+  renderSensors();
+}
+$("searchStart").onclick = () => searchAction("start");
+$("searchStop").onclick = () => searchAction("stop");
 $("setup").addEventListener("click", async e => {
+  const d = e.target.closest("button[data-del]");
+  if (d) {
+    const n = +d.dataset.del + 1;
+    if (!confirm(`Ștergi zona ${n}? Setările ei se pierd, zonele de după ea își schimbă numărul.`)) return;
+    try { await api("api/setup/zone-delete", {zone: n}); $("zoneMsg").textContent = `Zona ${n} ștearsă.`; }
+    catch (err) { $("zoneMsg").textContent = "Respins: " + err.message; }
+    dirtyRows.clear();
+    refresh();
+    return;
+  }
   const b = e.target.closest("button[data-save]");
   if (!b) return;
   const i = b.dataset.save, tr = b.closest("tr"), f = n => tr.querySelector(`[data-f="${n}"]`);
