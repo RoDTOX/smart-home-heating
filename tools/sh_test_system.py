@@ -3315,6 +3315,70 @@ class SystemTestSuite:
             res = self._fr65_restore(snap, res)
         return res
 
+    def test_tc29_34_import_sensor_swap(self):
+        """SWE.5-TC29.34: Two Zones Exchanging Their Sensors in One File Both Applied (FR-65.5)"""
+        test_id = "SWE.5-TC29.34"
+        name = "Import Sensor Swap"
+        req = "FR-65.5"
+        start = time.time()
+        snap, res = None, None
+        try:
+            snap = self._fr65_begin()
+            a, bz = self._fr65_pick(snap, 2, idle=True)
+            m1, m2 = "02:00:00:00:C1:01", "02:00:00:00:C1:02"
+            applied, _, skipped = self._fr65_report(self._fr65_post(
+                {"format": 1, "zones": [{"id": a["id"], "mac": m1}, {"id": bz["id"], "mac": m2}]}))
+            for zz in (a, bz):
+                nz = f"zones[{zz['id']}]"
+                assert nz in applied, f"setup: {nz}: {skipped.get(nz)!r}"
+            # A sensor MAC serves one zone; the check is on the configuration that results (FR-11.3)
+            applied, _, skipped = self._fr65_report(self._fr65_post(
+                {"format": 1, "zones": [{"id": a["id"], "mac": m2}, {"id": bz["id"], "mac": m1}]}))
+            for zz in (a, bz):
+                nz = f"zones[{zz['id']}]"
+                assert nz in applied, f"{nz} not applied: {skipped.get(nz)!r}"
+            cfg = {z.get("id"): z for z in requests.get(f"{self.base_url}/api/config/system",
+                                                        timeout=self.timeout).json().get("zones") or []}
+            got = (str(cfg[a["id"]].get("mac")).upper(), str(cfg[bz["id"]].get("mac")).upper())
+            assert got == (m2, m1), f"sensors now {got}, expected {(m2, m1)}"
+            latency = (time.time() - start) * 1000
+            res = TestResult(test_id, name, req, "PASS", latency,
+                             f"zones {a['id']} / {bz['id']} exchanged their sensors in one file; restored")
+        except Exception as e:
+            res = self._fr65_error(test_id, name, req, start, e)
+        finally:
+            res = self._fr65_restore(snap, res)
+        return res
+
+    def test_tc29_35_import_sensor_of_other_zone(self):
+        """SWE.5-TC29.35: Zone Given the Sensor of a Zone Not in the File Skipped With Reason sensor-taken (FR-65.5, FR-65.6)"""
+        test_id = "SWE.5-TC29.35"
+        name = "Import Sensor Conflict"
+        req = "FR-65.5"
+        start = time.time()
+        snap, res = None, None
+        try:
+            snap = self._fr65_begin()
+            a, bz = self._fr65_pick(snap, 2, idle=True)
+            m1, m2 = "02:00:00:00:C1:01", "02:00:00:00:C1:02"
+            self._fr65_post({"format": 1, "zones": [{"id": a["id"], "mac": m1}, {"id": bz["id"], "mac": m2}]})
+            applied, _, skipped = self._fr65_report(self._fr65_post(
+                {"format": 1, "zones": [{"id": a["id"], "mac": m2}]}))
+            na = f"zones[{a['id']}]"
+            assert skipped.get(na) == "sensor-taken" and na not in applied,                 f"zone {a['id']} on the sensor of zone {bz['id']}: {skipped.get(na)!r}, expected skipped 'sensor-taken'"
+            cfg = {z.get("id"): z for z in requests.get(f"{self.base_url}/api/config/system",
+                                                        timeout=self.timeout).json().get("zones") or []}
+            got = (str(cfg[a["id"]].get("mac")).upper(), str(cfg[bz["id"]].get("mac")).upper())
+            assert got == (m1, m2), f"sensors now {got}, expected {(m1, m2)}"
+            latency = (time.time() - start) * 1000
+            res = TestResult(test_id, name, req, "PASS", latency,
+                             f"zone {a['id']} -> sensor of zone {bz['id']}: skipped 'sensor-taken', sensors unchanged")
+        except Exception as e:
+            res = self._fr65_error(test_id, name, req, start, e)
+        finally:
+            res = self._fr65_restore(snap, res)
+        return res
+
     def test_tc29_25_import_report_lists_each_setting_once(self):
         """SWE.5-TC29.25: Report Lists Every Setting Exactly Once as Applied, Kept or Skipped (FR-65.6)"""
         test_id = "SWE.5-TC29.25"
@@ -4015,6 +4079,30 @@ class SystemTestSuite:
             return f"after stop only assigned sensors remain ({len(macs)}); {s['mac']} kept with zone {n0 + 1}, dropped when its zone was deleted"
         return self._t30_run("SWE.5-TC30.10", "Only Assigned Sensors Kept", "FR-11.6", body, need_free=False)
 
+    def test_tc30_12_one_save_for_all_zones(self):
+        """SWE.5-TC30.12: Served Page Has One Button 'Salvează zonele' That Sends Every Zone in One Request; a Code Check (FR-11.3)"""
+        test_id = "SWE.5-TC30.12"
+        name = "One Save for All Zones"
+        req = "FR-11.3"
+        start = time.time()
+        try:
+            r = requests.get(f"{self.base_url}/", timeout=self.timeout)
+            latency = (time.time() - start) * 1000
+            assert r.status_code == 200, f"page: HTTP {r.status_code}"
+            html = r.text
+            n = len(re.findall(r"<button\b[^>]*>\s*Salv(?:ează|eaz\\u0103) zonele\s*</button>", html))
+            assert n == 1, f"{n} buttons with the text 'Salvează zonele' in the page, expected 1"
+            scripts = "\n".join(re.findall(r"<script(?![^>]*application/json)[^>]*>(.*?)</script>", html, re.S))
+            # the zones go together in one request to the settings import, not one map-zone call per zone
+            assert re.search(r"""(?:fetch|api)\(\s*["'`]api/config/import""", scripts), \
+                "page code never sends the zones to api/config/import"
+            assert not re.search(r"""(?:fetch|api)\(\s*["'`]api/setup/map-zone""", scripts), \
+                "page code still saves a zone alone through api/setup/map-zone"
+            return TestResult(test_id, name, req, "PASS", latency,
+                              "one button 'Salvează zonele'; zones sent together to api/config/import")
+        except Exception as e:
+            return TestResult(test_id, name, req, "FAIL", (time.time() - start) * 1000, str(e))
+
     def test_tc30_11_engineering_view_zones_and_search(self):
         """SWE.5-TC30.11: Served Page Code Calls Zone Add / Delete and Sensor Search and Shows the DISABLED Text; a Code Check, the Rest of FR-8.1 Is Inspection (FR-8.1)"""
         test_id = "SWE.5-TC30.11"
@@ -4206,6 +4294,8 @@ class SystemTestSuite:
             self.test_tc29_31_no_cross_origin,
             self.test_tc29_32_import_duplicate_ids,
             self.test_tc29_33_round_trip,
+            self.test_tc29_34_import_sensor_swap,
+            self.test_tc29_35_import_sensor_of_other_zone,
             self.test_tc30_1_zone_add,
             self.test_tc30_2_zone_add_name,
             self.test_tc30_3_zone_add_no_free_output,
@@ -4217,6 +4307,7 @@ class SystemTestSuite:
             self.test_tc30_9_sensor_search_list,
             self.test_tc30_10_only_assigned_sensors_kept,
             self.test_tc30_11_engineering_view_zones_and_search,
+            self.test_tc30_12_one_save_for_all_zones,
         ]
 
         self.results = []
