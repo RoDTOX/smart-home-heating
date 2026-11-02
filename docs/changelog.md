@@ -7,6 +7,15 @@ Entries before 29.10.2026 (the system before the lean clean-up):
 
 
 
+## [03.11.2026] - `OutputBank`, second half of step 3 (R-A1, FR-15.1)
+
+- **Who / when / why:** firmware session (Claude), 03.11.2026; migration step 3 as decided by the owner.
+- **Where:** new `include/OutputBank.h`, `src/OutputBank.cpp`: pin mode, pin level and the NC / NO polarity of the
+  zone valves only there; `ThermalZoneManager::applyRelay` chooses valve or pump/free output and calls it; the
+  actuator type is held by `OutputBank`; `architecture.md` §3.2, `plan.md`.
+- **Not changed:** behaviour. No new tests: the existing tests of FR-15.1, FR-43 and NFR-1.4 cover it (light mode).
+  Not built here: logical channel map, expansion backend, energised-since (later steps).
+
 ## [02.11.2026] - Zone target out of the settings file (C-13, PB-62)
 
 - **Who / when / why:** firmware session (Claude), 02.11.2026; the owner: what must survive a test or a reflash is the

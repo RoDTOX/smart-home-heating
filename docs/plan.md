@@ -69,7 +69,7 @@ zones and sensors the user sets up (C-10, C-11), then step 2; the rest in the or
 | 1 | `ParamStore`: one parameter table with requirements §6 defaults and ranges, all NVS access | flashed, board test 81/81 PASS; owner acceptance pending | 7743c26 | — |
 | C-9 | Configuration export / import (FR-65.1, FR-65.2, FR-65.3, FR-65.4, FR-65.5, FR-65.6, FR-65.7, FR-65.8), before step 3 | done, on the board | ce8a58b | owner OK 02.11.2026 |
 | 2 | `Diagnostics`: DTC enum of requirements §5, event history in LittleFS | open | — | — |
-| 3 | `OutputBank`: logical channels, polarity in one place, static tables for 32 zones; zones added / deleted by the user and sensor search (C-10, C-11) | first half on the board (zones, sensors), `OutputBank` open; owner test pending | bcb8451 | — |
+| 3 | `OutputBank`: logical channels, polarity in one place, static tables for 32 zones; zones added / deleted by the user and sensor search (C-10, C-11) | zones, sensors and `OutputBank` (pin level and NC / NO polarity in one module, R-A1, FR-15.1) built; zones and sensors accepted by the owner; `OutputBank` owner test pending | see changelog | — |
 | 4 | `SafetySupervisor`: valve states, interlock, overrun without pump, burner guard, frost on all zones, pump guard | open | — | — |
 | 5 | `BoilerLink`: `Rf433Link`, heartbeat `hbInterval`, DTC-207, `ContactLink` | open | — | — |
 | 6 | `SensorHub`: mailbox, plausibility filter, validity, one sensor timeout | open | — | — |

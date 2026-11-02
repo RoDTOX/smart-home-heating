@@ -141,7 +141,7 @@ public:
     int zoneUsingRelay(uint8_t pin, size_t exceptIndex) const;
 
     // Actuator Type (NC vs NO)
-    bool isActuatorNormallyClosed() const { return _actuatorNormallyClosed; }
+    bool isActuatorNormallyClosed() const;  // held by OutputBank (FR-15.1)
     void setActuatorNormallyClosed(bool nc);
 
     // Frost Protection (<12C)
@@ -269,7 +269,6 @@ private:
     bool _pumpActive;
     uint32_t _pumpStopScheduledMs;
     int8_t _overrunKeeperZone;
-    bool _actuatorNormallyClosed;
     float _freezeProtectionTemp;
     bool _frostProtectionActive;
     bool _antiSeizeRunning;

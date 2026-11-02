@@ -1,5 +1,6 @@
 #include "ThermalZoneManager.h"
 #include "NetworkConsole.h"
+#include "OutputBank.h"
 #include "BleSensorScanner.h"
 #include "DiagnosticEngine.h"
 #include "TimeAndWeatherService.h"
@@ -21,7 +22,6 @@ ThermalZoneManager::ThermalZoneManager()
       _pumpActive(false),
       _pumpStopScheduledMs(0),
       _overrunKeeperZone(-1),
-      _actuatorNormallyClosed(true),
       _freezeProtectionTemp(12.0f),
       _frostProtectionActive(false),
       _antiSeizeRunning(false),
@@ -98,7 +98,7 @@ void ThermalZoneManager::loadConfig() {
     _freezeProtectionTemp = paramStore.getf(Param::FrostTemp);
     _windowThreshold = paramStore.getf(Param::WindowThreshold);
     _openLoopBypass = paramStore.get(Param::OpenLoopBypass) != 0;
-    _actuatorNormallyClosed = paramStore.get(Param::ActuatorType) == 0;
+    outputBank.setNormallyClosed(paramStore.get(Param::ActuatorType) == 0);
     _pumpControlEnabled = paramStore.get(Param::PumpOutput) != 0;
     _autoMode = paramStore.state(StateKey::AutoMode) != 0;
     _lastAntiSeizeEpoch = paramStore.state(StateKey::AntiSeizeEpoch);
@@ -208,17 +208,9 @@ void ThermalZoneManager::saveSchedule() {
 }
 
 void ThermalZoneManager::applyRelay(uint8_t pin, bool active) {
-    if (!ParamStore::validRelayPin(pin)) return;  // a slot that is no zone has no output (pin 0), never drive a GPIO
-    if (zoneUsingRelay(pin, SIZE_MAX) < 0) {
-        // Pump, or a relay no zone uses: directly active HIGH (runs when energized), off = de-energized
-        digitalWrite(pin, active ? RELAY_ACTIVE_LEVEL : RELAY_INACTIVE_LEVEL);
-    } else {
-        // Thermal zone actuator:
-        // NC (Normally Closed): active (open valve) -> energize relay (HIGH)
-        // NO (Normally Open):   active (open valve) -> de-energize relay (LOW)
-        bool level = _actuatorNormallyClosed ? active : !active;
-        digitalWrite(pin, level ? RELAY_ACTIVE_LEVEL : RELAY_INACTIVE_LEVEL);
-    }
+    // The pin level and the NC / NO polarity are the business of OutputBank (R-A1, FR-15.1)
+    if (zoneUsingRelay(pin, SIZE_MAX) < 0) outputBank.applyDirect(pin, active);  // pump, or an output no zone uses
+    else outputBank.applyValve(pin, active);
 }
 
 void ThermalZoneManager::begin() {
@@ -232,7 +224,7 @@ void ThermalZoneManager::begin() {
     // NFR-1.4: every relay output driven closed, also those no zone uses after a reassignment
     static const uint8_t RELAY_PINS[] = {PIN_RELAY_ZONE_1, PIN_RELAY_ZONE_2, PIN_RELAY_ZONE_3, PIN_RELAY_SPARE};
     for (uint8_t pin : RELAY_PINS) {
-        pinMode(pin, OUTPUT);
+        outputBank.claim(pin);
         applyRelay(pin, false);
     }
     for (size_t i = 0; i < MAX_THERMAL_ZONES; i++) {
@@ -243,7 +235,7 @@ void ThermalZoneManager::begin() {
     _pumpActive = false;
 
     Serial.printf("[Thermal] Initialized: %u zones, Actuators: %s, Pump Relay 4: %s\n", (unsigned)_zoneCount,
-        _actuatorNormallyClosed ? "NC (Normally Closed)" : "NO (Normally Open)",
+        outputBank.normallyClosed() ? "NC (Normally Closed)" : "NO (Normally Open)",
         _pumpControlEnabled ? "ENABLED" : "DISABLED");
 }
 
@@ -278,9 +270,11 @@ bool ThermalZoneManager::setPumpControlEnabled(bool enabled) {
     return true;
 }
 
+bool ThermalZoneManager::isActuatorNormallyClosed() const { return outputBank.normallyClosed(); }
+
 void ThermalZoneManager::setActuatorNormallyClosed(bool nc) {
-    if (_actuatorNormallyClosed == nc) return;
-    _actuatorNormallyClosed = nc;
+    if (outputBank.normallyClosed() == nc) return;
+    outputBank.setNormallyClosed(nc);
     paramStore.set(Param::ActuatorType, nc ? 0 : 1);
     // Refresh all zone relays with new logic polarity
     for (size_t i = 0; i < MAX_THERMAL_ZONES; i++) {
@@ -440,7 +434,7 @@ void ThermalZoneManager::setSensorMac(size_t index, const char* sensorMac) {
 void ThermalZoneManager::setRelayPin(size_t index, uint8_t pin) {
     if (index < MAX_THERMAL_ZONES && ParamStore::validRelayPin(pin)) {
         _configs[index].relayPin = pin;
-        pinMode(pin, OUTPUT);
+        outputBank.claim(pin);
         applyRelay(pin, false);
         persistConfig();
     }
@@ -465,7 +459,7 @@ void ThermalZoneManager::mapZone(size_t index, const char* name, const char* sen
             // The caller refuses a move while the valve is energised; both outputs are driven closed here
             uint8_t oldPin = _configs[index].relayPin;
             _configs[index].relayPin = relayPin;
-            pinMode(relayPin, OUTPUT);
+            outputBank.claim(relayPin);
             applyRelay(relayPin, false);
             applyRelay(oldPin, false);
         }
@@ -517,7 +511,7 @@ ThermalZoneManager::ZoneResult ThermalZoneManager::addZone(const char* name, siz
         _scheduleConfig.levelTemps[l][index] = f.levelTemps[l][index];
     }
     _zoneCount++;
-    pinMode(pin, OUTPUT);
+    outputBank.claim((uint8_t)pin);
     applyRelay((uint8_t)pin, false);
     paramStore.saveLearned(index, 0);
     persistConfig();
