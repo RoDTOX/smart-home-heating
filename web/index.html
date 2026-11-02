@@ -283,6 +283,7 @@ const $ = id => document.getElementById(id);
 const esc = s => String(s).replace(/[&<>"]/g, c => ({"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;"}[c]));
 const isAdmin = () => document.body.classList.contains("admin");
 let Z = null, S = null, B = [], ST = null, D = null, openRoom = -1, editing = false;
+let again = false, lastFound = [];
 let RAW = {}, prevFlat = {}, changed = new Set(), trace = [], openSig = null;
 const dirtyRows = new Set();
 
@@ -387,15 +388,16 @@ function renderSetup() {
      <td><input type="checkbox" data-f="enabled" ${z.enabled ? "checked" : ""}></td>
      <td><input class="n" type="number" step="0.1" min="-3" max="3" data-f="offset" value="${z.tempOffset.toFixed(1)}"></td>
      <td><button data-save="${i}">Salvează</button><button data-del="${i}">Șterge</button></td><td class="s" id="setupMsg${i}"></td></tr>`).join("");
-  const heard = (RAW["api/setup/discovered-sensors"] || {sensors: []}).sensors;
-  $("macList").innerHTML = heard.map(s => `<option value="${esc(s.mac)}">${s.temp.toFixed(1)}° · ${s.rssi} dBm</option>`).join("");
 }
 
 function renderSensors() {
   if (busy("sensors")) return;
   const F = RAW["api/setup/discovered-sensors"] || {sensors: [], active: false, remainingSec: 0};
-  $("searchInfo").textContent = F.active ? `Caut… mai sunt ${F.remainingSec} s` : "Căutare oprită";
-  $("sensors").innerHTML = "<tr><th>Nume</th><th>MAC</th><th>°C</th><th>%</th><th>Bat</th><th>RSSI</th><th>Văzut</th><th>Zonă</th></tr>" + F.sensors.map(s => {
+  if (F.active) lastFound = F.sensors;  // the page keeps the result of the last search so a sensor can still be chosen after Stop
+  const shown = F.active || !lastFound.length ? F.sensors : lastFound;
+  $("searchInfo").textContent = F.active ? `Caut… mai sunt ${F.remainingSec} s` : (lastFound.length ? "Căutare oprită – rezultatul ultimei căutări; controlerul ține doar senzorii zonelor" : "Căutare oprită");
+  $("macList").innerHTML = shown.map(s => `<option value="${esc(s.mac)}">${s.temp.toFixed(1)}° · ${s.rssi} dBm</option>`).join("");
+  $("sensors").innerHTML = "<tr><th>Nume</th><th>MAC</th><th>°C</th><th>%</th><th>Bat</th><th>RSSI</th><th>Văzut</th><th>Zonă</th></tr>" + shown.map(s => {
     const z = s.zone ? Z.zones[s.zone - 1] : null;
     return `<tr><td>${esc(s.name)}</td><td><code>${esc(s.mac)}</code></td><td>${s.temp.toFixed(1)}</td><td>${Math.round(s.hum)}</td><td>${s.bat}%</td><td>${s.rssi}</td><td>${s.ageSec}s</td><td>${z ? esc(z.name) : "–"}</td></tr>`;
   }).join("");
@@ -493,7 +495,7 @@ $("csv").onclick = () => {
 let inFlight = false;
 async function refresh() {
   // One refresh at a time, endpoints one after another: the board serves one client request per loop pass
-  if (inFlight) return;
+  if (inFlight) { again = true; return; }  // a change made meanwhile (add / delete a zone) is shown by one more pass
   inFlight = true;
   try {
     const admin = isAdmin();
@@ -509,6 +511,7 @@ async function refresh() {
     $("err").textContent = "";
   } catch (e) { $("err").textContent = "Conexiune pierdută (" + e.message + ")"; }
   inFlight = false;
+  if (again) { again = false; refresh(); }
 }
 
 $("rooms").addEventListener("click", async e => {
