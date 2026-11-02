@@ -40,7 +40,7 @@ Invalid schedule input returns `400`.
 |---|---|---|---|
 | GET/POST | `/api/setup/location` | `coords` = `lat,lon` | Location for Open-Meteo |
 | GET | `/api/setup/time` | `refreshWeather` | NTP time and weather |
-| POST | `/api/setup/zone-add` | `name` (optional) | Adds a zone (FR-73): `{"status":"ok","zone":N,"relayPin":P}` (N = its number, 1-based, P = the free relay output it got); HTTP 409 when no relay output is free, nothing changed |
+| POST | `/api/setup/zone-add` | `name` (optional; invalid → 400) | Adds a zone (FR-73): `{"status":"ok","zone":N,"relayPin":P}` (N = its number, 1-based, P = the free relay output it got); HTTP 409 when no relay output is free, nothing changed |
 | POST | `/api/setup/zone-delete` | `zone` (1-based number) | Deletes the zone (FR-74); later zones move up one number; HTTP 409 while its valve is energised, 400 for a number that does not exist, nothing changed |
 | POST | `/api/setup/sensor-search` | `action` = `start`\|`stop` | Starts or stops the sensor search (FR-11.5); answers like the GET below; another `action` → 400 |
 | GET | `/api/setup/discovered-sensors` | | Sensor search result (FR-11.5): `active`, `remainingSec` (0 when not active, at most 600), `sensors[]` (`mac`, `name`, `temp`, `hum`, `bat`, `rssi`, `ageSec`, `zone` = number of the zone it is assigned to or 0). Empty outside a search except the sensors assigned to zones |

@@ -230,6 +230,8 @@ one example:
   set in the engineering view of the page (FR-8.1), via API (`/api/setup/...`) and console. The sensor is set by
   typing its MAC or by choosing it from the list of a sensor search (FR-11.5).
   - A zone name is 1-31 bytes and a sensor name 0-31 bytes, UTF-8, without `"`, `\` or a control character.
+  - A sensor MAC serves at most one zone; a setting that gives a MAC already used by another zone returns HTTP 400
+    and changes nothing.
   - A relay output serves at most one zone, and not the one the pump uses (FR-14.1); a zone is switched on only with
     a sensor and a relay output. A rejected setting returns HTTP 400 and changes nothing.
   - A zone exists once it is added (FR-73) and until it is deleted (FR-74); switching it on or off does not change
@@ -239,9 +241,14 @@ one example:
 - **FR-11.5 (Sensor search):** *[now]* {SW; test} The user starts a sensor search with the button `Caută senzori`
   in the engineering view (FR-8.1) or by API, and ends it with Stop or after 10 min, whichever comes first (a fixed
   time, not a parameter). While it runs, every compatible sensor heard (FR-6.1) is listed with MAC, temperature,
-  battery and RSSI (FR-6.2); the list holds at most 32 sensors, the first 32 heard. Starting a search empties the
-  list of the previous one; when the search ends, the sensors not assigned to a zone are dropped.
-  - *Reports:* `GET /api/setup/discovered-sensors` returns `active`, `remainingSec` and the list.
+  battery and RSSI (FR-6.2). The list holds the sensors assigned to zones (never dropped, FR-11.6) plus at most 32
+  sensors not assigned to a zone, the first 32 heard; further ones are ignored. Starting a search removes from the
+  list the sensors not assigned to a zone; when the search ends, the sensors not assigned to a zone are dropped.
+  `start` during a running search does nothing (the list and the 10 min are not restarted); `stop` with no search
+  running does nothing; both answer HTTP 200 with the state of `discovered-sensors`.
+  - *Reports:* `GET /api/setup/discovered-sensors` returns `active`, `remainingSec` (0 when not active, at most 600)
+    and `sensors[]` with `mac`, `name`, `temp`, `hum`, `bat`, `rssi`, `ageSec` and `zone` (the number of the zone the
+    sensor is assigned to, or 0).
 - **FR-11.6 (Only assigned sensors kept):** *[now]* {SW; test} Outside a search the controller keeps only the
   sensors assigned to zones. Every zone's sensor has its place whatever other sensors are heard (a zone never loses
   its sensor to the neighbours' sensors, PB-55).
@@ -397,11 +404,15 @@ one example:
     API reports (zones, boiler, sensors, parameters, schedule, diagnostics, time and weather, system) is shown with its
     API name (e.g. `zones[2].relayEngaged`) and a short explanation, and on tap the requirement it belongs to; a value
     without an explanation is still shown; a value that changed since the last refresh is highlighted; while the view
-    is open it keeps a trace of every change with its time, exportable as CSV; it holds the zone commissioning
-    (FR-11.3) with adding and deleting zones (FR-73, FR-74) and the sensor search (FR-11.5), the checks of FR-10.4 and the configuration export and import with the import report (FR-65.1,
-    FR-65.6): the export saves the answer of `GET /api/config/export` as a `.json` file; the import sends the chosen
-    file unchanged as the body of `POST /api/config/import` with `Content-Type: application/json` (FR-65.7) and shows
-    the lists and reasons of FR-65.6;
+    is open it keeps a trace of every change with its time, exportable as CSV; it holds:
+    - the zone commissioning (FR-11.3): a button adds a zone (FR-73), a button on each zone deletes it (FR-74) after
+      a confirmation;
+    - the sensor search (FR-11.5): the button `Caută senzori`, a Stop button, the remaining time and the list of
+      sensors heard, from which a sensor is chosen for a zone;
+    - the checks of FR-10.4;
+    - the configuration export, which saves the answer of `GET /api/config/export` as a `.json` file, and the
+      import, which sends the chosen file unchanged as the body of `POST /api/config/import` with
+      `Content-Type: application/json` (FR-65.7) and shows the lists and reasons of FR-65.6;
   - zone states are shown with the codes and texts of FR-8.4;
   - Family view language configurable (Romanian / English, NFR-3.1).
   - Behind a reverse proxy that serves the controller under a path prefix (e.g. `/heating/` on a home server) the
@@ -413,7 +424,7 @@ one example:
   | Code | Page text | When |
   |---|---|---|
   | `FROST` | Protecție îngheț | frost protection heats the zone (FR-16.1) |
-  | `DISABLED` | Zonă oprită | zone switched off or not commissioned (FR-11.3) |
+  | `DISABLED` | Zonă oprită | zone switched off (FR-11.3), including a zone just added (FR-73) |
   | `FAULT` | Senzor pierdut – încălzește de rezervă | sensor in timeout (FR-16.2, FR-51) |
   | `ACQUIRING` | Așteaptă senzorul | after boot, no reading yet, at most the warmup (FR-22) |
   | `WINDOW` | Fereastră deschisă | window pause (FR-40) |
@@ -432,8 +443,9 @@ one example:
   re-initialised. DTC-401 `WARN_WIFI_SIGNAL_DEGRADED` while down or RSSI < −82 dBm. Control continues (NFR-1.1).
 - **FR-42 (Configuration API limits):** *[now]* {SW; test} `/api/config/system` exposes hydraulic and radio timings and rejects
   values outside the §6 ranges, in particular below the safety floors of FR-2, FR-3 and FR-4.
-- **FR-43 (Relay test):** *[now]* {SW; test} Relay test is accepted only in MANUAL mode and only for configured relay outputs,
-  respecting NC/NO; otherwise HTTP 409.
+- **FR-43 (Relay test):** *[now]* {SW; test} Relay test is accepted only in MANUAL mode and only for a relay output
+  that belongs to a zone or is the pump (FR-14.1), respecting NC/NO (FR-15.1); otherwise HTTP 409. A free output (no
+  zone, not the pump) is refused with 409; a pin that is no relay output of the hardware returns HTTP 400.
 - **FR-50 (Setup access point):** *[now]* {SW; board} If the configured Wi-Fi is not joined at boot, the controller opens access
   point `SmartHeating-Setup`; control continues.
 - **FR-58 (Authentication):** *[now]* {SW; test} These actions require authentication (same credentials as OTA):
@@ -474,6 +486,7 @@ one example:
   - the location (FR-9.2), when it is set;
   - `learnedDuty`: the learned base duty of each zone in %, one value per zone, equal to `learnedDuty` of
     `GET /api/zones`. The step that builds the outdoor bands of FR-47 changes this item and `format`.
+  - The number of zones is not a setting of the file; it follows from `zones`.
   - The export is valid JSON whatever text is stored (test: names with non-ASCII UTF-8 and every character FR-11.3
     accepts). The export of 32 zones (FR-69) with every name at its maximum length of FR-11.3, in its longest JSON
     escaping, is at most 16 384 bytes (analysis).
@@ -498,7 +511,8 @@ one example:
   - *Fallback:* a setting that cannot be applied keeps its current value (safety > comfort, NFR-5.1).
 - **FR-65.5 (Zones checked together):** *[now]* {SW; test} A zone of the file is applied or skipped as a whole: one
   field that fails its check skips the zone; an unknown field is skipped alone (FR-65.4); a missing field keeps its
-  value; a zone `id` the controller does not have is skipped (reason `no-zone`). The pump setting of the file is
+  value; a zone `id` the controller does not have is skipped (reason `no-zone`). The `id` is the zone number at the time of
+  the export; an import never adds or deletes a zone. The pump setting of the file is
   checked first, like set alone, against the zones as they are before the import; the zones of the file are then
   checked against the resulting pump. In the configuration that results, a relay output serves at most one zone and
   not the pump (FR-11.3, FR-14.1): every zone of the file that would break this is skipped (reasons `relay-taken`,
@@ -524,11 +538,15 @@ one example:
 - **FR-73 (Add a zone):** *[now]* {SW; test} The user adds a zone in the engineering view (FR-8.1) or by API, only
   while a relay output is free: the outputs of the configured hardware minus the zones minus the pump output
   (FR-14.1). The new zone gets the lowest free relay output, the name `Zone n` (n = its number), no sensor, is
-  switched off (FR-11.3) and has the factory levels (FR-29). Zone numbers are 1…N without gaps. With no free output
-  the answer is HTTP 409 and nothing changes.
+  switched off (FR-11.3) and has the factory levels (FR-29). Zone numbers are 1…N without gaps. A given name must
+  pass the name rule of FR-11.3, otherwise HTTP 400 and nothing changes; without a name, or with an empty one, the
+  name is `Zone n`. Success answers HTTP 200 with `zone` (its number) and `relayPin` (the output it got). With no
+  free output, or with 32 zones already, the answer is HTTP 409 and nothing changes.
 - **FR-74 (Delete a zone):** *[now]* {SW; test} The user deletes a zone in the engineering view or by API. Its
-  mapping, levels and learned duty are removed, its relay output is driven closed (FR-15.1) and is free again, and
-  the zones after it move up by one number. A zone whose valve is energised is not deleted (FR-3, as FR-11.3): HTTP
+  mapping, levels and learned duty are removed, its relay output is free again (the valve is closed, because a zone
+  with an energised valve is not deleted), and the zones after it move up by one number. Everything that belongs to
+  a zone moves with it (mapping, target, offset, levels, learned duty, sensor timeout state, DTC-101
+  `ERR_SENSOR_TIMEOUT`); a DTC of the deleted zone is cleared. Success answers HTTP 200. A zone whose valve is energised is not deleted (FR-3, as FR-11.3): HTTP
   409, nothing changes, the request can be repeated once the valve is closed. A zone number that does not exist
   returns HTTP 400.
 - **FR-68 (Commissioning checklist):** *[now, documentation]* {install; inspection} Commissioning follows a checklist; the installer records the result in the commissioning document (the controller does not store it):
@@ -541,7 +559,8 @@ one example:
      self-test (FR-60), radio range (FR-5.2).
 - **FR-69 (Number of zones):** *[now: configuration; hardware later]* {SW, HW; test} 0–32 zones (`number of zones`,
   §6), each with name, sensor and output; a new controller has none. The number of outputs is limited by the
-  configured hardware; a zone without an output is rejected. Memory for 32 zones is reserved statically (NFR-2.6).
+  configured hardware; a zone always has an output, it gets one when it is added (FR-73) and an output cannot be
+  removed from a zone. Memory for 32 zones is reserved statically (NFR-2.6).
   Relay 4 is a zone or the pump. A controller that already has zones keeps them.
   - *Fallback:* an output expansion that stops responding → its outputs count as closed (their unpowered state),
     DTC-208 `ERR_OUTPUT_EXPANSION_FAULT`; other zones continue. Details are fixed with the expansion hardware.
