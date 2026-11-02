@@ -4,26 +4,29 @@ Lightweight ASPICE-style process: Markdown work products plus one checker,
 [`tools/sh_process_check.py`](../tools/sh_process_check.py). No external tracker.
 The checker reports; the owner decides and fixes. Heuristic checks are WARN, hard rules are ERROR.
 The checker never hides a finding: an ERROR explained by an open `PB-n` is shown as `KNOWN` (§8), a WARN the
-owner accepted is shown as `INFO waived` (§3).
+owner accepted is shown as `INFO waived` (§3). The default run prints each section's WARN lines as one count (owner,
+02.11.2026, to save tokens); a named check (`trace`, `reqs`, `arch`, `process`), `--full` and CI list them.
 
 ## 1. Work products
 
 | ASPICE | Work product | Where | Checked by |
 |---|---|---|---|
-| SYS.2 / SWE.1 | Requirements (`FR-x`, `NFR-x`) with level and verification method (R7) | `docs/requirements_and_features.md` | `sh_process_check.py reqs`, `trace` |
+| SYS.2 / SWE.1 | Requirements (`FR-x`, `NFR-x`) with level and verification method (R7) | `docs/requirements_and_features.md` | `sh_process_check.py reqs`, `trace`, `sh-req-reviewer` |
 | SYS.2 / SWE.1 | Requirements review record, with the accepted checker warnings (its §7) | `docs/requirements_review.md` | §3 exit criteria; `reqs` / `trace` read the waivers |
-| SWE.2 | Architecture; requirement → module allocation (§3.2 Requirements column); dependency rules R-A1…R-A7 (§3.3) | `docs/architecture.md` | `trace`, `arch` |
-| SWE.6 | Qualification tests against the requirements, run on the board. IDs keep their historical `SWE.5-TCxx.y` prefix so they stay stable | `tools/sh_test_system.py` → `docs/system_test_report.md` | `trace` (incl. hollow tests), test review (§3.2) |
+| SWE.2 | Architecture; requirement → module allocation (§3.2 Requirements column); dependency rules R-A1…R-A7 (§3.3) | `docs/architecture.md` | `trace`, `arch`, `sh-code-reviewer` (code against it) |
+| SWE.6 | Qualification tests against the requirements, run on the board. IDs keep their historical `SWE.5-TCxx.y` prefix so they stay stable | `tools/sh_test_system.py` → `docs/system_test_report.md` | `trace` (incl. hollow tests), `sh-test-reviewer` (§3.2, clean room); written first by `sh-test-writer` (§3.1) |
 | VAL.1 | Owner acceptance: the owner uses the heating on the board | `docs/acceptance.md` | `release` (§5) |
-| SUP.1 | Quality assurance: one review record per migration step | `docs/process_review.md`, then `docs/review_step_<n>.md` (§9) | owner ✅ |
+| SUP.1 | Quality assurance: one review record per migration step | `docs/process_review.md`, then `docs/review_step_<n>.md` (§9) | `sh-assessor` (independent check of the evidence), owner ✅ |
 | SUP.8 | Configuration management: branches, commits, tags, build identity, baselines | git, `tools/sh_git_version.py`, `include/Version.h` | `process`, `release`, `board` |
 | SUP.9 | Problems | `docs/problems.md` | `process`, `release` (§8) |
 | SUP.10 | Change requests and their record: review rows (`QA-n`, `D-n`, `AR-n`, `O-n`), changelog | review records, `docs/changelog.md`, `.agent/memory-bank/activeContext.md` | `process` |
 | MAN.3 | Project plan (architecture §18 steps with status) and decisions | `docs/plan.md`, `.agent/memory-bank/decisions.md` | §4, §9 |
 | SPL.2 | Release | tag `vX.Y.Z` on main = `APP_VERSION` | `release` (§5) |
 | — | Board configuration | live, `GET /api/config/system` | `sh_process_check.py board` |
+| — | EU conformity (CE) of the software: obligations, the requirements that meet them, technical file | `docs/compliance.md` | `sh-compliance-reviewer` (§9) |
 
-Parallel Claude chats each own a zone of these files (AGENTS.md §5 "One chat, one zone").
+The owner does not run these steps: what they report or ask starts the chain `sh-change` (AGENTS.md §5), which
+goes through §2-§9 in order and asks the owner only to decide a requirement change and to test on the board.
 
 ### 1.1 Tailoring
 
@@ -64,7 +67,7 @@ review, not a verdict. When a new safety quantity appears, add it to `QUANTITIES
 
 **Steps:**
 
-1. Run the checker; every WARN/ERROR on the **requirement side** (below) becomes a row in
+1. Run `sh_process_check.py reqs` and `trace`; every WARN/ERROR on the **requirement side** (below) becomes a row in
    `docs/requirements_review.md`.
 2. Classify each row: wrong, conflict, untestable, ambiguous, obsolete, missing, false positive.
 3. Propose: keep, rewrite (with the new text), retire, new, or waive (a false positive of the heuristic, below).
@@ -104,11 +107,30 @@ review, not a verdict. When a new safety quantity appears, add it to `QUANTITIES
 - Every `D-n` decided and recorded (§4).
 - Owner sign-off: date and "closed" in the review record header.
 
-### 3.1 Order of work (owner, 01.11.2026)
+### 3.1 Order of work (owner, 02.11.2026 - replaces "tests follow the code" of 01.11.2026)
 
-Requirements → architecture → code, one migration step at a time (architecture §18, AR-19). In each step the code
-changes first and its tests follow **in the same step**: tests follow the code in time (not TDD), but they check
-the requirement text, never the code. A requirement change a step needs goes through §3 before the code.
+Requirements → architecture → tests → code, one migration step at a time (architecture §18, AR-19).
+A requirement change a step needs goes through §3 before its tests are written.
+
+1. **Tests first, in a clean room.** `sh-test-writer` writes the step's tests from the requirements, the
+   architecture and `api_reference.md`; `sh-test-reviewer` reviews them. Both agents cannot read `src/`,
+   `include/`, `web/`, `lib/` or the other tools, and the writer can edit only `tools/sh_test_system.py`
+   (hook `.claude/hooks/sh_clean_room.py`). Skill `sh-write-tests`.
+2. **Red run.** On the firmware before the step, every new test fails. One that passes is behaviour that exists
+   already (the owner confirms it) or a hollow test (rewritten).
+3. **Freeze.** Inside `sh-change` the frozen tests are committed alone, before the code (evidence for
+   `sh-assessor`). The code session makes the tests pass by changing the code only. A test that cannot pass is a
+   `PB-n` or a requirements review row (§3.2); only `sh-test-writer` changes it, after the owner's decision.
+4. **Green run** on the flashed step (§5 step 2), then the owner's hands-on test.
+
+| Work product | Judged against | Reviewer |
+|---|---|---|
+| Requirements | rules §2, architecture, safety list | `sh-req-reviewer` |
+| Tests | requirements, architecture, API reference - never the code | `sh-test-reviewer` (clean room) |
+| Code | requirements, architecture, API reference, current step | `sh-code-reviewer`, `sh-safety-reviewer` |
+| Links | requirement → module → test → code tag | `sh_process_check.py trace` |
+
+Skill `sh-review` (`reqs | tests | code | trace | all`) runs them together.
 
 ### 3.2 Test rules and test review gate
 
@@ -130,8 +152,8 @@ the requirement text, never the code. A requirement change a step needs goes thr
 4. a test that cannot pass without a different value opens a `PB-n` or a requirements review row; it is not
    adjusted.
 
-The firmware session runs the gate (`sh-verify-firmware` step 3) and writes its result into the step review record
-(§9).
+`sh-test-reviewer` runs the gate in the clean room (`sh-verify-firmware` step 3 launches it); its result goes into
+the step review record (§9).
 
 ## 4. Decisions (MAN.3)
 
@@ -148,7 +170,7 @@ Work happens on a branch; `main` only receives accepted builds.
 
 | Step | Gate | Who / how |
 |---|---|---|
-| 1. Commit | `pio run` clean; `sh_process_check.py` no ERROR (`KNOWN` lines are tracked by a `PB-n` and do not block); `sh-safety-reviewer` no BLOCKER when `src/`, `include/` or `platformio.ini` changed; changelog + activeContext updated; message `type(scope): subject`, citing `PB-n` when it fixes a problem | `sh-verify-firmware` skill (`no-board`). Agents commit only on explicit owner request. |
+| 1. Commit | `pio run` clean; `sh_process_check.py` no ERROR (`KNOWN` lines are tracked by a `PB-n` and do not block); `sh-safety-reviewer` no BLOCKER when `src/`, `include/` or `platformio.ini` changed; changelog + activeContext updated; message `type(scope): subject`, citing `PB-n` when it fixes a problem | `sh-verify-firmware` skill (`no-board`). Inside `sh-change` the chat commits on the work branch once the gates pass (owner, 02.11.2026); otherwise only on request. |
 | 2. Flash | `sh-verify-firmware` steps 1–4 pass (build, process check, test review §3.2, safety review); built from the commit (a `-dirty` build may be tested, but it is not a result of record, §6); then `sh_test_system.py` pass; `sh_process_check.py board` no ERROR | `sh-verify-firmware` skill. The firmware session may flash itself; only one firmware session at a time (owner, 01.11.2026). |
 | 3. Accept | Owner uses the heating for real (hours to days) and adds a row to `docs/acceptance.md`: board commit, requirement IDs covered, what was checked, `OK`/`NOK`. A `NOK` opens `PB-n` rows. | Owner (a chat may write the row from the owner's words) |
 | 4. Step review | Review record of the step (§9) with owner ✅; then the next migration step may start | Any chat writes it, owner signs |
@@ -218,7 +240,10 @@ ID; an open safety problem is a WARN, and an ERROR in `release`.
 - **Step review:** after each migration step, before the next one starts, a review record like
   [`process_review.md`](process_review.md), file `docs/review_step_<n>.md`:
   - checker output of the step (errors, known, warnings, waived);
-  - checklist: AGENTS.md §4 done; test review (§3.2) with the changed tests and their IDs; `sh-safety-reviewer`
-    result; requirements verified by `inspection` / `analysis` (R7) with their result; `PB-n` opened or fixed;
+  - checklist: AGENTS.md §4 done; tests written first (§3.1) with the red run's board commit and result; test
+    review (§3.2) with the changed tests and their IDs; `sh-code-reviewer` and `sh-safety-reviewer` result; requirements verified by `inspection` / `analysis` (R7) with their result; `PB-n` opened or fixed;
     requirement and architecture changes went through §3; changelog, activeContext and plan updated;
   - findings as rows, owner ✅ with date.
+- **Independent check:** at the end of the step, before the owner's board test, `sh-assessor` checks the evidence
+  of this record and `sh-compliance-reviewer` the EU obligations the step touches (`compliance.md`); both results
+  go into the record.

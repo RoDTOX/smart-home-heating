@@ -445,3 +445,48 @@ and a new baseline version; the review stays closed.
 
 Checker after O-16 (baseline v2.3) and after C-1 (baseline v2.4): `reqs` 0 ERROR, 14 WARN (DTC never raised, code
 side), 1 waived (W-1); `trace` 0 ERROR, 16 KNOWN (PB-11), 75 WARN.
+
+## 10. EU conformity review (02.11.2026)
+
+First full run of `sh-compliance-reviewer` against `docs/compliance.md` (the owner sells the device in the EU
+under their brand). The review of baseline v2 stays closed: a row decided here becomes a `C-n` row in §9 and a new
+baseline version (`process.md` §3). Code gaps are PB-43 ... PB-54 in `docs/problems.md`.
+
+### 10.1 Findings
+
+| ID | Finding | Category | Proposal | Safety |
+|---|---|---|---|:-:|
+| CMP-3 / FR-59 | FR-59 and §6 allow universal default credentials (OTA, access point, Wi-Fi); the EU rule is no universal default password. Code: PB-53. | conflict | rewrite FR-59 by D40 |  |
+| CMP-14 / FR-66 | Factory reset keeps the Wi-Fi credentials and is `[later]` (after step 14); the EU rule is that all data and settings can be removed, at the first sale. | conflict | rewrite FR-66, phase `[now]`, by D44 |  |
+| CMP-11, CMP-6 / FR-7.1 | Telnet server on port 23: plain text, no requirement authenticates it. | conflict | by D42 |  |
+| CMP-5 / FR-58 | Comfort settings (including away and schedule, which show when nobody is home) and every read need no authentication. | conflict | by D49, after the risk assessment (CMP-1) |  |
+| CMP-4 / §1 | "Out of scope: cloud services" vs security updates automatic by default where applicable, with the user told. | conflict | by D43; whether "applicable" - consultant |  |
+| CMP-5 / FR-58 | FR-58 does not refuse cross-site writes (CORS stops neither a form POST nor a GET with an effect), does not report failed authentication, and does not say how the HTTP and Telnet console authenticate protected commands. Code: PB-44, PB-46. | missing | extend FR-58 | ✓ |
+| CMP-11 / FR-50 | No requirement lists the only services and ports; FR-50 does not say when the setup access point closes or which secret it uses; undocumented endpoints exist. Code: PB-43, PB-51. | missing | new requirement; FR-50 gets a closing rule (Wi-Fi joined or a timeout) and a per-unit secret | ✓ |
+| CMP-13 | Security events (failed authentication, setting and credential changes, OTA, factory reset) are not recorded; FR-62 covers safety events only; the log can be forged and cleared. Code: PB-51. | missing | new requirement, with an opt-out |  |
+| CMP-9 | No bound on input size and request rate per interface; flooding is not kept away from the control tick (NFR-1.8); the sensor table can lose the mapped sensors. Code: PB-48, PB-50, PB-49, PB-47. | missing | new requirement | ✓ |
+| CMP-8 / FR-9.2 | No requirement lists the data collected, the data that leave the controller (weather location, time servers) and how long history and foreign sensors are kept. Code: PB-54. | missing | new requirement; D48 |  |
+| CMP-7 / FR-53, FR-55 | Room readings are not authenticated (encryption is only "optional later"); boiler frames can be replayed if the product ships its own receiver. | missing | D45 | ✓ |
+| CMP-6 | No requirement keeps credentials and settings from being sent or logged in clear, or protects stored secrets against read-out. | missing | D41 |  |
+| CMP-4, CMP-26 / FR-8.3, FR-60 | No requirement accepts only images signed by the manufacturer or tells the user that a security update exists. Code: PB-52. | missing | D43 |  |
+| CMP-40, CMP-41 | No requirement records the software class of each safety function, or the Annex H measure and safe state per fault class (CPU, program flow, interrupts, clock, memories, communication, I/O). | missing | D47 | ✓ |
+| CMP-50 / FR-17.2 | No requirement bounds the worst-case on-air time of the 433.92 MHz transmitter from every source, forced OFF included, to the band limit. Code: PB-47. | missing | new requirement, METHOD `analysis` plus the lab's limit |  |
+| CMP-51 | No requirement sets the EU Wi-Fi regulatory domain or keeps power and channels inside the radio module's certificate. | missing | new requirement |  |
+| CMP-2, CMP-20, CMP-21, CMP-22 | No process rule for an SBOM and a vulnerability check per release, a security test per release, or a security fix outside the migration step (PB-1: "no hotfix" will not hold after a sale). | missing (process) | `docs/process.md`; D50 |  |
+| CMP-23 ... CMP-31 | Owner documents: disclosure policy and contact, free updates, support period, ENISA reporting, declaration of conformity and technical file, user information. | missing (owner) | `docs/compliance.md` §4; D46 |  |
+
+### 10.2 Decisions for the owner
+
+| # | Question | Options | Recommendation | Owner |
+|---|---|---|---|---|
+| D40 | CMP-3 / FR-59: how does each unit get its credentials, with no universal default? | A a unique secret per unit, printed on the label (factory) / B none until the user sets them at first setup / C A, and the user is asked to change it at first setup | A - heating works out of the box (frost protection needs no setup) | open |
+| D41 | CMP-6: encryption on the home LAN. | A HTTPS on the controller (heap, NFR-2.2, plan risk R-1) / B plain text on the LAN, risk accepted in the risk assessment (CMP-1) / C B, plus flash encryption set at the factory (irreversible) | decide after the risk assessment (CMP-1) | open |
+| D42 | CMP-11 / FR-7.1: the Telnet console. | A removed (Serial and the authenticated HTTP console stay, FR-45) / B off by default, switched on by an authenticated command / C kept | A - one port less, FR-45 covers the use | open |
+| D43 | CMP-4, CMP-26: security updates without a cloud. | A signed images on a download page, the user uploads them / B the controller checks a published list and tells the user, who installs / C B, installed automatically; with A-C: signed images and secure boot set at the factory (irreversible) | B - the user is told, no account; consultant confirms whether automatic is "applicable" | open |
+| D44 | CMP-14 / FR-66: factory reset. | A one full erase (data, settings, credentials) / B two levels: settings reset (keeps Wi-Fi) and full erase; either way FR-66 moves to `[now]` | B | open |
+| D45 | CMP-7 / FR-55: does the product ship its own boiler receiver, and does it authenticate frames? | A own receiver with authenticated frames / B the boiler's original receiver (frames can be replayed, risk recorded in CMP-1) | decide with D19 (receiver hardware) | open |
+| D46 | CMP-28: support period (security updates) promised to the buyer. | A 5 years / B the expected life of a heating controller (longer) / C another period | A at least; consultant confirms | open |
+| D47 | CMP-40, CMP-41: software class of the safety functions and Annex H measures. | A ask the lab before migration step 4 (`SafetySupervisor`) / B assume class B now and add the measures to steps 4 and 12 | A, then B with the lab's answer; hardware measures (relay read-back, independent clock) may follow | open |
+| D48 | CMP-8 / FR-9.2: precision of the location sent to the weather service. | A full precision / B rounded to about 10 km / C rounded to about 1 km | B - the weather grid is coarser | open |
+| D49 | CMP-5 / FR-58: reads (temperatures, presence, away) and comfort settings without authentication. | A kept open on the LAN, argued in the risk assessment / B away and schedule need authentication, the rest stays open / C every read and write needs authentication | decide after the risk assessment (CMP-1) | open |
+| D50 | CMP-21: a security fix after a sale. | A may go ahead of the migration step, on its own branch, through the same gates / B waits for its step | A | open |

@@ -24,7 +24,8 @@ Findings already tracked (docs/process.md §3, §8):
            '## 7. Accepted checker warnings'; printed as INFO
 
 Usage:
-  python tools/sh_process_check.py                 # trace + reqs + arch + process, diff against origin/main or main
+  python tools/sh_process_check.py                 # trace + reqs + arch + process, diff against origin/main or main;
+                                                   # WARN counted per section (listed with --full, a named check, CI)
   python tools/sh_process_check.py trace --matrix docs/traceability.md
   python tools/sh_process_check.py process --base HEAD~3 --strict
   python tools/sh_process_check.py board --ip 192.168.1.20
@@ -148,18 +149,29 @@ DTC_RAISE_RE = re.compile(r'raiseDtc\("(DTC-\d+)"')
 
 class Report:
     """Prints and counts findings. `known`: [(PB id, status, Checker text)] from the problems log; `waivers`:
-    [(#, check, WARN text, approved)] from the review record. `check` is the check now running (for waivers)."""
+    [(#, check, WARN text, approved)] from the review record. `check` is the check now running (for waivers).
+    `short`: WARN lines are counted per section instead of printed (the default run, docs/process.md intro)."""
 
-    def __init__(self, known=(), waivers=()):
+    def __init__(self, known=(), waivers=(), short=False):
         self.errors = self.warnings = self.known = self.waived = 0
         self.check = None
         self.known_texts = list(known)
         self.waivers = list(waivers)
         self.matched = set()  # ("pb", id, text) / ("waiver", #) that matched a finding
+        self.short = short
+        self.section_warnings = 0
 
     def section(self, title, check=None):
+        self.flush()
         self.check = check
         print(f"\n== {title} ==")
+
+    def flush(self):
+        """Short mode: the warnings of the section that ends, as one count line."""
+        if self.short and self.section_warnings:
+            print(f"  WARN   {self.section_warnings} warnings - list: python tools/sh_process_check.py "
+                  f"{self.check or '--full'}")
+        self.section_warnings = 0
 
     def error(self, msg):
         # The release gate and the problems log itself are never KNOWN: a PB row must not hide them.
@@ -190,7 +202,10 @@ class Report:
         if self.waive(msg):
             return
         self.warnings += 1
-        print(f"  WARN   {msg}")
+        if self.short:
+            self.section_warnings += 1
+        else:
+            print(f"  WARN   {msg}")
 
     def info(self, msg):
         print(f"  INFO   {msg}")
@@ -465,6 +480,12 @@ def check_trace(rep, matrix_path=None):
     # FR-10.1) is reported separately, it does not prove the leaf.
     # Only leaves verified by `test` / `board` need a test; without an attribute a leaf needs one too (R7).
     leaves = [r for r in reqs if not any(o.startswith(r + ".") for o in reqs)]
+    # A parent only groups its children (requirements §0); one with its own {LEVEL; METHOD} carries a requirement
+    # that the coverage below never counts.
+    for rid in sorted(set(reqs) - set(leaves), key=sort_key):
+        if rid in attrs and attrs[rid][1]:
+            rep.warn(f"{REQ_DOC}:{attrs[rid][0]} {rid} has children and its own {attrs[rid][1]} - a parent only "
+                     f"groups (requirements §0): move its text to a child, else it is never counted as untested")
     test_of = {r: [t["tc"] for t in tests if r in t["refs"]] for r in reqs}
     via_parent = {r: test_of.get(parent_of(r), []) for r in leaves}
     method_of = {r: set(attrs[r][3]) if r in attrs and attrs[r][3] else None for r in leaves}
@@ -862,7 +883,7 @@ def check_problems(rep, release=False):
 
 
 def check_process(rep, base, strict_size):
-    rep.section("Process (AGENTS.md rules)")
+    rep.section("Process (AGENTS.md rules)", "process")
     check_safety_limits(rep)
     check_build_identity(rep)
     problems = check_problems(rep)
@@ -1139,9 +1160,12 @@ def main():
                     help="write the traceability matrix as Markdown (default PATH: docs/traceability.md)")
     ap.add_argument("--require-firmware", action="store_true", help="missing firmware.bin is an error (CI)")
     ap.add_argument("--strict", action="store_true", help="warnings and known errors fail the run")
+    ap.add_argument("--full", action="store_true", help="list every WARN line in the default run too")
     args = ap.parse_args()
 
-    rep = Report(load_known(), load_waivers())
+    # The default run counts warnings per section; a named check, --full and CI list them.
+    short = args.check == "all" and not args.full and not os.environ.get("CI")
+    rep = Report(load_known(), load_waivers(), short)
     if args.check in ("all", "trace"):
         check_trace(rep, args.matrix)
     if args.check in ("all", "reqs"):
@@ -1164,6 +1188,7 @@ def main():
         except GitError as e:
             rep.error(f"release check aborted: {e}")
     report_tracked(rep, args.check)
+    rep.flush()
 
     failed = rep.errors or (args.strict and (rep.warnings or rep.known))
     print(f"\nResult: {rep.errors} errors, {rep.known} known, {rep.warnings} warnings, {rep.waived} waived "

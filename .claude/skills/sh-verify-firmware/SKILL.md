@@ -26,25 +26,19 @@ python tools/sh_process_check.py
 Traceability, requirement rules (`docs/process.md` §2), architecture rules R-A1 ... R-A7 and AGENTS.md rules
 (safety ranges, changelog/activeContext, commit format, debug leftovers, secrets, libraries, size).
 Any ERROR stops the pipeline. `KNOWN (PB-n)` lines are errors already tracked by an open problem - they do not
-stop it; list them by `PB-n`. List WARN lines in the report.
+stop it; list them by `PB-n`. The run prints a WARN count per section: report the counts, and list a section's
+WARN lines (`python tools/sh_process_check.py trace|reqs|arch|process`) only when the branch changed what it checks.
 
 ## 3. Test review (changed tests)
 
-For every test in `tools/sh_test_system.py` changed on the branch (`git diff origin/main -- tools/sh_test_system.py`),
-apply `docs/process.md` §3.2:
+Launch the `sh-test-reviewer` agent (clean room - it cannot read the code) on the tests changed on the branch
+(`docs/process.md` §3.2). Do not pass it code. Any FINDING stops the pipeline. Never edit a test to make it pass.
 
-- the docstring cites a leaf ID (`FR-10.2`), not a parent;
-- it asserts the value or observable result written in the requirement text or §6 - compare with the
-  requirement, never with the code;
-- `trace` shows no hollow-test WARN for it.
+## 4. Code and safety review of the diff
 
-A test that fails this review stops the pipeline. Never edit a test to make it pass.
-
-## 4. Safety review of the diff
-
-Launch the `sh-safety-reviewer` agent on the branch diff (against `origin/main`, plus uncommitted changes).
-Any **BLOCKER** stops the pipeline - never flash with a blocker open.
-Skip this step only if the diff touches nothing in `src/`, `include/` or `platformio.ini`.
+Launch `sh-code-reviewer` and `sh-safety-reviewer` in parallel on the branch diff (against `origin/main`, plus
+uncommitted changes). Any **BLOCKER** or code FINDING stops the pipeline - never flash with one open.
+Skip this step only if the diff touches nothing in `src/`, `include/`, `web/` or `platformio.ini`.
 
 ## 5. Flash (OTA)
 
@@ -107,10 +101,11 @@ One short block, in Romanian for the user:
 - build: OK / FAIL (flash size), build commit (`-dirty` = not a result of record)
 - process check: errors / known (PB-n) / warnings
 - test review: changed tests OK / findings
-- safety review: blockers / risks (one line each, `file:line`)
+- code / safety review: findings / blockers / risks (one line each, `file:line`)
 - flash: done / skipped
 - system test: X/Y PASS, failing ids
 - board config: errors (key = value vs limit), board commit vs HEAD
 - problems: new `PB-n` rows opened
 
-End with the one decision the user has to make (e.g. fix blocker, accept on the board, commit). Do not commit or push.
+End with the one decision the user has to make (e.g. fix blocker, accept on the board). Do not commit or push
+here; inside `sh-change` the chain commits after this gate.

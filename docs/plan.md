@@ -89,4 +89,5 @@ Requirement phase tags map to the steps: `[now]` = steps 1–13, `[phase 4]` = s
 
 ## Out of scope
 
-Cloud, SaaS, fleet, sales, Home Assistant, kiosk / wall tablet (AGENTS.md §2, requirements §1).
+Cloud, SaaS, fleet, shop, Home Assistant, kiosk / wall tablet (AGENTS.md §2, requirements §1). Sale in the EU
+under the owner's brand is in scope as conformity work only ([`compliance.md`](compliance.md), owner 02.11.2026).

@@ -24,7 +24,9 @@ step, the step passes §4, the owner tests it hands-on on the board, then the ne
 Requirement phase tags say in which step a requirement is built: `[now]` = steps 1–13, `[phase 4]` = step 14,
 `[later]` and `[nice to have]` after step 14.
 
-**Do not add features outside the current step.** No cloud, SaaS, fleet, sales, Home Assistant or kiosk work.
+**Do not add features outside the current step.** No cloud, SaaS, fleet, shop, Home Assistant or kiosk work.
+The device is prepared for sale in the EU under the owner's brand (owner, 02.11.2026): what EU law asks of the
+software is in [`docs/compliance.md`](docs/compliance.md) and becomes a requirement only through the chain (§5).
 
 ## 3. Engineering rules
 
@@ -50,9 +52,11 @@ Requirement phase tags say in which step a requirement is built: `[now]` = steps
 
 1. `pio run` builds clean (also runs on GitHub Actions for every push).
 2. `python tools/sh_process_check.py` has no ERROR (`KNOWN` lines are errors already tracked by an open `PB-n`).
-3. Test review: every changed test cites a leaf ID and asserts the value written in the requirement
-   ([`docs/process.md`](docs/process.md) §3.2).
-4. `sh-safety-reviewer` reports no BLOCKER when `src/`, `include/` or `platformio.ini` changed.
+3. Test review: `sh-test-reviewer` (no access to the code) finds no FINDING - every changed test cites a leaf ID
+   and asserts the value written in the requirement ([`docs/process.md`](docs/process.md) §3.2). The step's
+   tests were written first, by `sh-test-writer`, and failed on the old firmware (§3.1).
+4. `sh-code-reviewer` and `sh-safety-reviewer` report no FINDING / BLOCKER when `src/`, `include/`, `web/` or
+   `platformio.ini` changed.
 5. `python tools/sh_test_system.py` passes against the board.
 6. `python tools/sh_process_check.py board` has no ERROR (live NVS values within the safety limits).
 7. Read your own `git diff` for debug leftovers and the safety list above.
@@ -69,18 +73,16 @@ The full process (requirement rules, requirements review, test review, decisions
 - Explain the *why* briefly (analogy welcome), keep tasks atomic.
 - Ask when intent is unclear (>10% ambiguity) instead of guessing.
 - On task completion update [`docs/changelog.md`](docs/changelog.md) and `.agent/memory-bank/activeContext.md`.
-- **Commit/push only on explicit user request.** Deletions need confirmation.
-- **One chat, one zone.** Parallel Claude chats each own a zone and change only its files:
-  - *process:* `docs/process.md`, `tools/sh_process_check.py`, `tools/sh_git_version.py`, `.claude/`
-  - *requirements:* `docs/requirements_and_features.md`, `docs/requirements_review.md`
-  - *architecture:* `docs/architecture.md`
-  - *firmware:* `src/`, `include/`, `web/`, `platformio.ini`, the other `tools/sh_*.py`
-  - *shared logs:* `docs/changelog.md`, `docs/problems.md`, `docs/acceptance.md`,
-    `.agent/memory-bank/decisions.md` are append-only (add your entry, never rewrite another's);
-    in `activeContext.md` edit only your own lines.
-
-  A request outside the chat's zone is refused with a pointer to the chat that owns it.
-  When only one chat is active, it owns every zone.
+- **The owner's chain.** When the owner tells what they see on the heating or asks for a change (or for the next
+  migration step), run skill `sh-change`: log → requirement → tests first → code → gates → commit → board.
+  The owner is asked only to decide a requirement change and to test on the board; everything else runs without
+  asking. At the end of a migration step `sh-assessor` checks the step's evidence and `sh-compliance-reviewer`
+  the EU rules, before the owner tests.
+- **Commit** on the work branch inside `sh-change` once its gates pass (owner, 02.11.2026); outside the chain only
+  on request. **Push, PR and `main` only on explicit request.** Deletions need confirmation.
+- Logs (`docs/changelog.md`, `docs/problems.md`, `docs/acceptance.md`, `.agent/memory-bank/decisions.md`) are
+  append-only: add an entry, never rewrite an old one. Old entries may move unchanged to `docs/archive/` (owner,
+  02.11.2026). `activeContext.md` holds only what holds now and what comes next.
 
 ## 6. Language
 
