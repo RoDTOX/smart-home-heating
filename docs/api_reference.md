@@ -44,7 +44,7 @@ Invalid schedule input returns `400`.
 | POST | `/api/setup/zone-delete` | `zone` (1-based number) | Deletes the zone (FR-74); later zones move up one number; HTTP 409 while its valve is energised, 400 for a number that does not exist, nothing changed |
 | POST | `/api/setup/sensor-search` | `action` = `start`\|`stop` | Starts or stops the sensor search (FR-11.5); answers like the GET below; another `action` → 400 |
 | GET | `/api/setup/discovered-sensors` | | Sensor search result (FR-11.5): `active`, `remainingSec` (0 when not active, at most 600), `sensors[]` (`mac`, `name`, `temp`, `hum`, `bat`, `rssi`, `ageSec`, `zone` = number of the zone it is assigned to or 0). Empty outside a search except the sensors assigned to zones |
-| POST | `/api/setup/map-zone` | `zone` (0-based), `name`, `mac`, `sname`, `pin`, `target`, `hyst`, `enabled`, `offset` | Zone commissioning (FR-11.3): all fields checked first, HTTP 400 and nothing changed when `pin` is not a relay output (32, 33, 25, 26), a relay is used by another zone or the pump, a sensor MAC is used by another zone, a zone is switched on without sensor, the name is empty / > 31 bytes / has `"` or `\`, the MAC is malformed, target outside 15–30 °C or offset outside −3..+3 °C |
+| POST | `/api/setup/map-zone` | `zone` (0-based), `name`, `mac`, `sname`, `pin`, `target`, `hyst`, `enabled`, `offset` | Zone commissioning (FR-11.3): all fields checked first, HTTP 400 and nothing changed when `pin` is not a relay output (32, 33, 25, 26), a relay is used by another zone or the pump, a sensor MAC is used by another zone (one zone alone; the page saves all zones together through `/api/config/import`, which checks the result), a zone is switched on without sensor, the name is empty / > 31 bytes / has `"` or `\`, the MAC is malformed, target outside 15–30 °C or offset outside −3..+3 °C |
 | POST | `/api/zones/sensor` | | Assign sensor to zone |
 | POST | `/api/zones/toggle` | | Enable/disable zone |
 | GET/POST | `/api/setup/actuator-type` | `type` = `nc`\|`no` | Actuator polarity |
@@ -152,8 +152,9 @@ sensor readings) are never in it (FR-65.2).
 - A zone is applied or skipped as a whole: one bad field skips the whole zone; its unknown fields are skipped
   alone; its missing fields keep their value. A zone `id` the controller does not have is skipped.
 - Zones together: in the configuration that results (the zones of the file that passed, the other zones as they
-  are, the pump as it results from `params`) a relay serves one zone and not the pump; every zone of the file
-  in a conflict is skipped, and the check repeats until none is left. A zone whose valve is energised keeps its
+  are, the pump as it results from `params`) a relay serves one zone and not the pump, and a sensor MAC serves one
+  zone (so two zones can exchange their sensors in one file); every zone of the file in a conflict is skipped
+  (`relay-taken`, `pump-relay`, `sensor-taken`), and the check repeats until none is left. A zone whose valve is energised keeps its
   relay and stays on: a file that changes either skips that zone (FR-11.3).
 - Answer HTTP 200:
 

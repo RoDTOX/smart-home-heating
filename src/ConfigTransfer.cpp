@@ -251,12 +251,6 @@ void planZone(size_t i, ZonePlan& zp, Report& rep) {
         else bad = true;
     }
     if (bad) { zp.reason = "invalid"; return; }
-    // A sensor MAC serves one zone (FR-11.3)
-    if (zp.mac[0] != '\0') {
-        for (size_t k = 0; k < thermalZones.getZoneCount(); k++) {
-            if (k != i && strcasecmp(thermalZones.getConfig(k).sensorMac, zp.mac) == 0) { zp.reason = "invalid"; return; }
-        }
-    }
     // A zone is switched on only with a sensor (FR-11.3)
     if (zp.enabled && zp.mac[0] == '\0' && zp.sensorName[0] == '\0') { zp.reason = "invalid"; return; }
     // An energised valve keeps its relay and stays on (FR-11.3, FR-3)
@@ -304,21 +298,35 @@ void importZones(JsonVariantConst zv, Report& rep) {
     // The pump setting of the file was applied before (FR-65.5). A zone that moves onto a taken relay is skipped
     // and keeps its relay; the check repeats until no conflict is left.
     auto pinOf = [&](size_t j) { return (plan[j].entries == 1 && !plan[j].reason) ? plan[j].pin : thermalZones.getConfig(j).relayPin; };
+    // A sensor MAC serves at most one zone in the result as well (FR-11.3, FR-65.5): two zones may exchange sensors
+    auto macOf = [&](size_t j) { return (plan[j].entries == 1 && !plan[j].reason) ? (const char*)plan[j].mac : thermalZones.getConfig(j).sensorMac; };
     bool changed;
     do {
         changed = false;
         for (size_t i = 0; i < thermalZones.getZoneCount(); i++) {
-            if (plan[i].entries != 1 || plan[i].reason || plan[i].pin == thermalZones.getConfig(i).relayPin) continue;
-            if (thermalZones.isPumpControlEnabled() && plan[i].pin == thermalZones.getPumpRelayPin()) {
-                plan[i].reason = "pump-relay";
-                changed = true;
-                continue;
-            }
-            for (size_t j = 0; j < thermalZones.getZoneCount(); j++) {
-                if (j != i && pinOf(j) == plan[i].pin) {
-                    plan[i].reason = "relay-taken";
+            if (plan[i].entries != 1 || plan[i].reason) continue;
+            if (plan[i].pin != thermalZones.getConfig(i).relayPin) {
+                if (thermalZones.isPumpControlEnabled() && plan[i].pin == thermalZones.getPumpRelayPin()) {
+                    plan[i].reason = "pump-relay";
                     changed = true;
-                    break;
+                    continue;
+                }
+                for (size_t j = 0; j < thermalZones.getZoneCount(); j++) {
+                    if (j != i && pinOf(j) == plan[i].pin) {
+                        plan[i].reason = "relay-taken";
+                        changed = true;
+                        break;
+                    }
+                }
+                if (plan[i].reason) continue;
+            }
+            if (plan[i].mac[0] != '\0' && strcasecmp(plan[i].mac, thermalZones.getConfig(i).sensorMac) != 0) {
+                for (size_t j = 0; j < thermalZones.getZoneCount(); j++) {
+                    if (j != i && strcasecmp(macOf(j), plan[i].mac) == 0) {
+                        plan[i].reason = "sensor-taken";
+                        changed = true;
+                        break;
+                    }
                 }
             }
         }

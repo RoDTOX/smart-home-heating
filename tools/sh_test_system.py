@@ -3351,7 +3351,7 @@ class SystemTestSuite:
         return res
 
     def test_tc29_35_import_sensor_of_other_zone(self):
-        """SWE.5-TC29.35: Zone Given the Sensor of a Zone Not in the File Skipped With Reason sensor-taken (FR-65.5, FR-65.6)"""
+        """SWE.5-TC29.35: Zone Given the Sensor of a Zone Not in the File Skipped With Reason sensor-taken (FR-65.5)"""
         test_id = "SWE.5-TC29.35"
         name = "Import Sensor Conflict"
         req = "FR-65.5"

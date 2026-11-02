@@ -7,6 +7,16 @@ Entries before 29.10.2026 (the system before the lean clean-up):
 
 
 
+## [02.11.2026] - One Save for all zones (C-12)
+
+- **Who / when / why:** firmware session (Claude), 02.11.2026; the owner on the board: sensors assigned to the wrong
+  zones could not be moved, each zone had its own Save and the old zone still held the sensor.
+- **Where:** FR-11.3, FR-65.5, FR-65.6 (baseline v2.9); `ConfigTransfer.cpp` checks a sensor MAC on the resulting
+  configuration (new reason `sensor-taken`); `web/index.html`: one button `Salvează zonele` sends all zones to
+  `api/config/import`, a skipped zone shows its reason in its row; `api_reference.md`; tests TC29.34, TC29.35, TC30.12.
+- **Not changed:** single-zone `map-zone` (API, console) keeps its strict check. Light mode, no safety run: no
+  valve, boiler, frost or sensor-timeout logic changed.
+
 ## [02.11.2026] - Process: model and effort per work, reading budget
 
 - **Who / when / why:** process chat (Claude), 02.11.2026; the owner: too many tokens, also in the main chat.

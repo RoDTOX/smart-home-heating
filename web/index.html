@@ -62,7 +62,7 @@ code,.mono{font:13px/1.35 ui-monospace,SFMono-Regular,Consolas,monospace}
   <section>
     <h2>Zone – punere în funcțiune (FR-11.3)</h2>
     <div class="s">Adaugi zone pe ieșirile libere ale plăcii. O zonă se pornește doar cu senzor; un releu și un senzor servesc o singură zonă; releul nu e al pompei.</div>
-    <div class="row"><button id="zoneAdd">Adaugă zonă</button><span id="zoneMsg" class="s"></span></div>
+    <div class="row"><button id="zoneAdd">Adaugă zonă</button><button id="zonesSave">Salvează zonele</button><span id="zoneMsg" class="s"></span></div>
     <div class="scroll"><table id="setup"></table></div>
     <datalist id="macList"></datalist>
   </section>
@@ -387,7 +387,7 @@ function renderSetup() {
      <td><select data-f="pin">${RELAYS.map(([p, t]) => `<option value="${p}" ${p === z.relayPin ? "selected" : ""}>${t}</option>`).join("")}</select></td>
      <td><input type="checkbox" data-f="enabled" ${z.enabled ? "checked" : ""}></td>
      <td><input class="n" type="number" step="0.1" min="-3" max="3" data-f="offset" value="${z.tempOffset.toFixed(1)}"></td>
-     <td><button data-save="${i}">Salvează</button><button data-del="${i}">Șterge</button></td><td class="s" id="setupMsg${i}"></td></tr>`).join("");
+     <td><button data-del="${i}">Șterge</button></td><td class="s" id="setupMsg${i}"></td></tr>`).join("");
 }
 
 function renderSensors() {
@@ -601,17 +601,34 @@ $("setup").addEventListener("click", async e => {
     refresh();
     return;
   }
-  const b = e.target.closest("button[data-save]");
-  if (!b) return;
-  const i = b.dataset.save, tr = b.closest("tr"), f = n => tr.querySelector(`[data-f="${n}"]`);
-  try {
-    await api("api/setup/map-zone", {zone: i, name: f("name").value.trim(), mac: f("mac").value, sname: "", pin: f("pin").value,
-      enabled: f("enabled").checked ? 1 : 0, offset: (+f("offset").value).toFixed(1)});
-    dirtyRows.delete(i);
-    $("setupMsg" + i).textContent = "Salvat.";
-  } catch (err) { $("setupMsg" + i).textContent = "Respins: " + err.message; }
-  if (!dirtyRows.size) refresh();
 });
+
+// FR-11.3: one Save for all zones; the controller checks them together on the configuration that results
+const SAVE_WHY = {"sensor-taken": "senzorul e la altă zonă", "relay-taken": "releul e la altă zonă", "pump-relay": "releul e al pompei",
+  "valve-energised": "supapa e deschisă", invalid: "valoare nepermisă (o zonă pornită are nevoie de senzor)", duplicate: "zonă dublă"};
+$("zonesSave").onclick = async () => {
+  const zones = [...document.querySelectorAll("#setup tr[data-z]")].map(tr => {
+    const f = n => tr.querySelector(`[data-f="${n}"]`);
+    return {id: +tr.dataset.z + 1, name: f("name").value.trim(), mac: f("mac").value.trim(), relayPin: +f("pin").value,
+            enabled: f("enabled").checked, offset: +(+f("offset").value).toFixed(1)};
+  });
+  try {
+    const r = await fetch("api/config/import", {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify({format: 1, zones})});
+    const j = await r.json();
+    if (!r.ok) throw new Error(j.message || "HTTP " + r.status);
+    document.querySelectorAll("#setup td.s").forEach(td => td.textContent = "");
+    let bad = 0;
+    for (const x of j.skipped || []) {
+      const m = /^zones\[(\d+)\]$/.exec(x.name), td = m && $("setupMsg" + (m[1] - 1));
+      if (!td) continue;
+      bad++;
+      td.textContent = "Respinsă: " + (SAVE_WHY[x.reason] || x.reason);
+    }
+    $("zoneMsg").textContent = bad ? `Restul salvat, ${bad} zonă/zone respinse (vezi rândurile).` : "Zonele au fost salvate.";
+    if (!bad) dirtyRows.clear();
+  } catch (err) { $("zoneMsg").textContent = "Respins: " + err.message; }
+  if (!dirtyRows.size) refresh();
+};
 
 // While the schedule form is being edited, refreshes must not overwrite the inputs
 const schedForm = $("saveSched").closest("section");
