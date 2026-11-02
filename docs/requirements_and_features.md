@@ -537,7 +537,7 @@ one example:
 - **FR-66 (Factory reset):** *[later]* {SW; test} Factory reset via console or API, with confirmation; keeps Wi-Fi credentials.
 - **FR-73 (Add a zone):** *[now]* {SW; test} The user adds a zone in the engineering view (FR-8.1) or by API, only
   while a relay output is free: the outputs of the configured hardware minus the zones minus the pump output
-  (FR-14.1). The new zone gets the lowest free relay output, the name `Zone n` (n = its number), no sensor, is
+  (FR-14.1). The new zone gets the lowest free relay output (in the order relay 1…4 of the board), the name `Zone n` (n = its number), no sensor, is
   switched off (FR-11.3) and has the factory levels (FR-29). Zone numbers are 1…N without gaps. A given name must
   pass the name rule of FR-11.3, otherwise HTTP 400 and nothing changes; without a name, or with an empty one, the
   name is `Zone n`. Success answers HTTP 200 with `zone` (its number) and `relayPin` (the output it got). With no

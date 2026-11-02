@@ -10,7 +10,7 @@ Zone ids are 1-based unless noted.
 | Method | Path | Purpose |
 |---|---|---|
 | GET | `/api/boiler/status` | Firmware (`firmwareVersion` 1.MM.DD.NN, FR-21), boiler state, time, outdoor temperature, heap, RSSI, uptime |
-| GET | `/api/zones` | Per-zone temps, effective target, valve state, `duty` / `learnedDuty` (%), `tempOffset`, alarms, `relayEngaged` (true while the valve is energised), `state` (FR-8.4: `FROST`, `DISABLED`, `FAULT`, `ACQUIRING`, `WINDOW`, `HEATING`, `IDLE`); global schedule state (`away`, `activeLevel`, `nextLevel`, `minsToNextSlot`) and boiler runtime |
+| GET | `/api/zones` | Per-zone temps, effective target, valve state, `duty` / `learnedDuty` (%), `tempOffset`, alarms, `relayEngaged` (true while the valve is energised), `frostActive` (frost protection heats the zone, FR-16.1), `state` (FR-8.4: `FROST`, `DISABLED`, `FAULT`, `ACQUIRING`, `WINDOW`, `HEATING`, `IDLE`); global schedule state (`away`, `activeLevel`, `nextLevel`, `minsToNextSlot`) and boiler runtime |
 | GET | `/api/ble/sensors` | All decoded BLE sensors (temp, humidity, battery, RSSI, age) |
 | GET | `/api/history?range=24h\|5d` | Temperature history from LittleFS |
 | POST | `/api/history/clear` | Clear history |
@@ -40,11 +40,11 @@ Invalid schedule input returns `400`.
 |---|---|---|---|
 | GET/POST | `/api/setup/location` | `coords` = `lat,lon` | Location for Open-Meteo |
 | GET | `/api/setup/time` | `refreshWeather` | NTP time and weather |
-| POST | `/api/setup/zone-add` | `name` (optional; invalid → 400) | Adds a zone (FR-73): `{"status":"ok","zone":N,"relayPin":P}` (N = its number, 1-based, P = the free relay output it got); HTTP 409 when no relay output is free, nothing changed |
+| POST | `/api/setup/zone-add` | `name` (optional; invalid → 400) | Adds a zone (FR-73), on the lowest free relay output in the order relay 1…4 = GPIO 32, 33, 25, 26: `{"status":"ok","zone":N,"relayPin":P}` (N = its number, 1-based, P = the free relay output it got); HTTP 409 when no relay output is free, nothing changed |
 | POST | `/api/setup/zone-delete` | `zone` (1-based number) | Deletes the zone (FR-74); later zones move up one number; HTTP 409 while its valve is energised, 400 for a number that does not exist, nothing changed |
 | POST | `/api/setup/sensor-search` | `action` = `start`\|`stop` | Starts or stops the sensor search (FR-11.5); answers like the GET below; another `action` → 400 |
 | GET | `/api/setup/discovered-sensors` | | Sensor search result (FR-11.5): `active`, `remainingSec` (0 when not active, at most 600), `sensors[]` (`mac`, `name`, `temp`, `hum`, `bat`, `rssi`, `ageSec`, `zone` = number of the zone it is assigned to or 0). Empty outside a search except the sensors assigned to zones |
-| POST | `/api/setup/map-zone` | `zone` (0-based), `name`, `mac`, `sname`, `pin`, `target`, `hyst`, `enabled`, `offset` | Zone commissioning (FR-11.3): all fields checked first, HTTP 400 and nothing changed when a relay is used by another zone or the pump, a zone is switched on without sensor, the name is empty / > 31 bytes / has `"` or `\`, the MAC is malformed, target outside 15–30 °C or offset outside −3..+3 °C |
+| POST | `/api/setup/map-zone` | `zone` (0-based), `name`, `mac`, `sname`, `pin`, `target`, `hyst`, `enabled`, `offset` | Zone commissioning (FR-11.3): all fields checked first, HTTP 400 and nothing changed when `pin` is not a relay output (32, 33, 25, 26), a relay is used by another zone or the pump, a sensor MAC is used by another zone, a zone is switched on without sensor, the name is empty / > 31 bytes / has `"` or `\`, the MAC is malformed, target outside 15–30 °C or offset outside −3..+3 °C |
 | POST | `/api/zones/sensor` | | Assign sensor to zone |
 | POST | `/api/zones/toggle` | | Enable/disable zone |
 | GET/POST | `/api/setup/actuator-type` | `type` = `nc`\|`no` | Actuator polarity |
