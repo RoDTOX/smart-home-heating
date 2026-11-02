@@ -15,3 +15,4 @@ checked by `tools/sh_process_check.py release`.
 |---|---|---|---|---|---|---|
 | 02.11.2026 | ce8a58b | 1.11.02.03 | FR-65.1, FR-65.2, FR-65.3, FR-65.4, FR-65.5, FR-65.6, FR-65.7, FR-65.8 | Owner tested export and import in the engineering view; answered OK (chat). One open question: the zone target in the file (PB-62) | OK | PB-62 |
 | 02.11.2026 | 2ca7459 | 1.11.02.10 | FR-11.3, FR-65.5, FR-65.6 | Owner tested one Save for all zones and the exchange of sensors between zones in the engineering view; answered OK (chat). Zone add / delete and sensor search (C-10, C-11) not yet accepted | OK | |
+| 02.11.2026 | a2a6968 | 1.11.02.09 | FR-69.1, FR-69.2, FR-69.3, FR-73, FR-74, FR-11.3, FR-11.5, FR-11.6 | Owner tested adding and deleting zones and the sensor search in the engineering view on the board; answered OK (relayed by the main chat). The page fixes after their first test (refresh after delete, list kept after Stop, MAC list) were part of this build | OK | |
