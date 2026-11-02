@@ -1,11 +1,11 @@
 # System and Software Requirements — Smart Home Heating
 
-**Baseline:** v2.9, 02.11.2026. v2 (31.10.2026) derived from the owner-approved review
+**Baseline:** v2.10, 02.11.2026. v2 (31.10.2026) derived from the owner-approved review
 [`requirements_review.md`](requirements_review.md); v2.1 adds the process review rows QA-7, QA-8, QA-9, QA-10,
 QA-11, QA-12, QA-13, QA-14, QA-16 ([`process_review.md`](process_review.md)); v2.2 adds the owner decisions D37,
 D38, D39 and the architecture observations O-12, O-13, O-14, O-15, and closes the review (applied as listed in
 `requirements_review.md` §6 and §8); v2.3 adds O-16, v2.4 the 10 s bound of NFR-1.8, v2.5 the proxy clause of FR-8.1, v2.6 the owner's page test
-(C-3…C-8) v2.7 the configuration export / import FR-65.1, FR-65.2, FR-65.3, FR-65.4, FR-65.5, FR-65.6, FR-65.7, FR-65.8 (C-9) v2.8 zones added and deleted by the user and the sensor search (C-10, C-11) and v2.9 one Save for all zones (C-12), changes after closure
+(C-3…C-8) v2.7 the configuration export / import FR-65.1, FR-65.2, FR-65.3, FR-65.4, FR-65.5, FR-65.6, FR-65.7, FR-65.8 (C-9) v2.8 zones added and deleted by the user and the sensor search (C-10, C-11) v2.9 one Save for all zones (C-12) and v2.10 the zone target out of the settings file (C-13), changes after closure
 (`requirements_review.md` §9).
 **Replaces:** the Romanian specification of 07.10.2026 (v1). IDs are kept where the meaning did not change.
 **Related:** [`plan.md`](plan.md), [`changelog.md`](changelog.md), [`hardware_esp32_relay.md`](hardware_esp32_relay.md),
@@ -484,9 +484,11 @@ one example:
   the format version (`format` = 1), the firmware version of FR-21 and every setting the user or the installer made:
   - `params`: every field that `POST /api/config/system` accepts (`api_reference.md`), with the name, unit, JSON type
     and current value that `GET /api/config/system` reports; no credential;
-  - per zone: name, sensor MAC, sensor name, relay output, on / off, sensor offset and target (FR-11.3, FR-49);
+  - per zone: name, sensor MAC, sensor name, relay output, on / off, sensor offset (FR-11.3, FR-49); the zone's current target is not stored: the schedule sets it at every control pass
+    (FR-29), and its setpoints are the level temperatures below;
   - the schedule: weekday and weekend slots (FR-31), its switches (schedule, pre-heat, window detection) and the
-    level temperatures of each zone (FR-29);
+    level temperatures of each zone (FR-29): the day, night and away setpoint of every zone, which an import
+    restores;
   - the location (FR-9.2), when it is set;
   - `learnedDuty`: the learned base duty of each zone in %, one value per zone, equal to `learnedDuty` of
     `GET /api/zones`. The step that builds the outdoor bands of FR-47 changes this item and `format`.

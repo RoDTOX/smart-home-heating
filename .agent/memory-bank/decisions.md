@@ -514,3 +514,12 @@ Single-zone `map-zone` (API, console) keeps its strict check.
 **Decided by**: owner (chat, 02.11.2026).
 **Affects**: FR-11.3, FR-65.5, FR-65.6, `api_reference.md`, `web/index.html`, `src/ConfigTransfer.cpp`.
 **Consequences**: a bad zone is skipped alone, the others are saved; a partial save is reported on the page.
+
+## 2026-11-02 — Zone target out of the settings file, setpoints are the levels (C-13)
+**Context**: PB-62: the zone `target` is rewritten by the schedule at every control pass, so it is no setting. The owner:
+what must survive a test or a reflash is the setpoint of every zone at every threshold of the day.
+**Decision**: the file drops `zones[].target`; the day, night and away setpoints stay in `schedule.levels` and an import
+restores them (a test proves it). An old file with `target` skips it as unknown (FR-65.4).
+**Decided by**: owner (chat, 02.11.2026).
+**Affects**: FR-65.1, `api_reference.md`, `ConfigTransfer.cpp`, tests TC29.2, TC29.9.
+**Consequences**: none for the heating; the file is smaller.

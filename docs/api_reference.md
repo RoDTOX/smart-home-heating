@@ -123,7 +123,7 @@ sensor readings) are never in it (FR-65.2).
              "sensorTimeoutSec": 1200, "hysteresis": 0.3, "windowThreshold": 1.2, "openLoopBypass": false,
              "actuatorNormallyClosed": true, "pumpControlEnabled": false},
   "zones": [{"id": 1, "name": "Living", "mac": "A4:C1:38:00:00:01", "sensorName": "", "relayPin": 32,
-             "enabled": true, "offset": 0.0, "target": 21.0}],
+             "enabled": true, "offset": 0.0}],
   "schedule": {"enabled": true, "preheat": true, "window": true,
                "weekday": "06:30=day,22:30=night", "weekend": "08:00=day,23:00=night",
                "levels": [{"id": 1, "day": 23.0, "night": 21.0, "away": 18.0}]},
@@ -137,7 +137,7 @@ sensor readings) are never in it (FR-65.2).
 | `format` | file format version, `1` | missing or other → HTTP 400, nothing changed |
 | `firmwareVersion` | firmware that wrote the file (FR-21) | information only, not checked |
 | `params.<field>` | every POST field of `/api/config/system`, same name, unit and type (JSON number or `true` / `false`) | the §6 range of that field in `POST /api/config/system` (FR-42), each field alone; `pumpControlEnabled` not on while a zone uses relay 4, checked first against the zones as they are |
-| `zones[]` | `id` (1-based), `name`, `mac`, `sensorName`, `relayPin`, `enabled`, `offset` (°C), `target` (°C) | `POST /api/setup/map-zone`, as a whole, together (below) |
+| `zones[]` | `id` (1-based), `name`, `mac`, `sensorName`, `relayPin`, `enabled`, `offset` (°C); the current target is not in the file (the schedule sets it, the setpoints are in `schedule.levels`) | `POST /api/setup/map-zone`, as a whole, together (below) |
 | `schedule.enabled`, `.preheat`, `.window` | schedule, pre-heat, window detection on / off | `POST /api/schedule/enable` |
 | `schedule.weekday`, `.weekend` | slot list `HH:MM=level,...` | `POST /api/schedule/slots` (FR-31) |
 | `schedule.levels[]` | `id` and `day`, `night`, `away` °C per zone | `POST /api/schedule/level` (5–30 °C, FR-29) |
