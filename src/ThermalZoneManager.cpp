@@ -106,7 +106,7 @@ void ThermalZoneManager::loadConfig() {
     uint32_t stored = paramStore.state(StateKey::ZoneCount);
     _zoneCount = (uint8_t)(stored > MAX_THERMAL_ZONES ? 0 : stored);
     for (size_t i = 0; i < _zoneCount; i++) {
-        const ZoneRecord& z = paramStore.zone(i);
+        const ZoneRecord z = paramStore.zone(i);
         strlcpy(_configs[i].name, z.name, sizeof(_configs[i].name));
         strlcpy(_configs[i].sensorMac, z.sensorMac, sizeof(_configs[i].sensorMac));
         strlcpy(_configs[i].sensorName, z.sensorName, sizeof(_configs[i].sensorName));

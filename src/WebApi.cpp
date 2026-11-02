@@ -20,7 +20,7 @@ void handleRoot() {
   server.sendHeader("Access-Control-Allow-Origin", "*");
   server.sendHeader("Content-Encoding", "gzip");
   server.sendHeader("Cache-Control", "no-cache");
-  server.send_P(200, "text/html", (const char*)DASHBOARD_HTML_GZ, DASHBOARD_HTML_GZ_LEN);
+  server.send_P(200, "text/html; charset=utf-8", (const char*)DASHBOARD_HTML_GZ, DASHBOARD_HTML_GZ_LEN);
 }
 
 void handleApiOn() {

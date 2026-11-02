@@ -86,7 +86,7 @@ public:
     static int32_t toRaw(Param p, float value);
 
     // Zone records
-    const ZoneRecord& zone(size_t i) const { return _zones[i < PARAM_ZONES ? i : 0]; }
+    ZoneRecord zone(size_t i) const;  // read from NVS (boot and migration only): 32 cached records would cost 2.9 KB of heap
     void saveZone(size_t i, const ZoneRecord& z);
 
     // Learned TPI base duty per zone, per mille (NFR-5.3 bounds)
@@ -112,7 +112,6 @@ public:
 
 private:
     int32_t _values[(uint8_t)Param::Count];
-    ZoneRecord _zones[PARAM_ZONES];
     int16_t _learned[PARAM_ZONES];
     uint32_t _state[(uint8_t)StateKey::Count];
     char _location[32];
@@ -122,7 +121,7 @@ private:
     void loadAll();
     void migrateLegacy();
     bool writeParam(Param p);
-    bool writeZone(size_t i);
+    bool writeZone(size_t i, const ZoneRecord& z);
     bool writeLearned(size_t i);
     bool writeState(StateKey k);
     bool writeLocation();

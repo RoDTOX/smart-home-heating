@@ -116,10 +116,7 @@ bool ParamStore::validLocation(const char* coords) {
 
 void ParamStore::begin() {
     for (uint8_t p = 0; p < (uint8_t)Param::Count; p++) _values[p] = PARAMS[p].def;
-    for (size_t i = 0; i < PARAM_ZONES; i++) {
-        defaultZone(i, _zones[i]);
-        _learned[i] = 0;
-    }
+    for (size_t i = 0; i < PARAM_ZONES; i++) _learned[i] = 0;
     memset(_state, 0, sizeof(_state));
     _state[(uint8_t)StateKey::AutoMode] = 1;
     _location[0] = '\0';
@@ -163,18 +160,6 @@ void ParamStore::loadAll() {
     }
     if (!validLocation(_location)) _location[0] = '\0';
 
-    if (prefs.begin(NS_ZONE, true)) {
-        for (size_t i = 0; i < PARAM_ZONES; i++) {
-            ZoneRecord z;
-            if (prefs.getBytes(zoneKey(i), &z, sizeof(z)) == sizeof(z) && validZone(z)) {
-                _zones[i] = z;
-            } else if (prefs.isKey(zoneKey(i))) {
-                netConsole.printf("[Params] zone %u record invalid, defaults used\n", (unsigned)(i + 1));
-            }
-        }
-        prefs.end();
-    }
-
     if (prefs.begin(NS_LEARN, true)) {
         for (size_t i = 0; i < PARAM_ZONES; i++) {
             int16_t v = prefs.getShort(zoneKey(i), 0);
@@ -208,6 +193,7 @@ void ParamStore::loadAll() {
 void ParamStore::migrateLegacy() {
     Preferences prefs;
     bool found = false;
+    bool zonesOk = true;
 
     auto take = [this](Param p, int32_t raw, const char* from) {
         if (inRange(p, raw)) {
@@ -253,7 +239,7 @@ void ParamStore::migrateLegacy() {
                 int32_t target = lroundf(prefs.getFloat(k, DEFAULT_SETPOINT_TEMP) * 10);
                 if (target >= 50 && target <= 300) z.targetC10 = (int16_t)target;
                 if (z.name[0] == '\0') snprintf(z.name, sizeof(z.name), "Zone %u", (unsigned)(i + 1));
-                _zones[i] = z;
+                zonesOk &= writeZone(i, z);
                 netConsole.printf("[Params][Migrate] zone %u '%s' sensor %s pin %u %s\n", (unsigned)(i + 1), z.name,
                                   z.sensorMac[0] ? z.sensorMac : "-", z.relayPin, z.enabled ? "enabled" : "disabled");
 
@@ -318,10 +304,9 @@ void ParamStore::migrateLegacy() {
     }
 
     // Write the new layout; the schema key last and only if every write succeeded.
-    bool ok = true;
+    bool ok = zonesOk;
     for (uint8_t p = 0; p < (uint8_t)Param::Count; p++) ok &= writeParam((Param)p);
     for (size_t i = 0; i < 3; i++) {
-        ok &= writeZone(i);
         ok &= writeLearned(i);
     }
     for (uint8_t k = 0; k < (uint8_t)StateKey::Count; k++) ok &= writeState((StateKey)k);
@@ -346,17 +331,40 @@ bool ParamStore::writeParam(Param p) {
     return ok;
 }
 
-void ParamStore::saveZone(size_t i, const ZoneRecord& z) {
-    if (i >= PARAM_ZONES || !validZone(z)) return;
-    if (memcmp(&_zones[i], &z, sizeof(z)) == 0) return;
-    _zones[i] = z;
-    writeZone(i);
+// Zone records are read from NVS when needed (boot, migration, change check): a RAM copy of 32 records is 2.9 KB
+ZoneRecord ParamStore::zone(size_t i) const {
+    ZoneRecord z;
+    defaultZone(i < PARAM_ZONES ? i : 0, z);
+    if (i >= PARAM_ZONES) return z;
+    Preferences prefs;
+    if (prefs.begin(NS_ZONE, true)) {
+        ZoneRecord stored;
+        if (prefs.getBytes(zoneKey(i), &stored, sizeof(stored)) == sizeof(stored) && validZone(stored)) {
+            z = stored;
+        } else if (prefs.isKey(zoneKey(i))) {
+            netConsole.printf("[Params] zone %u record invalid, defaults used\n", (unsigned)(i + 1));
+        }
+        prefs.end();
+    }
+    return z;
 }
 
-bool ParamStore::writeZone(size_t i) {
+void ParamStore::saveZone(size_t i, const ZoneRecord& z) {
+    if (i >= PARAM_ZONES || !validZone(z)) return;
+    ZoneRecord stored;
+    Preferences prefs;
+    if (prefs.begin(NS_ZONE, true)) {
+        bool same = prefs.getBytes(zoneKey(i), &stored, sizeof(stored)) == sizeof(stored) && memcmp(&stored, &z, sizeof(z)) == 0;
+        prefs.end();
+        if (same) return;  // NFR-2.9: write on change only
+    }
+    writeZone(i, z);
+}
+
+bool ParamStore::writeZone(size_t i, const ZoneRecord& z) {
     Preferences prefs;
     if (!prefs.begin(NS_ZONE, false)) return false;
-    bool ok = prefs.putBytes(zoneKey(i), &_zones[i], sizeof(ZoneRecord)) == sizeof(ZoneRecord);
+    bool ok = prefs.putBytes(zoneKey(i), &z, sizeof(ZoneRecord)) == sizeof(ZoneRecord);
     prefs.end();
     return ok;
 }

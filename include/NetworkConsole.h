@@ -7,7 +7,7 @@
 #include <functional>
 
 #define TELNET_PORT 23
-#define LOG_BUFFER_SIZE 4096  // 8 -> 4 KB: planned saving of architecture §14.2 (heap was 99 KB after step 3, NFR-2.2)
+#define LOG_BUFFER_SIZE 8192
 
 typedef std::function<void(String)> CommandCallback;
 
