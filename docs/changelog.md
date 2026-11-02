@@ -28,7 +28,9 @@ Entries before 29.10.2026 (the system before the lean clean-up):
   Tests TC29.1 ... TC29.33 written first, red on 2b7564f (33 of 33), commit e73fdb6.
 - **Problems:** PB-55 (sensor table), PB-56 (unbounded HTTP body), PB-57 ... PB-61 from the safety review (heap growth of
   one import, valve-moving settings while valves are open, loop timing, frost on a disabled zone, tiny learned duty).
-- **Not verified:** board test and owner acceptance pending (entry updated after the board run).
+- **Board:** flashed ce8a58b (1.11.02.03); system test 112 PASS, 1 FAIL (TC29.2, zone target, PB-62), 2 SKIP (TC29.15,
+  TC29.33: no learned duty above 0 % on the board); round trip export -> import -> export checked by hand: identical.
+  Board check without error. Owner acceptance pending.
 
 ## [02.11.2026] - EU conformity: first full review logged
 
