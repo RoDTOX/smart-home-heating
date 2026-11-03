@@ -9,7 +9,7 @@ Zone ids are 1-based unless noted.
 
 | Method | Path | Purpose |
 |---|---|---|
-| GET | `/api/boiler/status` | Firmware (`firmwareVersion` 1.MM.DD.NN, FR-21), boiler state, time, outdoor temperature, heap, RSSI, uptime |
+| GET | `/api/boiler/status` | Firmware (`firmwareVersion` 1.MM.DD.NN, FR-21), boiler state, time, outdoor temperature, heap, RSSI, uptime; object `gasMeter` (FR-35.1): `lastReadingIndex` (m³) and `lastReadingTime` (epoch) of the last typed reading, `estimatedIndex`, `readingCount`, `gasTodayM3`, `gasYesterdayM3`, `gasThisMonthM3`, `gasFlameRate`, `boilerSetTemp`, `boilerFlowObserved`, `boilerPowerKw`, `gasPrice`; without a reading the first three are `null` |
 | GET | `/api/zones` | Per-zone temps, effective target, valve state, `duty` / `learnedDuty` (%), `tempOffset`, alarms, `relayEngaged` (true while the valve is energised), `frostActive` (frost protection heats the zone, FR-16.1), `state` (FR-8.4: `FROST`, `DISABLED`, `FAULT`, `ACQUIRING`, `WINDOW`, `HEATING`, `IDLE`); global schedule state (`away`, `activeLevel`, `nextLevel`, `minsToNextSlot`) and boiler runtime |
 | GET | `/api/ble/sensors` | All decoded BLE sensors (temp, humidity, battery, RSSI, age) |
 | GET | `/api/history?range=24h\|5d` | Temperature history from LittleFS |
@@ -65,6 +65,8 @@ Invalid schedule input returns `400`.
 | POST | `/api/boiler/off` | Stop burner; `force=true` stops immediately |
 | POST | `/api/boiler/cancel` | Cancel deferred start/stop |
 | POST | `/api/boiler/runtime/reset` | Reset burn-time counters |
+| POST | `/api/boiler/gas-meter` | FR-35.1: the user types a meter reading. Form fields `index` (m³, 0 - 999999, 3 decimals, required), `time` (epoch seconds of the reading, optional, default now; not in the future), `dryRun=1` (test mode: validates and answers, stores nothing, writes no entry). `200 {"status":"ok","stored":true/false,"reading":{"time":epoch,"index":m3},"gasMeter":{...}}`; a missing or out-of-range `index`, or a `time` in the future: `400 {"error":...}`, nothing stored. Only this call writes a reading entry. |
+| GET | `/api/boiler/gas-readings` | FR-35.1: all stored readings, oldest first: `{"count":n,"compacted":n,"readings":[{"time":epoch,"index":m3},...]}` |
 
 ## Console
 
