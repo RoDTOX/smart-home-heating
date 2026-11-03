@@ -44,6 +44,7 @@ Only what holds now and what comes next. A line that no longer holds is replaced
   (all agents) on the owner's request and before a release - AGENTS.md §5.
 
 ## Next
+- C-25 (gas meter readings as data) flashed 1.11.03.32, log holds the owner's 15:39 reading 2265.304; owner types the current reading in the page, then OK / NOK. Open: PB-100, PB-101. Rounds left: PB-75 day/night levels, console login (C-21).
 - PB-72 closed (owner OK). PB-80 fixed by df5fd70 (AGY, read and kept). PB-97 (stale WINDOW state, window button) fixed, flashed, owner test pending. Rounds left: PB-75 day/night levels, console login (C-21).
 - Out-of-chain work kept (owner, 03.11.2026): folded into steps 7, 8, 11, tests first.
 - Process review of 03.11.2026 (`docs/review_agy_03_11.md`): PB-71 ... PB-94 open (PB-71 and PB-74 safety). Owner has not tested 1.11.03.x; no acceptance row for it, and the OK for `OutputBank` (step 3) is still open.

@@ -7,6 +7,15 @@ Entries before 29.10.2026 (the system before the lean clean-up):
 
 
 
+## [03.11.2026] - C-25: gas meter readings are data (32faf9f)
+
+- **Who / when / why:** firmware session (light mode), 03.11.2026; owner decision: a reading typed by the user is data, not a calibration (PB-80, PB-98, PB-99).
+- **Requirement:** FR-35.1 rewritten (owner OK of the text): persistent reading log, only a typed reading writes an entry, cap 1000 with the oldest replaced (the 13-month compaction was dropped by the owner), no default reading, tests never write readings. Row C-25; `api_reference.md` gets `POST /api/boiler/gas-meter` (with `dryRun=1`), `GET /api/boiler/gas-readings`, the `gasMeter` object.
+- **Tests first (clean room, `sh-test-writer`):** TC21.3 ... TC21.8; the old TC21.3 (it wrote to the board) is replaced. Red on the old firmware for the four tests that are safe to run there; TC21.4 and TC21.5 were not run red (the old firmware has no `dryRun` and would have stored the reading).
+- **Changed:** `TelemetryHistoryManager` (log in `/gas_readings.bin`, sorted insert, replace-oldest, month figure from readings, first-start migration that drops the old ring `/gas_calib.json` and clears the old base), `WebApi.cpp` (endpoints, validation, gas parameters in `/api/config/system`), `web/index.html` (`Citire contor`, list of readings, separate boiler settings). `sh-safety-reviewer`: no BLOCKER; three findings fixed (partial rewrite could lose the log, `nan` index, strict `dryRun`).
+- **Board 1.11.03.32:** first start dropped the old ring (backup in `docs/gas_meter_readings_03_11.md`); the owner's reading 2265.304 of 15:39 was added through the endpoint with its time. TC21.3 ... TC21.8 PASS and leave the log unchanged. Full suite: 111 PASS, 3 FAIL (TC01.2 heap 98.7 KB, TC19.7 PB-91, TC19.9 schedule fields without explanation, PB-96). Schedule restored.
+- **Open:** PB-100, PB-101; the owner types the current reading in the page (hands-on OK / NOK).
+
 ## [03.11.2026] - PB-97: stale WINDOW state and the window button of the room card (649eb31)
 
 - **Who / when / why:** firmware session (light mode), 03.11.2026; the owner saw the page keep the 'Fereastră deschisă' card with pause 0 min and an error text when pressing 'Închide pauza'.
