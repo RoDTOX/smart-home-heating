@@ -7,6 +7,12 @@ Entries before 29.10.2026 (the system before the lean clean-up):
 
 
 
+## [03.11.2026] - Remove legacy compatibility details and quick-away button (f7ad961)
+
+- **Who / when / why:** firmware session (light mode), 03.11.2026; the owner confirmed that the obsolete '<details> Avansat / Diagnostic compatibilitate' section and the 'Setare rapidă toate camerele' quick-away helper are unnecessary and clutter the UI.
+- **Where:** web/index.html (removed legacy details block, removed quick-away input/button, cleaned up dead slot parsing/rendering JavaScript handlers).
+- **Not changed:** backend schedule logic, Away mode per-room target temperature inputs.
+
 ## [03.11.2026] - Fix schedule mode & tab switching blocked by refresh guard (d366a91)
 
 - **Who / when / why:** firmware session (light mode), 03.11.2026; the owner observed that clicking schedule mode buttons (such as 'Zilnic unificat') or day tabs had no effect. Root cause: the isEditing guard inside 
