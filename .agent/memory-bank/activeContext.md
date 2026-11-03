@@ -44,6 +44,7 @@ Only what holds now and what comes next. A line that no longer holds is replaced
   (all agents) on the owner's request and before a release - AGENTS.md §5.
 
 ## Next
+- Findings of the C-30 final review and the test run on 1.11.03.37 are logged as PB-107 ... PB-115 (03.11.2026); PB-110 needs an owner decision. Board has rotated sensor MACs (PB-114): the owner fixes them. Firmware 1.23 MB of 1.25 MB: tight for the next steps (PB-115).
 - Step 3 accepted by the owner 03.11.2026 (zones, sensors, `OutputBank`); the gas meter and the open window are accepted too. Step 2 (`Diagnostics`) starts in a new session from the main chat.
 - C-29 flashed 1.11.03.35: measured flow 0.177 m3/h from the history, gas today 2.41 m3. Owner: look at the gas card, OK / NOK. Open: PB-103.
 - C-26 (flow measured, flow and boiler kW not settable) flashed 1.11.03.34: log holds the owner's readings 2265.304 (15:39) and 2265.996 (22:19), both without runtime; measured flow starts with two more readings that have one. C-25 (gas meter readings as data) flashed 1.11.03.32, log holds the owner's 15:39 reading 2265.304; owner types the current reading in the page, then OK / NOK. Open: PB-100, PB-101. Rounds left: PB-75 day/night levels, console login (C-21).

@@ -7,6 +7,19 @@ Entries before 29.10.2026 (the system before the lean clean-up):
 
 
 
+## [03.11.2026] - Records: findings of the C-30 final review and the system test on 1.11.03.37 logged (PB-107 ... PB-115)
+
+- **Who / when / why:** firmware session (Claude), 03.11.2026; the owner: nothing implemented stays undocumented before step 2
+  (`Diagnostics`) starts. Documentation only, no code.
+- **Where:** `docs/problems.md` PB-107 (console log readable without login on the setup access point), PB-108 (stale
+  lockout entry after about 25 days), PB-109 (`check_dev_open` misses an inherited `SH_DEV_OPEN`), PB-110 (`WWW-Authenticate`:
+  needs an owner decision), PB-111 (Wi-Fi name on Serial, `api_reference.md` without `profile`), PB-112 (smaller review
+  findings, factory reset), PB-113 (TC11.5), PB-114 (TC30.9 / TC30.10, rotated sensor MACs, the owner fixes them on the
+  board), PB-115 (TC01.2, TC19.7, TC19.9 as in PB-96; firmware 1.23 MB against 1.25 MB). The FR-77 events not written to NVS
+  are already PB-105. Notes: `side-session-notes/.../c30_final_review_and_suite.md`.
+- **Verified:** `sh_process_check.py` PASS (0 errors). Suite on the board: 173 tests, 128 PASS, 6 FAIL, 39 SKIP (login tests
+  on the open dev profile). **Not verified:** the causes of PB-113 and PB-115 (not analysed).
+
 ## [03.11.2026] - C-30: console login, security-event log, development and release profiles (FR-75, FR-76, FR-77)
 
 - **Why:** the console, Telnet and the log were open to the whole network, and the log carried the access point password and the house coordinates (C-30, owner 03.11.2026). The owner has no USB cable in the development phase, so two build profiles: `esp32dev` (flag `SH_DEV_OPEN`, console, Telnet and `/update` open, first password settable over the network, banner "DEV - consola deschisă", `/api/status` `"profile":"dev-open"`) and `esp32release` (login enforced). `python tools/sh_process_check.py release` fails while the flag can reach a release (FR-75.6, PB-104: blocker for every sale).
