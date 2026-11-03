@@ -35,10 +35,14 @@ static const ParamDef PARAMS[(uint8_t)Param::Count] = {
     P("openLoopBypass", "olb", 0, 0, 1, 1, P_AUTH),
     P("actuatorType", "act", 0, 0, 1, 1, P_AUTH),
     P("pumpOutput", "pump", 0, 0, 1, 1, P_AUTH),
+    P("boilerSetTemp", "btset", 40, 25, 60, 1, P_NONE),
+    P("boilerFlowObserved", "btflow", 43, 25, 65, 1, P_NONE),
+    P("gasFlameRate", "grate", 0.60f, 0.20f, 2.50f, 100, P_NONE),
 };
 
 static const char* STATE_KEYS[(uint8_t)StateKey::Count] = {
     "auto", "as_epoch", "b_on", "rt_tot", "rt_today", "rt_yest", "rt_mon", "rt_lmon", "rt_day", "rt_month", "zcount",
+    "mindex", "msec", "mepoch",
 };
 
 static const uint8_t DEFAULT_PINS[3] = {PIN_RELAY_ZONE_1, PIN_RELAY_ZONE_2, PIN_RELAY_ZONE_3};
@@ -119,6 +123,7 @@ void ParamStore::begin() {
     for (size_t i = 0; i < PARAM_ZONES; i++) _learned[i] = 0;
     memset(_state, 0, sizeof(_state));
     _state[(uint8_t)StateKey::AutoMode] = 1;
+    _state[(uint8_t)StateKey::GasMeterBaseIndex] = 2265304; // default: 2265.304 m3
     _location[0] = '\0';
 
     Preferences prefs;

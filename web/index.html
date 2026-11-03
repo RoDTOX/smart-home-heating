@@ -141,6 +141,7 @@ code,.mono{font:13px/1.35 ui-monospace,SFMono-Regular,Consolas,monospace}
       </div>
 
       <div id="tpiInspectorBox" style="margin-top:14px;padding:12px;background:var(--bg);border:1px solid var(--line);border-radius:10px"></div>
+      <div id="gasMeterBox" style="margin-top:14px;padding:12px;background:var(--bg);border:1px solid var(--line);border-radius:10px"></div>
     </div>
   </details>
 
@@ -944,6 +945,122 @@ function renderHistoryChart() {
 }
 
 // FR-47: Live TPI Algorithm Inspector & Calculation Breakdown
+
+function renderGasMeter() {
+  const box = $("gasMeterBox");
+  if (!box) return;
+  const gm = (Z && Z.gasMeter) ? Z.gasMeter : ((RAW && RAW["api/boiler/status"] && RAW["api/boiler/status"].gasMeter) ? RAW["api/boiler/status"].gasMeter : null);
+  if (!gm) {
+    box.style.display = "none";
+    return;
+  }
+  box.style.display = "block";
+
+  const estIdx = (gm.estimatedIndex !== undefined) ? Number(gm.estimatedIndex).toFixed(3) : "2265.304";
+  const baseIdx = (gm.baseIndex !== undefined) ? Number(gm.baseIndex).toFixed(3) : "2265.304";
+  const todayM3 = (gm.gasTodayM3 !== undefined) ? Number(gm.gasTodayM3).toFixed(2) : "0.00";
+  const yestM3 = (gm.gasYesterdayM3 !== undefined) ? Number(gm.gasYesterdayM3).toFixed(2) : "0.00";
+  const monthM3 = (gm.gasThisMonthM3 !== undefined) ? Number(gm.gasThisMonthM3).toFixed(2) : "0.00";
+  const setT = (gm.boilerSetTemp !== undefined) ? gm.boilerSetTemp : 40;
+  const flowT = (gm.boilerFlowObserved !== undefined) ? gm.boilerFlowObserved : 43;
+  const flameRate = (gm.gasFlameRate !== undefined) ? Number(gm.gasFlameRate).toFixed(2) : "0.60";
+
+  const todayLei = (parseFloat(todayM3) * 3.30).toFixed(2);
+  const monthLei = (parseFloat(monthM3) * 3.30).toFixed(2);
+
+  box.innerHTML = `<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:10px">
+    <div style="font-weight:600;font-size:14px">🔥 Monitorizare Contor Gaz & Centrală (FR-35.1)</div>
+    <button type="button" class="sm" id="btnToggleGasCalib">⚙️ Calibrează Index / Setări</button>
+  </div>
+
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:12px;margin-bottom:8px">
+    <div style="background:var(--card);border:1px solid var(--line);border-radius:8px;padding:10px">
+      <div class="s" style="color:var(--mut)">Index Contor Estimat</div>
+      <div style="font-size:22px;font-weight:700;color:var(--fg);margin:2px 0">${estIdx} <span style="font-size:14px;font-weight:400">m³</span></div>
+      <div class="s" style="color:var(--ok)">● Sincronizat cu arderea flăcării</div>
+    </div>
+    <div style="background:var(--card);border:1px solid var(--line);border-radius:8px;padding:10px">
+      <div class="s" style="color:var(--mut)">Consum Gaz Azi</div>
+      <div style="font-size:22px;font-weight:700;color:var(--heat);margin:2px 0">${todayM3} <span style="font-size:14px;font-weight:400">m³</span></div>
+      <div class="s" style="color:var(--mut)">~ ${todayLei} Lei · Ieri: ${yestM3} m³</div>
+    </div>
+    <div style="background:var(--card);border:1px solid var(--line);border-radius:8px;padding:10px">
+      <div class="s" style="color:var(--mut)">Consum Luna Aceasta</div>
+      <div style="font-size:22px;font-weight:700;color:var(--fg);margin:2px 0">${monthM3} <span style="font-size:14px;font-weight:400">m³</span></div>
+      <div class="s" style="color:var(--mut)">~ ${monthLei} Lei (la 3.30 Lei/m³)</div>
+    </div>
+    <div style="background:var(--card);border:1px solid var(--line);border-radius:8px;padding:10px">
+      <div class="s" style="color:var(--mut)">Temperatură Tur Centrală</div>
+      <div style="font-size:22px;font-weight:700;color:var(--fg);margin:2px 0">${setT}°C <span style="font-size:13px;font-weight:400;color:var(--heat)">(livrează ~${flowT}°C)</span></div>
+      <div class="s" style="color:var(--mut)">Debit estimat: ${flameRate} m³/h</div>
+    </div>
+  </div>
+
+  <div id="gasCalibForm" style="display:none;background:var(--card);border:1px solid var(--line);border-radius:8px;padding:12px;margin-top:10px">
+    <div style="font-weight:600;font-size:13px;margin-bottom:8px">Actualizare Index Fizic de pe Contor & Referință Tur</div>
+    <div class="row" style="gap:12px;align-items:flex-end">
+      <div>
+        <label class="s" style="display:block;margin-bottom:3px">Index citit pe contor (m³)</label>
+        <input type="number" step="0.001" id="cfgGasIndex" value="${estIdx}" style="width:130px" />
+      </div>
+      <div>
+        <label class="s" style="display:block;margin-bottom:3px">Temp. setată centrală (°C)</label>
+        <input type="number" step="1" id="cfgGasSetTemp" value="${setT}" style="width:85px" />
+      </div>
+      <div>
+        <label class="s" style="display:block;margin-bottom:3px">Temp. observată pe tur (°C)</label>
+        <input type="number" step="1" id="cfgGasFlowObs" value="${flowT}" style="width:85px" />
+      </div>
+      <div>
+        <label class="s" style="display:block;margin-bottom:3px">Debit ardere (m³/h)</label>
+        <input type="number" step="0.01" id="cfgGasFlameRate" value="${flameRate}" style="width:95px" />
+      </div>
+      <button type="button" id="btnSaveGasMeter" class="ok">💾 Salvează în NVS</button>
+    </div>
+    <div class="s" style="color:var(--mut);margin-top:6px">Notă: Centrala Immergas Victrix Tera 24 modulează flacăra pe sarcină mică și oprește arzătorul cu ~+3°C peste temperatura setată (40°C setat ➔ ~43°C livrat pe tur) pentru a preveni ciclarea deasă.</div>
+  </div>`;
+
+  const btnToggle = $("btnToggleGasCalib");
+  const form = $("gasCalibForm");
+  if (btnToggle && form) {
+    btnToggle.onclick = () => {
+      form.style.display = (form.style.display === "none") ? "block" : "none";
+    };
+  }
+
+  const btnSave = $("btnSaveGasMeter");
+  if (btnSave) {
+    btnSave.onclick = async () => {
+      const idx = parseFloat($("cfgGasIndex").value);
+      const st = parseInt($("cfgGasSetTemp").value, 10);
+      const fo = parseInt($("cfgGasFlowObs").value, 10);
+      const fr = parseFloat($("cfgGasFlameRate").value);
+      btnSave.disabled = true;
+      btnSave.textContent = "Salvare...";
+      try {
+        const body = `index=${encodeURIComponent(idx)}&setTemp=${encodeURIComponent(st)}&flowObserved=${encodeURIComponent(fo)}&flameRate=${encodeURIComponent(fr)}`;
+        const res = await fetch("/api/boiler/gas-meter", {
+          method: "POST",
+          headers: { "Content-Type": "application/x-www-form-urlencoded" },
+          body: body
+        });
+        if (res.ok) {
+          btnSave.textContent = "✅ Salvat!";
+          setTimeout(() => { if (form) form.style.display = "none"; }, 1000);
+          poll();
+        } else {
+          alert("Eroare la salvare: HTTP " + res.status);
+        }
+      } catch (err) {
+        alert("Eroare de rețea: " + err);
+      } finally {
+        btnSave.disabled = false;
+        btnSave.textContent = "💾 Salvează în NVS";
+      }
+    };
+  }
+}
+
 function renderTpiInspector() {
   const box = $("tpiInspectorBox");
   if (!box || !Z || !Z.zones) return;
@@ -1030,6 +1147,7 @@ async function loadHistoryChart(force = false) {
 
     renderHistoryChart();
     renderTpiInspector();
+    renderGasMeter();
 
     if (summaryEl) {
       const pts = (j.points || []).length;
@@ -1402,6 +1520,7 @@ async function refresh() {
       if (!isSchedBusy()) renderSchedule();
       if ($("grpHistory") && $("grpHistory").open) {
         renderTpiInspector();
+        renderGasMeter();
         if (!histData24h || (Date.now() - lastHistFetch > 60000)) loadHistoryChart();
       }
       if (debugOpen) updateWatch();

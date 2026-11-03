@@ -369,6 +369,42 @@ class UiHistoryTests:
         except Exception as e:
             return TestResult(test_id, name, req, "FAIL", (time.time() - start)*1000, str(e))
 
+    def test_tc21_3_gas_meter_tracking_and_boiler_flow_reference(self):
+        """SWE.5-TC21.3: Gas Meter Index Tracking & Boiler Flow Reference (FR-35.1)"""
+        test_id = "SWE.5-TC21.3"
+        name = "Gas Meter Tracking & Boiler Flow Reference"
+        req = "FR-35.1"
+        start = time.time()
+        try:
+            r = requests.get(f"{self.base_url}/api/boiler/status", timeout=self.timeout)
+            assert r.status_code == 200, f"Failed fetching boiler status: {r.status_code}"
+            data = r.json()
+            assert "gasMeter" in data, "Missing 'gasMeter' in /api/boiler/status"
+            gm = data["gasMeter"]
+            assert "estimatedIndex" in gm, "Missing 'estimatedIndex' in gasMeter"
+            assert isinstance(gm["estimatedIndex"], (int, float)) and gm["estimatedIndex"] >= 2000.0
+            assert "gasTodayM3" in gm, "Missing 'gasTodayM3' in gasMeter"
+            assert "boilerSetTemp" in gm, "Missing 'boilerSetTemp' in gasMeter"
+            assert "boilerFlowObserved" in gm, "Missing 'boilerFlowObserved' in gasMeter"
+            assert 25 <= gm["boilerSetTemp"] <= 60
+            assert 25 <= gm["boilerFlowObserved"] <= 65
+
+            # Test updating index via POST /api/boiler/gas-meter
+            r_post = requests.post(f"{self.base_url}/api/boiler/gas-meter",
+                                   data={"index": "2265.304", "setTemp": "40", "flowObserved": "43", "flameRate": "0.60"},
+                                   timeout=self.timeout)
+            assert r_post.status_code == 200, f"POST /api/boiler/gas-meter failed: {r_post.status_code}"
+            updated = r_post.json().get("gasMeter", {})
+            assert abs(updated.get("baseIndex", 0) - 2265.304) < 0.005, f"Expected baseIndex 2265.304, got {updated.get('baseIndex')}"
+            assert updated.get("boilerSetTemp") == 40
+            assert updated.get("boilerFlowObserved") == 43
+
+            latency = (time.time() - start) * 1000
+            details = f"Gas meter tracking validated: Base={updated.get('baseIndex')} m³, Set={updated.get('boilerSetTemp')}°C, Flow={updated.get('boilerFlowObserved')}°C"
+            return TestResult(test_id, name, req, "PASS", latency, details)
+        except Exception as e:
+            return TestResult(test_id, name, req, "FAIL", (time.time() - start) * 1000, str(e))
+
     def test_tc19_11_zone_card_direct_setpoint_steppers(self):
         """SWE.5-TC19.11: Zone Card Direct Vertical Setpoint Steppers (FR-8.1)"""
         test_id = "SWE.5-TC19.11"

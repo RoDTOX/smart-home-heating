@@ -1,27 +1,22 @@
-# Implementation Plan: 24h/Multi-Day Telemetry Range, Hairline Cursor & TPI Algorithm Inspector
+# Implementation Plan: Gas Meter Index Tracking & Boiler Flow Temperature Reference (FR-35.1)
 
 ## Original request (verbatim)
-"arata bine graficul, ar mai fi fost util o linie care sa urmareasca cursorul
-posobilitatea sa afisam graficul pe 12/24 ore, 1,3,7 zile 
-se afiseaza de 2x legenda, o data in partea de sus si o data in zona laterala, dar nue  clar ce inseamna cele 4 bare . nu avem date despre algoritmul TPI, sau nu il vad eu."
+"vreau sa tinem log si al consumului centralei, in indexul de pe contor si al temperaturii setate la centrala.
+
+acum am 2265.304m3 si centrala e setata la 40*C, dar vad ca baga cu 43*C."
 
 ## Stage tracker
-- [x] Stage 1: Cursor Tracking Hairline (SVG vertical dashed guide snapping to cursor X coordinate across entire chart height)
-- [x] Stage 2: Time Range Selector (12h, 24h, 3d, 5d) with chronological rolling buffer reordering (eliminates artificial yesterday-today jump/crossover)
-- [x] Stage 3: Clarify Legend & Activity Tracks (remove redundant top labels, add explicit headers explaining colored bars = open valve / active flame, separate temperature curve legend)
-- [x] Stage 4: TPI Algorithm Breakdown Table & Explanations (show P deficit, outdoor weather compensation, learned NVS inertia I, total duty %, on-minutes per hour, and current cycle state per zone)
-- [x] Stage 5: ASPICE Requirements & SWE.5 Tests Update (`SWE.5-TC19.16` updated / `TC19.17` added in `t_ui_history.py`)
-- [x] Stage 6: Build, Flash OTA, Hardware Verification & Process Check
+- [ ] Stage 1: Requirements & Parameter Specifications (`docs/requirements_and_features.md` §3.5 FR-35.1 and §6 configuration parameters)
+- [ ] Stage 2: ASPICE Verification Tests First (`tools/sh_tests/t_ui_history.py` - SWE.5-TC21.3 for gas meter tracking & boiler setpoint)
+- [ ] Stage 3: ParamStore & State Extensions (`include/ParamStore.h`, `src/ParamStore.cpp` - `boilerSetTemp`, `boilerFlowObserved`, `gasFlameRate`, `GasMeterBaseIndex`, `GasMeterBaseSec`, `GasMeterBaseEpoch`)
+- [ ] Stage 4: WebApi Endpoints (`src/WebApi.cpp` - expose in `/api/boiler/status`, add POST `/api/boiler/gas-meter` to calibrate/update meter index)
+- [ ] Stage 5: Web UI Gas Meter & Boiler Flow Widget (`web/index.html` - real-time calculated meter index, consumption today/yesterday/month in m³, quick index calibration input, boiler dial setpoint 40°C vs 43°C observed)
+- [ ] Stage 6: Process Checks, Build, Tests & Flashing (`pio run`, `tools/sh_process_check.py`, `tools/sh_ota_upload.py`, live board verification)
 
 ## Verification steps
-1. Check hairline cursor line follows mouse over SVG chart and snaps to 5-minute slots.
-2. Test switching between 12 Ore, 24 Ore, 3 Zile, 5 Zile:
-   - 12h: last 12 hours rolling ending at "acum"
-   - 24h: last 24 hours rolling ending at "acum" with zero crossover lines
-   - 3d & 5d: multi-day history from `api/history?range=5d`
-3. Verify legend clarity:
-   - Clear title: "Activitate Relee & Cazan (Bare colorate = circuit deschis / flacără activă)"
-   - Temperature legend only above temperature graph.
-4. Verify TPI Algorithm Inspector table:
-   - Displays real metrics for each zone: target, current, P deficit, weather compensation %, learned duty %, total duty %, cycle minutes per hour.
-5. All tests PASS on live board (`192.168.1.20`) and `sh_process_check.py` 0 errors.
+1. Run `python tools/sh_process_check.py` to ensure requirements §6 and `ParamStore.cpp` are 100% in sync with 0 errors.
+2. Build firmware clean with `pio run`.
+3. Flash to board via `python tools/sh_ota_upload.py`.
+4. Verify `/api/boiler/status` returns `gasMeter` schema with estimated index `2265.304 m³`, `boilerSetTemp: 40`, `boilerFlowObserved: 43`.
+5. Test updating index via `POST /api/boiler/gas-meter` and verify NVS persistence.
+6. Verify live Web UI card displays current meter index, gas consumed today, and boiler flow reference.

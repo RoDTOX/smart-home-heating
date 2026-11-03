@@ -130,10 +130,72 @@ void handleApiBoilerCancelPending() {
   server.send(200, "application/json", resp);
 }
 
+static String getGasMeterJson() {
+  float flameRate = paramStore.getf(Param::GasFlameRate);
+  uint32_t baseIndex = paramStore.state(StateKey::GasMeterBaseIndex);
+  if (baseIndex == 0) baseIndex = 2265304;
+  uint32_t baseSec = paramStore.state(StateKey::GasMeterBaseSec);
+  uint32_t totalSec = boilerRadio.getRuntimeTotalSec();
+  uint32_t elapsedSec = (totalSec >= baseSec) ? (totalSec - baseSec) : 0;
+  float gasBurnedSinceBase = (elapsedSec / 3600.0f) * flameRate;
+  float currentEstimatedIndex = ((float)baseIndex / 1000.0f) + gasBurnedSinceBase;
+  float gasToday = ((float)boilerRadio.getRuntimeTodaySec() / 3600.0f) * flameRate;
+  float gasYesterday = ((float)boilerRadio.getRuntimeYesterdaySec() / 3600.0f) * flameRate;
+  float gasThisMonth = ((float)boilerRadio.getRuntimeThisMonthSec() / 3600.0f) * flameRate;
+
+  String j;
+  j.reserve(256);
+  j = "\"gasMeter\":{";
+  j += "\"estimatedIndex\":" + String(currentEstimatedIndex, 3) + ",";
+  j += "\"baseIndex\":" + String((float)baseIndex / 1000.0f, 3) + ",";
+  j += "\"baseSec\":" + String(baseSec) + ",";
+  j += "\"baseEpoch\":" + String(paramStore.state(StateKey::GasMeterBaseEpoch)) + ",";
+  j += "\"gasTodayM3\":" + String(gasToday, 2) + ",";
+  j += "\"gasYesterdayM3\":" + String(gasYesterday, 2) + ",";
+  j += "\"gasThisMonthM3\":" + String(gasThisMonth, 2) + ",";
+  j += "\"gasFlameRate\":" + String(flameRate, 2) + ",";
+  j += "\"boilerSetTemp\":" + String(paramStore.get(Param::BoilerSetTemp)) + ",";
+  j += "\"boilerFlowObserved\":" + String(paramStore.get(Param::BoilerFlowObserved));
+  j += "},";
+  return j;
+}
+
 void handleApiBoilerResetRuntime() {
   server.sendHeader("Access-Control-Allow-Origin", "*");
   boilerRadio.resetRuntime();
   server.send(200, "application/json", F("{\"status\":\"ok\",\"message\":\"Boiler runtime counters reset to 0\"}"));
+}
+
+void handleApiStatus();
+
+void handleApiBoilerGasMeter() {
+  server.sendHeader("Access-Control-Allow-Origin", "*");
+  if (server.hasArg("index")) {
+    float idx = server.arg("index").toFloat();
+    if (idx >= 0.0f && idx <= 999999.0f) {
+      uint32_t baseIdx = (uint32_t)(round(idx * 1000.0f));
+      paramStore.saveState(StateKey::GasMeterBaseIndex, baseIdx);
+      paramStore.saveState(StateKey::GasMeterBaseSec, boilerRadio.getRuntimeTotalSec());
+      paramStore.saveState(StateKey::GasMeterBaseEpoch, (uint32_t)time(nullptr));
+    }
+  }
+  if (server.hasArg("setTemp")) {
+    int32_t st = server.arg("setTemp").toInt();
+    if (paramStore.inRange(Param::BoilerSetTemp, st)) {
+      paramStore.set(Param::BoilerSetTemp, st);
+    }
+  }
+  if (server.hasArg("flowObserved")) {
+    int32_t fo = server.arg("flowObserved").toInt();
+    if (paramStore.inRange(Param::BoilerFlowObserved, fo)) {
+      paramStore.set(Param::BoilerFlowObserved, fo);
+    }
+  }
+  if (server.hasArg("flameRate")) {
+    float fr = server.arg("flameRate").toFloat();
+    paramStore.setf(Param::GasFlameRate, fr);
+  }
+  handleApiStatus();
 }
 
 void handleApiZones() {
@@ -177,6 +239,7 @@ void handleApiZones() {
   json += "\"lastMonthSec\":" + String(boilerRadio.getRuntimeLastMonthSec()) + ",";
   json += "\"currentBurnSec\":" + String(boilerRadio.getCurrentFlameDurationSec());
   json += "},";
+  json += getGasMeterJson();
   json += "\"zones\":[";
 
   for (size_t i = 0; i < thermalZones.getZoneCount(); i++) {
@@ -838,6 +901,7 @@ void handleApiStatus() {
   json += "\"lastMonthSec\":" + String(boilerRadio.getRuntimeLastMonthSec()) + ",";
   json += "\"currentBurnSec\":" + String(boilerRadio.getCurrentFlameDurationSec());
   json += "},";
+  json += getGasMeterJson();
   json += "\"sensors\":[";
   size_t count = bleScanner.getSensorCount();
   size_t written = 0;
@@ -1063,6 +1127,9 @@ void handleApiConfigSystemGet() {
   json += "\"sensorTimeoutSec\":" + String(thermalZones.getSensorTimeoutSec()) + ",";
   json += "\"hysteresis\":" + String(thermalZones.getHysteresis(), 2) + ",";
   json += "\"windowThreshold\":" + String(thermalZones.getWindowThreshold(), 1) + ",";
+  json += "\"boilerSetTemp\":" + String(paramStore.get(Param::BoilerSetTemp)) + ",";
+  json += "\"boilerFlowObserved\":" + String(paramStore.get(Param::BoilerFlowObserved)) + ",";
+  json += "\"gasFlameRate\":" + String(paramStore.getf(Param::GasFlameRate), 2) + ",";
   json += "\"zones\":[";
   for (size_t i = 0; i < thermalZones.getZoneCount(); i++) {
     if (i > 0) json += ",";
@@ -1094,6 +1161,9 @@ static const ConfigArg CONFIG_ARGS[] = {
     {"sensorTimeoutSec", Param::SensorTimeout},
     {"hysteresis", Param::Hysteresis},
     {"windowThreshold", Param::WindowThreshold},
+    {"boilerSetTemp", Param::BoilerSetTemp},
+    {"boilerFlowObserved", Param::BoilerFlowObserved},
+    {"gasFlameRate", Param::GasFlameRate},
 };
 static const char* CONFIG_FLAGS[] = {"openLoopBypass", "rfSafetyHeartbeatEnabled", "pumpControlEnabled",
                                      "actuatorNormallyClosed"};
@@ -1166,6 +1236,9 @@ void handleApiConfigSystemPost() {
   if (server.hasArg("sensorTimeoutSec")) thermalZones.setSensorTimeoutSec(server.arg("sensorTimeoutSec").toInt());
   if (server.hasArg("hysteresis")) thermalZones.setHysteresis(server.arg("hysteresis").toFloat());
   if (server.hasArg("windowThreshold")) thermalZones.setWindowThreshold(server.arg("windowThreshold").toFloat());
+  if (server.hasArg("boilerSetTemp")) paramStore.set(Param::BoilerSetTemp, server.arg("boilerSetTemp").toInt());
+  if (server.hasArg("boilerFlowObserved")) paramStore.set(Param::BoilerFlowObserved, server.arg("boilerFlowObserved").toInt());
+  if (server.hasArg("gasFlameRate")) paramStore.setf(Param::GasFlameRate, server.arg("gasFlameRate").toFloat());
   if (server.hasArg("openLoopBypass")) thermalZones.setOpenLoopBypass(flagOn(server.arg("openLoopBypass")));
   if (server.hasArg("rfSafetyHeartbeatEnabled")) boilerRadio.setSafetyHeartbeatEnabled(flagOn(server.arg("rfSafetyHeartbeatEnabled")));
   if (server.hasArg("pumpControlEnabled")) thermalZones.setPumpControlEnabled(flagOn(server.arg("pumpControlEnabled")));
@@ -1242,6 +1315,7 @@ void registerWebRoutes() {
   server.on("/api/boiler/off", HTTP_POST, handleApiOff);
   server.on("/api/boiler/cancel", HTTP_POST, handleApiBoilerCancelPending);
   server.on("/api/boiler/runtime/reset", HTTP_POST, handleApiBoilerResetRuntime);
+  server.on("/api/boiler/gas-meter", HTTP_POST, handleApiBoilerGasMeter);
   server.on("/api/boiler/status", HTTP_GET, handleApiStatus);
   server.on("/api/zones", HTTP_GET, handleApiZones);
   server.on("/api/zones/setpoint", HTTP_POST, handleApiZoneSetpoint);

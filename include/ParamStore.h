@@ -23,6 +23,9 @@ enum class Param : uint8_t {
     OpenLoopBypass,      // 0 / 1   FR-1.3
     ActuatorType,        // 0 = NC, 1 = NO   FR-15.1
     PumpOutput,          // 0 = none, 1 = relay 4   FR-14.1
+    BoilerSetTemp,       // C       FR-35.1
+    BoilerFlowObserved,  // C       FR-35.1
+    GasFlameRate,        // 0.01 m3/h  FR-35.1
     Count
 };
 
@@ -39,6 +42,9 @@ enum class StateKey : uint8_t {
     RuntimeDay,
     RuntimeMonth,
     ZoneCount,  // number of zones (FR-69, §6 `number of zones`)
+    GasMeterBaseIndex,  // thousandths of m3 (e.g. 2265304 = 2265.304 m3, FR-35.1)
+    GasMeterBaseSec,    // boiler runtime totalSec at calibration (FR-35.1)
+    GasMeterBaseEpoch,  // unix timestamp of calibration (FR-35.1)
     Count
 };
 
