@@ -396,10 +396,18 @@ one example:
 
 ### 3.9 Interfaces and security
 
+- **FR-75 (Console access):** *[now]* {SW; inspection} Groups FR-75.1 ... FR-75.5. Commands over HTTP and Telnet need a password; reading the log does not (C-30, owner 03.11.2026).
+  - **FR-75.1 (Login):** {SW; test} `POST /api/console/send` needs HTTP Basic authentication (user `console`) and the Telnet console asks `Password:` before any command, except `HELP` and `STATUS`. Without a valid login HTTP answers 401 and no command runs. The Serial console needs no login (physical access). `GET /api/console/logs` and `GET /api/security/events` need no login.
+  - **FR-75.2 (First password):** {SW; test} A controller has no console password at delivery and no default password. While none is set, HTTP and Telnet accept only `HELP` and `STATUS`. The first password is set only from Serial with `PASSWD <new>` (8–63 characters) and counts as initial: the first network login must change it with `PASSWD <old> <new>` (the new one differs from the old one) before any other command is accepted (HTTP 403 `password change required`, Telnet the same text). Later changes need the old password, on any interface.
+  - **FR-75.3 (Storage):** {SW; test} The password is stored as a salted SHA-256 hash (a random 16 byte salt per unit) in NVS, written only on change, never as plain text. If the store cannot be read, every login is refused (fail closed) and the console stays at `HELP` and `STATUS`. A factory reset (FR-66) removes the password.
+  - **FR-75.4 (Lockout):** {SW; test} After `loginAttempts` failed logins in a row from one client address that address is refused for `loginLockout` (HTTP 429, Telnet closes). The state is kept in RAM, a failure writes no NVS, and heating, the page and other clients are not affected. One Telnet session at a time; a Telnet login that is not finished within `telnetLoginTimeout` closes the connection.
+  - **FR-75.5 (Route and page):** {SW; test} `/api/console/cmd` does not exist (HTTP 404); the page uses `/api/console/send`. The page asks for the password when it gets 401 and keeps it in memory only, never in the page storage.
+- **FR-76 (Console log content):** *[now]* {SW; test} The console log (Serial, Telnet, `/api/console/logs`) never contains a password, a password hash, a key, a token, the Wi-Fi name and password, the setup access point password, or the geographic coordinates of the house. A command that sets a password is logged by its name only. The boot message shows no access point password. Redaction is done by parameter, not by call site.
+- **FR-77 (Security-event log):** *[now]* {SW; test} The controller records: failed login, successful login, start of a lockout, every console command that changes a setting or an output (command name only), password change, factory reset. Each event has a time stamp (uptime if the time is not set), the type, the source (HTTP, Telnet, Serial) and, for HTTP and Telnet, the client address with its last part removed (`a.b.c.x`). The last 50 events are kept in RAM in a ring; only a password change and a factory reset are also written to NVS, on the event. Never recorded: a password right or wrong, a hash, the arguments of credential commands, request bodies. The list is shown in the engineering view (Admin) and by `GET /api/security/events`: `{"count":n,"events":[{"time":epoch or uptime,"type":"...","source":"...","client":"a.b.c.x"}]}`. It is separate from the safety history of FR-62. A repeated failed login writes no NVS.
 - **FR-7.1 (Telnet console):** *[now]* {SW; test} Telnet server on port 23.
-- **FR-7.3 (Console commands):** *[now]* {SW; test} Console commands are accepted via Serial, Telnet and HTTP (FR-45); `HELP`
+- **FR-7.3 (Console commands):** *[now]* {SW; test} Console commands are accepted via Serial, Telnet and HTTP (FR-45) after the login of FR-75.1; `HELP`
   lists them.
-- **FR-45 (Console over HTTP):** *[now]* {SW; test} `POST /api/console/send` executes a console command and returns the new log
+- **FR-45 (Console over HTTP):** *[now]* {SW; test} After the login of FR-75.1, `POST /api/console/send` executes a console command and returns the new log
   lines; `CLEAR` empties the log buffer.
 - ~~**FR-7.2 (Web console page `/console`):** retired, page removed.~~
 - **FR-8.1 (Web page):** *[now]* {SW; test, inspection} One page served at `/`:
@@ -470,12 +478,12 @@ one example:
   - changing a safety parameter of §6: `interlockDelay`, `overrun`, `burnerMinRun`, `burnerMinPause`,
     `openLoopBypass`, `sensorTimeout`, `faultDuty`, `faultFrostOutdoor`, `frostTemp`, `hbInterval`,
     `boilerLinkHeartbeat`, `boilerLinkType`, `flowSensors`, `flowMax`, `actuatorType`, `pumpOutput`, zone outputs;
-  - manual boiler requests (FR-17.3, FR-32), relay test, MANUAL mode, fault injection (NFR-5.5), credentials,
+  - manual boiler requests (FR-17.3, FR-32), relay test, MANUAL mode, fault injection (NFR-5.5), credentials, every console command except `HELP` and `STATUS` (FR-75.1),
     configuration import (FR-65.3) whatever the file contains.
   - Comfort settings (levels, schedule, boost, away, `windowThreshold`) need no authentication.
   - CORS is limited to the controller's own origin.
   - *Fallback:* unauthenticated request → HTTP 401, no change.
-- **FR-59 (Credentials):** *[now]* {SW; test} The first flash may use universal default credentials (OTA, access point, Wi-Fi).
+- **FR-59 (Credentials):** *[now]* {SW; test} The first flash may use universal default credentials (OTA, access point, Wi-Fi); the console has none (FR-75.2).
   Credentials are changed via API or console without re-flashing and stored in NVS.
   - *Reports:* while any default is active, DTC-403 `WARN_DEFAULT_CREDENTIALS`; everything else works.
 
@@ -717,6 +725,9 @@ Set via API and console, stored in NVS (written on change only). A value outside
 | `faultDuty` | 20 % | 0–30 % | FR-51 |
 | `sensorTimeout` | 20 min | 1–60 min | FR-16.2, FR-18 |
 | `frostTemp` | 12 °C | 8–16 °C | FR-16.1 |
+| `loginAttempts` | 5 | 3–10 | FR-75.4 |
+| `loginLockout` | 300 s | 60–3600 s | FR-75.4 |
+| `telnetLoginTimeout` | 60 s | 30–300 s | FR-75.4 |
 | `validMin` / `validMax` | 5 / 45 °C | 0–10 / 35–50 °C | FR-53 |
 | `maxJump` | 2.0 °C | 0.5–5.0 °C | FR-53 |
 | `windowThreshold` | 1.2 °C | 0.8–2.0 °C | FR-40 |
