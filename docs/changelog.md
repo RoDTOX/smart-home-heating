@@ -7,6 +7,11 @@ Entries before 29.10.2026 (the system before the lean clean-up):
 
 
 
+## [03.11.2026] - Correction: the first meter reading was taken at 15:30
+
+- The owner corrected the time of the first reading 2265.304 m3 from 15:39 to 15:30 (a slip). Fixed in `docs/gas_meter_readings_03_11.md`, FR-35.1 (`Old log` bullet) and `activeContext.md`. Older entries of this log that say 15:39 stay as written. The entry on the board still holds 15:39 (epoch 1793713140): the API cannot correct a stored reading (readings are never overwritten).
+- The reading form (`Ora citirii (gol = acum)`, a `datetime-local` field) exists in the card `Contor gaz & centrală`, which sits in the section `Istoric & Grafic Telemetrie`, behind the button `Citire contor / Setări`; checked in the page: 15:30 of today gives epoch 1793712600 and the API accepts it (dry run).
+
 ## [03.11.2026] - C-27: gas figures only with a measured flow; correction (page)
 
 - **Why:** the page showed 8.10 m3 for today (13.5 boiler ON hours x the starting flow 0.60 m3/h) while the index rose 0.692 m3 in 6 h 20 min; and `Timp ardere azi: 0.0h` read a wrong field.
