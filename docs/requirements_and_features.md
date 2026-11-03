@@ -5,7 +5,7 @@
 QA-11, QA-12, QA-13, QA-14, QA-16 ([`process_review.md`](process_review.md)); v2.2 adds the owner decisions D37,
 D38, D39 and the architecture observations O-12, O-13, O-14, O-15, and closes the review (applied as listed in
 `requirements_review.md` §6 and §8); v2.3 adds O-16, v2.4 the 10 s bound of NFR-1.8, v2.5 the proxy clause of FR-8.1, v2.6 the owner's page test
-(C-3…C-8) v2.7 the configuration export / import FR-65.1, FR-65.2, FR-65.3, FR-65.4, FR-65.5, FR-65.6, FR-65.7, FR-65.8 (C-9) v2.8 zones added and deleted by the user and the sensor search (C-10, C-11) v2.9 one Save for all zones (C-12) and v2.10 the zone target out of the settings file (C-13), changes after closure
+(C-3…C-8) v2.7 the configuration export / import FR-65.1, FR-65.2, FR-65.3, FR-65.4, FR-65.5, FR-65.6, FR-65.7, FR-65.8 (C-9) v2.8 zones added and deleted by the user and the sensor search (C-10, C-11) v2.9 one Save for all zones (C-12) and v2.10 the zone target out of the settings file (C-13), v2.11 pre-import diff preview and vertical zone controls (FR-8.1, PB-70), changes after closure
 (`requirements_review.md` §9).
 **Replaces:** the Romanian specification of 07.10.2026 (v1). IDs are kept where the meaning did not change.
 **Related:** [`plan.md`](plan.md), [`changelog.md`](changelog.md), [`hardware_esp32_relay.md`](hardware_esp32_relay.md),
@@ -404,7 +404,8 @@ one example:
 - ~~**FR-7.2 (Web console page `/console`):** retired, page removed.~~
 - **FR-8.1 (Web page):** *[now]* {SW; test, inspection} One page served at `/`:
   - family view: rooms (temperature, target, humidity, state), outdoor weather, boost, one global Home / Away switch,
-    active alarms; the header says in words what the schedule does now and when it changes next (e.g.
+    active alarms; each room card provides direct vertical setpoint steppers ([+], target, [-], boost reset) visible
+    without expanding; the header says in words what the schedule does now and when it changes next (e.g.
     `Program: zi până la 22:30, apoi noapte`), or why the house does not follow it (away, schedule off);
   - admin view (`#admin`) is the engineering view, like the watch window of a bus or debugger tool: every value the
     API reports (zones, boiler, sensors, parameters, schedule, diagnostics, time and weather, system) is shown with its
@@ -416,9 +417,12 @@ one example:
     - the sensor search (FR-11.5): the button `Caută senzori`, a Stop button, the remaining time and the list of
       sensors heard, from which a sensor is chosen for a zone;
     - the checks of FR-10.4;
-    - the configuration export, which saves the answer of `GET /api/config/export` as a `.json` file, and the
-      import, which sends the chosen file unchanged as the body of `POST /api/config/import` with
-      `Content-Type: application/json` (FR-65.7) and shows the lists and reasons of FR-65.6;
+    - the configuration export, which saves the answer of GET /api/config/export as a .json file, and the
+      import: upon selecting a file, the page parses the JSON, renders a diff preview comparing incoming settings
+      against current configuration (GET /api/config/export), warns on invalid parameters against §6 ranges and
+      zone rules with Romanian explanations, and requires explicit user confirmation before sending the body to
+      POST /api/config/import with Content-Type: application/json (FR-65.7); on completion, it shows the lists
+      and reasons of FR-65.6;
   - zone states are shown with the codes and texts of FR-8.4;
   - Family view language configurable (Romanian / English, NFR-3.1).
   - Behind a reverse proxy that serves the controller under a path prefix (e.g. `/heating/` on a home server) the

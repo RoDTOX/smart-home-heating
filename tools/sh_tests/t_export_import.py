@@ -1516,6 +1516,38 @@ class ExportImportTests:
         except Exception as e:
             return TestResult(test_id, name, req, "FAIL", (time.time() - start) * 1000, str(e))
 
+    def test_tc29_38_pre_import_diff_preview_and_confirmation(self):
+        """SWE.5-TC29.38: Served Page Offers Pre-Import Diff Preview and Confirmation Dialog (FR-8.1, FR-65.7)"""
+        test_id = "SWE.5-TC29.38"
+        name = "Pre-Import Diff Preview and Confirmation"
+        req = "FR-8.1"
+        start = time.time()
+        try:
+            r = requests.get(f"{self.base_url}/", timeout=self.timeout)
+            latency = (time.time() - start) * 1000
+            assert r.status_code == 200, f"page: HTTP {r.status_code}"
+            html = r.text
+            assert "cfgPreview" in html, "Missing #cfgPreview container in served page"
+            scripts = "\n".join(re.findall(r"<script(?![^>]*application/json)[^>]*>(.*?)</script>", html, re.S))
+            assert scripts, "no script in served page"
+            assert "analyzeImport" in scripts, "Missing analyzeImport logic in served page script"
+            assert "btnConfirmImport" in scripts, "Missing confirmation button in import preview"
+            assert "btnCancelImport" in scripts, "Missing cancel button in import preview"
+            # Section 6 bounds check in PARAM_LIMITS:
+            # rfSafetyHeartbeatSec must allow up to 900 s (hbInterval 30..900 s, FR-17.7, FR-55)
+            hb_lim = re.search(r"rfSafetyHeartbeatSec\s*:\s*\{[^}]*max\s*:\s*(\d+)", scripts)
+            assert hb_lim and int(hb_lim.group(1)) >= 900, f"rfSafetyHeartbeatSec max bound too low: {hb_lim.group(0) if hb_lim else 'none'}"
+            # pumpOverrunSec must enforce min 180 s (overrun 180..600 s, FR-3)
+            ovr_lim = re.search(r"pumpOverrunSec\s*:\s*\{[^}]*min\s*:\s*(\d+)", scripts)
+            assert ovr_lim and int(ovr_lim.group(1)) == 180, f"pumpOverrunSec min bound wrong: {ovr_lim.group(0) if ovr_lim else 'none'}"
+            # burnerMinRunSec must enforce min 120 s (burnerMinRun 120..600 s, FR-4)
+            brun_lim = re.search(r"burnerMinRunSec\s*:\s*\{[^}]*min\s*:\s*(\d+)", scripts)
+            assert brun_lim and int(brun_lim.group(1)) == 120, f"burnerMinRunSec min bound wrong: {brun_lim.group(0) if brun_lim else 'none'}"
+            return TestResult(test_id, name, req, "PASS", latency,
+                              "served page has #cfgPreview, analyzeImport, confirmation dialog and §6 parameter bounds")
+        except Exception as e:
+            return TestResult(test_id, name, req, "FAIL", (time.time() - start) * 1000, str(e))
+
     def test_tc29_28_import_rejects_not_format_1(self):
         """SWE.5-TC29.28: Not a JSON Object or Format Missing / Not 1 Gives HTTP 400, Nothing Changed (FR-65.7)"""
         test_id = "SWE.5-TC29.28"

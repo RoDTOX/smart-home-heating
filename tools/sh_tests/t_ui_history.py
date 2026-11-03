@@ -368,3 +368,23 @@ class UiHistoryTests:
             return TestResult(test_id, name, req, "PASS", latency, details)
         except Exception as e:
             return TestResult(test_id, name, req, "FAIL", (time.time() - start)*1000, str(e))
+
+    def test_tc19_11_zone_card_direct_setpoint_steppers(self):
+        """SWE.5-TC19.11: Zone Card Direct Vertical Setpoint Steppers (FR-8.1)"""
+        test_id = "SWE.5-TC19.11"
+        name = "Zone Card Vertical Setpoint Controls"
+        req = "FR-8.1"
+        start = time.time()
+        try:
+            r = requests.get(f"{self.base_url}/", timeout=self.timeout)
+            latency = (time.time() - start) * 1000
+            assert r.status_code == 200, f"page: HTTP {r.status_code}"
+            html = r.text
+            assert 'data-a="up"' in html, "Missing setpoint increase button [+] on room cards"
+            assert 'data-a="dn"' in html, "Missing setpoint decrease button [-] on room cards"
+            assert 'room-main' in html, "Missing .room-main flex container for quick-view text"
+            assert 'ctl' in html, "Missing .ctl container for vertical setpoint steppers"
+            return TestResult(test_id, name, req, "PASS", latency,
+                              "served page has direct vertical setpoint steppers on room cards with room-main quick-view")
+        except Exception as e:
+            return TestResult(test_id, name, req, "FAIL", (time.time() - start) * 1000, str(e))

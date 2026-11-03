@@ -817,14 +817,14 @@ function analyzeImport(imported, current) {
 
   const PARAM_LIMITS = {
     actuatorDelaySec: {min: 120, max: 600, label: "Întârziere actuatori (secunde)"},
-    pumpOverrunSec: {min: 60, max: 600, label: "Overrun pompă (secunde)"},
-    burnerMinRunSec: {min: 60, max: 600, label: "Timp minim arzător ON (secunde)"},
-    burnerMinPauseSec: {min: 60, max: 600, label: "Pauză minimă arzător (secunde)"},
-    rfSafetyHeartbeatSec: {min: 10, max: 300, label: "Heartbeat RF (secunde)"},
-    freezeProtectionTemp: {min: 5, max: 15, label: "Prag protecție îngheț (°C)"},
-    sensorTimeoutSec: {min: 120, max: 3600, label: "Timeout senzor (secunde)"},
+    pumpOverrunSec: {min: 180, max: 600, label: "Overrun pompă (secunde)"},
+    burnerMinRunSec: {min: 120, max: 600, label: "Timp minim arzător ON (secunde)"},
+    burnerMinPauseSec: {min: 120, max: 600, label: "Pauză minimă arzător (secunde)"},
+    rfSafetyHeartbeatSec: {min: 30, max: 900, label: "Heartbeat RF (secunde)"},
+    freezeProtectionTemp: {min: 8, max: 16, label: "Prag protecție îngheț (°C)"},
+    sensorTimeoutSec: {min: 60, max: 3600, label: "Timeout senzor (secunde)"},
     hysteresis: {min: 0.1, max: 1.0, label: "Histerezis (°C)"},
-    windowThreshold: {min: 0.5, max: 3.0, label: "Sensibilitate geam deschis (°C)"}
+    windowThreshold: {min: 0.8, max: 2.0, label: "Sensibilitate geam deschis (°C)"}
   };
 
   if (imported.params && typeof imported.params === "object") {
