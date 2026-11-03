@@ -7,6 +7,37 @@ Entries before 29.10.2026 (the system before the lean clean-up):
 
 
 
+## [03.11.2026] - Persistent Gas Calibration Form, Generic Boiler Model, Calibration History & Restart Markers (4532f7b)
+
+- **Who / when / why:** firmware session (light mode), 03.11.2026; the owner reported that clicking "Calibrează Index / Setări" caused the input form to disappear on subsequent poll ticks, objected to hardcoding a specific boiler brand/model in the UI note, requested generic configurable boiler power and gas price, asked for a calibration history log with empirical burn rate calculation and night-time reading guidance (ACM = 0), requested replacing the jarring green status badge with a dedicated consumption comparison bar, and asked to visualize board reboot/flash events directly on the telemetry chart.
+- **Where:**
+  - `web/index.html`:
+    - Converted `renderGasMeter()` from destructive `innerHTML` replacements to non-destructive in-place DOM updates (`$("gasEstIdx")`), maintaining form open state (`gasCalibOpen`) and preserving user keystrokes during background polling.
+    - Removed hardcoded boiler model text; replaced with generic condensing boiler modulation note and user-configurable inputs for boiler nominal power (`boilerPowerKw` in kW) and gas price (`gasPrice` in Lei/m³).
+    - Added night-time calibration tip advising the user to record index at bedtime and morning wakeup when domestic hot water (ACM) is zero.
+    - Added historical calibration log table displaying timestamp, index, period gas volume ($\Delta m^3$), burner run hours, and empirical flow rate ($m^3/h$).
+    - Replaced neon green badge with discreet burn hours text (`Timp ardere azi: X.Xh`) and added an elegant visual comparison bar for today vs yesterday gas consumption.
+    - Added `⚡ RESTART` amber dashed vertical lines and badges on the telemetry chart timeline with reset reason shown on cursor hover.
+  - `include/ParamStore.h` & `src/ParamStore.cpp`:
+    - Added `Param::BoilerPowerKw` (10–45 kW, default 24 kW, NVS key `bkw`, FR-35.1).
+    - Added `Param::GasPrice` (1.00–10.00 Lei/m³, default 3.30 Lei/m³, NVS key `gprice`, FR-35.1).
+  - `include/TelemetryHistoryManager.h` & `src/TelemetryHistoryManager.cpp`:
+    - Added `BootRecord` struct tracking reboot epoch, slot24h, slot5d, and `esp_reset_reason()`.
+    - Persisted reboot events to LittleFS file `/boot_events.bin` (up to 10 events) and exposed them in `/api/history` under `"reboots": [...]`.
+  - `src/WebApi.cpp`:
+    - Added `getGasCalibrationLogJson()` and `logGasCalibration()` persisting last 15 calibration events to LittleFS `/gas_calib.json`.
+    - Automatically computes empirical burner rate $\text{rate} = \Delta m^3 / \Delta t_{\text{burn}}$ when $\Delta t_{\text{burn}} \ge 120\,\text{s}$ and $\Delta m^3 > 0.001$.
+    - Extended `/api/boiler/status` payload and `POST /api/boiler/gas-meter` handler with `boilerKw` and `price`.
+  - `docs/requirements_and_features.md`:
+    - Updated `FR-35.1` and §6 parameter tables for `boilerPowerKw` and `gasPrice`.
+- **Verification:**
+  - `pio run` passed cleanly (1.22 MB flash, 64.9%).
+  - `python tools/sh_process_check.py` passed with 0 errors.
+  - OTA flash to `192.168.1.20` completed and verified running commit `4532f7b`.
+  - Live board verification confirmed calibration persistence, empirical rate computation, reboot event recording in `/api/history`, and UI rendering.
+  - All SWE.5 TC20, TC21, and TC19.16 tests PASS against board.
+- **Not changed:** hydronic safety limits, burner minimum run/pause, actuator interlock.
+
 ## [03.11.2026] - Monitorizare Contor Gaz & Calibrare Referință Tur Centrală (FR-35.1)
 
 - **Who / when / why:** firmware session (light mode), 03.11.2026; the owner reported physical gas meter reading (2265.304 m³) and boiler setpoint (set to 40°C, delivering 43°C into floor), requesting live gas consumption logging referenced to meter index and boiler flow setpoint.

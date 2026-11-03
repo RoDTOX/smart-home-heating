@@ -5,12 +5,14 @@ Only what holds now and what comes next. A line that no longer holds is replaced
 [`docs/archive/active_context_until_2026-11-02.md`](../../docs/archive/active_context_until_2026-11-02.md).
 
 ## Now
-- Live gas meter index tracking & boiler flow setpoint reference (FR-35.1) implemented and verified on board:
+- Live gas meter index tracking, calibration history & generic boiler model (FR-35.1) implemented and verified on board:
   - Base index calibrated: `2265.304 m³` (NVS key `mindex`).
   - Boiler dial setpoint: `40°C` (NVS `btset`), observed delivery: `43°C` (NVS `btflow`), calibrated flame rate: `0.60 m³/h` (NVS `grate`).
-  - Live API `/api/boiler/status` and `/api/zones` provide `gasMeter` payload (`estimatedIndex`, `gasTodayM3`, etc.).
-  - Web UI widget `#gasMeterBox` provides live index/cost tracking and calibration form.
-  - Test `SWE.5-TC21.3` PASS against board (v1.11.03.24, commit `63accff`).
+  - Boiler capacity: `24 kW` (NVS `bkw`), gas price: `3.30 Lei/m³` (NVS `gprice`).
+  - Calibration history log (`/gas_calib.json`) stores up to 15 calibration events with empirical burn rate calculation ($\Delta m^3 / \Delta t_{\text{burn}}$) and night-time calibration advice (ACM = 0).
+  - UI `#gasMeterBox` updated with non-destructive in-place DOM updates (inputs retain focus/state during polling), subtle gas consumption comparison bar (Azi vs Ieri), and removed hardcoded boiler model text.
+  - Telemetry chart features `⚡ RESTART` timeline markers for board reboots/flashes backed by `/boot_events.bin` and `/api/history`.
+  - Board flashed via OTA with commit `4532f7b` (v1.11.03.26); SWE.5-TC20, TC21, TC19.16 PASS.
 - Migration of `docs/architecture.md` §18, status in [`docs/plan.md`](../../docs/plan.md). Step 1 (`ParamStore`)
   committed (413fa60, fix 7743c26) and flashed; the owner's page test fixes committed (43ffe48 PB-15, 2b7564f
   PB-17 ... PB-21). Not pushed.
