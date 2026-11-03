@@ -49,6 +49,7 @@ ThermalZoneManager::ThermalZoneManager()
 
     for (size_t i = 0; i < MAX_THERMAL_ZONES; i++) {
         _windowStates[i].baselineTemp = -999.0f;
+        _windowStates[i].bucketStartMs = 0;
         _windowStates[i].baselineMs = 0;
         _windowStates[i].pauseActive = false;
         _windowStates[i].pauseStartMs = 0;
@@ -94,6 +95,7 @@ void ThermalZoneManager::clearZoneSlot(size_t i) {
     _tpi[i] = {0, 0, 0.0f, 0.0f, 0.0f, 0.0f};
     _windowStates[i] = WindowDetectionState();
     _windowStates[i].baselineTemp = -999.0f;
+    _windowStates[i].bucketStartMs = 0;
     _windowStates[i].pauseMinTemp = 999.0f;
 }
 
@@ -1075,49 +1077,54 @@ void ThermalZoneManager::evaluateWindowDetection(size_t index, float currentTemp
     if (index >= MAX_THERMAL_ZONES) return;
     if (!_scheduleConfig.windowDetectionEnabled) {
         _windowStates[index].pauseActive = false;
+        _windowStates[index].bucketStartMs = 0;
         return;
     }
 
     float dropThreshold = _windowThreshold;
 
     if (!_windowStates[index].pauseActive) {
-        if (_windowStates[index].baselineMs == 0) {
-            _windowStates[index].baselineTemp = currentTemp;
-            _windowStates[index].baselineMs = now;
-            _windowStates[index].dropInsightLogged = false;
-        } else if (currentTemp > _windowStates[index].baselineTemp) {
-            _windowStates[index].baselineTemp = currentTemp;
-            _windowStates[index].baselineMs = now;
-            _windowStates[index].dropInsightLogged = false;
+        WindowDetectionState &w = _windowStates[index];
+        // Baseline = highest reading of the last 5 min (FR-40: a drop within 5 min), kept in five 60 s buckets.
+        if (w.bucketStartMs == 0 || now - w.bucketStartMs >= 300000UL) {
+            for (uint8_t k = 0; k < 5; k++) w.bucketMax[k] = -999.0f;
+            w.bucketHead = 0;
+            w.bucketStartMs = now;
+            w.dropInsightLogged = false;
         } else {
-            float drop = _windowStates[index].baselineTemp - currentTemp;
-            if (drop >= dropThreshold) {
-                _windowStates[index].pauseActive = true;
-                _windowStates[index].pauseStartMs = now;
-                _windowStates[index].pauseMinTemp = currentTemp;
-                time_t nowEpoch = time(nullptr);
-                _windowStates[index].lastDetectionEpoch = (nowEpoch >= 1700000000) ? (uint32_t)nowEpoch : (now / 1000);
-                netConsole.printf("[Thermal][WINDOW] Open window detected on Zone %u (%s): temp dropped %.2f \xC2\xB0""C in %us! (threshold: %.1f C). Suspending heating for 30m.\n",
-                                  _configs[index].id, _configs[index].name,
-                                  drop,
-                                  (now - _windowStates[index].baselineMs) / 1000,
-                                  dropThreshold);
-            } else if (drop >= 0.35f && !_windowStates[index].dropInsightLogged) {
-                _windowStates[index].dropInsightLogged = true;
-                netConsole.printf("[Thermal][INSIGHT] Rapid cooling detected on Zone %u (%s): %.2f C -> %.2f C (-%.2f C in %us, possible aeration)\n",
-                                  _configs[index].id, _configs[index].name,
-                                  _windowStates[index].baselineTemp, currentTemp,
-                                  drop,
-                                  (now - _windowStates[index].baselineMs) / 1000);
+            while (now - w.bucketStartMs >= 60000UL) {
+                w.bucketHead = (w.bucketHead + 1) % 5;
+                w.bucketMax[w.bucketHead] = -999.0f;
+                w.bucketStartMs += 60000UL;
             }
-
-            // Only expire baseline if more than 10 minutes elapsed without triggering or if temperature was stable (drop < 0.10 C)
-            if ((now - _windowStates[index].baselineMs > 600000UL) ||
-                ((now - _windowStates[index].baselineMs > 300000UL) && drop < 0.10f)) {
-                _windowStates[index].baselineTemp = currentTemp;
-                _windowStates[index].baselineMs = now;
-                _windowStates[index].dropInsightLogged = false;
+        }
+        if (currentTemp > w.bucketMax[w.bucketHead]) w.bucketMax[w.bucketHead] = currentTemp;
+        float peak = -999.0f;
+        uint8_t peakAge = 0;
+        for (uint8_t k = 0; k < 5; k++) {
+            if (w.bucketMax[k] > peak) {
+                peak = w.bucketMax[k];
+                peakAge = (uint8_t)((w.bucketHead + 5 - k) % 5);
             }
+        }
+        if (peak > w.baselineTemp || w.baselineMs == 0) w.dropInsightLogged = false;
+        w.baselineTemp = peak;
+        w.baselineMs = now - (uint32_t)peakAge * 60000UL;
+        float drop = w.baselineTemp - currentTemp;
+        if (drop >= dropThreshold) {
+            w.pauseActive = true;
+            w.pauseStartMs = now;
+            w.pauseMinTemp = currentTemp;
+            time_t nowEpoch = time(nullptr);
+            w.lastDetectionEpoch = (nowEpoch >= 1700000000) ? (uint32_t)nowEpoch : (now / 1000);
+            netConsole.printf("[Thermal][WINDOW] Open window detected on Zone %u (%s): temp dropped %.2f \xC2\xB0""C within %us! (threshold: %.1f C). Suspending heating for 30m.\n",
+                              _configs[index].id, _configs[index].name,
+                              drop, (now - w.baselineMs) / 1000, dropThreshold);
+        } else if (drop >= 0.35f && !w.dropInsightLogged) {
+            w.dropInsightLogged = true;
+            netConsole.printf("[Thermal][INSIGHT] Rapid cooling detected on Zone %u (%s): %.2f C -> %.2f C (-%.2f C in %us, possible aeration)\n",
+                              _configs[index].id, _configs[index].name,
+                              w.baselineTemp, currentTemp, drop, (now - w.baselineMs) / 1000);
         }
     } else {
         if (currentTemp < _windowStates[index].pauseMinTemp) {
@@ -1130,6 +1137,7 @@ void ThermalZoneManager::evaluateWindowDetection(size_t index, float currentTemp
             _windowStates[index].pauseActive = false;
             _windowStates[index].baselineTemp = currentTemp;
             _windowStates[index].baselineMs = now;
+            _windowStates[index].bucketStartMs = 0;
             netConsole.printf("[Thermal][WINDOW] Zone %u (%s) window pause cleared (%s, lasted %us). Resuming normal thermostat loop.\n",
                               _configs[index].id, _configs[index].name,
                               timeoutExpired ? "30 min timeout" : "temp rebounded +0.6 \xC2\xB0""C",
@@ -1158,6 +1166,7 @@ bool ThermalZoneManager::clearWindowPause(size_t index) {
         _windowStates[index].pauseActive = false;
         _windowStates[index].baselineTemp = _statuses[index].currentTemp;
         _windowStates[index].baselineMs = now;
+        _windowStates[index].bucketStartMs = 0;
         if (_statuses[index].state == ZONE_WINDOW_PAUSE) {
             _statuses[index].state = ZONE_IDLE;
             _statuses[index].stateChangedMs = now;
