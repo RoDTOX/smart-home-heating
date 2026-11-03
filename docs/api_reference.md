@@ -66,8 +66,6 @@ Invalid schedule input returns `400`.
 | POST | `/api/boiler/cancel` | Cancel deferred start/stop |
 | POST | `/api/boiler/runtime/reset` | Reset burn-time counters |
 | POST | `/api/boiler/gas-meter` | FR-35.1: the user types a meter reading. Form fields `index` (m³, 0 - 999999, 3 decimals, required), `time` (epoch seconds of the reading, optional, default now; not in the future), `dryRun=1` (test mode: validates and answers, stores nothing, writes no entry). `200 {"status":"ok","stored":true/false,"reading":{"time":epoch,"index":m3},"gasMeter":{...}}`; a missing or out-of-range `index`, or a `time` in the future: `400 {"error":...}`, nothing stored. Only this call writes a reading entry. |
-| POST | `/api/boiler/gas-meter` (correction) | FR-35.1: with `correct=<epoch of the stored reading>` and at least one of `index`, `time` (same limits as typing): changes that reading and adds a row to the correction log; `dryRun=1` validates only. `200 {"status":"ok","stored":true/false,"reading":{...}}`; `404` no such reading, `400` nothing to change or out of range, `409` the new time equals the time of another reading, `507` correction log full (100 rows) |
-| GET | `/api/boiler/gas-corrections` | FR-35.1: the correction log, oldest first: `{"count":n,"corrections":[{"time":epoch,"oldTime":epoch,"oldIndex":m3,"newTime":epoch,"newIndex":m3},...]}` |
 | GET | `/api/boiler/gas-readings` | FR-35.1: all stored readings, oldest first: `{"count":n,"replaced":n,"readings":[{"time":epoch,"index":m3,"runtimeSec":s or null},...]}` |
 
 ## Console
