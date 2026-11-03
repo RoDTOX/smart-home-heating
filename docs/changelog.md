@@ -13,6 +13,7 @@ Entries before 29.10.2026 (the system before the lean clean-up):
 - **Found:** (1) after an automatic pause end the zone state stayed WINDOW, so the zone could not start heating again; (2) the click handler of the room cards took the window button as a setpoint stepper (`Z.zones[NaN]`).
 - **Tests first (red on the old firmware, then green):** TC26.5 (state WINDOW only with an active pause, FR-8.4), TC19.17 (the stepper handler acts only on buttons with an action, FR-8.1).
 - **Changed:** `ThermalZoneManager.cpp` (state to IDLE at the pause end, when detection is switched off and in the AUTO control branch; interlock path unchanged); `web/index.html` guard. `sh-safety-reviewer` light: no BLOCKER; the MANUAL / detection-off RISK and the stateChangedMs NOTE fixed.
+- **Board 1.11.03.31:** full suite 105 PASS, 4 FAIL (TC11.5 flaky, passes alone; TC19.7 PB-91; TC19.9; TC21.3 PB-98). TC26.5 and TC19.17 PASS. The meter reading showed 0 after the flash (it was only the hard-coded default, never stored): set to 2265.304 again by hand; schedule restored and compared equal.
 - **PB-80:** `df5fd70` (made outside the chain, by AGY) was read and kept: the meter default is 0 = not calibrated, no hard-coded reading; PB-80 fixed by it.
 
 ## [03.11.2026] - PB-72: window baseline is the peak of the last 5 min (c5eb53d)
