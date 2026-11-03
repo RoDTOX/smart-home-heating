@@ -7,6 +7,16 @@ Entries before 29.10.2026 (the system before the lean clean-up):
 
 
 
+## [03.11.2026] - Fix schedule mode & tab switching blocked by refresh guard (d366a91)
+
+- **Who / when / why:** firmware session (light mode), 03.11.2026; the owner observed that clicking schedule mode buttons (such as 'Zilnic unificat') or day tabs had no effect. Root cause: the isEditing guard inside 
+enderSchedule() was returning early on user click events when schedDirty was true. Fixed by moving background refresh guard to 
+efresh() via isSchedBusy(), allowing user click actions to immediately update view state while keeping background refreshes from disturbing active typing.
+- **Where:** web/index.html (isSchedBusy() helper, 
+enderSchedule() early return removed, 
+efresh() guarded, ocusout debounced).
+- **Not changed:** firmware logic, hydronic safety invariants.
+
 ## [03.11.2026] - Schedule form refresh overwrite protection & customizable moment names (C-16, PB-69)
 
 - **Who / when / why:** firmware session (light mode), 03.11.2026; the owner observed that background 2s polling refreshes reconstructed `c.innerHTML`, destroying active form input focus and reverting uncommitted values before saving; additionally requested that moment names (P1: Trezire, etc.) be user-customizable.
