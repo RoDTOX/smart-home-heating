@@ -69,7 +69,7 @@ zones and sensors the user sets up (C-10, C-11), then step 2; the rest in the or
 | 1 | `ParamStore`: one parameter table with requirements §6 defaults and ranges, all NVS access | flashed, board test 81/81 PASS; owner acceptance pending | 7743c26 | — |
 | C-9 | Configuration export / import (FR-65.1, FR-65.2, FR-65.3, FR-65.4, FR-65.5, FR-65.6, FR-65.7, FR-65.8), before step 3 | done, on the board | ce8a58b | owner OK 02.11.2026 |
 | 2 | `Diagnostics`: DTC enum of requirements §5, event history in LittleFS | open | — | — |
-| 3 | `OutputBank`: logical channels, polarity in one place, static tables for 32 zones; zones added / deleted by the user and sensor search (C-10, C-11) | zones, sensors and `OutputBank` (pin level and NC / NO polarity in one module, R-A1, FR-15.1) built; zones and sensors accepted by the owner; `OutputBank` built and on the board since 31b8496 (board 1.11.03.01, now a9c5175 = 1.11.03.27); owner hands-on OK for `OutputBank` NOT given yet | 31b8496 | — |
+| 3 | `OutputBank`: logical channels, polarity in one place, static tables for 32 zones; zones added / deleted by the user and sensor search (C-10, C-11) | accepted: zones, sensors (C-10, C-11, owner OK 02.11.2026) and `OutputBank` (pin level and NC / NO polarity in one module, R-A1, FR-15.1; owner OK 03.11.2026) | 31b8496 | owner OK 03.11.2026 |
 | 4 | `SafetySupervisor`: valve states, interlock, overrun without pump, burner guard, frost on all zones, pump guard | open | — | — |
 | 5 | `BoilerLink`: `Rf433Link`, heartbeat `hbInterval`, DTC-207, `ContactLink` | open | — | — |
 | 6 | `SensorHub`: mailbox, plausibility filter, validity, one sensor timeout | open | — | — |
@@ -89,8 +89,7 @@ multi-moment schedule (C-15), gas meter (C-16), history chart (C-17), window dis
 engineering view and live console (C-20). It is built and flashed (board a9c5175), but no tests-first, no safety
 review and no acceptance row. These are not migration steps and do not change the step order above. Review,
 records and findings: [`review_agy_03_11.md`](review_agy_03_11.md), rows C-14 ... C-20 in
-[`requirements_review.md`](requirements_review.md) §9. Owner decision 03.11.2026: the work is kept and folded into steps 7, 8 and 11 (tests first, findings PB-71 ... PB-94 fixed there). The step 3 test on the board is not valid for the hands-on OK
-until the owner has tested 1.11.03.x (list in the review file).
+[`requirements_review.md`](requirements_review.md) §9. Step 3 is accepted (owner OK 03.11.2026 for `OutputBank`; gas meter and open window accepted the same day). Step 2 starts in a new session. Owner decision 03.11.2026: the work is kept and folded into steps 7, 8 and 11 (tests first, findings PB-71 ... PB-94 fixed there). The earlier hands-on gap of 1.11.03.x is closed for step 3.
 
 ## Risks
 
