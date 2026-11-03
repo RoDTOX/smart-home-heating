@@ -7,6 +7,17 @@ Entries before 29.10.2026 (the system before the lean clean-up):
 
 
 
+## [03.11.2026] - Monitorizare Contor Gaz & Calibrare Referință Tur Centrală (FR-35.1)
+
+- **Who / when / why:** firmware session (light mode), 03.11.2026; the owner reported physical gas meter reading (2265.304 m³) and boiler setpoint (set to 40°C, delivering 43°C into floor), requesting live gas consumption logging referenced to meter index and boiler flow setpoint.
+- **Requirements:** added `FR-35.1` (Gas meter tracking & boiler flow setpoint); §6 parameters `boilerSetTemp` (default 40°C, 25..60°C), `boilerFlowObserved` (default 43°C, 25..65°C), `gasFlameRate` (default 0.60 m³/h, 0.20..2.50 m³/h).
+- **Architecture / code:**
+  - Extended `include/ParamStore.h` and `src/ParamStore.cpp` with `Param::BoilerSetTemp`, `Param::BoilerFlowObserved`, `Param::GasFlameRate`, and state keys `GasMeterBaseIndex`, `GasMeterBaseSec`, `GasMeterBaseEpoch`.
+  - Added `getGasMeterJson()` in `src/WebApi.cpp` exposed in `/api/boiler/status` and `/api/zones`.
+  - Added endpoint `POST /api/boiler/gas-meter` for physical meter index calibration and flow reference configuration.
+  - Added dedicated UI widget in `web/index.html` (`#gasMeterBox`) showing estimated meter index, today's/monthly gas consumption (m³ and Lei), boiler flow setpoint and inline calibration modal.
+- **Verification:** ASPICE test `SWE.5-TC21.3` (Gas Meter Index Tracking & Boiler Flow Reference) verified PASS on board; `sh_process_check.py` 0 errors.
+
 ## [03.11.2026] - Single source of truth for runtime counters & refined telemetry chart (HEAD)
 
 - **Who / when / why:** firmware session (light mode), 03.11.2026; the owner observed that zone runtime counters reset to 0m after reboots despite telemetry showing hours of heating (violating the single-source-of-truth invariant), and requested chart improvements: human-readable X-axis day+hour labels, dotted lines across recording gaps rather than solid lines across missing days, thinner lines with explicit sample dots, and persistent hover tooltips across the entire chart.
