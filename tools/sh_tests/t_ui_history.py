@@ -528,7 +528,9 @@ class UiHistoryTests:
             assert 'id="histSvgContainer"' in html, "Missing histSvgContainer in page"
             assert 'renderHistoryChart' in html, "Missing renderHistoryChart JS function"
             assert 'api/history?range=24h' in html, "Missing api/history call in frontend"
-            assert '🔥 Centrală' in html, "Missing boiler activity label in chart logic"
+            assert 'histCursorLine' in html, "Missing hairline cursor line in SVG chart"
+            assert 'histRangeTabs' in html, "Missing multi-range selector tabs (12h, 24h, 3d, 5d)"
+            assert 'tpiInspectorBox' in html and 'renderTpiInspector' in html, "Missing TPI algorithm inspector breakdown"
 
             return TestResult(test_id, name, req, "PASS", latency,
                               "24h history chart (SVG timeline/curves) and room card TPI/RH subtitles verified")

@@ -117,19 +117,30 @@ code,.mono{font:13px/1.35 ui-monospace,SFMono-Regular,Consolas,monospace}
     </div>
   </details>
 
-  <!-- 3. Istoric & Grafic 24h (Default: COLLAPSED, FR-34) -->
+  <!-- 3. Istoric & Grafic Telemetrie (Default: COLLAPSED, FR-34) -->
   <details class="adm-card" id="grpHistory">
-    <summary><h2>Istoric &amp; Grafic 24h (TPI, Activitate, Temperaturi)</h2></summary>
+    <summary><h2>Istoric &amp; Grafic Telemetrie (TPI, Activitate, Temperaturi)</h2></summary>
     <div class="adm-body" id="histBody">
-      <div class="row" style="justify-content:space-between;align-items:center;margin-bottom:8px">
-        <div class="s" id="histSummary">288 eșantioane LittleFS (la 5 min). Graficul evidențiază ciclurile TPI de încălzire și stabilitatea termică.</div>
-        <button type="button" id="btnRefreshHist" class="sm">🔄 Reîmprospătează</button>
+      <div class="row" style="justify-content:space-between;align-items:center;margin-bottom:8px;flex-wrap:wrap;gap:8px">
+        <div class="row" id="histRangeTabs" style="gap:6px">
+          <button type="button" class="sm hist-range-btn" data-range="12h">12 Ore</button>
+          <button type="button" class="sm hist-range-btn on" data-range="24h">24 Ore</button>
+          <button type="button" class="sm hist-range-btn" data-range="3d">3 Zile</button>
+          <button type="button" class="sm hist-range-btn" data-range="5d">5 Zile</button>
+        </div>
+        <div class="row" style="gap:10px;align-items:center">
+          <div class="s" id="histSummary"></div>
+          <button type="button" id="btnRefreshHist" class="sm">🔄 Reîmprospătează</button>
+        </div>
       </div>
-      <div id="histLegend" class="row" style="gap:12px;margin-bottom:8px;font-size:13px;flex-wrap:wrap"></div>
+
+      <div style="font-weight:600;font-size:13px;margin:8px 0 2px">Activitate Relee &amp; Cazan (Bare colorate = când circuitul este deschis / flacăra arde)</div>
       <div id="histChartBox" style="position:relative;background:var(--card);border:1px solid var(--line);border-radius:10px;padding:8px;overflow-x:auto">
         <div id="histSvgContainer"></div>
         <div id="histTooltip" style="display:none;margin-top:8px;padding:6px 10px;background:var(--bg);border:1px solid var(--line);border-radius:6px;font-size:12px"></div>
       </div>
+
+      <div id="tpiInspectorBox" style="margin-top:14px;padding:12px;background:var(--bg);border:1px solid var(--line);border-radius:10px"></div>
     </div>
   </details>
 
@@ -372,7 +383,8 @@ const $ = id => document.getElementById(id);
 const esc = s => String(s).replace(/[&<>"]/g, c => ({"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;"}[c]));
 const isAdmin = () => document.body.classList.contains("admin");
 let Z = null, S = null, B = [], ST = null, D = null, openRoom = -1, editing = false, dtcHistory = [];
-let histData = null, histLoading = false, lastHistFetch = 0;
+let histData24h = null, histData5d = null, histLoading = false, lastHistFetch = 0;
+let selectedHistRange = "24h";
 let again = false, lastFound = [];
 let RAW = {}, prevFlat = {}, changed = new Set(), trace = [], openSig = null;
 const dirtyRows = new Set();
@@ -615,16 +627,42 @@ function renderChecks() {
 }
 
 
-// FR-34: 24h LittleFS Telemetry Timeline & Temperature Curves
-function renderHistoryChart(data) {
+// FR-34: LittleFS Telemetry Timeline, Temperature Curves & TPI Algorithm Inspector
+function renderHistoryChart() {
   const container = $("histSvgContainer");
   if (!container) return;
+
+  const isMultiDay = (selectedHistRange === "3d" || selectedHistRange === "5d");
+  const data = isMultiDay ? histData5d : histData24h;
+
   if (!data || !data.points || !data.points.length) {
-    container.innerHTML = `<div class="s" style="padding:20px;text-align:center">Nicio înregistrare disponibilă în istoricul telemetric.</div>`;
+    container.innerHTML = `<div class="s" style="padding:20px;text-align:center">Nicio înregistrare disponibilă pentru intervalul selectat (${selectedHistRange}).</div>`;
     return;
   }
-  const points = data.points;
-  const currentSlot = (data.currentSlot !== undefined) ? data.currentSlot : -1;
+
+  // Chronological reordering: eliminate yesterday-today jump/crossover line
+  let pts = [];
+  if (!isMultiDay) {
+    const cur = (data.currentSlot !== undefined) ? data.currentSlot : 0;
+    const allPts = data.points || [];
+    const slotMap = {};
+    allPts.forEach(p => slotMap[p[0]] = p);
+    const ordered = [];
+    for (let i = 1; i <= 288; i++) {
+      const s = (cur + i) % 288;
+      if (slotMap[s]) ordered.push(slotMap[s]);
+    }
+    pts = (selectedHistRange === "12h") ? ordered.slice(-144) : ordered;
+  } else {
+    const allPts = data.points || [];
+    pts = (selectedHistRange === "3d") ? allPts.slice(-144) : allPts;
+  }
+
+  if (!pts.length) {
+    container.innerHTML = `<div class="s" style="padding:20px;text-align:center">Date insuficiente pentru ${selectedHistRange}.</div>`;
+    return;
+  }
+
   const zones = (Z && Z.zones && Z.zones.length) ? Z.zones : [
     {id: 1, name: "Zona 1"},
     {id: 2, name: "Zona 2"},
@@ -633,30 +671,23 @@ function renderHistoryChart(data) {
 
   const zoneColors = ["#38bdf8", "#a78bfa", "#f472b6", "#34d399"];
   const rowDefs = [
-    { label: "🔥 Centrală", bit: 1, color: "var(--heat)" }
+    { label: "🔥 Cazan ON", bit: 1, color: "var(--heat)" }
   ];
   zones.forEach((z, idx) => {
     const bit = 1 << (idx + 2);
     rowDefs.push({
-      label: esc(z.name || ("Zona " + (idx + 1))),
+      label: "🚪 " + esc(z.name || ("Zona " + (idx + 1))),
       bit: bit,
       color: zoneColors[idx % zoneColors.length]
     });
   });
 
-  const legEl = $("histLegend");
-  if (legEl) {
-    let lHtml = rowDefs.map(r => `<span><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:${r.color};margin-right:4px;vertical-align:middle"></span><b>${r.label}</b></span>`).join("");
-    lHtml += `<span><span style="display:inline-block;width:16px;height:2px;border-top:2px dashed var(--mut);vertical-align:middle;margin-right:4px"></span><span style="color:var(--mut)">Afară</span></span>`;
-    legEl.innerHTML = lHtml;
-  }
-
   const W = 880;
-  const x0 = 100, x1 = 840, chartW = x1 - x0;
-  const slotW = chartW / 288;
+  const x0 = 105, x1 = 850, chartW = x1 - x0;
+  const slotW = chartW / pts.length;
 
   let validTemps = [];
-  points.forEach(p => {
+  pts.forEach(p => {
     for (let k = 1; k <= 3; k++) {
       if (p[k] !== null && p[k] !== undefined && p[k] > 5 && p[k] < 35) validTemps.push(p[k]);
     }
@@ -668,46 +699,72 @@ function renderHistoryChart(data) {
   }
   if (maxT - minT < 4) maxT = minT + 4;
 
-  const topActY = 22;
+  const topActY = 20;
   const actRowH = 14;
   const actGap = 5;
   const actTotalH = rowDefs.length * (actRowH + actGap);
-  const tempTop = topActY + actTotalH + 18;
-  const tempH = 110;
+  const tempHeaderY = topActY + actTotalH + 18;
+  const tempTop = tempHeaderY + 12;
+  const tempH = 115;
   const tempBot = tempTop + tempH;
   const totalH = tempBot + 35;
 
   const tempToY = t => tempBot - ((t - minT) / (maxT - minT)) * tempH;
 
   const svgParts = [];
-  svgParts.push(`<svg viewBox="0 0 ${W} ${totalH}" style="width:100%;height:auto;display:block;font-family:system-ui,-apple-system,sans-serif">`);
+  svgParts.push(`<svg id="histSvg" viewBox="0 0 ${W} ${totalH}" style="width:100%;height:auto;display:block;font-family:system-ui,-apple-system,sans-serif">`);
 
-  for (let h = 0; h <= 24; h += 3) {
-    const slot = h * 12;
-    const gx = x0 + Math.min(288, slot) * slotW;
+  // Time grid marks across chart
+  const timeStepMarks = (selectedHistRange === "12h") ? 6 : ((selectedHistRange === "24h") ? 6 : ((selectedHistRange === "3d") ? 6 : 5));
+  for (let m = 0; m <= timeStepMarks; m++) {
+    const frac = m / timeStepMarks;
+    const gx = x0 + frac * chartW;
     svgParts.push(`<line x1="${gx.toFixed(1)}" y1="${topActY}" x2="${gx.toFixed(1)}" y2="${tempBot}" stroke="var(--line)" stroke-width="1" stroke-dasharray="2,2" />`);
-    svgParts.push(`<text x="${gx.toFixed(1)}" y="${totalH - 12}" font-size="11" fill="var(--mut)" text-anchor="middle">${String(h).padStart(2, '0')}:00</text>`);
+    
+    // Label
+    const ptIdx = Math.min(pts.length - 1, Math.floor(frac * pts.length));
+    let lbl = "";
+    if (m === timeStepMarks) {
+      lbl = "Acum";
+    } else if (!isMultiDay) {
+      const slot = pts[ptIdx][0];
+      const hh = String(Math.floor((slot * 5) / 60)).padStart(2, "0");
+      const mm = String((slot * 5) % 60).padStart(2, "0");
+      lbl = `${hh}:${mm}`;
+    } else {
+      const hAgo = Math.round((timeStepMarks - m) * (selectedHistRange === "3d" ? 12 : 24));
+      lbl = `-${hAgo}h`;
+    }
+    svgParts.push(`<text x="${gx.toFixed(1)}" y="${totalH - 12}" font-size="11" fill="var(--mut)" text-anchor="middle">${lbl}</text>`);
   }
 
+  // Activity tracks
   rowDefs.forEach((r, ri) => {
     const ry = topActY + ri * (actRowH + actGap);
     svgParts.push(`<text x="${x0 - 8}" y="${(ry + 11).toFixed(1)}" font-size="11" font-weight="600" fill="var(--fg)" text-anchor="end">${r.label}</text>`);
     svgParts.push(`<rect x="${x0}" y="${ry}" width="${chartW}" height="${actRowH}" rx="3" fill="var(--bg)" stroke="var(--line)" />`);
 
-    let startSlot = -1;
-    for (let s = 0; s <= 288; s++) {
-      const active = (s < points.length && points[s] && (points[s][5] & r.bit) !== 0);
-      if (active && startSlot === -1) {
-        startSlot = s;
-      } else if (!active && startSlot !== -1) {
-        const segX = x0 + startSlot * slotW;
-        const segW = Math.max(2, (s - startSlot) * slotW);
+    let startIdx = -1;
+    for (let s = 0; s <= pts.length; s++) {
+      const active = (s < pts.length && pts[s] && (pts[s][5] & r.bit) !== 0);
+      if (active && startIdx === -1) {
+        startIdx = s;
+      } else if (!active && startIdx !== -1) {
+        const segX = x0 + startIdx * slotW;
+        const segW = Math.max(2, (s - startIdx) * slotW);
         svgParts.push(`<rect x="${segX.toFixed(1)}" y="${ry}" width="${segW.toFixed(1)}" height="${actRowH}" rx="2" fill="${r.color}" />`);
-        startSlot = -1;
+        startIdx = -1;
       }
     }
   });
 
+  // Temperature chart header & legends
+  svgParts.push(`<text x="${x0}" y="${tempHeaderY - 2}" font-size="11" font-weight="600" fill="var(--fg)">Temperaturi înregistrate (°C)</text>`);
+  let tempLegStr = zones.map((z, idx) => `<tspan fill="${zoneColors[idx % zoneColors.length]}">— ${esc(z.name)}</tspan>`).join("   ");
+  tempLegStr += `   <tspan fill="var(--mut)">-- Afară</tspan>`;
+  svgParts.push(`<text x="${x1}" y="${tempHeaderY - 2}" font-size="11" text-anchor="end">${tempLegStr}</text>`);
+
+  // Temperature background & horizontal grid
   svgParts.push(`<rect x="${x0}" y="${tempTop}" width="${chartW}" height="${tempH}" rx="4" fill="var(--bg)" stroke="var(--line)" />`);
   const tStep = (maxT - minT > 8) ? 3 : 2;
   for (let t = minT; t <= maxT; t += tStep) {
@@ -716,10 +773,11 @@ function renderHistoryChart(data) {
     svgParts.push(`<text x="${x0 - 8}" y="${(gy + 4).toFixed(1)}" font-size="10" fill="var(--mut)" text-anchor="end">${t}°</text>`);
   }
 
+  // Outdoor temperature polyline
   const outPts = [];
-  points.forEach(p => {
+  pts.forEach((p, idx) => {
     if (p[4] !== null && p[4] !== undefined) {
-      const px = x0 + p[0] * slotW;
+      const px = x0 + idx * slotW;
       const py = tempToY(Math.max(minT, Math.min(maxT, p[4])));
       outPts.push(`${px.toFixed(1)},${py.toFixed(1)}`);
     }
@@ -728,12 +786,13 @@ function renderHistoryChart(data) {
     svgParts.push(`<polyline fill="none" stroke="var(--mut)" stroke-width="1.2" stroke-dasharray="3,3" points="${outPts.join(' ')}" />`);
   }
 
+  // Zone temperature polylines (smooth chronological without crossover)
   zones.forEach((z, idx) => {
     const k = idx + 1;
     const zPts = [];
-    points.forEach(p => {
+    pts.forEach((p, pidx) => {
       if (p[k] !== null && p[k] !== undefined && p[k] > 0) {
-        const px = x0 + p[0] * slotW;
+        const px = x0 + pidx * slotW;
         const py = tempToY(p[k]);
         zPts.push(`${px.toFixed(1)},${py.toFixed(1)}`);
       }
@@ -744,64 +803,161 @@ function renderHistoryChart(data) {
     }
   });
 
-  if (currentSlot >= 0 && currentSlot <= 288) {
-    const curX = x0 + currentSlot * slotW;
-    svgParts.push(`<line x1="${curX.toFixed(1)}" y1="${topActY - 5}" x2="${curX.toFixed(1)}" y2="${tempBot}" stroke="var(--bad)" stroke-width="1.5" stroke-dasharray="4,3" />`);
-    svgParts.push(`<text x="${curX.toFixed(1)}" y="${topActY - 8}" font-size="10" font-weight="600" fill="var(--bad)" text-anchor="middle">acum</text>`);
-  }
+  // Hairline cursor line (following mouse)
+  svgParts.push(`<line id="histCursorLine" x1="0" y1="${topActY}" x2="0" y2="${tempBot}" stroke="#facc15" stroke-width="1.5" stroke-dasharray="3,2" style="display:none;pointer-events:none" />`);
 
+  // Transparent hover overlay
   svgParts.push(`<rect id="histOverlay" x="${x0}" y="${topActY}" width="${chartW}" height="${tempBot - topActY}" fill="transparent" style="cursor:crosshair" />`);
   svgParts.push(`</svg>`);
 
   container.innerHTML = svgParts.join("");
 
+  // Attach interactive hover tracking
   const overlay = $("histOverlay");
+  const curLine = $("histCursorLine");
   if (overlay) {
     overlay.onmousemove = e => {
       const rect = overlay.getBoundingClientRect();
-      const frac = (e.clientX - rect.left) / rect.width;
-      const slot = Math.max(0, Math.min(287, Math.floor(frac * 288)));
-      const p = points[slot];
+      const frac = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+      const ptIdx = Math.min(pts.length - 1, Math.floor(frac * pts.length));
+      const p = pts[ptIdx];
       if (!p) return;
-      const hh = String(Math.floor((slot * 5) / 60)).padStart(2, "0");
-      const mm = String((slot * 5) % 60).padStart(2, "0");
+
+      const xPos = x0 + frac * chartW;
+      if (curLine) {
+        curLine.setAttribute("x1", xPos.toFixed(1));
+        curLine.setAttribute("x2", xPos.toFixed(1));
+        curLine.style.display = "block";
+      }
+
+      let timeLabel = "";
+      if (!isMultiDay) {
+        const slot = p[0];
+        const hh = String(Math.floor((slot * 5) / 60)).padStart(2, "0");
+        const mm = String((slot * 5) % 60).padStart(2, "0");
+        timeLabel = `Ora ${hh}:${mm}`;
+      } else {
+        const agoSlots = pts.length - 1 - ptIdx;
+        const hAgo = (agoSlots * 0.5).toFixed(1);
+        timeLabel = `Acum ${hAgo} ore`;
+      }
+
       const bOn = (p[5] & 1) !== 0;
-      let tip = `<b>Ora ${hh}:${mm}</b> · Centrală: ${bOn ? '🔥 <span style="color:var(--heat)">Pornită</span>' : 'Oprită'}`;
+      let tip = `<b>${timeLabel}</b> · Cazan: ${bOn ? '🔥 <span style="color:var(--heat)">Pornit (flacără)</span>' : 'Oprit'}`;
       zones.forEach((z, idx) => {
         const bit = 1 << (idx + 2);
         const vOn = (p[5] & bit) !== 0;
         const temp = (p[idx + 1] !== null && p[idx + 1] !== undefined) ? p[idx + 1] + '°C' : '--';
-        tip += ` · <b>${esc(z.name)}</b>: ${temp} (${vOn ? 'deschis' : 'închis'})`;
+        tip += ` · <b>${esc(z.name)}</b>: ${temp} (${vOn ? '<span style="color:var(--ok)">vană deschisă</span>' : 'închis'})`;
       });
       if (p[4] !== null && p[4] !== undefined) tip += ` · Afară: ${p[4]}°C`;
       const tipEl = $("histTooltip");
       if (tipEl) { tipEl.style.display = "block"; tipEl.innerHTML = tip; }
     };
     overlay.onmouseleave = () => {
+      if (curLine) curLine.style.display = "none";
       const tipEl = $("histTooltip");
       if (tipEl) tipEl.style.display = "none";
     };
   }
 }
 
-async function loadHistoryChart() {
+// FR-47: Live TPI Algorithm Inspector & Calculation Breakdown
+function renderTpiInspector() {
+  const box = $("tpiInspectorBox");
+  if (!box || !Z || !Z.zones) return;
+
+  const outT = (ST && ST.outdoorTemp !== undefined) ? ST.outdoorTemp : (RAW["api/boiler/status"] ? RAW["api/boiler/status"].outdoorTemp : null);
+  let outCompPct = 0;
+  if (outT !== null && outT < 15.0) {
+    outCompPct = Math.min(30, Math.max(0, Math.round((15.0 - outT) * 1.5)));
+  }
+
+  let html = `<div style="font-weight:600;font-size:14px;margin-bottom:8px">🧠 Diagnoză Algoritm TPI – Calcul în timp real per zonă (FR-47)</div>
+  <div class="scroll"><table style="font-size:12px;width:100%">
+    <thead>
+      <tr>
+        <th>Zonă</th>
+        <th>Curent / Țintă</th>
+        <th>Deficit (P)</th>
+        <th>Compensare Meteo (${outT !== null ? outT.toFixed(1) + '°C' : '--'})</th>
+        <th>Inerție NVS (I)</th>
+        <th>Duty Calculat</th>
+        <th>Timp Ciclu (1h)</th>
+        <th>Stare Vană</th>
+      </tr>
+    </thead>
+    <tbody>`;
+
+  Z.zones.forEach((z, i) => {
+    const cur = z.sensorValid ? z.currentTemp.toFixed(1) + '°C' : '--';
+    const tgt = z.effectiveTarget.toFixed(1) + '°C';
+    const err = z.sensorValid ? (z.effectiveTarget - z.currentTemp) : 0;
+    const isDeficit = err >= 0.39;
+    const pPct = isDeficit ? 100 : Math.max(0, Math.round((err / 1.5) * 100));
+    const learned = Math.round(z.learnedDuty || 0);
+    const duty = z.duty || 0;
+    const onMin = Math.round(duty * 0.6);
+    const pauseMin = 60 - onMin;
+
+    let pCol = isDeficit ? `<b style="color:var(--heat)">Deficit ≥0.4° (+100%)</b>` : `+${pPct}%`;
+    let meteoCol = isDeficit ? `<span class="s">–</span>` : (outCompPct > 0 ? `+${outCompPct}%` : `0%`);
+    let learnedCol = isDeficit ? `<span class="s">–</span>` : `+${learned}%`;
+    let dutyCol = (duty === 100) ? `<b style="color:var(--heat)">100% continuu</b>` : `<b>${duty}%</b>`;
+    let timeCol = (duty === 100) ? `60 min deschis` : `${onMin} min deschis / ${pauseMin} min pauză`;
+    
+    let stCol = z.relayEngaged
+      ? `<span style="color:var(--ok);font-weight:600">● Vana DESCHISĂ</span>`
+      : (z.demand ? `<span style="color:var(--heat)">⏳ Interlock deschidere</span>` : `<span class="s">○ Vana închisă (pauză)</span>`);
+
+    html += `<tr>
+      <td><b>${esc(z.name)}</b></td>
+      <td>${cur} / ${tgt}</td>
+      <td>${pCol}</td>
+      <td>${meteoCol}</td>
+      <td>${learnedCol}</td>
+      <td>${dutyCol}</td>
+      <td>${timeCol}</td>
+      <td>${stCol}</td>
+    </tr>`;
+  });
+
+  html += `</tbody></table></div>
+  <div class="s" style="margin-top:8px;font-size:12px;line-height:1.4">
+    <b>Cum funcționează algoritmul TPI la încălzirea în pardoseală:</b> Ciclul de bază este de 60 min. Când diferența față de țintă este ≥ 0.4°C (deficit termic), vana stă deschisă 100% continuu pentru a încălzi șapa masivă de beton. Când ajunge la sub 0.4°C de țintă, TPI modulează fin: <code>Duty = Deficit / 1.5°C + Compensație Meteo + Inerție NVS</code>. Vana se deschide doar minutele calculate per oră, apoi intră în pauză permițând șapei să radieze căldura lin, fără oscilații sau supraîncălzire.
+  </div>`;
+
+  box.innerHTML = html;
+}
+
+async function loadHistoryChart(force = false) {
   if (histLoading) return;
   histLoading = true;
   lastHistFetch = Date.now();
   const summaryEl = $("histSummary");
-  if (summaryEl) summaryEl.textContent = "Se încarcă datele de telemetrie pe 24h...";
+  if (summaryEl) summaryEl.textContent = "Se încarcă datele...";
+
+  const isMultiDay = (selectedHistRange === "3d" || selectedHistRange === "5d");
+  const ep = isMultiDay ? "api/history?range=5d" : "api/history?range=24h";
+
   try {
-    const r = await fetch("api/history?range=24h");
+    const r = await fetch(ep);
     if (!r.ok) throw new Error("HTTP " + r.status);
-    histData = await r.json();
-    renderHistoryChart(histData);
+    const j = await r.json();
+    if (isMultiDay) histData5d = j;
+    else histData24h = j;
+
+    renderHistoryChart();
+    renderTpiInspector();
+
     if (summaryEl) {
-      const pts = (histData.points || []).length;
+      const pts = (j.points || []).length;
       const nowStr = (ST && ST.time) ? ST.time.slice(0, 5) : new Date().toLocaleTimeString().slice(0, 5);
-      summaryEl.textContent = `${pts} eșantioane LittleFS (la 5 min) · Actualizat la ${nowStr}`;
+      const rangeText = (selectedHistRange === "12h") ? "12 Ore" : ((selectedHistRange === "24h") ? "24 Ore" : ((selectedHistRange === "3d") ? "3 Zile" : "5 Zile"));
+      summaryEl.textContent = `${rangeText} (${pts} eșantioane) · Actualizat la ${nowStr}`;
     }
   } catch(e) {
-    if (summaryEl) summaryEl.textContent = "Eroare la încărcare istoric: " + e.message;
+    if (summaryEl) summaryEl.textContent = "Eroare la încărcare: " + e.message;
   } finally {
     histLoading = false;
   }
@@ -1161,8 +1317,9 @@ async function refresh() {
     if (admin) {
       renderChecks(); renderSetup(); renderSensors();
       if (!isSchedBusy()) renderSchedule();
-      if ($("grpHistory") && $("grpHistory").open && (!histData || (Date.now() - lastHistFetch > 60000))) {
-        loadHistoryChart();
+      if ($("grpHistory") && $("grpHistory").open) {
+        renderTpiInspector();
+        if (!histData24h || (Date.now() - lastHistFetch > 60000)) loadHistoryChart();
       }
       if (debugOpen) updateWatch();
       if (!busy("loc") && RAW["api/setup/location"]) $("loc").value = RAW["api/setup/location"].coords;
@@ -1478,12 +1635,23 @@ $("toggleAdmin").onclick = e => { e.preventDefault(); document.body.classList.to
 const grpHist = $("grpHistory");
 if (grpHist) {
   grpHist.addEventListener("toggle", () => {
-    if (grpHist.open && !histData) loadHistoryChart();
+    if (grpHist.open && (!histData24h || !histData5d)) loadHistoryChart();
   });
 }
 const btnRefHist = $("btnRefreshHist");
 if (btnRefHist) {
-  btnRefHist.onclick = () => loadHistoryChart();
+  btnRefHist.onclick = () => loadHistoryChart(true);
+}
+const rangeTabs = $("histRangeTabs");
+if (rangeTabs) {
+  rangeTabs.addEventListener("click", e => {
+    const btn = e.target.closest("button.hist-range-btn");
+    if (!btn) return;
+    rangeTabs.querySelectorAll(".hist-range-btn").forEach(b => b.classList.remove("on"));
+    btn.classList.add("on");
+    selectedHistRange = btn.dataset.range;
+    loadHistoryChart();
+  });
 }
 if (location.hash === "#admin") document.body.classList.add("admin");
 

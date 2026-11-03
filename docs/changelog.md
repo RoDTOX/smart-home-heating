@@ -7,7 +7,20 @@ Entries before 29.10.2026 (the system before the lean clean-up):
 
 
 
-## [03.11.2026] - 24h telemetry history chart (TPI timeline & temperature curves) and card subtitle cleanup (HEAD)
+## [03.11.2026] - Multi-range history (12h, 24h, 3d, 5d), hairline cursor, chronological rolling & TPI inspector (HEAD)
+
+- **Who / when / why:** firmware session (light mode), 03.11.2026; the owner requested a vertical hairline cursor line tracking mouse movement across the chart, selectable time ranges (12h, 24h, 3d, 5d), clarification of the activity bar legend (what the 4 colored bars represent and eliminating duplicate labels), and access to real-time TPI algorithm metrics and calculation details.
+- **Where:**
+  - web/index.html:
+    - Added multi-range tabs (12 Ore, 24 Ore, 3 Zile, 5 Zile) in grpHistory, seamlessly fetching and rendering either 24h 5-min or 5d 30-min telemetry buffers.
+    - Implemented chronological circular buffer reordering for 12h/24h ending at 'Acum', completely eliminating artificial crossover lines between yesterday and today.
+    - Added dynamic vertical yellow dashed hairline cursor line (#histCursorLine) tracking mouse cursor over the entire height of the SVG chart.
+    - Clarified activity tracks vs temperature curves: explicit header 'Activitate Relee & Cazan (Bare colorate = când circuitul este deschis / flacăra arde)', removed duplicate top labels, and placed temperature legend on the curve section.
+    - Added live TPI Algorithm Inspector (#tpiInspectorBox) detailing current vs target, P deficit, outdoor weather compensation, learned NVS inertia I, total duty %, on-minutes per hour, and valve relay state for each zone, complete with educational explanations.
+  - 	ools/sh_tests/t_ui_history.py: updated SWE.5-TC19.16 asserting hairline cursor, multi-range tabs, and TPI algorithm inspector.
+- **Not changed:** hydronic safety limits, burner minimum run/pause, actuator interlock.
+
+## [03.11.2026] - 24h telemetry history chart (TPI timeline & temperature curves) and card subtitle cleanup (a6f5d90)
 
 - **Who / when / why:** firmware session (light mode), 03.11.2026; the owner requested optimizing room cards by removing redundant target setpoints, clarifying humidity percentages as 💧 X% RH, formatting TPI heating status in understandable terms (Încălzire TPI · X min/h (Y%) and Pauză ciclu (menține din șapă)), and adding a full-width 24-hour history chart showing burner and valve binary activations labeled by configured zone names, outdoor and zone temperature curves, and interactive cursor inspection.
 - **Where:**
