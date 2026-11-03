@@ -570,10 +570,12 @@ function renderMomentsTableHtml(moments, groupTag, extraActions = "") {
 
   moments.forEach((m, idx) => {
     const isAct = (S && S.activeMoment === (idx + 1));
-    const actMark = isAct ? `<span style="color:var(--ok);font-weight:bold" title="Moment activ acum">● </span>` : "";
+    const actMark = isAct
+      ? `<span style="color:var(--ok);font-size:13px;width:14px;display:inline-block;text-align:center" title="Moment activ acum">●</span>`
+      : `<span style="color:var(--mut);opacity:0.4;font-size:13px;width:14px;display:inline-block;text-align:center" title="Moment inactiv">○</span>`;
     h += `<tr class="${isAct ? 'chg' : ''}">`;
     const mName = (schedState && schedState.momentNames && schedState.momentNames[idx]) ? schedState.momentNames[idx] : MOMENT_LABELS[idx];
-    h += `<td><div style="display:flex;align-items:center;gap:4px">
+    h += `<td><div style="display:flex;align-items:center;gap:6px">
       ${actMark}<span class="s" style="font-weight:bold">P${idx + 1}:</span>
       <input type="text" class="mom-name" data-m="${idx}" value="${esc(mName)}" maxlength="15" title="Redenumește momentul" style="width:105px;font-weight:600;padding:2px 4px;font-size:13px">
     </div></td>`;
