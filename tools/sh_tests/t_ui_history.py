@@ -437,3 +437,30 @@ class UiHistoryTests:
                               "served page has #dtcSection, clear acceptance conditions, and operational checks for boiler/relays")
         except Exception as e:
             return TestResult(test_id, name, req, "FAIL", (time.time() - start) * 1000, str(e))
+
+    def test_tc19_14_admin_collapsible_groups_and_dtc_clear(self):
+        """SWE.5-TC19.14: Admin Collapsible Groups and DTC Clear (FR-8.1, FR-10.2)"""
+        test_id = "SWE.5-TC19.14"
+        name = "Admin Collapsible Groups & DTC Clear"
+        req = "FR-8.1, FR-10.2"
+        start = time.time()
+        try:
+            r = requests.get(f"{self.base_url}/", timeout=self.timeout)
+            latency = (time.time() - start) * 1000
+            assert r.status_code == 200, f"page: HTTP {r.status_code}"
+            html = r.text
+
+            assert 'id="grpSched"' in html and 'open' in html, "grpSched missing or not open by default"
+            assert 'id="grpDiag"' in html, "grpDiag missing"
+            assert 'id="grpSetup"' in html, "grpSetup missing"
+            assert 'id="grpDebug"' in html, "grpDebug missing"
+            assert 'btnClearDtc' in html, "Missing btnClearDtc in page"
+            assert 'api/diag/clear' in html, "Missing /api/diag/clear API call in frontend"
+
+            r_clr = requests.post(f"{self.base_url}/api/diag/clear", timeout=self.timeout)
+            assert r_clr.status_code == 200, f"/api/diag/clear: HTTP {r_clr.status_code}"
+
+            return TestResult(test_id, name, req, "PASS", latency,
+                              "served page has 4 collapsible admin groups, polling optimization, and functional DTC clear")
+        except Exception as e:
+            return TestResult(test_id, name, req, "FAIL", (time.time() - start) * 1000, str(e))

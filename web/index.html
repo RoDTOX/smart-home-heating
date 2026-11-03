@@ -33,8 +33,15 @@ input.time24{width:68px;text-align:center;font-weight:600;font-size:14px;border-
 .ctl .sp-clr{font-size:11px;font-weight:600;width:auto;height:auto;padding:2px 6px;margin-top:2px;border-radius:5px;background:var(--card);color:var(--idle);cursor:pointer}
 .alerts{margin:0 0 12px;padding:0;list-style:none}
 .alerts li{background:var(--card);border:1px solid var(--bad);color:var(--bad);border-radius:10px;padding:8px 12px;margin-bottom:6px}
-section{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px;margin-top:12px}
+section,details.adm-card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px;margin-top:12px}
 section h2{font-size:16px;margin:0 0 10px}
+details.adm-card summary{cursor:pointer;user-select:none;list-style:none;display:flex;align-items:center;justify-content:space-between}
+details.adm-card summary::-webkit-details-marker{display:none}
+details.adm-card summary h2{display:inline-block;font-size:16px;margin:0}
+details.adm-card summary::after{content:'▼';font-size:12px;color:var(--mut);transition:transform 0.2s}
+details.adm-card[open] summary::after{transform:rotate(180deg)}
+details.adm-card[open] summary{margin-bottom:12px;border-bottom:1px solid var(--line);padding-bottom:8px}
+.adm-body{margin-top:4px}
 table{width:100%;border-collapse:collapse}
 td,th{text-align:left;padding:5px 4px;border-bottom:1px solid var(--line);vertical-align:top}
 input,select{font:inherit;background:var(--bg);color:var(--fg);border:1px solid var(--line);border-radius:8px;padding:6px}
@@ -64,82 +71,93 @@ code,.mono{font:13px/1.35 ui-monospace,SFMono-Regular,Consolas,monospace}
 <div class="grid" id="rooms"></div>
 
 <div id="admin">
-  <section>
-    <h2>Verificări (FR-10.4)</h2>
-    <div class="scroll"><table id="checks"></table></div>
-    <div id="dtcSection"></div>
-  </section>
-  <section>
-    <h2>Zone – punere în funcțiune (FR-11.3)</h2>
-    <div class="s">Adaugi zone pe ieșirile libere ale plăcii. O zonă se pornește doar cu senzor; un releu și un senzor servesc o singură zonă; releul nu e al pompei.</div>
-    <div class="row"><button id="zoneAdd">Adaugă zonă</button><button id="zonesSave">Salvează zonele</button><span id="zoneMsg" class="s"></span></div>
-    <div class="scroll"><table id="setup"></table></div>
-    <datalist id="macList"></datalist>
-  </section>
-  <section>
-    <h2>Senzori (FR-11.5)</h2>
-    <div class="row"><button id="searchToggle">Caută senzori</button><button id="searchStop" style="display:none">Stop</button><span id="searchInfo" class="s"></span></div>
-    <div class="s">Căutarea ține până apeși Stop, cel mult 10 minute. În afara căutării controlerul ține doar senzorii zonelor.</div>
-    <div class="scroll"><table id="sensors"></table></div>
-  </section>
-  <section id="schedSection">
-    <h2>Program încălzire (Honeywell)</h2>
-    <div class="row" style="justify-content:space-between">
-      <label style="font-weight:600"><input type="checkbox" id="schedOn"> Program activ</label>
-      <div id="schedActiveBadge" class="s"></div>
+  <!-- 1. Confort & Programare (Default: OPEN) -->
+  <details class="adm-card" id="grpSched" open>
+    <summary><h2>Confort &amp; Programare (Honeywell)</h2></summary>
+    <div class="adm-body" id="schedSection">
+      <div class="row" style="justify-content:space-between">
+        <label style="font-weight:600"><input type="checkbox" id="schedOn"> Program activ</label>
+        <div id="schedActiveBadge" class="s"></div>
+      </div>
+      
+      <div style="margin-top:10px"><b>Mod programare:</b></div>
+      <div class="row" id="schedModeTabs" style="gap:6px;margin:6px 0 10px 0">
+        <button type="button" class="sm sched-mode-btn" data-mode="5+2">5 + 2 Zile (L–V / S–D)</button>
+        <button type="button" class="sm sched-mode-btn" data-mode="unified">Zilnic unificat (L–D)</button>
+        <button type="button" class="sm sched-mode-btn" data-mode="7day">7 Zile individuale</button>
+        <button type="button" class="sm sched-mode-btn" data-mode="constant">Constant 24/7</button>
+      </div>
+      <div id="schedModeDesc" class="s" style="margin-bottom:12px"></div>
+
+      <!-- Dynamic mode view -->
+      <div id="schedContent"></div>
+
+      <!-- Configurable Away Mode Temperatures -->
+      <div class="sched-away-card">
+        <div style="font-weight:600;margin-bottom:4px">Temperaturi Mod Plecat (Away)</div>
+        <div class="s" style="margin-bottom:8px">Temperaturi menținute când este activat butonul „Plecat” din antet.</div>
+        <div id="awayInputs" class="row" style="gap:10px;flex-wrap:wrap"></div>
+      </div>
+
+      <!-- Actions -->
+      <div class="row" style="margin-top:14px">
+        <button id="saveSched" class="on">Salvează programul</button>
+        <button id="undoSched" type="button" style="display:none">↩ Anulează modificările</button>
+        <span id="schedMsg" class="s" style="font-weight:600"></span>
+      </div>
     </div>
-    
-    <div style="margin-top:10px"><b>Mod programare:</b></div>
-    <div class="row" id="schedModeTabs" style="gap:6px;margin:6px 0 10px 0">
-      <button type="button" class="sm sched-mode-btn" data-mode="5+2">5 + 2 Zile (L–V / S–D)</button>
-      <button type="button" class="sm sched-mode-btn" data-mode="unified">Zilnic unificat (L–D)</button>
-      <button type="button" class="sm sched-mode-btn" data-mode="7day">7 Zile individuale</button>
-      <button type="button" class="sm sched-mode-btn" data-mode="constant">Constant 24/7</button>
+  </details>
+
+  <!-- 2. Sănătate & Diagnoză (Default: COLLAPSED) -->
+  <details class="adm-card" id="grpDiag">
+    <summary><h2>Sănătate &amp; Diagnoză (FR-10.4)</h2></summary>
+    <div class="adm-body">
+      <div class="scroll"><table id="checks"></table></div>
+      <div id="dtcSection"></div>
     </div>
-    <div id="schedModeDesc" class="s" style="margin-bottom:12px"></div>
+  </details>
 
-    <!-- Dynamic mode view -->
-    <div id="schedContent"></div>
+  <!-- 3. Configurare Instalație (Default: COLLAPSED) -->
+  <details class="adm-card" id="grpSetup">
+    <summary><h2>Configurare Instalație</h2></summary>
+    <div class="adm-body">
+      <div style="font-weight:600;margin:6px 0 4px">Zone – punere în funcțiune (FR-11.3)</div>
+      <div class="s">Adaugi zone pe ieșirile libere ale plăcii. O zonă se pornește doar cu senzor; un releu și un senzor servesc o singură zonă; releul nu e al pompei.</div>
+      <div class="row"><button id="zoneAdd">Adaugă zonă</button><button id="zonesSave">Salvează zonele</button><span id="zoneMsg" class="s"></span></div>
+      <div class="scroll"><table id="setup"></table></div>
+      <datalist id="macList"></datalist>
 
-    <!-- Configurable Away Mode Temperatures -->
-    <div class="sched-away-card">
-      <div style="font-weight:600;margin-bottom:4px">Temperaturi Mod Plecat (Away)</div>
-      <div class="s" style="margin-bottom:8px">Temperaturi menținute când este activat butonul „Plecat” din antet.</div>
-      <div id="awayInputs" class="row" style="gap:10px;flex-wrap:wrap"></div>
+      <div style="font-weight:600;margin:18px 0 4px">Senzori BLE (FR-11.5)</div>
+      <div class="row"><button id="searchToggle">Caută senzori</button><button id="searchStop" style="display:none">Stop</button><span id="searchInfo" class="s"></span></div>
+      <div class="s">Căutarea ține până apeși Stop, cel mult 10 minute. În afara căutării controlerul ține doar senzorii zonelor.</div>
+      <div class="scroll"><table id="sensors"></table></div>
 
+      <div style="font-weight:600;margin:18px 0 4px">Sistem &amp; Mentenanță</div>
+      <div class="row">Locație (lat,lon) <input id="loc" placeholder="45.65,25.60"><button id="saveLoc">Salvează</button><span id="locMsg" class="s"></span></div>
+      <div class="row"><a href="update">Actualizare firmware (OTA)</a></div>
+      <div class="row"><button id="cfgExport">Export setări</button><button id="cfgImportBtn">Import setări…</button>
+        <input type="file" id="cfgFile" accept=".json,application/json" style="display:none"><span id="cfgMsg" class="s"></span></div>
+      <div class="s">Fișierul conține locația, numele camerelor, senzorii și programul, nu parole. Păstrează-l privat.</div>
+      <div id="cfgPreview" style="display:none;margin-top:12px;padding:12px;background:var(--bg);border-radius:10px;border:1px solid var(--line)"></div>
+      <div id="cfgReport" class="s"></div>
     </div>
+  </details>
 
-    <!-- Actions -->
-    <div class="row" style="margin-top:14px">
-      <button id="saveSched" class="on">Salvează programul</button>
-      <button id="undoSched" type="button" style="display:none">↩ Anulează modificările</button>
-      <span id="schedMsg" class="s" style="font-weight:600"></span>
+  <!-- 4. Instrumente Inginerie & Debug (Default: COLLAPSED) -->
+  <details class="adm-card" id="grpDebug">
+    <summary><h2>Instrumente Inginerie &amp; Debug</h2></summary>
+    <div class="adm-body">
+      <div style="font-weight:600;margin:6px 0 4px">Trace – schimbări cât timp pagina e deschisă</div>
+      <div class="row"><button id="csv">Export CSV</button><button id="clearTrace">Golește</button>
+        <label><input type="checkbox" id="traceAll"> și valorile care se schimbă continuu (ore, vechimi, memorie)</label><span id="traceInfo" class="s"></span></div>
+      <div id="trace" class="scroll"><table class="mono" id="traceTable"></table></div>
+
+      <div style="font-weight:600;margin:18px 0 4px">Semnale – tot ce raportează API-ul (FR-8.1)</div>
+      <div class="row"><input class="w" id="filter" placeholder="Filtru: nume sau explicație (ex. zones[0], relay, boiler)"><span id="watchInfo" class="s"></span></div>
+      <div class="s">Atinge un rând pentru cerință. Galben = s-a schimbat la ultima citire.</div>
+      <div class="scroll"><table id="watch" class="mono"></table></div>
     </div>
-
-
-  </section>
-  <section>
-    <h2>Sistem</h2>
-    <div class="row">Locație (lat,lon) <input id="loc" placeholder="45.65,25.60"><button id="saveLoc">Salvează</button><span id="locMsg" class="s"></span></div>
-    <div class="row"><a href="update">Actualizare firmware (OTA)</a></div>
-    <div class="row"><button id="cfgExport">Export setări</button><button id="cfgImportBtn">Import setări…</button>
-      <input type="file" id="cfgFile" accept=".json,application/json" style="display:none"><span id="cfgMsg" class="s"></span></div>
-    <div class="s">Fișierul conține locația, numele camerelor, senzorii și programul, nu parole. Păstrează-l privat.</div>
-    <div id="cfgPreview" style="display:none;margin-top:12px;padding:12px;background:var(--bg);border-radius:10px;border:1px solid var(--line)"></div>
-    <div id="cfgReport" class="s"></div>
-  </section>
-  <section>
-    <h2>Semnale – tot ce raportează API-ul (FR-8.1)</h2>
-    <div class="row"><input class="w" id="filter" placeholder="Filtru: nume sau explicație (ex. zones[0], relay, boiler)"><span id="watchInfo" class="s"></span></div>
-    <div class="s">Atinge un rând pentru cerință. Galben = s-a schimbat la ultima citire.</div>
-    <div class="scroll"><table id="watch" class="mono"></table></div>
-  </section>
-  <section>
-    <h2>Trace – schimbări cât timp pagina e deschisă</h2>
-    <div class="row"><button id="csv">Export CSV</button><button id="clearTrace">Golește</button>
-      <label><input type="checkbox" id="traceAll"> și valorile care se schimbă continuu (ore, vechimi, memorie)</label><span id="traceInfo" class="s"></span></div>
-    <div id="trace" class="scroll"><table class="mono" id="traceTable"></table></div>
-  </section>
+  </details>
 </div>
 
 <footer><a href="#" id="toggleAdmin">Admin</a><span id="err"></span></footer>
@@ -335,7 +353,7 @@ const DOC = JSON.parse(document.getElementById("doc").textContent);
 const $ = id => document.getElementById(id);
 const esc = s => String(s).replace(/[&<>"]/g, c => ({"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;"}[c]));
 const isAdmin = () => document.body.classList.contains("admin");
-let Z = null, S = null, B = [], ST = null, D = null, openRoom = -1, editing = false;
+let Z = null, S = null, B = [], ST = null, D = null, openRoom = -1, editing = false, dtcHistory = [];
 let again = false, lastFound = [];
 let RAW = {}, prevFlat = {}, changed = new Set(), trace = [], openSig = null;
 const dirtyRows = new Set();
@@ -470,20 +488,38 @@ function renderChecks() {
   const dtcBox = $("dtcSection");
   if (dtcBox) {
     const dtcs = (D && D.dtcs) || [];
+    let histHtml = "";
+    if (dtcHistory && dtcHistory.length > 0) {
+      histHtml = `
+        <details style="margin-top:8px;font-size:12px;color:var(--mut)">
+          <summary style="cursor:pointer;font-weight:600">▶ Istoric erori curățate în această sesiune (${dtcHistory.length})</summary>
+          <div class="scroll" style="margin-top:6px"><table style="font-size:12px">
+            <thead><tr><th>Cod</th><th>Mesaj</th><th>Ora curățării</th></tr></thead>
+            <tbody>${dtcHistory.map(h => `<tr><td><code>${esc(h.code)}</code></td><td>${esc(h.message)}</td><td>${esc(h.clearedAt)}</td></tr>`).join("")}</tbody>
+          </table></div>
+        </details>`;
+    }
+
     if (dtcs.length === 0) {
       dtcBox.innerHTML = `
-        <div style="margin-top:10px;padding:8px 12px;background:rgba(46,160,67,0.1);border:1px solid rgba(46,160,67,0.3);border-radius:6px;display:flex;align-items:center;gap:10px">
-          <span style="font-size:18px">✅</span>
-          <div>
-            <div style="font-weight:600;color:var(--ok)">Niciun cod de eroare activ (DTC)</div>
-            <div class="s" style="color:var(--mut)">Toate subsistemele (rețea, senzori BLE, memorie, logică hidraulică) funcționează în parametri normali.</div>
+        <div style="margin-top:10px;padding:8px 12px;background:rgba(46,160,67,0.1);border:1px solid rgba(46,160,67,0.3);border-radius:6px">
+          <div style="display:flex;align-items:center;gap:10px">
+            <span style="font-size:18px">✅</span>
+            <div>
+              <div style="font-weight:600;color:var(--ok)">Niciun cod de eroare activ (DTC)</div>
+              <div class="s" style="color:var(--mut)">Toate subsistemele (rețea, senzori BLE, memorie, logică hidraulică) funcționează în parametri normali.</div>
+            </div>
           </div>
+          ${histHtml}
         </div>`;
     } else {
       const formatAge = s => s < 60 ? `${s}s în urmă` : s < 3600 ? `${Math.floor(s/60)}m în urmă` : `${Math.floor(s/3600)}h în urmă`;
       let tbl = `<div style="margin-top:10px;padding:10px 12px;background:rgba(248,81,73,0.1);border:1px solid rgba(248,81,73,0.3);border-radius:6px">
-        <div style="font-weight:600;color:var(--err);margin-bottom:8px;display:flex;align-items:center;gap:6px">
-          <span>⚠️</span> Coduri de eroare active (${dtcs.length}):
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+          <div style="font-weight:600;color:var(--err);display:flex;align-items:center;gap:6px">
+            <span>⚠️</span> Coduri de eroare active (${dtcs.length}):
+          </div>
+          <button type="button" class="sm danger" id="btnClearDtc" title="Șterge toate codurile active">Curăță codurile de eroare</button>
         </div>
         <div class="scroll"><table style="width:100%">
           <thead><tr><th>Cod</th><th>Severitate</th><th>Descriere &amp; Cauză</th><th>Vechime</th><th>Apariții</th></tr></thead>
@@ -501,8 +537,30 @@ function renderChecks() {
           <td>${d.count || 1}x</td>
         </tr>`;
       });
-      tbl += `</tbody></table></div></div>`;
+      tbl += `</tbody></table></div>
+        ${histHtml}
+      </div>`;
       dtcBox.innerHTML = tbl;
+
+      const btnClr = $("btnClearDtc");
+      if (btnClr) {
+        btnClr.onclick = async () => {
+          btnClr.disabled = true;
+          btnClr.textContent = "Se curăță...";
+          try {
+            await api("api/diag/clear", {}, true);
+            const nowStr = (ST && ST.time) ? ST.time.slice(0, 5) : new Date().toLocaleTimeString().slice(0, 5);
+            dtcs.forEach(d => {
+              dtcHistory.unshift({ code: d.code, message: d.message, clearedAt: nowStr });
+            });
+            if (dtcHistory.length > 20) dtcHistory.length = 20;
+          } catch(e) {
+            console.error("Eroare la curățare DTC:", e);
+          } finally {
+            refresh();
+          }
+        };
+      }
     }
   }
 }
@@ -563,7 +621,7 @@ let schedState = null;
 let activeDayIndex = 1; // 1 = Monday
 
 function isSchedBusy() {
-  const sf = $("saveSched") ? $("saveSched").closest("section") : null;
+  const sf = $("saveSched") ? $("saveSched").closest("details, section") : null;
   return schedDirty || editing || (sf && sf.contains(document.activeElement));
 }
 
@@ -849,7 +907,11 @@ async function refresh() {
   inFlight = true;
   try {
     const admin = isAdmin();
-    const eps = admin ? DOC.endpoints : ["api/zones", "api/ble/sensors", "api/boiler/status", "api/diag/status"];
+    const debugOpen = admin && ($("grpDebug") && $("grpDebug").open);
+    const eps = debugOpen
+      ? DOC.endpoints
+      : (admin ? ["api/zones", "api/ble/sensors", "api/boiler/status", "api/diag/status", "api/schedule"]
+               : ["api/zones", "api/ble/sensors", "api/boiler/status", "api/diag/status"]);
     for (const ep of eps) RAW[ep] = ep === "api/setup/discovered-sensors" ? await api("api/setup/discovered-sensors") : await api(ep);
     Z = RAW["api/zones"]; B = RAW["api/ble/sensors"].sensors; ST = RAW["api/boiler/status"]; D = RAW["api/diag/status"];
     S = RAW["api/schedule"] || S;
@@ -857,7 +919,7 @@ async function refresh() {
     if (admin) {
       renderChecks(); renderSetup(); renderSensors();
       if (!isSchedBusy()) renderSchedule();
-      updateWatch();
+      if (debugOpen) updateWatch();
       if (!busy("loc") && RAW["api/setup/location"]) $("loc").value = RAW["api/setup/location"].coords;
     }
     $("err").textContent = "";
@@ -1230,7 +1292,7 @@ $("zonesSave").onclick = async () => {
 };
 
 // While the schedule form is being edited, refreshes must not overwrite the inputs (PB-66, C-14)
-const schedForm = $("saveSched").closest("section");
+const schedForm = $("saveSched") ? $("saveSched").closest("details, section") : document;
 function markSchedDirty() {
   schedDirty = true;
   $("undoSched").style.display = "";

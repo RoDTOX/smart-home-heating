@@ -7,7 +7,15 @@ Entries before 29.10.2026 (the system before the lean clean-up):
 
 
 
-## [03.11.2026] - Day-group aware schedule highlighting, clear check conditions & active DTC panel (HEAD)
+## [03.11.2026] - Reorganize admin in 4 collapsible groups, clear DTC button & polling throttle (HEAD)
+
+- **Who / when / why:** firmware session (light mode), 03.11.2026; the owner requested reorganizing the long admin panel into minimizable collapsible sections, where by default all sections are collapsed except Confort & Programare; requested a button to clear DTC codes with history; and asked whether collapsed debug/trace sections still poll the ESP32.
+- **Where:**
+  - `web/index.html`: reorganized `<div id="admin">` into 4 sleek collapsible `<details class="adm-card">` containers: (1) Confort & Programare (open by default), (2) Sănătate & Diagnoză (with `[ Curăță codurile de eroare ]` calling `/api/diag/clear` and session history dropdown), (3) Configurare Instalație (Zone, Senzori, Sistem), (4) Instrumente Inginerie & Debug (Trace & Semnale); throttled `refresh()` polling so when debug is collapsed, heavy endpoints (`DOC.endpoints`) are bypassed and `updateWatch()` is skipped, saving 50% Wi-Fi requests and CPU cycles.
+  - `tools/sh_tests/t_ui_history.py` & `tools/sh_test_system.py`: added ASPICE SWE.5 test `SWE.5-TC19.14`.
+- **Not changed:** hydronic safety invariants, backend endpoints.
+
+## [03.11.2026] - Day-group aware schedule highlighting, clear check conditions & active DTC panel (f75c4e0)
 
 - **Who / when / why:** firmware session (light mode), 03.11.2026; the owner observed that weekend moments were falsely highlighted as active on weekdays (Tuesday) in 5+2 schedule mode; Constant 24/7 mode displayed obsolete moment indices (Activ P2) in the schedule card badge; the FR-10.4 checks table showed confusing raw DTC codes in the rule column; and requested operational status rows for actuators/relays and boiler state alongside a dedicated active DTCs panel with human-readable causes.
 - **Where:**
