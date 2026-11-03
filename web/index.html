@@ -786,10 +786,41 @@ $("rooms").addEventListener("click", async e => {
 // FR-65.1 / FR-65.6: save the settings file; send a chosen file unchanged and show what the controller did with it
 const REASON_RO = {unknown: "nume necunoscut", invalid: "valoare nepermisă", "no-zone": "zonă inexistentă",
   "relay-taken": "releu folosit de altă zonă", "pump-relay": "releul pompei", "valve-energised": "robinet deschis", duplicate: "id repetat"};
-function renderImport(j) {
-  const sk = j.skipped.map(x => `<tr><td><code>${esc(x.name)}</code></td><td>${esc(REASON_RO[x.reason] || x.reason)} (${esc(x.reason)})</td></tr>`).join("");
-  $("cfgReport").innerHTML = `Aplicat: <b>${j.applied.length}</b> · Rămas neschimbat: <b>${j.kept.length}</b> · Sărit: <b>${j.skipped.length}</b>` +
-    (sk ? `<div class="scroll"><table>${sk}</table></div>` : "") + (j.applied.length ? `<div>Aplicat: ${j.applied.map(esc).join(", ")}</div>` : "");
+function renderImport(j, changes) {
+  const sk = (j.skipped || []).map(x => `<tr><td><code>${esc(x.name)}</code></td><td>${esc(REASON_RO[x.reason] || x.reason)} (${esc(x.reason)})</td></tr>`).join("");
+  const ch = (changes || []);
+  let h = `<div style="margin-top:10px;padding:10px 12px;background:rgba(40,167,69,0.1);border:1px solid var(--ok);border-radius:8px">
+    <div style="font-weight:600;color:var(--ok)">✅ Import aplicat cu succes</div>
+    <div class="s" style="margin-top:2px">Setări aplicate: <b>${j.applied.length}</b> · Neschimbate: <b>${j.kept.length}</b> · Sărite: <b>${j.skipped.length}</b></div>`;
+
+  if (ch.length) {
+    h += `<div style="margin-top:8px"><b>Modificări efectuate (${ch.length}):</b>
+      <div class="scroll" style="margin-top:4px"><table style="font-size:13px">
+        <thead><tr><th>Setare / Parametru</th><th>Valoare veche</th><th>Valoare nouă</th></tr></thead>
+        <tbody>${ch.map(c => `<tr><td><b>${esc(c.field)}</b></td><td style="color:var(--mut)">${esc(String(c.oldVal))}</td><td style="color:var(--ok);font-weight:600">${esc(String(c.newVal))}</td></tr>`).join("")}</tbody>
+      </table></div>
+    </div>`;
+  } else {
+    h += `<div class="s" style="margin-top:4px">Toate setările din fișier erau deja identice cu configurația activă din centrală.</div>`;
+  }
+
+  if (sk) {
+    h += `<div style="margin-top:8px">
+      <b style="color:var(--bad)">⚠️ Parametri săriți (${j.skipped.length}):</b>
+      <div class="scroll" style="margin-top:4px"><table>
+        <thead><tr><th>Parametru</th><th>Motiv</th></tr></thead>
+        <tbody>${sk}</tbody>
+      </table></div>
+    </div>`;
+  }
+
+  h += `<details class="s" style="margin-top:8px"><summary style="cursor:pointer;color:var(--mut)">Detalii tehnice parametri...</summary>
+    <div style="margin-top:4px;word-break:break-all"><b>Aplicat (${j.applied.length}):</b> <span class="mono">${j.applied.map(esc).join(", ")}</span></div>
+    ${j.kept.length ? `<div style="margin-top:4px;word-break:break-all"><b>Neschimbat (${j.kept.length}):</b> <span class="mono">${j.kept.map(esc).join(", ")}</span></div>` : ""}
+  </details>
+  </div>`;
+
+  $("cfgReport").innerHTML = h;
 }
 $("cfgExport").onclick = async () => {
   try {
@@ -932,6 +963,7 @@ function analyzeImport(imported, current) {
 }
 
 let pendingImportText = null;
+let pendingImportChanges = [];
 
 $("cfgImportBtn").onclick = () => $("cfgFile").click();
 $("cfgFile").onchange = async e => {
@@ -950,6 +982,7 @@ $("cfgFile").onchange = async e => {
     const curExport = await (await fetch("api/config/export")).json();
     const {changes, invalid} = analyzeImport(imported, curExport);
     pendingImportText = text;
+    pendingImportChanges = changes;
 
     let h = `<div style="font-weight:600;margin-bottom:8px">Previzualizare import setări: <span class="mono">${esc(f.name)}</span></div>`;
 
@@ -992,7 +1025,7 @@ $("cfgFile").onchange = async e => {
         if (!r.ok) throw new Error(j.message || "import HTTP " + r.status);
         $("cfgPreview").style.display = "none";
         $("cfgMsg").textContent = "Import finalizat cu succes.";
-        renderImport(j);
+        renderImport(j, pendingImportChanges);
       } catch (err) {
         $("cfgMsg").textContent = "Eroare import: " + err.message;
       }
