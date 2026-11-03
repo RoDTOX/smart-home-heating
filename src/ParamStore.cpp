@@ -125,7 +125,7 @@ void ParamStore::begin() {
     for (size_t i = 0; i < PARAM_ZONES; i++) _learned[i] = 0;
     memset(_state, 0, sizeof(_state));
     _state[(uint8_t)StateKey::AutoMode] = 1;
-    _state[(uint8_t)StateKey::GasMeterBaseIndex] = 2265304; // default: 2265.304 m3
+    _state[(uint8_t)StateKey::GasMeterBaseIndex] = 0; // not calibrated: the user sets the meter reading (FR-35.1)
     _location[0] = '\0';
 
     Preferences prefs;

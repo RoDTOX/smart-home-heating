@@ -1084,8 +1084,8 @@ function renderGasMeter() {
   }
   box.style.display = "block";
 
-  const estIdx = (gm.estimatedIndex !== undefined) ? Number(gm.estimatedIndex).toFixed(3) : "2265.304";
-  const baseIdx = (gm.baseIndex !== undefined) ? Number(gm.baseIndex).toFixed(3) : "2265.304";
+  const estIdx = (gm.estimatedIndex !== undefined) ? Number(gm.estimatedIndex).toFixed(3) : "0.000";
+  const baseIdx = (gm.baseIndex !== undefined) ? Number(gm.baseIndex).toFixed(3) : "0.000";
   const todayM3 = (gm.gasTodayM3 !== undefined) ? Number(gm.gasTodayM3).toFixed(2) : "0.00";
   const yestM3 = (gm.gasYesterdayM3 !== undefined) ? Number(gm.gasYesterdayM3).toFixed(2) : "0.00";
   const monthM3 = (gm.gasThisMonthM3 !== undefined) ? Number(gm.gasThisMonthM3).toFixed(2) : "0.00";

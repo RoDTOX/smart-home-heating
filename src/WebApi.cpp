@@ -190,7 +190,6 @@ void handleApiBoilerCancelPending() {
 static String getGasMeterJson() {
   float flameRate = paramStore.getf(Param::GasFlameRate);
   uint32_t baseIndex = paramStore.state(StateKey::GasMeterBaseIndex);
-  if (baseIndex == 0) baseIndex = 2265304;
   uint32_t baseSec = paramStore.state(StateKey::GasMeterBaseSec);
   uint32_t totalSec = boilerRadio.getRuntimeTotalSec();
   uint32_t elapsedSec = (totalSec >= baseSec) ? (totalSec - baseSec) : 0;

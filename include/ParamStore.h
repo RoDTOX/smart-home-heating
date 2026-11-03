@@ -44,7 +44,7 @@ enum class StateKey : uint8_t {
     RuntimeDay,
     RuntimeMonth,
     ZoneCount,  // number of zones (FR-69, §6 `number of zones`)
-    GasMeterBaseIndex,  // thousandths of m3 (e.g. 2265304 = 2265.304 m3, FR-35.1)
+    GasMeterBaseIndex,  // thousandths of m3 (0 = not calibrated, FR-35.1)
     GasMeterBaseSec,    // boiler runtime totalSec at calibration (FR-35.1)
     GasMeterBaseEpoch,  // unix timestamp of calibration (FR-35.1)
     Count
