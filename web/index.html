@@ -453,16 +453,14 @@ function renderRooms() {
       if (m < 60) return `${m}m`;
       return `${Math.floor(m / 60)}h ${m % 60}m`;
     };
-    const rtBadge = rtToday > 0
-      ? `⏱ Încălzit azi: ${formatRt(rtToday)}${rtYest > 0 ? ' (ieri ' + formatRt(rtYest) + ')' : ''}`
-      : (rtYest > 0 ? `⏱ Ieri: ${formatRt(rtYest)}` : "");
+    const rtBadge = `⏱ Încălzit azi: ${formatRt(rtToday)}${rtYest > 0 ? ' (ieri ' + formatRt(rtYest) + ')' : ''}`;
     return `<div class="room ${roomClass(z)}" data-i="${i}">
       <div class="room-main">
         <div style="font-weight:600">${esc(z.name)}</div>
         <div class="t">${t}</div>
         <div class="s">${esc(subText)}</div>
         <div class="s" style="margin-top:2px">${esc(statusText)}</div>
-        ${rtBadge ? `<div class="s" style="margin-top:2px;font-size:12px;opacity:0.85">${esc(rtBadge)}</div>` : ""}
+        <div class="s" style="margin-top:2px;font-size:12px;opacity:0.85">${esc(rtBadge)}</div>
       </div>
       <div class="ctl">
         <button type="button" data-a="up" data-i="${i}" title="Crește ținta">+</button>

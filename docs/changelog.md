@@ -7,7 +7,16 @@ Entries before 29.10.2026 (the system before the lean clean-up):
 
 
 
-## [03.11.2026] - Multi-range history (12h, 24h, 3d, 5d), hairline cursor, chronological rolling & TPI inspector (HEAD)
+## [03.11.2026] - Always show runtime badge on all room cards (0m fallback) (HEAD)
+
+- **Who / when / why:** firmware session (light mode), 03.11.2026; the owner observed that room cards without heating runtime today (such as Kids) completely omitted the runtime line, causing visual misalignment and asymmetry across zone cards.
+- **Where:**
+  - web/index.html:
+    - Updated room card rendering (`rtBadge`) to unconditionally display `⏱ Încălzit azi: ${formatRt(rtToday)}${rtYest > 0 ? ' (ieri ' + formatRt(rtYest) + ')' : ''}`, ensuring that even zones with 0 runtime today display `⏱ Încălzit azi: 0m` (or `⏱ Încălzit azi: 0m (ieri Xm)`).
+    - Preserved identical card dimensions and vertical layout across all zone cards.
+- **Not changed:** hydronic safety limits, burner minimum run/pause, actuator interlock.
+
+## [03.11.2026] - Multi-range history (12h, 24h, 3d, 5d), hairline cursor, chronological rolling & TPI inspector (f0af40b)
 
 - **Who / when / why:** firmware session (light mode), 03.11.2026; the owner requested a vertical hairline cursor line tracking mouse movement across the chart, selectable time ranges (12h, 24h, 3d, 5d), clarification of the activity bar legend (what the 4 colored bars represent and eliminating duplicate labels), and access to real-time TPI algorithm metrics and calculation details.
 - **Where:**
