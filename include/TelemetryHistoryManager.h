@@ -33,6 +33,9 @@ public:
     // Force a telemetry capture immediately
     void captureSample();
 
+    // Live ongoing slot tracking (updates in RAM, saves to flash on 5m boundary)
+    void updateLiveSample(bool forceNewSlot = false);
+
     // Export history as compact JSON for REST API
     String getHistoryJson(const String& range = "24h");
 
@@ -43,6 +46,8 @@ public:
     void saveToFlash();
     void loadFromFlash();
     void clearHistory();
+    void clear5dHistory();
+    void sync24hTo5d();
 
     // Diagnostics
     bool isFsMounted() const { return _fsMounted; }

@@ -96,6 +96,23 @@ void TelemetryHistoryManager::clearHistory() {
     netConsole.println(F("[HISTORY] Cleared all history buffers."));
 }
 
+void TelemetryHistoryManager::clear5dHistory() {
+    memset(_ring5d, 0, sizeof(_ring5d));
+    _dirty5d = true;
+    saveToFlash();
+    netConsole.println(F("[HISTORY] Cleared 5d history buffer."));
+}
+
+void TelemetryHistoryManager::sync24hTo5d() {
+    for (uint16_t s = 0; s < TELEMETRY_24H_POINTS; s++) {
+        if ((_ring24h[s].flags & 0x80) && (s % 6 == 0)) {
+            uint8_t slot30m = (uint8_t)((s / 6) % TELEMETRY_5D_POINTS);
+            _ring5d[slot30m] = _ring24h[s];
+            _dirty5d = true;
+        }
+    }
+}
+
 void TelemetryHistoryManager::setLocalTimeFromClient(uint32_t epochSec) {
     if (epochSec > 1700000000UL) {
         struct timeval tv = { (time_t)epochSec, 0 };
@@ -106,6 +123,10 @@ void TelemetryHistoryManager::setLocalTimeFromClient(uint32_t epochSec) {
 }
 
 void TelemetryHistoryManager::captureSample() {
+    updateLiveSample(true);
+}
+
+void TelemetryHistoryManager::updateLiveSample(bool forceNewSlot) {
     time_t now = time(nullptr);
     uint16_t slot5m = 0;
     uint8_t slot30m = 0;
@@ -126,7 +147,13 @@ void TelemetryHistoryManager::captureSample() {
     _currentSlot24h = slot5m;
     _currentSlot5d = slot30m;
 
-    // Build sample point
+    bool isNew5mSlot = (slot5m != _lastRecorded5mSlot);
+    if (isNew5mSlot && _lastRecorded5mSlot != 0xFFFF && _fsMounted && _dirty24h) {
+        // Finalize previous slot and persist to flash
+        saveToFlash();
+    }
+
+    // Build current live sample point
     TelemetryPoint p;
     memset(&p, 0, sizeof(p));
 
@@ -155,47 +182,54 @@ void TelemetryHistoryManager::captureSample() {
     if (thermalZones.getZoneCount() > 0 && thermalZones.getStatus(0).relayEngaged) f |= 0x04;
     if (thermalZones.getZoneCount() > 1 && thermalZones.getStatus(1).relayEngaged) f |= 0x08;
     if (thermalZones.getZoneCount() > 2 && thermalZones.getStatus(2).relayEngaged) f |= 0x10;
-    p.flags = f;
 
-    // 1. Store into 24h slot
+    // Within same 5-minute slot in RAM: latch active flags if boiler/valves operated at any point during this slot
+    if (!isNew5mSlot && !forceNewSlot && (_ring24h[slot5m].flags & 0x80)) {
+        f |= (_ring24h[slot5m].flags & 0x1F);
+    }
+    p.flags = f;
+    p.reserved = 0;
+
+    // 1. Update 24h slot in RAM
     _ring24h[slot5m] = p;
     _dirty24h = true;
     _lastRecorded5mSlot = slot5m;
 
-    // 2. Store into 5d slot
-    if (slot30m != _lastRecorded30mSlot) {
-        _ring5d[slot30m] = p;
-        _dirty5d = true;
+    // 2. Update 5d slot in RAM
+    bool isNew30mSlot = (slot30m != _lastRecorded30mSlot);
+    uint8_t f5d = f;
+    if (!isNew30mSlot && (_ring5d[slot30m].flags & 0x80)) {
+        f5d |= (_ring5d[slot30m].flags & 0x1F);
+    }
+    TelemetryPoint p5d = p;
+    p5d.flags = f5d;
+    _ring5d[slot30m] = p5d;
+    _dirty5d = true;
+    if (isNew30mSlot) {
         _lastRecorded30mSlot = slot30m;
     }
 
     _lastSampleMs = millis();
-    saveToFlash();
+
+    // Commit to flash ONLY on slot boundary crossing or explicit forced capture
+    if (isNew5mSlot || forceNewSlot) {
+        saveToFlash();
+    }
 }
 
 void TelemetryHistoryManager::update() {
-    // Check every 10 seconds if a new 5-minute boundary was crossed
+    // Check every 10 seconds to update ongoing slot in RAM and commit on 5-minute boundaries
     if (millis() - _lastSampleMs < 10000UL && _lastSampleMs > 0) {
         return;
     }
 
-    time_t now = time(nullptr);
-    uint16_t currentSlot5m = 0;
-
-    if (now > 1700000000UL) {
-        struct tm tmInfo;
-        localtime_r(&now, &tmInfo);
-        currentSlot5m = (tmInfo.tm_hour * 60 + tmInfo.tm_min) / 5;
-    } else {
-        currentSlot5m = (uint16_t)((millis() / 300000UL) % TELEMETRY_24H_POINTS);
-    }
-
-    if (currentSlot5m != _lastRecorded5mSlot || _lastSampleMs == 0) {
-        captureSample();
-    }
+    updateLiveSample(false);
 }
 
 String TelemetryHistoryManager::getHistoryJson(const String& range) {
+    // Ensure RAM ongoing slot reflects live real-time state before JSON export
+    updateLiveSample(false);
+
     bool is5d = (range == "5d");
     size_t count = is5d ? TELEMETRY_5D_POINTS : TELEMETRY_24H_POINTS;
     uint32_t stepSec = is5d ? 1800 : 300;

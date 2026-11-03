@@ -123,6 +123,7 @@ code,.mono{font:13px/1.35 ui-monospace,SFMono-Regular,Consolas,monospace}
     <div class="adm-body" id="histBody">
       <div class="row" style="justify-content:space-between;align-items:center;margin-bottom:8px;flex-wrap:wrap;gap:8px">
         <div class="row" id="histRangeTabs" style="gap:6px">
+          <button type="button" class="sm hist-range-btn" data-range="1h">1 Oră</button>
           <button type="button" class="sm hist-range-btn" data-range="12h">12 Ore</button>
           <button type="button" class="sm hist-range-btn on" data-range="24h">24 Ore</button>
           <button type="button" class="sm hist-range-btn" data-range="3d">3 Zile</button>
@@ -641,7 +642,8 @@ function renderHistoryChart() {
 
   const cur = (data.currentSlot !== undefined) ? data.currentSlot : 0;
   const slotCapacity = isMultiDay ? 240 : 288;
-  const totalWindowSlots = (selectedHistRange === "12h") ? 144
+  const totalWindowSlots = (selectedHistRange === "1h") ? 12
+    : (selectedHistRange === "12h") ? 144
     : (selectedHistRange === "24h") ? 288
     : (selectedHistRange === "3d") ? 144
     : 240;
@@ -719,7 +721,10 @@ function renderHistoryChart() {
   svgParts.push(`<svg id="histSvg" viewBox="0 0 ${W} ${totalH}" style="width:100%;height:auto;display:block;font-family:system-ui,-apple-system,sans-serif">`);
 
   // Time grid marks across chart
-  const timeStepMarks = (selectedHistRange === "12h") ? 6 : ((selectedHistRange === "24h") ? 6 : ((selectedHistRange === "3d") ? 6 : 5));
+  const timeStepMarks = (selectedHistRange === "1h") ? 6
+    : ((selectedHistRange === "12h") ? 6
+    : ((selectedHistRange === "24h") ? 6
+    : ((selectedHistRange === "3d") ? 6 : 5)));
   const daysShort = ["Dum", "Lun", "Mar", "Mie", "Joi", "Vin", "Sâm"];
   const nowMs = Date.now();
 
@@ -730,9 +735,11 @@ function renderHistoryChart() {
     
     // Label
     let lbl = "";
-    const hoursAgo = isMultiDay
-      ? (1 - frac) * (selectedHistRange === "3d" ? 72 : 120)
-      : (1 - frac) * (selectedHistRange === "12h" ? 12 : 24);
+    const hoursAgo = (selectedHistRange === "1h")
+      ? (1 - frac) * 1.0
+      : (isMultiDay
+        ? (1 - frac) * (selectedHistRange === "3d" ? 72 : 120)
+        : (1 - frac) * (selectedHistRange === "12h" ? 12 : 24));
     const markDate = new Date(nowMs - hoursAgo * 3600 * 1000);
     const dName = daysShort[markDate.getDay()];
     const hh = String(markDate.getHours()).padStart(2, "0");
@@ -740,6 +747,8 @@ function renderHistoryChart() {
 
     if (m === timeStepMarks) {
       lbl = `Acum (${hh}:${mm})`;
+    } else if (selectedHistRange === "1h") {
+      lbl = `${hh}:${mm}`;
     } else if (isMultiDay) {
       lbl = `${dName} ${hh}:${mm}`;
     } else {
@@ -803,8 +812,9 @@ function renderHistoryChart() {
     svgParts.push(`<text x="${x0 - 8}" y="${(gy + 4).toFixed(1)}" font-size="10" fill="var(--mut)" text-anchor="end">${t}°</text>`);
   }
 
-  // Helper to render temperature curves with gap detection (dotted across gap), thinner lines, and sample dots
-  const maxGapSlots = isMultiDay ? 3 : 4;
+  // Helper to render temperature curves with gap detection (dotted across small gap, clean break across large gap)
+  const maxGapSlots = (selectedHistRange === "1h") ? 2 : (isMultiDay ? 3 : 4);
+  const maxBridgeGap = (selectedHistRange === "1h") ? 2 : (isMultiDay ? 3 : 4);
   const renderCurve = (pointsList, color, isDashed = false) => {
     if (!pointsList.length) return;
     const segments = [];
@@ -821,13 +831,17 @@ function renderHistoryChart() {
     });
     if (curSeg.length > 0) segments.push(curSeg);
 
-    // Draw faint dotted connecting lines across gaps
+    // Draw faint dotted connecting lines ONLY across small gaps (<= maxBridgeGap slots)
+    // Large downtime gaps (> maxBridgeGap) remain authentic blank breaks without misleading lines!
     for (let si = 0; si < segments.length - 1; si++) {
       const segA = segments[si];
       const segB = segments[si + 1];
       const ptA = segA[segA.length - 1];
       const ptB = segB[0];
-      svgParts.push(`<line x1="${ptA.px.toFixed(1)}" y1="${ptA.py.toFixed(1)}" x2="${ptB.px.toFixed(1)}" y2="${ptB.py.toFixed(1)}" stroke="${color}" stroke-width="1" stroke-dasharray="2,3" opacity="0.3" />`);
+      const gapSlots = Math.abs(ptA.slotsAgo - ptB.slotsAgo);
+      if (gapSlots <= maxBridgeGap) {
+        svgParts.push(`<line x1="${ptA.px.toFixed(1)}" y1="${ptA.py.toFixed(1)}" x2="${ptB.px.toFixed(1)}" y2="${ptB.py.toFixed(1)}" stroke="${color}" stroke-width="1" stroke-dasharray="2,3" opacity="0.3" />`);
+      }
     }
 
     // Draw solid line segments and sample dots
@@ -838,7 +852,7 @@ function renderHistoryChart() {
         svgParts.push(`<polyline fill="none" stroke="${color}" stroke-width="1.3" stroke-linejoin="round" stroke-linecap="round"${dashAttr} points="${ptsStr}" />`);
       }
       seg.forEach(p => {
-        svgParts.push(`<circle cx="${p.px.toFixed(1)}" cy="${p.py.toFixed(1)}" r="1.5" fill="${color}" />`);
+        svgParts.push(`<circle cx="${p.px.toFixed(1)}" cy="${p.py.toFixed(1)}" r="${selectedHistRange === '1h' ? 2.5 : 1.5}" fill="${color}" />`);
       });
     });
   };
@@ -919,7 +933,8 @@ function renderHistoryChart() {
         if (diff < minDiff) { minDiff = diff; closest = item; }
       });
 
-      if (!closest || minDiff > (isMultiDay ? 4 : 6)) {
+      const maxTipDist = (selectedHistRange === "1h") ? 1.2 : (isMultiDay ? 3 : 5);
+      if (!closest || minDiff > maxTipDist) {
         tipEl.innerHTML = `<b>${timeStr}</b> · <span style="color:var(--mut)">Fără date înregistrate în această perioadă</span>`;
         return;
       }
@@ -1152,10 +1167,16 @@ async function loadHistoryChart(force = false) {
     if (summaryEl) {
       const pts = (j.points || []).length;
       const nowStr = (ST && ST.time) ? ST.time.slice(0, 5) : new Date().toLocaleTimeString().slice(0, 5);
-      const rangeText = (selectedHistRange === "12h") ? "12 Ore" : ((selectedHistRange === "24h") ? "24 Ore" : ((selectedHistRange === "3d") ? "3 Zile" : "5 Zile"));
+      const rangeText = (selectedHistRange === "1h") ? "1 Oră"
+        : (selectedHistRange === "12h") ? "12 Ore"
+        : ((selectedHistRange === "24h") ? "24 Ore"
+        : ((selectedHistRange === "3d") ? "3 Zile" : "5 Zile"));
       const isMulti = (selectedHistRange === "3d" || selectedHistRange === "5d");
-      const hRec = isMulti ? (pts * 0.5).toFixed(0) : (pts * 5 / 60).toFixed(0);
-      summaryEl.textContent = `${rangeText} (${pts} eșantioane · ~${hRec}h înregistrate) · Actualizat la ${nowStr}`;
+      const ptsCount = (selectedHistRange === "1h") ? Math.min(12, pts)
+        : ((selectedHistRange === "12h") ? Math.min(144, pts) : pts);
+      const hRec = (selectedHistRange === "1h") ? (ptsCount * 5 / 60).toFixed(1)
+        : (isMulti ? (pts * 0.5).toFixed(1) : (pts * 5 / 60).toFixed(1));
+      summaryEl.textContent = `${rangeText} (${ptsCount} eșantioane · ~${hRec}h înregistrate) · Actualizat la ${nowStr}`;
     }
   } catch(e) {
     if (summaryEl) summaryEl.textContent = "Eroare la încărcare: " + e.message;
@@ -1852,6 +1873,7 @@ if (rangeTabs) {
     rangeTabs.querySelectorAll(".hist-range-btn").forEach(b => b.classList.remove("on"));
     btn.classList.add("on");
     selectedHistRange = btn.dataset.range;
+    renderHistoryChart();
     loadHistoryChart();
   });
 }

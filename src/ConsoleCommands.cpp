@@ -587,6 +587,13 @@ void handleSerialCommand(String cmd) {
     if (upperCmd == "HISTORY CLEAR") {
       telemetryHistory.clearHistory();
       netConsole.println(F("[HISTORY] All flash and RAM telemetry ring buffers cleared."));
+    } else if (upperCmd == "HISTORY CLEAR 5D") {
+      telemetryHistory.clear5dHistory();
+      netConsole.println(F("[HISTORY] 5-day flash and RAM telemetry ring buffer cleared."));
+    } else if (upperCmd == "HISTORY SYNC") {
+      telemetryHistory.sync24hTo5d();
+      telemetryHistory.saveToFlash();
+      netConsole.println(F("[HISTORY] Synchronized 24h history points into 5d buffer and saved to flash."));
     } else if (upperCmd == "HISTORY CAPTURE" || upperCmd == "HISTORY SAMPLE") {
       telemetryHistory.captureSample();
       netConsole.println(F("[HISTORY] Immediate sample captured into ring buffers."));
@@ -598,7 +605,7 @@ void handleSerialCommand(String cmd) {
       netConsole.printf("  * Current 24h Slot:    %u / 288 (5-min intervals)\n", telemetryHistory.getCurrentSlot24h());
       netConsole.printf("  * Last Sample Epoch:   %u\n", telemetryHistory.getLastSampleTime());
       netConsole.println(F("--------------------------------------------------"));
-      netConsole.println(F("  Commands: HISTORY CLEAR | HISTORY CAPTURE"));
+      netConsole.println(F("  Commands: HISTORY CLEAR | HISTORY CLEAR 5D | HISTORY SYNC | HISTORY CAPTURE"));
       netConsole.println(F("  API:      GET /api/history?range=24h|5d"));
       netConsole.println(F("=================================================="));
     }
