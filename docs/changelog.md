@@ -7,6 +7,12 @@ Entries before 29.10.2026 (the system before the lean clean-up):
 
 
 
+## [03.11.2026] - Align import preview limits with §6, document & test UI additions (PB-70, f5ccb5d)
+
+- **Who / when / why:** firmware session (light mode), 03.11.2026; the owner reported that exporting and re-importing the same configuration flagged a false warning on 'params.rfSafetyHeartbeatSec (900)' out of range [10..300], and noted process drift (requirements and tests were not kept in sync with recent UI additions).
+- **Where:** docs/problems.md (recorded PB-70), docs/requirements_and_features.md (updated FR-8.1 for pre-import diff preview/confirmation and vertical zone card setpoint steppers, baseline v2.11), web/index.html (aligned PARAM_LIMITS with requirements §6: rfSafetyHeartbeatSec 30..900, pumpOverrunSec 180..600, burnerMinRun/Pause 120..600, frostTemp 8..16, sensorTimeoutSec 60..3600, windowThreshold 0.8..2.0), tools/sh_tests/t_export_import.py (added SWE.5-TC29.38 testing pre-import preview, confirmation buttons, and §6 bounds), tools/sh_tests/t_ui_history.py (added SWE.5-TC19.11 testing vertical room card steppers and room-main quick view).
+- **Not changed:** hydronic safety limits, backend endpoints.
+
 ## [03.11.2026] - Pre-import diff preview, validation warnings & confirmation dialog (1f162c5)
 
 - **Who / when / why:** firmware session (light mode), 03.11.2026; the owner requested that configuration import ('Import setări…') not apply immediately upon file selection; instead, the UI must preview changed values (old vs new), highlight any invalid or out-of-range parameters, and ask for explicit user confirmation before executing the import.
