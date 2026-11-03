@@ -22,12 +22,15 @@ button.on{background:var(--fg);color:var(--bg)}button.danger{border-color:var(--
 input.time24{width:68px;text-align:center;font-weight:600;font-size:14px;border-radius:6px}
 .sched-away-card{margin-top:14px;padding:12px;background:var(--bg);border-radius:10px;border:1px solid var(--line)}
 .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:12px}
-.room{background:var(--card);border:1px solid var(--line);border-left:6px solid var(--idle);border-radius:14px;padding:14px;cursor:pointer}
+.room{background:var(--card);border:1px solid var(--line);border-left:6px solid var(--idle);border-radius:14px;padding:12px 14px;display:flex;justify-content:space-between;align-items:center;gap:10px}
 .room.heat{border-left-color:var(--heat)}.room.away{border-left-color:var(--away)}.room.bad{border-left-color:var(--bad)}
-.room .t{font-size:40px;font-weight:600;line-height:1.1}
+.room-main{flex:1;min-width:0}
+.room .t{font-size:38px;font-weight:600;line-height:1.1;margin:2px 0}
 .s,.room .s{color:var(--mut)}
-.ctl{display:none;margin-top:12px;gap:8px;align-items:center;flex-wrap:wrap}
-.room.open .ctl{display:flex}
+.ctl{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;background:var(--bg);padding:6px 8px;border-radius:10px;border:1px solid var(--line);min-width:54px}
+.ctl button{width:36px;height:30px;display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:700;padding:0;line-height:1;border-radius:6px;cursor:pointer}
+.ctl .sp-val{font-size:15px;font-weight:700;padding:2px 0;text-align:center}
+.ctl .sp-clr{font-size:11px;font-weight:600;width:auto;height:auto;padding:2px 6px;margin-top:2px;border-radius:5px;background:var(--card);color:var(--idle);cursor:pointer}
 .alerts{margin:0 0 12px;padding:0;list-style:none}
 .alerts li{background:var(--card);border:1px solid var(--bad);color:var(--bad);border-radius:10px;padding:8px 12px;margin-bottom:6px}
 section{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px;margin-top:12px}
@@ -300,7 +303,7 @@ code,.mono{font:13px/1.35 ui-monospace,SFMono-Regular,Consolas,monospace}
 }}
 </script>
 <script>
-const MIN_T = 16, MAX_T = 22.5, STEP = 0.5;
+const MIN_T = 15, MAX_T = 30, STEP = 0.5;
 const LEVELS = ["day", "night", "away"], LEVEL_RO = {day: "zi", night: "noapte", away: "plecat"};
 // FR-8.4: zone state code -> page text
 const STATE_RO = {FROST: "Protecție îngheț", DISABLED: "Zonă oprită", FAULT: "Senzor pierdut – încălzește de rezervă",
@@ -360,14 +363,25 @@ function renderRooms() {
     const t = z.sensorValid ? z.currentTemp.toFixed(1) + "°" : "--";
     const h = s ? " · " + Math.round(s.hum) + "%" : "";
     const hold = z.isManualHold ? " · boost" : "";
-    return `<div class="room ${roomClass(z)} ${openRoom === i ? "open" : ""}" data-i="${i}">
-      <div>${esc(z.name)}</div><div class="t">${t}</div>
-      <div class="s">țintă ${z.effectiveTarget.toFixed(1)}°${h}${hold}</div>
-      <div class="s">${esc((z.state === "IDLE") ? (z.sensorValid && z.currentTemp < (z.effectiveTarget - 0.15) ? "Pauză TPI (Așteaptă ciclu)" : "Temperatură atinsă") : (z.state === "HEATING" && z.duty === 100 ? "Încălzește (100% continuu)" : (STATE_RO[z.state] || z.state)))}</div>
+    const statusText = (z.state === "IDLE")
+      ? (z.sensorValid && z.currentTemp < (z.effectiveTarget - 0.15) ? "Pauză TPI (Așteaptă ciclu)" : "Temperatură atinsă")
+      : (z.state === "HEATING" && z.duty === 100 ? "Încălzește (100% continuu)"
+      : (z.state === "HEATING" ? `Încălzește (${z.duty}% ciclu)`
+      : (STATE_RO[z.state] || z.state)));
+    return `<div class="room ${roomClass(z)}" data-i="${i}">
+      <div class="room-main">
+        <div style="font-weight:600">${esc(z.name)}</div>
+        <div class="t">${t}</div>
+        <div class="s">țintă ${z.effectiveTarget.toFixed(1)}°${h}${hold}</div>
+        <div class="s" style="margin-top:2px">${esc(statusText)}</div>
+      </div>
       <div class="ctl">
-        <button data-a="dn" data-i="${i}">−</button><b>${z.effectiveTarget.toFixed(1)}°</b><button data-a="up" data-i="${i}">+</button>
-        ${z.isManualHold ? `<button data-a="clr" data-i="${i}">Înapoi la program</button>` : ""}
-      </div></div>`;
+        <button type="button" data-a="up" data-i="${i}" title="Crește ținta">+</button>
+        <div class="sp-val" title="Țintă">${z.effectiveTarget.toFixed(1)}°</div>
+        <button type="button" data-a="dn" data-i="${i}" title="Scade ținta">−</button>
+        ${z.isManualHold ? `<button type="button" class="sp-clr" data-a="clr" data-i="${i}" title="Revino la program">↺ prog</button>` : ""}
+      </div>
+    </div>`;
   }).join("");
 }
 
@@ -766,8 +780,6 @@ $("rooms").addEventListener("click", async e => {
     return refresh();
   }
   if (e.target.closest(".ctl")) return;
-  const card = e.target.closest(".room[data-i]");
-  if (card) { openRoom = openRoom === +card.dataset.i ? -1 : +card.dataset.i; renderRooms(); }
 });
 
 // FR-65.1 / FR-65.6: save the settings file; send a chosen file unchanged and show what the controller did with it
@@ -930,7 +942,7 @@ function syncSchedInput(t) {
     if (!isNaN(val)) {
       schedState.awayTemps[z] = val;
     }
-
+  }
 }
 
 schedForm.addEventListener("input", e => syncSchedInput(e.target));
