@@ -553,3 +553,16 @@ restores them (a test proves it). An old file with `target` skips it as unknown 
 **Decided by**: owner (chat, 03.11.2026).
 **Affects**: `docs/plan.md` steps 7, 8, 11; PB-71 ... PB-94.
 **Consequences**: the code stays on the board; its tests and reviews come with the steps.
+
+## 2026-11-03 — Owner decisions on the process review of 31b8496..6170f16
+**Context**: `docs/review_agy_03_11.md` §4, relayed by the main chat.
+**Decision**:
+1. Console: login in the page and for Telnet; the log never shows passwords (PB-43, PB-82). Only `/api/console/send` stays, `/api/console/cmd` is removed and the page uses `/send`. A security-event log (failed logins, console commands, with time, visible in the engineering view) is wanted: a new requirement, checked with `sh-compliance-reviewer`.
+2. The out-of-chain work (43 commits) is kept and its features are assigned to their migration steps (PB-83). The tests for it are written after, from the requirements (changes the line "tests first" of the entry above for this work only).
+3. Window baseline is 5 min as FR-40 says: the code is fixed (PB-72).
+4. The 1.25 limit of NFR-2.8 is in MiB (the partition size): the unit is written into NFR-2.8.
+5. The old 8-slot schedule model is removed: one model with 4 moments; old export files are converted on first read (PB-92, PB-73, PB-75).
+6. Wording of FR-34, FR-40, FR-35 counters and FR-31 is written from what the board does now, in the requirement language; the texts are shown to the owner before the tests (PB-90).
+**Decided by**: owner (chat, 03.11.2026), relayed by the main chat.
+**Affects**: FR-58, FR-45, FR-7.1, NFR-2.8, FR-29, FR-31, FR-34, FR-35, FR-40; PB-72, PB-73, PB-75, PB-82, PB-83, PB-86, PB-90, PB-92.
+**Consequences**: order of work: register the five unregistered tests and run them (PB-86); cheap fixes (window 5 min, meter default, owner's day / night levels); then the console login in its own round.

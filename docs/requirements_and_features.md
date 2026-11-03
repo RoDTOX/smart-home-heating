@@ -628,7 +628,7 @@ one example:
 - **NFR-2.4 (Log time stamps):** {SW; test} Every console line carries a `[HH:MM:SS]` time stamp.
 - **NFR-2.6 (No heap drift):** {SW; board} No heap decrease > 5 KB over 24 h of operation; buffers are bounded and reserved
   statically.
-- **NFR-2.8 (Firmware size):** {SW; analysis} Firmware image < 1.25 MB, so OTA fits.
+- **NFR-2.8 (Firmware size):** {SW; analysis} Firmware image < 1.25 MiB (the OTA partition size, C-22), so OTA fits.
 - **NFR-2.9 (Flash wear):** {SW; inspection} NVS is written only when a value changes.
 - ~~**NFR-2.1 (Power < 1.2 W):** retired.~~
 - ~~**NFR-2.5 (Paced OTA upload):** retired, merged into FR-8.3.~~
