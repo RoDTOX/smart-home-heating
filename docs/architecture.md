@@ -130,7 +130,7 @@ listed in §3.3.
 | 20 | `WebApi` | L6 | HTTP transport: routes, JSON, authentication check, CORS, page, OTA upload | — | FR-8.1 (serve), FR-8.3, FR-42, FR-45, FR-58, FR-65.1 (route), FR-65.7 (`Content-Type`, body size, JSON, format version, no CORS header), NFR-2.3, NFR-3.1 | `WebApi.cpp` |
 | 21 | `Console` | L6 | Serial / Telnet / HTTP console and the log ring | log ring, Telnet client | FR-7.1, FR-7.3, FR-23, FR-45, NFR-2.4 | `NetworkConsole`, `ConsoleCommands` |
 | 22 | `StatusModel` | L6 | Page, API and `STATUS` data from the published snapshot I16 | static output buffer | FR-8.1 (data), FR-8.4, FR-10.2 (show), FR-20 (show), FR-21, FR-23, FR-35 (show), FR-47 / FR-48 (admin view), FR-52 (warning), NFR-2.3 | `WebApi.cpp` handlers |
-| 23 | `History` | L6 | Telemetry history and burner counters | LittleFS ring files, counters | FR-34, FR-35, NFR-4.1 (measurement) | `TelemetryHistoryManager`, counters in `BoilerRadioTrigger` |
+| 23 | `History` | L6 | Telemetry history and burner counters | LittleFS ring files, counters | FR-34, FR-35, FR-35.1 (gas meter index and consumption from the burner counters; its parameters live in `ParamStore`, §6), NFR-4.1 (measurement) | `TelemetryHistoryManager`, counters in `BoilerRadioTrigger` |
 | — | all modules | all | Cross-cutting rules: §2 principles, §8 fallbacks, §14 budgets | — | NFR-1.1 (no network dependency in L2–L4), NFR-2.6 (P5), NFR-2.8 (§14.1), NFR-3.1, NFR-3.2 (this table), NFR-5.1 (§8), NFR-5.2 (§8.2) | — |
 
 The family / admin page (`web/index.html`, FR-8.1) is a static asset served by `WebApi`; its language (`pageLanguage`,

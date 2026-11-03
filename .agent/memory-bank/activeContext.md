@@ -15,6 +15,7 @@ Only what holds now and what comes next. A line that no longer holds is replaced
   - Sliding peak baseline evaluation in `ThermalZoneManager.cpp` ensures real-world room cooling trends are not truncated prematurely by 5-minute fixed clock boundaries.
   - Live Console & Log Stream embedded in "Instrumente Inginerie & Debug" streaming real-time firmware activity from `/api/console/logs` with command execution.
   - Board flashed via OTA with commit `a9c5175` (v1.11.03.27); SWE.5-TC20, TC21, TC26, TC19.16 PASS; `tools/sh_process_check.py` 0 errors.
+- Canonical plan is `docs/plan.md`; `.agent/plan.md` only points to it (AGY text kept below it as history). The 43 commits 31b8496..6170f16 were built outside the chain: reviewed on 03.11.2026, requirements rows C-14 ... C-20 written after the fact.
 - Migration of `docs/architecture.md` §18, status in [`docs/plan.md`](../../docs/plan.md). Step 1 (`ParamStore`)
   committed (413fa60, fix 7743c26) and flashed; the owner's page test fixes committed (43ffe48 PB-15, 2b7564f
   PB-17 ... PB-21). Not pushed.
@@ -43,6 +44,8 @@ Only what holds now and what comes next. A line that no longer holds is replaced
   (all agents) on the owner's request and before a release - AGENTS.md §5.
 
 ## Next
+- Process review of 03.11.2026 (`docs/review_agy_03_11.md`): PB-71 ... PB-94 open (PB-71 and PB-74 safety). Owner has not tested 1.11.03.x; no acceptance row for it, and the OK for `OutputBank` (step 3) is still open.
+- Owner decisions: console authentication (FR-58, D42, D49), keep or revert the out-of-chain work (PB-83), wording of FR-34 / FR-40 / FR-35 / FR-31, the unit of the 1.25 MB limit.
 - Owner proposal (03.11.2026): Decouple web UI assets to LittleFS with dual versioning (target migration step 12).
 - Owner: hands-on acceptance of step 1 and the page (row in `docs/acceptance.md`), then the step review record and
   step 2 (`Diagnostics`).

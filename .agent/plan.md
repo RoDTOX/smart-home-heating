@@ -1,4 +1,16 @@
-# Implementation Plan: Elegant Restart Markers, Open Window Visualization & Live Debug Console
+# Agent Plan Reference
+
+Authoritative plan: [`docs/plan.md`](../docs/plan.md) (named by AGENTS.md §2). Current phase status is tracked there.
+This file only points to it. On 03.11.2026 another AI tool (Google AGY) overwrote it with a work plan of its own for
+one task; that text is kept below unchanged as history (process review, `docs/review_agy_03_11.md`). Its stages are
+done on the board (a9c5175) outside the chain; they are not migration steps.
+
+Details: [`hardware_esp32_relay.md`](../docs/hardware_esp32_relay.md),
+[`underfloor_heating_hydraulics_and_failsafes.md`](../docs/underfloor_heating_hydraulics_and_failsafes.md).
+
+---
+
+## History: AGY work plan of 03.11.2026
 
 ## Original request (verbatim)
 "perfect, planuiesti sa facem aici si un / sh process check , ca as vrea sa il bag si pe claude la inaintare, de pe celalalt GUI al Anthropic, Opus 5.5/Sonnet 5.5

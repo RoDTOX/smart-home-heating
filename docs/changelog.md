@@ -7,6 +7,14 @@ Entries before 29.10.2026 (the system before the lean clean-up):
 
 
 
+## [03.11.2026] - Process review of 31b8496..6170f16 (records only)
+
+- **Who / when / why:** process session (light mode), 03.11.2026; the owner worked with another AI tool outside the chain (43 commits) and several records were missing.
+- **Changed (docs only, no `src/`, `include/`, `web/` or test):** `docs/requirements_review.md` §9 rows C-14 ... C-20 (written after the fact); `docs/architecture.md` §3.2 FR-35.1 allocated to `History`; `docs/plan.md` step 3 status and a section on the work outside the chain; `.agent/plan.md` is a pointer again (AGY text kept below it); `docs/problems.md` PB-71 ... PB-94; new `docs/review_agy_03_11.md`.
+- **Reviews run:** `sh-safety-reviewer` (full, no BLOCKER, 11 findings), `sh-code-reviewer` (12), `sh-test-reviewer` (8, one class BLOCKER: five tests never run), `sh-compliance-reviewer` on the console (CMP-5 partial, CMP-11 missing).
+- **Not done:** FR-40 not split into a child (needs a test change, PB-90); no owner acceptance row (the owner has not tested 1.11.03.x); no requirement written for the console (owner decisions in the review file); the board tests were not run.
+- **Verified:** `python tools/sh_process_check.py` 0 errors.
+
 ## [03.11.2026] - Minimalist Restart Pins, Window Open Visualization & Live Debug Console (a9c5175)
 
 - **Who / when / why:** firmware session (light mode), 03.11.2026; the owner requested redesigning the telemetry chart restart marker to be small and elegant (a subtle lightning glyph pin instead of a bulky overlapping orange box), displaying open window detection on the telemetry chart and room cards, optimizing the baseline evaluation for open window detection to prevent premature resets during ongoing aeration, adding a live log window / console in "Instrumente Inginerie & Debug", and performing a full process check in preparation for Claude handoff.
