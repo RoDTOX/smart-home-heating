@@ -7,6 +7,10 @@ Entries before 29.10.2026 (the system before the lean clean-up):
 
 
 
+## [03.11.2026] - PB-75: Kids and Adults day level back at 23.5
+
+- Owner decision: the day level of Kids and Adults is 23.5 as before the migration (not 22.5 of the export of 02.11.2026). Now on the board (data only): Living 23.5 / 23 / 20, Kids 23.5 / 23 / 20, Adults 23.5 / 23 / 20 (day / night / away); the day moments of both day groups carry the day level, the night moment the night level; mode `constant`, so the target is 23.5 in all rooms again.
+
 ## [03.11.2026] - PB-75: the owner's day / night levels put back on the board (data only)
 
 - **Why:** the migration to the moments replaced the owner's levels by factory values (PB-75). Owner's levels of 02.11.2026 (export ce8a58b): Living day 23.5 / night 23 / away 20; Kids and Adults day 22.5 / night 23 / away 20.
