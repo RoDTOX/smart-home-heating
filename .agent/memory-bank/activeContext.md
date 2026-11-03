@@ -33,6 +33,7 @@ Only what holds now and what comes next. A line that no longer holds is replaced
   (all agents) on the owner's request and before a release - AGENTS.md §5.
 
 ## Next
+- Owner proposal (03.11.2026): Decouple web UI assets to LittleFS with dual versioning (target migration step 12).
 - Owner: hands-on acceptance of step 1 and the page (row in `docs/acceptance.md`), then the step review record and
   step 2 (`Diagnostics`).
 - Test findings of the trial review, PB-25 ... PB-42 (9 safety): fix through `sh-change`, tests by `sh-test-writer`.

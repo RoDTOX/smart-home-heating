@@ -535,3 +535,14 @@ restores them (a test proves it). An old file with `target` skips it as unknown 
 **Decided by**: owner (chat, 03.11.2026).
 **Affects**: FR-47, FR-8.1, FR-8.4, FR-31, `web/index.html`, `src/ThermalZoneManager.cpp`, `include/ThermalZoneManager.h`.
 **Consequences**: corner rooms heat reliably without premature cutoff; user form edits cannot be wiped by polling.
+
+## 2026-11-03 — Web asset decoupled LittleFS partition & dual versioning proposal
+**Context**: Re-flashing the full 1.25 MB firmware binary for minor UI/CSS/HTML tweaks takes ~20 s, reboots the ESP32, and interrupts hydronic timers and runtime state.
+**Proposal**:
+1. Decouple web dashboard assets from the binary into the existing LittleFS partition (or a dedicated asset partition).
+2. WebServer serves /web/index.html.gz from LittleFS if present, falling back to embedded ROM dashboard_html_gz.h if missing or corrupted (anti-brick).
+3. Fast asset upload endpoint (POST /api/web/update or OTA asset channel) uploading in < 500 ms without reboot.
+4. Versioning scheme review: Decouple firmware version (FR-21, 1.MM.DD.xx) from web UI version (ui-1.MM.DD.yy or 1.MM.DD.xx-ui.yy) so SemVer/API parsers are not broken by a 5-tuple format.
+**Proposed by**: owner (chat, 03.11.2026).
+**Target Phase**: Migration step 12 (OTA, asset management, FR-60).
+**Consequences**: Zero-downtime UI updates without resetting boiler state, heating loops, or interlock timers.
