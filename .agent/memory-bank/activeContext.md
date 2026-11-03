@@ -44,8 +44,9 @@ Only what holds now and what comes next. A line that no longer holds is replaced
   (all agents) on the owner's request and before a release - AGENTS.md §5.
 
 ## Next
+- Out-of-chain work kept (owner, 03.11.2026): folded into steps 7, 8, 11, tests first.
 - Process review of 03.11.2026 (`docs/review_agy_03_11.md`): PB-71 ... PB-94 open (PB-71 and PB-74 safety). Owner has not tested 1.11.03.x; no acceptance row for it, and the OK for `OutputBank` (step 3) is still open.
-- Owner decisions: console authentication (FR-58, D42, D49), keep or revert the out-of-chain work (PB-83), wording of FR-34 / FR-40 / FR-35 / FR-31, the unit of the 1.25 MB limit.
+- Owner decisions: console authentication (FR-58, D42, D49), wording of FR-34 / FR-40 / FR-35 / FR-31, the unit of the 1.25 MB limit.
 - Owner proposal (03.11.2026): Decouple web UI assets to LittleFS with dual versioning (target migration step 12).
 - Owner: hands-on acceptance of step 1 and the page (row in `docs/acceptance.md`), then the step review record and
   step 2 (`Diagnostics`).

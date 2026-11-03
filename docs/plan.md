@@ -89,7 +89,7 @@ multi-moment schedule (C-15), gas meter (C-16), history chart (C-17), window dis
 engineering view and live console (C-20). It is built and flashed (board a9c5175), but no tests-first, no safety
 review and no acceptance row. These are not migration steps and do not change the step order above. Review,
 records and findings: [`review_agy_03_11.md`](review_agy_03_11.md), rows C-14 ... C-20 in
-[`requirements_review.md`](requirements_review.md) §9. The step 3 test on the board is not valid for the hands-on OK
+[`requirements_review.md`](requirements_review.md) §9. Owner decision 03.11.2026: the work is kept and folded into steps 7, 8 and 11 (tests first, findings PB-71 ... PB-94 fixed there). The step 3 test on the board is not valid for the hands-on OK
 until the owner has tested 1.11.03.x (list in the review file).
 
 ## Risks

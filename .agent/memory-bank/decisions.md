@@ -546,3 +546,10 @@ restores them (a test proves it). An old file with `target` skips it as unknown 
 **Proposed by**: owner (chat, 03.11.2026).
 **Target Phase**: Migration step 12 (OTA, asset management, FR-60).
 **Consequences**: Zero-downtime UI updates without resetting boiler state, heating loops, or interlock timers.
+
+## 2026-11-03 — Keep the work built outside the chain (31b8496..6170f16)
+**Context**: 43 commits were built and flashed with another AI tool without tests first, safety review or acceptance (PB-83, PB-84, PB-85).
+**Decision**: keep it. It is folded into migration steps 7 (`ZoneController`: duty rule, window detection), 8 (`Schedule`: moments) and 11 (`History`, gas meter) with the tests written first for each step; the PB-71 ... PB-94 findings are fixed inside those steps. No revert.
+**Decided by**: owner (chat, 03.11.2026).
+**Affects**: `docs/plan.md` steps 7, 8, 11; PB-71 ... PB-94.
+**Consequences**: the code stays on the board; its tests and reviews come with the steps.
