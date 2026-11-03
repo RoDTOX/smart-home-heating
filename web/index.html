@@ -124,6 +124,7 @@ code,.mono{font:13px/1.35 ui-monospace,SFMono-Regular,Consolas,monospace}
     <div class="row"><button id="cfgExport">Export setări</button><button id="cfgImportBtn">Import setări…</button>
       <input type="file" id="cfgFile" accept=".json,application/json" style="display:none"><span id="cfgMsg" class="s"></span></div>
     <div class="s">Fișierul conține locația, numele camerelor, senzorii și programul, nu parole. Păstrează-l privat.</div>
+    <div id="cfgPreview" style="display:none;margin-top:12px;padding:12px;background:var(--bg);border-radius:10px;border:1px solid var(--line)"></div>
     <div id="cfgReport" class="s"></div>
   </section>
   <section>
@@ -802,19 +803,216 @@ $("cfgExport").onclick = async () => {
     $("cfgMsg").textContent = "Salvat " + a.download;
   } catch (e) { $("cfgMsg").textContent = e.message; }
 };
+function analyzeImport(imported, current) {
+  const changes = [];
+  const invalid = [];
+
+  if (!imported || typeof imported !== "object" || Array.isArray(imported)) {
+    invalid.push({field: "fișier", error: "Conținutul nu este un obiect JSON valid."});
+    return {changes, invalid};
+  }
+  if (imported.format !== 1) {
+    invalid.push({field: "format", error: `Format necunoscut (${imported.format}). Este acceptat doar format: 1.`});
+  }
+
+  const PARAM_LIMITS = {
+    actuatorDelaySec: {min: 120, max: 600, label: "Întârziere actuatori (secunde)"},
+    pumpOverrunSec: {min: 60, max: 600, label: "Overrun pompă (secunde)"},
+    burnerMinRunSec: {min: 60, max: 600, label: "Timp minim arzător ON (secunde)"},
+    burnerMinPauseSec: {min: 60, max: 600, label: "Pauză minimă arzător (secunde)"},
+    rfSafetyHeartbeatSec: {min: 10, max: 300, label: "Heartbeat RF (secunde)"},
+    freezeProtectionTemp: {min: 5, max: 15, label: "Prag protecție îngheț (°C)"},
+    sensorTimeoutSec: {min: 120, max: 3600, label: "Timeout senzor (secunde)"},
+    hysteresis: {min: 0.1, max: 1.0, label: "Histerezis (°C)"},
+    windowThreshold: {min: 0.5, max: 3.0, label: "Sensibilitate geam deschis (°C)"}
+  };
+
+  if (imported.params && typeof imported.params === "object") {
+    const curP = current.params || {};
+    for (const [k, v] of Object.entries(imported.params)) {
+      const lim = PARAM_LIMITS[k];
+      const lbl = lim ? lim.label : k;
+      if (lim) {
+        if (typeof v !== "number" || isNaN(v) || v < lim.min || v > lim.max) {
+          invalid.push({field: `params.${k}`, error: `Valoare (${v}) în afara intervalului permis [${lim.min} .. ${lim.max}]`});
+          continue;
+        }
+      }
+      if (curP[k] !== undefined && curP[k] !== v) {
+        changes.push({field: `Parametru: ${lbl}`, oldVal: curP[k], newVal: v});
+      }
+    }
+  }
+
+  if (imported.location !== undefined) {
+    const curLoc = current.location || "";
+    if (typeof imported.location !== "string" || !/^-?\d+(\.\d+)?,\s*-?\d+(\.\d+)?$/.test(imported.location.trim())) {
+      invalid.push({field: "location", error: `Format coordonate invalid ('${imported.location}'). Așteptat: 'lat,lon'`});
+    } else if (curLoc !== imported.location) {
+      changes.push({field: "Locație vreme", oldVal: curLoc, newVal: imported.location});
+    }
+  }
+
+  if (Array.isArray(imported.zones)) {
+    const curZones = current.zones || [];
+    const VALID_PINS = [32, 33, 25, 26];
+    const usedPins = new Set();
+    const usedMacs = new Set();
+
+    imported.zones.forEach((z, idx) => {
+      const curZ = curZones.find(x => x.id === z.id) || curZones[idx];
+      const zName = z.name || (curZ ? curZ.name : `Zona ${z.id}`);
+
+      if (z.relayPin !== undefined) {
+        if (!VALID_PINS.includes(z.relayPin)) {
+          invalid.push({field: `${zName} › Releu`, error: `Pin invalid (${z.relayPin}). Pini permiși: 32, 33, 25, 26.`});
+        } else if (usedPins.has(z.relayPin)) {
+          invalid.push({field: `${zName} › Releu`, error: `Conflict releu: pinul ${z.relayPin} este alocat de două ori.`});
+        } else {
+          usedPins.add(z.relayPin);
+        }
+      }
+      if (z.mac) {
+        const macNorm = z.mac.toUpperCase();
+        if (!/^([0-9A-F]{2}:){5}[0-9A-F]{2}$/.test(macNorm)) {
+          invalid.push({field: `${zName} › Senzor MAC`, error: `Format MAC invalid: '${z.mac}'`});
+        } else if (usedMacs.has(macNorm)) {
+          invalid.push({field: `${zName} › Senzor MAC`, error: `Conflict: senzorul ${z.mac} este asociat la mai multe zone.`});
+        } else {
+          usedMacs.add(macNorm);
+        }
+      }
+      if (z.offset !== undefined && (typeof z.offset !== "number" || z.offset < -3.0 || z.offset > 3.0)) {
+        invalid.push({field: `${zName} › Offset`, error: `Offset temperatură (${z.offset}) în afara limitelor [-3.0 .. +3.0]°C.`});
+      }
+
+      if (curZ) {
+        if (z.name !== undefined && z.name !== curZ.name) changes.push({field: `Zona ${curZ.id} › Nume`, oldVal: curZ.name, newVal: z.name});
+        if (z.mac !== undefined && (z.mac || "").toUpperCase() !== (curZ.mac || "").toUpperCase()) changes.push({field: `${zName} › Senzor MAC`, oldVal: curZ.mac || "–", newVal: z.mac || "–"});
+        if (z.relayPin !== undefined && z.relayPin !== curZ.relayPin) changes.push({field: `${zName} › Releu`, oldVal: curZ.relayPin, newVal: z.relayPin});
+        if (z.enabled !== undefined && z.enabled !== curZ.enabled) changes.push({field: `${zName} › Activă`, oldVal: curZ.enabled ? "Da" : "Nu", newVal: z.enabled ? "Da" : "Nu"});
+        if (z.offset !== undefined && Math.abs(z.offset - curZ.offset) > 0.05) changes.push({field: `${zName} › Offset`, oldVal: curZ.offset + "°", newVal: z.offset + "°"});
+      } else {
+        changes.push({field: `Zonă nouă (${z.id})`, oldVal: "–", newVal: zName});
+      }
+    });
+  }
+
+  if (imported.schedule && typeof imported.schedule === "object") {
+    const curS = current.schedule || {};
+    if (imported.schedule.enabled !== undefined && imported.schedule.enabled !== curS.enabled) {
+      changes.push({field: "Program încălzire", oldVal: curS.enabled ? "Activ" : "Oprit", newVal: imported.schedule.enabled ? "Activ" : "Oprit"});
+    }
+    if (imported.schedule.weekday && imported.schedule.weekday !== curS.weekday) {
+      changes.push({field: "Program L–V (ore)", oldVal: curS.weekday || "–", newVal: imported.schedule.weekday});
+    }
+    if (imported.schedule.weekend && imported.schedule.weekend !== curS.weekend) {
+      changes.push({field: "Program Weekend (ore)", oldVal: curS.weekend || "–", newVal: imported.schedule.weekend});
+    }
+    if (Array.isArray(imported.schedule.levels)) {
+      const curL = curS.levels || [];
+      imported.schedule.levels.forEach(l => {
+        const cur = curL.find(x => x.id === l.id);
+        const z = (current.zones || []).find(x => x.id === l.id);
+        const zName = z ? z.name : `Zona ${l.id}`;
+        ["day", "night", "away"].forEach(lvl => {
+          if (l[lvl] !== undefined) {
+            if (typeof l[lvl] !== "number" || l[lvl] < 5.0 || l[lvl] > 30.0) {
+              invalid.push({field: `${zName} › ${lvl}`, error: `Temperatură (${l[lvl]}°C) în afara limitelor [5.0 .. 30.0]°C.`});
+            } else if (cur && Math.abs(l[lvl] - cur[lvl]) > 0.05) {
+              changes.push({field: `${zName} › Țintă ${lvl}`, oldVal: cur[lvl] + "°C", newVal: l[lvl] + "°C"});
+            }
+          }
+        });
+      });
+    }
+  }
+
+  return {changes, invalid};
+}
+
+let pendingImportText = null;
+
 $("cfgImportBtn").onclick = () => $("cfgFile").click();
 $("cfgFile").onchange = async e => {
   const f = e.target.files[0];
   if (!f) return;
+  $("cfgMsg").textContent = "Se analizează fișierul...";
   try {
-    const r = await fetch("api/config/import", {method: "POST", headers: {"Content-Type": "application/json"}, body: await f.text()});
-    const j = await r.json();
-    if (!r.ok) throw new Error(j.message || "import HTTP " + r.status);
+    const text = await f.text();
+    let imported = null;
+    try {
+      imported = JSON.parse(text);
+    } catch (parseErr) {
+      throw new Error("Fișierul nu conține JSON valid (" + parseErr.message + ").");
+    }
+
+    const curExport = await (await fetch("api/config/export")).json();
+    const {changes, invalid} = analyzeImport(imported, curExport);
+    pendingImportText = text;
+
+    let h = `<div style="font-weight:600;margin-bottom:8px">Previzualizare import setări: <span class="mono">${esc(f.name)}</span></div>`;
+
+    if (invalid.length) {
+      h += `<div style="margin:8px 0;padding:8px 10px;background:rgba(220,53,69,0.15);border:1px solid var(--bad);border-radius:8px">
+        <b style="color:var(--bad)">⚠️ Atenție – Valori invalide / nepermise (${invalid.length}):</b>
+        <ul style="margin:4px 0 0 16px;padding:0">${invalid.map(x => `<li><b>${esc(x.field)}:</b> ${esc(x.error)}</li>`).join("")}</ul>
+        <div class="s" style="margin-top:4px">Valorile invalide vor fi ignorate conform regulilor de siguranță.</div>
+      </div>`;
+    }
+
+    if (changes.length) {
+      h += `<div style="margin:8px 0">
+        <b>Schimbări detectate care se vor aplica (${changes.length}):</b>
+        <div class="scroll" style="margin-top:4px"><table style="font-size:13px">
+          <thead><tr><th>Setare / Parametru</th><th>Valoare curentă</th><th>Valoare nouă din fișier</th></tr></thead>
+          <tbody>${changes.map(c => `<tr><td><b>${esc(c.field)}</b></td><td style="color:var(--mut)">${esc(String(c.oldVal))}</td><td style="color:var(--ok);font-weight:600">${esc(String(c.newVal))}</td></tr>`).join("")}</tbody>
+        </table></div>
+      </div>`;
+    } else {
+      h += `<div class="s" style="margin:8px 0;color:var(--ok)">Nicio valoare nouă de schimbat — fișierul este identic cu setările curente din centrală.</div>`;
+    }
+
+    h += `<div style="margin-top:12px;font-weight:600">Ești de acord să imporți aceste setări?</div>
+    <div class="row" style="margin-top:8px;gap:8px">
+      <button type="button" id="btnConfirmImport" class="on">Confirmă și aplică importul</button>
+      <button type="button" id="btnCancelImport">Anulează</button>
+    </div>`;
+
+    $("cfgPreview").innerHTML = h;
+    $("cfgPreview").style.display = "block";
     $("cfgMsg").textContent = "";
-    renderImport(j);
-  } catch (err) { $("cfgMsg").textContent = err.message; }
-  e.target.value = "";
-  refresh();
+
+    $("btnConfirmImport").onclick = async () => {
+      $("btnConfirmImport").disabled = true;
+      $("btnConfirmImport").textContent = "Se importă...";
+      try {
+        const r = await fetch("api/config/import", {method: "POST", headers: {"Content-Type": "application/json"}, body: pendingImportText});
+        const j = await r.json();
+        if (!r.ok) throw new Error(j.message || "import HTTP " + r.status);
+        $("cfgPreview").style.display = "none";
+        $("cfgMsg").textContent = "Import finalizat cu succes.";
+        renderImport(j);
+      } catch (err) {
+        $("cfgMsg").textContent = "Eroare import: " + err.message;
+      }
+      pendingImportText = null;
+      $("cfgFile").value = "";
+      refresh();
+    };
+
+    $("btnCancelImport").onclick = () => {
+      pendingImportText = null;
+      $("cfgFile").value = "";
+      $("cfgPreview").style.display = "none";
+      $("cfgMsg").textContent = "Import anulat. Nicio setare nu a fost modificată.";
+      setTimeout(() => { if ($("cfgMsg").textContent.includes("anulat")) $("cfgMsg").textContent = ""; }, 4000);
+    };
+
+  } catch (err) {
+    $("cfgMsg").textContent = "Respins: " + err.message;
+    $("cfgFile").value = "";
+  }
 };
 
 $("away").onclick = async () => { await api("api/schedule/enable", {away: Z.away ? 0 : 1}); refresh(); };
