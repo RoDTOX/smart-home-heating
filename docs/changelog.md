@@ -7,6 +7,16 @@ Entries before 29.10.2026 (the system before the lean clean-up):
 
 
 
+## [03.11.2026] - C-26: burner flow measured from the readings, not typed (cbc83f0)
+
+- **Who / when / why:** firmware session (light mode), 03.11.2026; owner: nobody can calculate the flow per hour or the boiler power, the controller must correct itself; no manual value for either.
+- **Requirement:** FR-35.1 (flow = rise of the index / boiler ON hours over the last 10 intervals of at least 1 h; boiler ON time is the heat request, not flame time; `gasFlameRate` only the starting value; `gasFlameRate` and `boilerPowerKw` not settable). Row C-26.
+- **Tests first (clean room):** TC21.9 ... TC21.13. TC21.9 was not run red (the old firmware would have accepted and stored the value).
+- **Changed:** reading log `/gas_log.bin` with the boiler ON runtime per entry (one-time conversion of the first version, both readings of the owner kept), `gasFlowMeasured` in `gasMeter`, estimate with the measured flow, `/api/config/system` refuses the two read-only parameters, page without those inputs. `sh-safety-reviewer`: no BLOCKER; the conversion findings fixed (no re-conversion over new readings, whole file checked).
+- **Board 1.11.03.34:** the readings 2265.304 (15:39) and 2265.996 (22:19, typed by the owner) survived the conversion, both with `runtimeSec` null (typed before the runtime field existed); TC21.3 ... TC21.13 PASS, log unchanged. The measured flow starts with the first pair of readings that both have a runtime.
+- **Calculation with the owner's numbers:** 0.692 m3 in 3.9 h of boiler ON time = 0.18 m3 per ON hour (the default 0.60 is about 3 times too high).
+- **Open:** notes of the safety review (two flash passes per status poll, the runtime counter is saved every 15 min, a back-dated reading breaks one interval): PB-102.
+
 ## [03.11.2026] - C-25: gas meter readings are data (32faf9f)
 
 - **Who / when / why:** firmware session (light mode), 03.11.2026; owner decision: a reading typed by the user is data, not a calibration (PB-80, PB-98, PB-99).

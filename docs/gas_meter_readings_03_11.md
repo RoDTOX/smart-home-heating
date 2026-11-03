@@ -31,3 +31,9 @@ That is by design: the typed value replaces the estimate. What is not lost: `gas
    be derived - PB-99.
 3. The full system test (TC21.3) types index 2265.304 on the live board at every run, which writes log entries and
    moves the base of the owner's data - PB-87, PB-99.
+
+## Reading typed by the owner after the log started (1.11.03.32)
+
+| Time (local) | Epoch | Index m3 | Origin |
+|---|---|---|---|
+| 03.11 22:19 | 1793735988 | 2265.996 | owner, typed by hand in the page; stored without a runtime (the runtime field came with C-26). In 6 h 40 min the index rose 0.692 m3 against 3.9 h of boiler ON time (history of the board): 0.18 m3 per ON hour |
