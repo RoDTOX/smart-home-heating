@@ -23,7 +23,7 @@ input.time24{width:68px;text-align:center;font-weight:600;font-size:14px;border-
 .sched-away-card{margin-top:14px;padding:12px;background:var(--bg);border-radius:10px;border:1px solid var(--line)}
 .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:12px}
 .room{background:var(--card);border:1px solid var(--line);border-left:6px solid var(--idle);border-radius:14px;padding:12px 14px;display:flex;justify-content:space-between;align-items:center;gap:10px}
-.room.heat{border-left-color:var(--heat)}.room.away{border-left-color:var(--away)}.room.bad{border-left-color:var(--bad)}
+.room.heat{border-left-color:var(--heat)}.room.away{border-left-color:var(--away)}.room.bad{border-left-color:var(--bad)}.room.win{border-left-color:#38bdf8;background:linear-gradient(135deg,rgba(56,189,248,0.08),transparent)}
 .room-main{flex:1;min-width:0}
 .room .t{font-size:38px;font-weight:600;line-height:1.1;margin:2px 0}
 .s,.room .s{color:var(--mut)}
@@ -185,6 +185,19 @@ code,.mono{font:13px/1.35 ui-monospace,SFMono-Regular,Consolas,monospace}
       <div class="row"><input class="w" id="filter" placeholder="Filtru: nume sau explicație (ex. zones[0], relay, boiler)"><span id="watchInfo" class="s"></span></div>
       <div class="s">Atinge un rând pentru cerință. Galben = s-a schimbat la ultima citire.</div>
       <div class="scroll"><table id="watch" class="mono"></table></div>
+
+      <div style="font-weight:600;margin:18px 0 4px">Jurnal &amp; Consolă Live (Firmware Stream)</div>
+      <div class="row" style="gap:8px;align-items:center;flex-wrap:wrap">
+        <button type="button" id="clearConsoleBtn">Golește ecran</button>
+        <button type="button" id="pauseConsoleBtn">Pauză stream</button>
+        <label><input type="checkbox" id="consoleAutoScroll" checked> Auto-scroll</label>
+        <span id="consoleStatus" class="s" style="color:var(--ok)">● Conectat la stream</span>
+      </div>
+      <pre id="consoleTerminal" style="background:#0d1117;color:#58a6ff;padding:10px 12px;border-radius:6px;border:1px solid var(--line);font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:11.5px;line-height:1.45;height:240px;overflow-y:auto;white-space:pre-wrap;word-break:break-all;margin-top:6px"></pre>
+      <div class="row" style="margin-top:6px;gap:8px">
+        <input id="consoleInput" class="w" placeholder="Comandă consolă (ex: help, status, zones, boiler, dtc, tpi)...">
+        <button type="button" id="consoleSendBtn">Trimite</button>
+      </div>
     </div>
   </details>
 </div>
@@ -410,6 +423,7 @@ async function api(path, params, isJson = false) {
 }
 
 function roomClass(z) {
+  if (z.state === "WINDOW" || z.windowPauseActive) return "win";
   if (z.state === "FAULT" || z.state === "DISABLED") return "bad";
   if (Z.away) return "away";
   return z.relayEngaged ? "heat" : "";
@@ -438,7 +452,11 @@ function renderRooms() {
 
     const onMin = Math.round((z.duty || 0) * 0.6);
     let statusText = STATE_RO[z.state] || z.state;
-    if (z.state === "IDLE") {
+    const isWin = (z.state === "WINDOW" || z.windowPauseActive);
+    if (isWin) {
+      const mLeft = Math.ceil((z.windowPauseRemainingSec || 1800) / 60);
+      statusText = `🪟 Fereastră deschisă · Pauză ${mLeft}m`;
+    } else if (z.state === "IDLE") {
       statusText = (z.sensorValid && z.currentTemp < (z.effectiveTarget - 0.15))
         ? "Pauză ciclu (menține din șapă)"
         : "Temperatură atinsă";
@@ -456,12 +474,15 @@ function renderRooms() {
       return `${Math.floor(m / 60)}h ${m % 60}m`;
     };
     const rtBadge = `⏱ Încălzit azi: ${formatRt(rtToday)}${rtYest > 0 ? ' (ieri ' + formatRt(rtYest) + ')' : ''}`;
+    const winBtn = isWin ? `<div style="margin-top:4px"><button type="button" class="s" style="padding:2px 8px;font-size:11px;background:rgba(56,189,248,0.15);border:1px solid #38bdf8;color:#38bdf8;border-radius:4px;cursor:pointer" onclick="clearWindowPause(${z.id})">Închide pauza ✕</button></div>` : "";
+
     return `<div class="room ${roomClass(z)}" data-i="${i}">
       <div class="room-main">
         <div style="font-weight:600">${esc(z.name)}</div>
         <div class="t">${t}</div>
         <div class="s">${esc(subText)}</div>
         <div class="s" style="margin-top:2px">${esc(statusText)}</div>
+        ${winBtn}
         <div class="s" style="margin-top:2px;font-size:12px;opacity:0.85">${esc(rtBadge)}</div>
       </div>
       <div class="ctl">
@@ -795,6 +816,32 @@ function renderHistoryChart() {
     if (curBlockStart !== -1) {
       emitBlock(curBlockStart, curBlockEnd);
     }
+    // Render window pause blocks for zone rows
+    if (ri >= 1) {
+      const zi = ri - 1;
+      let winStart = -1, winEnd = -1;
+      const emitWinBlock = (start, end) => {
+        const segX = x1 - (start + 1) * slotW;
+        const segW = (start + 1 - end) * slotW;
+        svgParts.push(`<rect x="${segX.toFixed(1)}" y="${ry}" width="${Math.max(3, segW).toFixed(1)}" height="${actRowH}" rx="2" fill="rgba(56,189,248,0.35)" stroke="#38bdf8" stroke-width="1" />`);
+        if (segW >= 14) {
+          svgParts.push(`<text x="${(segX + segW / 2).toFixed(1)}" y="${(ry + 10).toFixed(1)}" font-size="8.5" text-anchor="middle" fill="#38bdf8">🪟</text>`);
+        }
+      };
+      for (let k = 0; k < ordered.length; k++) {
+        const item = ordered[k];
+        const winActive = (((item.p[5] >> 5) & 0x03) === (zi + 1));
+        if (winActive) {
+          if (winStart === -1) { winStart = item.slotsAgo; winEnd = item.slotsAgo; }
+          else if (winEnd - item.slotsAgo === 1) { winEnd = item.slotsAgo; }
+          else { emitWinBlock(winStart, winEnd); winStart = item.slotsAgo; winEnd = item.slotsAgo; }
+        } else if (winStart !== -1) {
+          emitWinBlock(winStart, winEnd);
+          winStart = -1; winEnd = -1;
+        }
+      }
+      if (winStart !== -1) emitWinBlock(winStart, winEnd);
+    }
   });
 
   // Render restart / firmware flash markers across activity and curves
@@ -807,10 +854,9 @@ function renderHistoryChart() {
     if (slotsAgo < totalWindowSlots) {
       const rx = x1 - slotsAgo * slotW;
       visibleReboots.push({ rx: rx, slotsAgo: slotsAgo, rb: rb });
-      svgParts.push(`<line x1="${rx.toFixed(1)}" y1="${topActY - 2}" x2="${rx.toFixed(1)}" y2="${tempBot}" stroke="#f59e0b" stroke-width="1.5" stroke-dasharray="3,3" />`);
-      const bw = 66, bh = 14;
-      svgParts.push(`<rect x="${(rx - bw / 2).toFixed(1)}" y="${(topActY - bh - 2).toFixed(1)}" width="${bw}" height="${bh}" rx="3" fill="#f59e0b" />`);
-      svgParts.push(`<text x="${rx.toFixed(1)}" y="${(topActY - 3).toFixed(1)}" font-size="9" font-weight="700" fill="#000" text-anchor="middle">⚡ RESTART</text>`);
+      svgParts.push(`<line x1="${rx.toFixed(1)}" y1="${topActY}" x2="${rx.toFixed(1)}" y2="${tempBot}" stroke="#f59e0b" stroke-width="1" stroke-dasharray="2,3" opacity="0.65" />`);
+      svgParts.push(`<circle cx="${rx.toFixed(1)}" cy="${(topActY - 6).toFixed(1)}" r="6" fill="#18181b" stroke="#f59e0b" stroke-width="1.2" />`);
+      svgParts.push(`<text x="${rx.toFixed(1)}" y="${(topActY - 3).toFixed(1)}" font-size="8.5" text-anchor="middle" fill="#f59e0b" style="user-select:none">⚡</text>`);
     }
   });
 
@@ -972,8 +1018,10 @@ function renderHistoryChart() {
       zones.forEach((z, idx) => {
         const bit = 1 << (idx + 2);
         const vOn = (p[5] & bit) !== 0;
+        const winActive = (((p[5] >> 5) & 0x03) === (idx + 1));
         const temp = (p[idx + 1] !== null && p[idx + 1] !== undefined) ? p[idx + 1] + '°C' : '--';
-        tip += ` · <b>${esc(z.name)}</b>: ${temp} (${vOn ? '<span style="color:var(--ok)">vană deschisă</span>' : 'închis'})`;
+        const vState = winActive ? '<span style="color:#38bdf8">🪟 pauză geam</span>' : (vOn ? '<span style="color:var(--ok)">vană deschisă</span>' : 'închis');
+        tip += ` · <b>${esc(z.name)}</b>: ${temp} (${vState})`;
       });
       if (p[4] !== null && p[4] !== undefined) tip += ` · Afară: ${p[4]}°C`;
       if (nearReboot) tip += ` · <b style="color:#f59e0b">⚡ Restart: ${esc(nearReboot.reason || 'Sistem')}</b>`;
@@ -2317,6 +2365,108 @@ $("saveLoc").onclick = async () => {
   catch (e) { $("locMsg").textContent = "Respins: " + e.message; }
   refresh();
 };
+
+window.clearWindowPause = async function(id) {
+  try {
+    await fetch(`/api/zones/window/clear?id=${encodeURIComponent(id)}`, { method: "POST" });
+    refresh();
+  } catch (e) {
+    console.error("clearWindowPause error:", e);
+  }
+};
+
+// Firmware Live Console & Log Stream
+let consoleSeq = 0, consolePaused = false, consolePollTimer = null;
+
+async function pollConsole() {
+  if (consolePaused) return;
+  const grpDbg = $("grpDebug");
+  if (!grpDbg || !grpDbg.open) return;
+
+  try {
+    const res = await fetch(`/api/console/logs?since=${consoleSeq}`);
+    if (res.ok) {
+      const seqHdr = res.headers.get("X-Log-Seq");
+      if (seqHdr) consoleSeq = parseInt(seqHdr, 10);
+      const text = await res.text();
+      if (text) {
+        const term = $("consoleTerminal");
+        if (term) {
+          term.textContent += text;
+          if (term.textContent.length > 30000) {
+            term.textContent = term.textContent.slice(-20000);
+          }
+          if ($("consoleAutoScroll") && $("consoleAutoScroll").checked) {
+            term.scrollTop = term.scrollHeight;
+          }
+        }
+      }
+      if ($("consoleStatus")) $("consoleStatus").textContent = "● Conectat la stream";
+    }
+  } catch (err) {
+    if ($("consoleStatus")) $("consoleStatus").textContent = "○ Rețea offline / reconectare...";
+  }
+}
+
+async function sendConsoleCmd() {
+  const inp = $("consoleInput");
+  if (!inp || !inp.value.trim()) return;
+  const cmd = inp.value.trim();
+  inp.value = "";
+  const term = $("consoleTerminal");
+  if (term) {
+    term.textContent += `\n> ${cmd}\n`;
+    term.scrollTop = term.scrollHeight;
+  }
+  try {
+    const res = await fetch("/api/console/cmd", {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: `cmd=${encodeURIComponent(cmd)}&since=${consoleSeq}`
+    });
+    if (res.ok) {
+      const seqHdr = res.headers.get("X-Log-Seq");
+      if (seqHdr) consoleSeq = parseInt(seqHdr, 10);
+      const text = await res.text();
+      if (text && term) {
+        term.textContent += text;
+        term.scrollTop = term.scrollHeight;
+      }
+    }
+  } catch (err) {
+    if (term) term.textContent += `[Eroare transmitere comandă: ${err}]\n`;
+  }
+}
+
+const clearCBtn = $("clearConsoleBtn");
+if (clearCBtn) clearCBtn.onclick = () => { if ($("consoleTerminal")) $("consoleTerminal").textContent = ""; };
+
+const pauseCBtn = $("pauseConsoleBtn");
+if (pauseCBtn) pauseCBtn.onclick = () => {
+  consolePaused = !consolePaused;
+  pauseCBtn.textContent = consolePaused ? "Reia stream" : "Pauză stream";
+  if ($("consoleStatus")) $("consoleStatus").textContent = consolePaused ? "⏸ Pauzat" : "● Conectat la stream";
+  if (!consolePaused) pollConsole();
+};
+
+const sendCBtn = $("consoleSendBtn");
+if (sendCBtn) sendCBtn.onclick = sendConsoleCmd;
+
+const inpC = $("consoleInput");
+if (inpC) inpC.onkeydown = e => { if (e.key === "Enter") { e.preventDefault(); sendConsoleCmd(); } };
+
+const grpDbg = $("grpDebug");
+if (grpDbg) {
+  grpDbg.addEventListener("toggle", () => {
+    if (grpDbg.open) {
+      pollConsole();
+      if (!consolePollTimer) consolePollTimer = setInterval(pollConsole, 1500);
+    } else if (consolePollTimer) {
+      clearInterval(consolePollTimer);
+      consolePollTimer = null;
+    }
+  });
+}
 
 startTimer();
 refresh();

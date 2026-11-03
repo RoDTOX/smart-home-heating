@@ -233,9 +233,19 @@ void TelemetryHistoryManager::updateLiveSample(bool forceNewSlot) {
     if (thermalZones.getZoneCount() > 1 && thermalZones.getStatus(1).relayEngaged) f |= 0x08;
     if (thermalZones.getZoneCount() > 2 && thermalZones.getStatus(2).relayEngaged) f |= 0x10;
 
-    // Within same 5-minute slot in RAM: latch active flags if boiler/valves operated at any point during this slot
+    // Bit 5-6: Zone in window pause (0: none, 1: Z1, 2: Z2, 3: Z3)
+    uint8_t winCode = 0;
+    for (size_t i = 0; i < thermalZones.getZoneCount() && i < 3; i++) {
+        if (thermalZones.isWindowPauseActive(i)) {
+            winCode = (uint8_t)(i + 1);
+            break;
+        }
+    }
+    f |= ((winCode & 0x03) << 5);
+
+    // Within same 5-minute slot in RAM: latch active flags if boiler/valves/window operated at any point during this slot
     if (!isNew5mSlot && !forceNewSlot && (_ring24h[slot5m].flags & 0x80)) {
-        f |= (_ring24h[slot5m].flags & 0x1F);
+        f |= (_ring24h[slot5m].flags & 0x7F);
     }
     p.flags = f;
     p.reserved = 0;
@@ -249,7 +259,7 @@ void TelemetryHistoryManager::updateLiveSample(bool forceNewSlot) {
     bool isNew30mSlot = (slot30m != _lastRecorded30mSlot);
     uint8_t f5d = f;
     if (!isNew30mSlot && (_ring5d[slot30m].flags & 0x80)) {
-        f5d |= (_ring5d[slot30m].flags & 0x1F);
+        f5d |= (_ring5d[slot30m].flags & 0x7F);
     }
     TelemetryPoint p5d = p;
     p5d.flags = f5d;
@@ -332,6 +342,18 @@ String TelemetryHistoryManager::getHistoryJson(const String& range) {
             default:               json += "Repornire sistem"; break;
         }
         json += "\"}";
+    }
+    json += "],\"windows\":[";
+    size_t wWritten = 0;
+    for (size_t i = 0; i < thermalZones.getZoneCount() && i < 3; i++) {
+        if (thermalZones.isWindowPauseActive(i)) {
+            if (wWritten > 0) json += ",";
+            json += "{\"id\":" + String(i + 1) + ",";
+            json += "\"name\":\"" + String(thermalZones.getConfig(i).name) + "\",";
+            json += "\"remainingSec\":" + String(thermalZones.getWindowPauseRemainingSec(i)) + ",";
+            json += "\"lastEpoch\":" + String(thermalZones.getWindowLastDetectionEpoch(i)) + "}";
+            wWritten++;
+        }
     }
     json += "]}";
     return json;

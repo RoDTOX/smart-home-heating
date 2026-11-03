@@ -1081,7 +1081,7 @@ void ThermalZoneManager::evaluateWindowDetection(size_t index, float currentTemp
     float dropThreshold = _windowThreshold;
 
     if (!_windowStates[index].pauseActive) {
-        if (_windowStates[index].baselineMs == 0 || (now - _windowStates[index].baselineMs > 300000UL)) {
+        if (_windowStates[index].baselineMs == 0) {
             _windowStates[index].baselineTemp = currentTemp;
             _windowStates[index].baselineMs = now;
             _windowStates[index].dropInsightLogged = false;
@@ -1089,24 +1089,35 @@ void ThermalZoneManager::evaluateWindowDetection(size_t index, float currentTemp
             _windowStates[index].baselineTemp = currentTemp;
             _windowStates[index].baselineMs = now;
             _windowStates[index].dropInsightLogged = false;
-        } else if ((_windowStates[index].baselineTemp - currentTemp) >= dropThreshold) {
-            _windowStates[index].pauseActive = true;
-            _windowStates[index].pauseStartMs = now;
-            _windowStates[index].pauseMinTemp = currentTemp;
-            time_t nowEpoch = time(nullptr);
-            _windowStates[index].lastDetectionEpoch = (nowEpoch >= 1700000000) ? (uint32_t)nowEpoch : (now / 1000);
-            netConsole.printf("[Thermal][WINDOW] Open window detected on Zone %u (%s): temp dropped %.2f \xC2\xB0""C in %us! (threshold: %.1f C). Suspending heating for 30m.\n",
-                              _configs[index].id, _configs[index].name,
-                              _windowStates[index].baselineTemp - currentTemp,
-                              (now - _windowStates[index].baselineMs) / 1000,
-                              dropThreshold);
-        } else if ((_windowStates[index].baselineTemp - currentTemp) >= 0.35f && !_windowStates[index].dropInsightLogged) {
-            _windowStates[index].dropInsightLogged = true;
-            netConsole.printf("[Thermal][INSIGHT] Rapid cooling detected on Zone %u (%s): %.2f C -> %.2f C (-%.2f C in %us, possible aeration)\n",
-                              _configs[index].id, _configs[index].name,
-                              _windowStates[index].baselineTemp, currentTemp,
-                              _windowStates[index].baselineTemp - currentTemp,
-                              (now - _windowStates[index].baselineMs) / 1000);
+        } else {
+            float drop = _windowStates[index].baselineTemp - currentTemp;
+            if (drop >= dropThreshold) {
+                _windowStates[index].pauseActive = true;
+                _windowStates[index].pauseStartMs = now;
+                _windowStates[index].pauseMinTemp = currentTemp;
+                time_t nowEpoch = time(nullptr);
+                _windowStates[index].lastDetectionEpoch = (nowEpoch >= 1700000000) ? (uint32_t)nowEpoch : (now / 1000);
+                netConsole.printf("[Thermal][WINDOW] Open window detected on Zone %u (%s): temp dropped %.2f \xC2\xB0""C in %us! (threshold: %.1f C). Suspending heating for 30m.\n",
+                                  _configs[index].id, _configs[index].name,
+                                  drop,
+                                  (now - _windowStates[index].baselineMs) / 1000,
+                                  dropThreshold);
+            } else if (drop >= 0.35f && !_windowStates[index].dropInsightLogged) {
+                _windowStates[index].dropInsightLogged = true;
+                netConsole.printf("[Thermal][INSIGHT] Rapid cooling detected on Zone %u (%s): %.2f C -> %.2f C (-%.2f C in %us, possible aeration)\n",
+                                  _configs[index].id, _configs[index].name,
+                                  _windowStates[index].baselineTemp, currentTemp,
+                                  drop,
+                                  (now - _windowStates[index].baselineMs) / 1000);
+            }
+
+            // Only expire baseline if more than 10 minutes elapsed without triggering or if temperature was stable (drop < 0.10 C)
+            if ((now - _windowStates[index].baselineMs > 600000UL) ||
+                ((now - _windowStates[index].baselineMs > 300000UL) && drop < 0.10f)) {
+                _windowStates[index].baselineTemp = currentTemp;
+                _windowStates[index].baselineMs = now;
+                _windowStates[index].dropInsightLogged = false;
+            }
         }
     } else {
         if (currentTemp < _windowStates[index].pauseMinTemp) {
