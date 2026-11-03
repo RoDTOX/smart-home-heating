@@ -7,6 +7,15 @@ Entries before 29.10.2026 (the system before the lean clean-up):
 
 
 
+## [03.11.2026] - C-29: measured flow from the board's history (2b44ef9)
+
+- **Why:** the owner will not type past readings; his two readings (2265.304 at 15:39, 2265.996 at 21:59) carry no runtime. **C-28** (correct a reading) was proposed and rejected: the 15:39 time is right.
+- **Requirement:** FR-35.1: boiler ON time of an interval from the telemetry history when a reading has no stored runtime (24 h history while both readings are under 24 h old, error at most 10 min; else 5 day history, error at most 1 h, interval of at least 4 h ON time; the history must be complete).  describes the points of .
+- **Tests first (clean room):** TC21.15 ... TC21.17 and TC21.11 updated to C-29 (read only); TC21.15 was red (null against 0.177).
+- **Changed:** `boilerOnSeconds` and `gasFlowMeasured` in `TelemetryHistoryManager.cpp`.
+- **Board 1.11.03.35:** `gasFlowMeasured` 0.177 m3/h (the owner's pair: 0.692 m3 in 3.9 h of boiler ON time); gas today 2.41 m3 (was 8.10 with the default 0.60), this month 2.41, yesterday 0 (no counters yesterday); estimated index 2266.042. TC21.3 ... TC21.17 PASS, log unchanged.
+- **Open (PB-103):** a gap in the 24 h history does not fall back to the 5 day history (the text says no flow); the 24 h walk can be off by one hour on the two days of a clock change.
+
 ## [03.11.2026] - C-27: gas figures only with a measured flow; correction (page)
 
 - **Why:** the page showed 8.10 m3 for today (13.5 boiler ON hours x the starting flow 0.60 m3/h) while the index rose 0.692 m3 in 6 h 20 min; and `Timp ardere azi: 0.0h` read a wrong field.
