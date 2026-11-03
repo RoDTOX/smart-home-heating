@@ -754,13 +754,37 @@ function renderHistoryChart() {
     svgParts.push(`<text x="${x0 - 8}" y="${(ry + 11).toFixed(1)}" font-size="11" font-weight="600" fill="var(--fg)" text-anchor="end">${r.label}</text>`);
     svgParts.push(`<rect x="${x0}" y="${ry}" width="${chartW}" height="${actRowH}" rx="3" fill="var(--bg)" stroke="var(--line)" />`);
 
-    ordered.forEach(item => {
+    let curBlockStart = -1, curBlockEnd = -1;
+    const emitBlock = (start, end) => {
+      const segX = x1 - (start + 1) * slotW;
+      const segW = (start + 1 - end) * slotW;
+      const rx = Math.min(2, Math.max(1, Math.floor(segW / 2)));
+      svgParts.push(`<rect x="${segX.toFixed(1)}" y="${ry}" width="${Math.max(2, segW).toFixed(1)}" height="${actRowH}" rx="${rx}" fill="${r.color}" />`);
+    };
+
+    for (let k = 0; k < ordered.length; k++) {
+      const item = ordered[k];
       const active = (item.p[5] & r.bit) !== 0;
       if (active) {
-        const segX = x1 - (item.slotsAgo + 1) * slotW;
-        svgParts.push(`<rect x="${segX.toFixed(1)}" y="${ry}" width="${Math.max(2, slotW).toFixed(1)}" height="${actRowH}" rx="1" fill="${r.color}" />`);
+        if (curBlockStart === -1) {
+          curBlockStart = item.slotsAgo;
+          curBlockEnd = item.slotsAgo;
+        } else if (curBlockEnd - item.slotsAgo === 1) {
+          curBlockEnd = item.slotsAgo;
+        } else {
+          emitBlock(curBlockStart, curBlockEnd);
+          curBlockStart = item.slotsAgo;
+          curBlockEnd = item.slotsAgo;
+        }
+      } else if (curBlockStart !== -1) {
+        emitBlock(curBlockStart, curBlockEnd);
+        curBlockStart = -1;
+        curBlockEnd = -1;
       }
-    });
+    }
+    if (curBlockStart !== -1) {
+      emitBlock(curBlockStart, curBlockEnd);
+    }
   });
 
   // Temperature chart header & legends
