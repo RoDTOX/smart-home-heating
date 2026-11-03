@@ -26,9 +26,10 @@ from sh_tests.t_ui_history import UiHistoryTests
 from sh_tests.t_safety_features import SafetyFeatureTests
 from sh_tests.t_export_import import ExportImportTests
 from sh_tests.t_zones import ZoneTests
+from sh_tests.t_console import ConsoleTests
 
 
-class SystemTestSuite(SuiteBase, HealthTests, HydraulicsTests, ControlTests, UiHistoryTests, SafetyFeatureTests, ExportImportTests, ZoneTests):
+class SystemTestSuite(SuiteBase, HealthTests, HydraulicsTests, ControlTests, UiHistoryTests, SafetyFeatureTests, ExportImportTests, ZoneTests, ConsoleTests):
     # ---------------------------------------------------------
     # Test Runner & Traceability Matrix Evaluation
     # ---------------------------------------------------------
@@ -153,6 +154,21 @@ class SystemTestSuite(SuiteBase, HealthTests, HydraulicsTests, ControlTests, UiH
             self.test_tc21_15_gas_flow_measured_from_history,
             self.test_tc21_16_gas_flow_measured_range,
             self.test_tc21_17_gas_today_yesterday_consistent,
+            # Group 31: Console login, log content, security events (FR-75, FR-76, FR-77)
+            self.test_tc31_1_login_required_except_help_status,
+            self.test_tc31_2_wrong_password_refused,
+            self.test_tc31_3_login_works,
+            self.test_tc31_4_no_login_only_help_status,
+            self.test_tc31_5_route_cmd_removed,
+            self.test_tc31_6_page_uses_send_route,
+            self.test_tc31_7_page_password_not_stored,
+            self.test_tc31_8_log_has_no_secret,
+            self.test_tc31_9_log_has_no_coordinates,
+            self.test_tc31_10_security_events_schema,
+            self.test_tc31_11_failed_login_recorded,
+            self.test_tc31_12_events_hold_no_secret_field,
+            self.test_tc31_13_profile_and_open_console,
+            self.test_tc31_14_dev_open_command_event,
             # Group 23: FSM Relay Decoupling & Safety Invariant (FR-37)
             self.test_tc23_1_fsm_instant_warmup_abort_contract,
             self.test_tc23_2_orphaned_relay_safety_invariant,
@@ -252,7 +268,10 @@ class SystemTestSuite(SuiteBase, HealthTests, HydraulicsTests, ControlTests, UiH
             requests.post(f"{self.base_url}/api/diag/clear", timeout=self.timeout)
             
             # Wipe test execution debris so user's active console stays pristine
-            requests.post(f"{self.base_url}/api/console/send?cmd=CLEAR", timeout=self.timeout)
+            # C-30 / FR-75.1: CLEAR needs the login; best effort, only when SH_CONSOLE_PASSWORD is set
+            if self.console_can_run_commands():  # FR-75.6: open on a dev-open build
+                requests.post(f"{self.base_url}/api/console/send?cmd=CLEAR", auth=self.console_auth(),
+                              timeout=self.timeout)
         except Exception:
             pass
 

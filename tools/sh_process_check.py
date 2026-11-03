@@ -35,6 +35,7 @@ Exit code 1 on any ERROR (or WARN / KNOWN with --strict).
 """
 
 import argparse
+from pathlib import Path
 import ast
 import functools
 import glob
@@ -1083,12 +1084,38 @@ def same_firmware(commit, ref="HEAD"):
     return git("diff", "--quiet", commit, ref, "--", *FIRMWARE_INPUTS, probe=True) is not None
 
 
+def check_dev_open(rep):
+    """FR-75.6, PB-104: the open development profile (SH_DEV_OPEN) must never reach a release."""
+    root = Path(ROOT)
+    ini = root / "platformio.ini"
+    section = ""
+    found = []
+    if ini.exists():
+        for n, line in enumerate(ini.read_text(encoding="utf-8").splitlines(), 1):
+            st = line.strip()
+            if st.startswith("["):
+                section = st
+            elif "SH_DEV_OPEN" in st and not st.startswith((";", "#")) and section != "[env:esp32dev]":
+                found.append(f"platformio.ini:{n} ({section})")
+        if "[env:esp32release]" not in ini.read_text(encoding="utf-8"):
+            rep.error("platformio.ini has no [env:esp32release] profile (FR-75.6)")
+    for d in ("src", "include"):
+        for f in sorted((root / d).glob("*")):
+            if f.suffix in (".h", ".cpp"):
+                for n, line in enumerate(f.read_text(encoding="utf-8", errors="replace").splitlines(), 1):
+                    if re.match(r"\s*#\s*define\s+SH_DEV_OPEN", line):
+                        found.append(f"{f.relative_to(root)}:{n}")
+    for where in found:
+        rep.error(f"SH_DEV_OPEN reaches a release build at {where}: only [env:esp32dev] may define it (FR-75.6, PB-104)")
+
+
 def check_release(rep):
     """Gate before push / PR to main (docs/process.md §5): what goes out is what the owner tested."""
     rep.section("Release gate (acceptance, problems, version)", "release")
     head = firmware_commit(ROOT)
     if head.endswith("-dirty"):
         rep.error(f"uncommitted firmware changes ({head}) - commit, build, flash and test that build")
+    check_dev_open(rep)
 
     header, rows = read_table(ACCEPTANCE, ("board commit",))
     if rows is None:

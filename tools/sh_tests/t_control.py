@@ -188,8 +188,11 @@ class ControlTests:
             latency = (time.time() - start) * 1000
             logs = r.text
             assert "[A. SYSTEM" in logs or "[B. BOILER" in logs or "SYSTEM" in logs, "Missing structured section headers"
-            # Clean up the large table dump so it does not pollute the user's active console
-            requests.post(f"{self.base_url}/api/console/send?cmd=CLEAR", timeout=self.timeout)
+            # Clean up the large table dump so it does not pollute the user's active console.
+            # C-30 / FR-75.1: CLEAR needs the login (SH_CONSOLE_PASSWORD); best effort, STATUS above is public.
+            if self.console_can_run_commands():  # FR-75.6: open on a dev-open build
+                requests.post(f"{self.base_url}/api/console/send?cmd=CLEAR", auth=self.console_auth(),
+                              timeout=self.timeout)
             details = "Verified 2-column tabular blocks, UTF-8 °C symbols and zero column drifting (buffer cleaned)"
             return TestResult(test_id, name, req, "PASS", latency, details)
         except Exception as e:

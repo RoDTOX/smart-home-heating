@@ -62,6 +62,7 @@ code,.mono{font:13px/1.35 ui-monospace,SFMono-Regular,Consolas,monospace}
 </head>
 <body>
 <main>
+<div id="devBanner" style="display:none;background:#b45309;color:#fff;text-align:center;padding:4px;font-weight:600;font-size:13px">DEV - consola deschisă</div>
 <header>
   <h1>Încălzire</h1>
   <div class="meta"><span id="clock">--:--</span><span id="outdoor">afară --</span><span id="boiler">centrala --</span><span id="level"></span></div>
@@ -194,6 +195,7 @@ code,.mono{font:13px/1.35 ui-monospace,SFMono-Regular,Consolas,monospace}
         <span id="consoleStatus" class="s" style="color:var(--ok)">● Conectat la stream</span>
       </div>
       <pre id="consoleTerminal" style="background:#0d1117;color:#58a6ff;padding:10px 12px;border-radius:6px;border:1px solid var(--line);font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:11.5px;line-height:1.45;height:240px;overflow-y:auto;white-space:pre-wrap;word-break:break-all;margin-top:6px"></pre>
+      <div id="secEventsBox"></div>
       <div class="row" style="margin-top:6px;gap:8px">
         <input id="consoleInput" class="w" placeholder="Comandă consolă (ex: help, status, zones, boiler, dtc, tpi)...">
         <button type="button" id="consoleSendBtn">Trimite</button>
@@ -1675,6 +1677,7 @@ async function refresh() {
     for (const ep of eps) RAW[ep] = ep === "api/setup/discovered-sensors" ? await api("api/setup/discovered-sensors") : await api(ep);
     Z = RAW["api/zones"]; B = RAW["api/ble/sensors"].sensors; ST = RAW["api/boiler/status"]; D = RAW["api/diag/status"];
     S = RAW["api/schedule"] || S;
+    $("devBanner").style.display = ST && ST.profile === "dev-open" ? "block" : "none";
     renderHeader(); renderRooms(); renderAlerts();
     if (admin) {
       renderChecks(); renderSetup(); renderSensors();
@@ -2323,7 +2326,7 @@ async function pollConsole() {
   if (!grpDbg || !grpDbg.open) return;
 
   try {
-    const res = await fetch(`/api/console/logs?since=${consoleSeq}`);
+    const res = await fetch(`api/console/logs?since=${consoleSeq}`);
     if (res.ok) {
       const seqHdr = res.headers.get("X-Log-Seq");
       if (seqHdr) consoleSeq = parseInt(seqHdr, 10);
@@ -2342,9 +2345,29 @@ async function pollConsole() {
       }
       if ($("consoleStatus")) $("consoleStatus").textContent = "● Conectat la stream";
     }
+    loadSecEvents();
   } catch (err) {
     if ($("consoleStatus")) $("consoleStatus").textContent = "○ Rețea offline / reconectare...";
   }
+}
+
+let consolePw = null;  // FR-75.5: the password stays in memory, never in the page storage
+
+function postConsole(cmd, pw) {
+  const h = { "Content-Type": "application/x-www-form-urlencoded" };
+  if (pw) h["Authorization"] = "Basic " + btoa("console:" + pw);
+  return fetch("api/console/send", { method: "POST", headers: h, body: `cmd=${encodeURIComponent(cmd)}&since=${consoleSeq}` });
+}
+
+async function loadSecEvents() {
+  const box = $("secEventsBox");
+  if (!box) return;
+  try {
+    const d = await (await fetch("api/security/events")).json();
+    const names = {"login-fail": "autentificare eșuată", "login-ok": "autentificare reușită", "lockout": "blocare", "command": "comandă", "password-change": "parolă schimbată", "factory-reset": "resetare"};
+    box.innerHTML = `<div style="font-weight:600;font-size:12px;margin:8px 0 4px 0">Evenimente de securitate (${d.count}):</div>` +
+      d.events.slice().reverse().slice(0, 20).map(e => `<div class="s" style="color:var(--mut)">${esc(e.time > 1700000000 ? new Date(e.time * 1000).toLocaleString() : "+" + e.time + " s")} · ${esc(names[e.type] || e.type)} · ${esc(e.source)}${e.client ? " · " + esc(e.client) : ""}</div>`).join("");
+  } catch (e) { box.innerHTML = ""; }
 }
 
 async function sendConsoleCmd() {
@@ -2358,11 +2381,22 @@ async function sendConsoleCmd() {
     term.scrollTop = term.scrollHeight;
   }
   try {
-    const res = await fetch("/api/console/cmd", {
-      method: "POST",
-      headers: { "Content-Type": "application/x-www-form-urlencoded" },
-      body: `cmd=${encodeURIComponent(cmd)}&since=${consoleSeq}`
-    });
+    // FR-75.1: HELP and STATUS need no login; any other command asks for the password once (kept in memory only)
+    let res = await postConsole(cmd, null);
+    if (res.status === 401 || res.status === 429) {
+      const msg = res.status === 429 ? "Blocat temporar după încercări greșite." : ((await res.json().catch(() => ({}))).error || "Autentificare necesară");
+      if (res.status === 429 || /no console password/.test(msg)) { if (term) term.textContent += `[${msg}]\n`; return; }
+      const pw = consolePw || window.prompt("Parola consolei (utilizator: console):");
+      if (!pw) { if (term) term.textContent += "[Comandă anulată: fără parolă]\n"; return; }
+      res = await postConsole(cmd, pw);
+      if (res.status === 401) { consolePw = null; if (term) term.textContent += "[Parolă greșită]\n"; return; }
+      consolePw = pw;
+    }
+    if (res.status === 403) {
+      const e = await res.json().catch(() => ({}));
+      if (term) term.textContent += `[${e.error || "refuzat"}: PASSWD <veche> <nouă>]\n`;
+      return;
+    }
     if (res.ok) {
       const seqHdr = res.headers.get("X-Log-Seq");
       if (seqHdr) consoleSeq = parseInt(seqHdr, 10);

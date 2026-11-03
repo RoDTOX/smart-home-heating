@@ -5,6 +5,7 @@
 #include <WiFi.h>
 #include <WebServer.h>
 #include <functional>
+#include "ConsoleAuth.h"
 
 #define TELNET_PORT 23
 #define LOG_BUFFER_SIZE 8192
@@ -25,10 +26,12 @@ public:
     // Web handlers
     void handleApiConsoleLogs();
     void handleApiConsoleSend();
+    void handleApiSecurityEvents();
 
     bool hasTelnetClient();
     void broadcast(const char* str);
-    void executeCommand(const String& cmd);
+    // `src` and `ip` say where the command came from (FR-75, FR-77); Serial needs no login.
+    void executeCommand(const String& cmd, SecSource src = SEC_SERIAL, const uint8_t* ip = nullptr);
     void clear();
     String getLogsSince(uint32_t since);
 
@@ -39,6 +42,8 @@ private:
     CommandCallback _commandHandler;
 
     String _telnetRxBuffer;
+    bool _telnetAuth;
+    uint32_t _telnetConnMs;
     char _logRing[LOG_BUFFER_SIZE];
     size_t _head;
     size_t _count;
@@ -50,6 +55,9 @@ private:
     void printTimestamp();
     void rawWrite(const uint8_t *buffer, size_t size);
     void setupWebRoutes();
+    bool handlePasswd(const String& cmd, SecSource src, const uint8_t* ip);
+    bool httpAuthorized(bool mustChangeBlocks, const String& cmdUpper, bool recordOk = true);
+    void telnetLine(const String& line);
 };
 
 extern NetworkConsole netConsole;

@@ -419,7 +419,7 @@ void importLocation(JsonVariantConst lv, Report& rep) {
     bool changed = strcmp(timeAndWeather.getLocation(), lv.as<const char*>()) != 0;
     if (!timeAndWeather.setLocation(lv.as<const char*>())) { rep.skip("location", "invalid"); return; }
     if (changed) timeAndWeather.forceWeatherUpdate();
-    rep.ok("location", timeAndWeather.getLocation());
+    rep.applied.add("location");  // the coordinates never reach the log (FR-76)
 }
 
 void importLearned(JsonVariantConst dv, Report& rep) {

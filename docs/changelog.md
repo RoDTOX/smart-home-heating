@@ -7,6 +7,12 @@ Entries before 29.10.2026 (the system before the lean clean-up):
 
 
 
+## [03.11.2026] - C-30: console login, security-event log, development and release profiles (FR-75, FR-76, FR-77)
+
+- **Why:** the console, Telnet and the log were open to the whole network, and the log carried the access point password and the house coordinates (C-30, owner 03.11.2026). The owner has no USB cable in the development phase, so two build profiles: `esp32dev` (flag `SH_DEV_OPEN`, console, Telnet and `/update` open, first password settable over the network, banner "DEV - consola deschisă", `/api/status` `"profile":"dev-open"`) and `esp32release` (login enforced). `python tools/sh_process_check.py release` fails while the flag can reach a release (FR-75.6, PB-104: blocker for every sale).
+- **What:** new `ConsoleAuth` (salted SHA-256 hash in NVS, lockout per client address, 50 security events, client shown as a.b.c.x); `NetworkConsole` login on HTTP (Basic, user `console`) and Telnet, `PASSWD` handled before the echo, `/api/console/cmd` removed, `/api/security/events`, the log needs the login on the setup access point only; the access point password and the coordinates no longer reach the log. Safety review fixes: `PASSWD` with a tab, lockout expiry, no eviction of a locked client, no browser login box, a wrong user name counts as a failure, no `login-ok` for the read routes. `/api/status` is now served (same body as `/api/boiler/status`).
+- Not done (rows): PB-105 (password change and factory reset events are not written to NVS, FR-77), PB-106 (a Telnet session stays logged in after a password change).
+
 ## [03.11.2026] - PB-75: Kids and Adults day level back at 23.5
 
 - Owner decision: the day level of Kids and Adults is 23.5 as before the migration (not 22.5 of the export of 02.11.2026). Now on the board (data only): Living 23.5 / 23 / 20, Kids 23.5 / 23 / 20, Adults 23.5 / 23 / 20 (day / night / away); the day moments of both day groups carry the day level, the night moment the night level; mode `constant`, so the target is 23.5 in all rooms again.

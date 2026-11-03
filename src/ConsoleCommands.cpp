@@ -49,6 +49,8 @@ void printHelp() {
   netConsole.print(F(
       "\r\n--- Smart Heating Command Manual ---\r\n"
       "[Heating & Hydraulic Control]\r\n"
+      "  PASSWD <new>          -> Serial only: set the first console password (8 to 63 characters)\r\n"
+      "  PASSWD <old> <new>    -> change the console password (network: login first)\r\n"
       "  ON / OFF              -> Start / Stop gas boiler burner flame via 433.92 MHz RF\r\n"
       "  BOILER RESET RUNTIME  -> Reset flame runtime statistics counter to 0 in NVS\r\n"
       "  AUTO / MANUAL         -> Thermostat automatic control vs manual override\r\n"
@@ -487,7 +489,7 @@ void handleSerialCommand(String cmd) {
         netConsole.println(F("[ERROR] Use LOCATION lat,lon (-90..90, -180..180), unchanged"));
       }
     }
-    netConsole.printf("[LOCATION] %s\n", timeAndWeather.getLocation());
+    netConsole.println(timeAndWeather.getLocation()[0] ? F("[LOCATION] set (not shown)") : F("[LOCATION] not set"));
   } else if (upperCmd == "TIME") {
     netConsole.printf("[TIME] %s, %s %s (Timezone: Europe/Bucharest)\n",
                       timeAndWeather.getDayOfWeek().c_str(),

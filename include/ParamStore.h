@@ -28,6 +28,9 @@ enum class Param : uint8_t {
     GasFlameRate,        // 0.01 m3/h  FR-35.1
     BoilerPowerKw,       // kW      FR-35.1
     GasPrice,            // 0.01 Lei/m3 FR-35.1
+    LoginAttempts,       // failed console logins in a row before the lockout   FR-75.4
+    LoginLockout,        // s       FR-75.4
+    TelnetLoginTimeout,  // s       FR-75.4
     Count
 };
 

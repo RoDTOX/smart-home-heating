@@ -104,9 +104,32 @@ class SuiteBase:
         self.timeout = timeout
         self.results = []
 
-    def notify_esp_console(self, msg):
+    def console_profile(self):
+        """FR-75.6: `profile` of GET /api/status ("dev-open" or "release"); None if unreadable."""
         try:
-            requests.post(f"{self.base_url}/api/console/send", data={"cmd": f"LOG {msg}"}, timeout=2.0)
+            r = requests.get(f"{self.base_url}/api/status", timeout=self.timeout)
+            return r.json().get("profile")
+        except Exception:
+            return None
+
+    def console_auth(self):
+        """C-30 / FR-75.1: HTTP Basic login of the console (user `console`), password only from the
+        environment variable SH_CONSOLE_PASSWORD; None when the variable is not set.
+        FR-75.6: on a dev-open build the console is open, no login is sent (None)."""
+        if self.console_profile() == "dev-open":
+            return None
+        pw = os.environ.get("SH_CONSOLE_PASSWORD")
+        return ("console", pw) if pw else None
+
+    def console_can_run_commands(self):
+        """True when commands other than HELP/STATUS can run: dev-open build, or a password is available."""
+        return self.console_profile() == "dev-open" or bool(os.environ.get("SH_CONSOLE_PASSWORD"))
+
+    def notify_esp_console(self, msg):
+        # Best effort (C-30): LOG needs the login; a 401 without the variable is ignored
+        try:
+            requests.post(f"{self.base_url}/api/console/send", data={"cmd": f"LOG {msg}"},
+                          auth=self.console_auth(), timeout=2.0)
         except Exception:
             pass
 

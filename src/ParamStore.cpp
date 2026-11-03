@@ -40,6 +40,9 @@ static const ParamDef PARAMS[(uint8_t)Param::Count] = {
     P("gasFlameRate", "grate", 0.60f, 0.20f, 2.50f, 100, P_NONE),
     P("boilerPowerKw", "bkw", 24, 10, 45, 1, P_NONE),
     P("gasPrice", "gprice", 3.30f, 1.00f, 10.00f, 100, P_NONE),
+    P("loginAttempts", "lgtry", 5, 3, 10, 1, P_NONE),
+    P("loginLockout", "lglock", 300, 60, 3600, 1, P_NONE),
+    P("telnetLoginTimeout", "tntout", 60, 30, 300, 1, P_NONE),
 };
 
 static const char* STATE_KEYS[(uint8_t)StateKey::Count] = {

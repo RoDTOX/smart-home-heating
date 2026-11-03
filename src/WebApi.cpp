@@ -906,6 +906,11 @@ void handleApiStatus() {
   String json;
   json.reserve(2048);
   json = "{";
+#ifdef SH_DEV_OPEN
+  json += "\"profile\":\"dev-open\",";
+#else
+  json += "\"profile\":\"release\",";
+#endif
   json += "\"firmwareVersion\":\"" + String(APP_VERSION) + "\",";
   json += "\"buildDate\":\"" + String(APP_BUILD_DATE " " APP_BUILD_TIME) + "\",";
   json += "\"gitCommit\":\"" + String(APP_GIT_COMMIT) + "\",";
@@ -1368,8 +1373,8 @@ void handleApiRelayTest() {
 }
 
 void registerWebRoutes() {
-  static const char* headerKeys[] = {"Content-Type"};  // FR-65.7
-  server.collectHeaders(headerKeys, 1);
+  static const char* headerKeys[] = {"Content-Type", "Authorization"};  // FR-65.7, FR-75.1
+  server.collectHeaders(headerKeys, 2);
   // Web Server routes
   server.on("/", HTTP_GET, handleRoot);
   server.on("/api/setup/location", handleApiSetupLocation);
@@ -1387,6 +1392,7 @@ void registerWebRoutes() {
   server.on("/api/boiler/gas-meter", HTTP_POST, handleApiBoilerGasMeter);
   server.on("/api/boiler/gas-readings", HTTP_GET, handleApiGasReadings);
   server.on("/api/boiler/status", HTTP_GET, handleApiStatus);
+  server.on("/api/status", HTTP_GET, handleApiStatus);
   server.on("/api/zones", HTTP_GET, handleApiZones);
   server.on("/api/zones/setpoint", HTTP_POST, handleApiZoneSetpoint);
   server.on("/api/zones/toggle", HTTP_POST, handleApiZoneToggle);

@@ -4,6 +4,7 @@
 #include "Config.h"
 #include "DiagnosticEngine.h"
 #include "NetworkConsole.h"
+#include "ConsoleAuth.h"
 #include "ThermalZoneManager.h"
 #include "TelemetryHistoryManager.h"
 #include "TimeAndWeatherService.h"
@@ -119,8 +120,7 @@ void setupWifi() {
     softApActive = true;
     _wifiWasConnected = false;
     _wifiDisconnectMs = millis();
-    Serial.printf("[WiFi] AP active: '%s', Password: '%s', IP: %s\n", AP_SSID,
-                  AP_PASS, WiFi.softAPIP().toString().c_str());
+    Serial.printf("[WiFi] AP active: '%s', IP: %s\n", AP_SSID, WiFi.softAPIP().toString().c_str());
   }
 }
 
@@ -186,6 +186,7 @@ void setup() {
 
   // Initialize 2-Way Network Console (Telnet :23 and /api/console)
   netConsole.begin(&server);
+  consoleAuth.begin();
   netConsole.setCommandHandler(handleSerialCommand);
 
   // Initialize Time & NTP Service
@@ -241,7 +242,11 @@ void setup() {
   });
 
   // Enable Web OTA on /update (admin / admin123)
+#ifdef SH_DEV_OPEN
+  httpUpdater.setup(&server, "/update");  // FR-75.6: development profile, /update open
+#else
   httpUpdater.setup(&server, "/update", OTA_USER, OTA_PASS);
+#endif
   server.begin();
 
   printBootBannerAndSelfTest();

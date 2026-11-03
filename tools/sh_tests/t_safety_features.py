@@ -361,17 +361,22 @@ class SafetyFeatureTests:
                 pass
 
     def test_tc27_5_console_command_and_clear_invariant(self):
-        """SWE.5-TC27.5: Bidirectional Web Wi-Fi Console Execution & Clear Invariant (FR-45)"""
+        """SWE.5-TC27.5: Bidirectional Web Wi-Fi Console Execution & Clear Invariant (FR-45)
+        C-30 / FR-75.1: CLEAR needs the login (user console, SH_CONSOLE_PASSWORD); SKIP without it."""
         test_id = "SWE.5-TC27.5"
         name = "Console Execution & Clear Invariant"
         req = "FR-45"
         start = time.time()
+        if not self.console_can_run_commands():  # FR-75.6: no password needed on a dev-open build
+            return TestResult(test_id, name, req, "SKIP", 0.0,
+                              "SH_CONSOLE_PASSWORD not set: CLEAR needs the console login (FR-75.1)")
         try:
             r_cmd = requests.post(f"{self.base_url}/api/console/send?cmd=STATUS", timeout=self.timeout)
             assert r_cmd.status_code == 200, f"Console send STATUS failed: {r_cmd.status_code}"
             assert "STATUS" in r_cmd.text, "Response missing STATUS echo"
 
-            r_clr = requests.post(f"{self.base_url}/api/console/send?cmd=CLEAR", timeout=self.timeout)
+            r_clr = requests.post(f"{self.base_url}/api/console/send?cmd=CLEAR", auth=self.console_auth(),
+                                  timeout=self.timeout)
             assert r_clr.status_code == 200, f"Console send CLEAR failed: {r_clr.status_code}"
 
             r_logs = requests.get(f"{self.base_url}/api/console/logs?since=0", timeout=self.timeout)
