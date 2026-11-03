@@ -7,6 +7,12 @@ Entries before 29.10.2026 (the system before the lean clean-up):
 
 
 
+## [03.11.2026] - PB-75: the owner's day / night levels put back on the board (data only)
+
+- **Why:** the migration to the moments replaced the owner's levels by factory values (PB-75). Owner's levels of 02.11.2026 (export ce8a58b): Living day 23.5 / night 23 / away 20; Kids and Adults day 22.5 / night 23 / away 20.
+- **Done through the existing API, no firmware change:** the day, night and away levels of the three zones; the moments of both day groups follow the old schedule (weekday 06:30 day, 22:30 night; weekend 08:00 day, 23:00 night, with day moments 12:00 and 18:00 between). The mode stays `constant`, so the target is the first moment: Living 23.5, Kids 22.5, Adults 22.5 (before: 23.5 everywhere). Copy of the schedule before the change: `schedule_before_pb75.json` in the side-session notes.
+- **Not fixed (code):** level setters still do not change the target while the moments hold values, and 5.0 C is stored as unset: PB-75 stays open for the single-model change (C-23, PB-92).
+
 ## [03.11.2026] - C-29: measured flow from the board's history (2b44ef9)
 
 - **Why:** the owner will not type past readings; his two readings (2265.304 at 15:39, 2265.996 at 21:59) carry no runtime. **C-28** (correct a reading) was proposed and rejected: the 15:39 time is right.
