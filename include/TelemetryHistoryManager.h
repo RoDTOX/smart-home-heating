@@ -76,6 +76,9 @@ public:
     void gasReadingsForEach(void (*cb)(uint32_t epoch, uint32_t indexMilli, uint32_t runtimeSec, void* ctx), void* ctx) const;
     // Gas of the month of `epoch` from readings: last reading of that month minus last reading of the month before
     bool gasMonthFromReadings(uint32_t epoch, float& m3) const;
+    // Boiler ON seconds between two times from the history (FR-35.1, FR-34): 24 h ring while t1 is under 24 h old,
+    // else the 5 day ring while under 5 days; false when a step of the interval was not recorded or t1 is older.
+    bool boilerOnSeconds(uint32_t t1, uint32_t t2, uint32_t& onSec, bool& fiveDay) const;
     // Measured flow in m3 per boiler ON hour: last 10 intervals of >= 1 h with a rising index, weighted by hours
     bool gasFlowMeasured(float& m3PerHour) const;
 

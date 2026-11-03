@@ -575,7 +575,7 @@ class UiHistoryTests:
         return self._gas_result("SWE.5-TC21.10", "Gas Flow and Boiler Power No Page Input", run)
 
     def test_tc21_11_gas_flow_measured_field(self):
-        """SWE.5-TC21.11: gasMeter.gasFlowMeasured null or number 0.01-5.0 m3/h, matches the readings (FR-35.1)"""
+        """SWE.5-TC21.11: gasMeter.gasFlowMeasured null or number 0.01-5.0 m3/h, matches the readings and the history (FR-35.1, C-29)"""
         def run():
             gm, lst = self._gas_state()
             assert "gasFlowMeasured" in gm, "Missing 'gasFlowMeasured' in gasMeter"
@@ -583,15 +583,18 @@ class UiHistoryTests:
             if v is not None:
                 assert isinstance(v, (int, float)) and not isinstance(v, bool), f"gasFlowMeasured not a number: {v!r}"
                 assert 0.01 <= v <= 5.0, f"gasFlowMeasured {v} outside 0.01-5.0 m3/h"
-            exp = self._gas_expected_flow(lst["readings"])
+            # C-29 (owner, 03.11.2026): a reading without a stored runtime takes the boiler ON time from
+            # the telemetry history, so the expectation is the one of TC21.15 (stored runtimes + history)
+            h24, h5 = self._hist_get("24h"), self._hist_get("5d")
+            exp, used = self._gas_hist_expected(lst["readings"], h24, h5, time.time())
             if exp is None:
-                # no interval with runtime on both ends, >= 1 h ON time and a rise: nothing measured
+                # no qualifying interval: nothing measured
                 assert v is None, f"no qualifying interval, gasFlowMeasured must be null, got {v}"
                 return "PASS note: gasFlowMeasured null (no qualifying interval)"
             assert v is not None, f"qualifying interval exists (flow {exp:.3f}), gasFlowMeasured is null"
-            # tolerance 0.02 m3/h: index has 3 decimals, runtime whole seconds, firmware rounding
-            assert abs(v - exp) <= 0.02, f"gasFlowMeasured {v} != weighted average of last 10 intervals {exp:.3f}"
-            return f"gasFlowMeasured {v} matches readings ({exp:.3f})"
+            # tolerance 0.03 m3/h as in TC21.15: index 3 decimals, history step rounding
+            assert abs(v - exp) <= 0.03, f"gasFlowMeasured {v} != weighted average of last 10 intervals {exp:.3f}"
+            return f"gasFlowMeasured {v} matches readings and history ({exp:.3f})"
         return self._gas_result("SWE.5-TC21.11", "Gas Flow Measured Field", run)
 
     def test_tc21_12_gas_readings_runtime_field(self):
@@ -832,3 +835,129 @@ class UiHistoryTests:
             return TestResult(test_id, name, req, "PASS", latency, "gas figures conditional on gasFlowMeasured, note present")
         except Exception as e:
             return TestResult(test_id, name, req, "FAIL", (time.time() - start) * 1000, str(e))
+
+    # FR-35.1 (C-29): measured flow with the boiler ON time from the telemetry history (FR-34).
+    # READ-ONLY on the live board: GET only, nothing is posted.
+
+    @staticmethod
+    def _eet_offset(epoch):
+        """UTC offset (s) of the time zone of FR-12.1, EET-2EEST,M3.5.0/3,M10.5.0/4: EET = UTC+2, summer time
+        UTC+3 from the last Sunday of March 03:00 local (01:00 UTC) to the last Sunday of October 04:00 local
+        summer time (01:00 UTC). Computed by hand, no zoneinfo needed."""
+        import datetime as _dt
+        y = _dt.datetime.fromtimestamp(epoch, _dt.timezone.utc).year
+
+        def last_sunday_1utc(month):
+            d = _dt.datetime(y, month, 31, 1, 0, tzinfo=_dt.timezone.utc)
+            d -= _dt.timedelta(days=(d.weekday() + 1) % 7)
+            return d.timestamp()
+        return 10800 if last_sunday_1utc(3) <= epoch < last_sunday_1utc(10) else 7200
+
+    def _hist_get(self, rng):
+        r = requests.get(f"{self.base_url}/api/history?range={rng}", timeout=self.timeout)
+        assert r.status_code == 200, f"/api/history?range={rng}: HTTP {r.status_code}"
+        j = r.json()
+        # only recorded steps (flags bit 7) count as a recorded value
+        return {p[0]: p for p in j["points"] if (p[5] & 0x80)}
+
+    def _hist_slot(self, rng, t):
+        if rng == "24h":
+            return int(((t + self._eet_offset(t)) % 86400) // 300)  # local time of day / 300
+        return int(t // 1800) % 240  # floor(epoch / 1800) mod 240
+
+    def _gas_hist_expected(self, readings, h24, h5, now):
+        """Expected gasFlowMeasured by the rule of FR-35.1. Returns (flow or None, used) where used maps
+        (range, slot) -> the point (or None for a gap) of every step the expectation relied on."""
+        ivs, used = [], {}
+        for a, b in zip(readings, readings[1:]):
+            rise = b["index"] - a["index"]
+            ra, rb = a.get("runtimeSec"), b.get("runtimeSec")
+            if ra is not None and rb is not None:
+                dt = rb - ra  # stored runtimes of both readings
+            else:
+                ta, tb = a["time"], b["time"]
+                if tb < ta:
+                    continue
+                if now - ta < 86400 and now - tb < 86400:
+                    rng, hist, step, n_ring, min_on = "24h", h24, 300, 288, 3600
+                elif now - ta < 5 * 86400 and now - tb < 5 * 86400:
+                    rng, hist, step, n_ring, min_on = "5d", h5, 1800, 240, 4 * 3600
+                else:
+                    continue  # a reading older than 5 days: no flow for that interval
+                sa, sb = self._hist_slot(rng, ta), self._hist_slot(rng, tb)
+                n = (sb - sa) % n_ring + 1  # step of the first time to step of the second, both included
+                on, gap = 0, False
+                for k in range(n):
+                    s = (sa + k) % n_ring
+                    p = hist.get(s)
+                    used[(rng, s)] = tuple(p) if p else None
+                    if p is None:
+                        gap = True
+                    elif p[5] & 1:
+                        on += step
+                if gap:
+                    continue  # a gap means no flow for that interval
+                dt = on
+                if dt < min_on:
+                    continue
+            if dt >= 3600 and rise > 0:
+                ivs.append((rise, dt / 3600.0))
+        ivs = ivs[-10:]
+        if not ivs:
+            return None, used
+        return sum(r for r, _ in ivs) / sum(h for _, h in ivs), used
+
+    def test_tc21_15_gas_flow_measured_from_history(self):
+        """SWE.5-TC21.15: gasFlowMeasured equals the flow recomputed from the readings and the telemetry history (FR-35.1, FR-34)"""
+        def run():
+            last = ""
+            for attempt in range(2):
+                gm, lst = self._gas_state()
+                h24, h5 = self._hist_get("24h"), self._hist_get("5d")
+                now = time.time()
+                exp, used = self._gas_hist_expected(lst["readings"], h24, h5, now)
+                v = gm.get("gasFlowMeasured")
+                # second read: the history rolls on, a step used by the expectation may have changed
+                h24b, h5b = self._hist_get("24h"), self._hist_get("5d")
+                changed = any((tuple((h24b if r == "24h" else h5b).get(s) or ()) or None) != p
+                              for (r, s), p in used.items())
+                if exp is None:
+                    ok = v is None  # null exactly when no interval qualifies
+                else:
+                    # tolerance 0.03 m3/h: index 3 decimals, history step rounding (error <= 10 min / 1 h)
+                    ok = v is not None and abs(v - exp) <= 0.03
+                if ok:
+                    return f"gasFlowMeasured {v} matches the recomputed flow {exp}"
+                last = f"gasFlowMeasured {v!r} != recomputed {exp!r} (readings {len(lst['readings'])})"
+                if not changed:
+                    break
+            assert False, last
+        return self._gas_result("SWE.5-TC21.15", "Gas Flow Measured From History", run)
+
+    def test_tc21_16_gas_flow_measured_range(self):
+        """SWE.5-TC21.16: gasFlowMeasured, when not null, is within 0.05 and 3.0 m3/h (FR-35.1)"""
+        def run():
+            gm, _ = self._gas_state()
+            v = gm.get("gasFlowMeasured")
+            if v is None:
+                return "gasFlowMeasured null (nothing to range-check)"
+            assert isinstance(v, (int, float)) and not isinstance(v, bool), f"gasFlowMeasured not a number: {v!r}"
+            assert 0.05 <= v <= 3.0, f"gasFlowMeasured {v} outside 0.05-3.0 m3/h"
+            return f"gasFlowMeasured {v} in range"
+        return self._gas_result("SWE.5-TC21.16", "Gas Flow Measured Range", run)
+
+    def test_tc21_17_gas_today_yesterday_consistent(self):
+        """SWE.5-TC21.17: gasTodayM3 and gasYesterdayM3 are numbers >= 0, today <= 24 h x gasFlowMeasured (FR-35.1)"""
+        def run():
+            gm, _ = self._gas_state()
+            for f in ("gasTodayM3", "gasYesterdayM3"):
+                x = gm.get(f)
+                assert isinstance(x, (int, float)) and not isinstance(x, bool), f"{f} not a number: {x!r}"
+                assert x >= 0, f"{f} negative: {x}"
+            v = gm.get("gasFlowMeasured")
+            if v is not None:
+                # 0.01 m3: rounding of the reported value
+                assert gm["gasTodayM3"] <= 24 * v + 0.01, \
+                    f"gasTodayM3 {gm['gasTodayM3']} above 24 h x gasFlowMeasured {24 * v:.3f}"
+            return f"today {gm['gasTodayM3']}, yesterday {gm['gasYesterdayM3']}, flow {v}"
+        return self._gas_result("SWE.5-TC21.17", "Gas Today Yesterday Consistent", run)

@@ -551,9 +551,37 @@ bool TelemetryHistoryManager::gasMonthFromReadings(uint32_t epoch, float& m3) co
     return true;
 }
 
+bool TelemetryHistoryManager::boilerOnSeconds(uint32_t t1, uint32_t t2, uint32_t& onSec, bool& fiveDay) const {
+    time_t nowT = time(nullptr);
+    if (nowT < 1700000000 || t2 < t1 || t2 > (uint32_t)nowT) return false;
+    uint32_t age1 = (uint32_t)nowT - t1;
+    bool use24 = age1 < 86400UL;
+    if (!use24 && age1 >= 5UL * 86400UL) return false;
+    uint32_t step = use24 ? 300UL : 1800UL;
+    uint32_t on = 0;
+    for (uint32_t tt = t1 - (t1 % step); tt <= t2; tt += step) {
+        uint16_t slot;
+        if (use24) {
+            time_t t = (time_t)tt;
+            struct tm tmv;
+            localtime_r(&t, &tmv);
+            slot = (uint16_t)((tmv.tm_hour * 60 + tmv.tm_min) / 5);
+        } else {
+            slot = (uint16_t)((tt / 1800UL) % TELEMETRY_5D_POINTS);
+        }
+        const TelemetryPoint& pt = use24 ? _ring24h[slot] : _ring5d[slot];
+        if (!(pt.flags & 0x80)) return false;  // a step that was not recorded: the history does not cover the interval
+        if (pt.flags & 0x01) on += step;
+    }
+    onSec = on;
+    fiveDay = !use24;
+    return true;
+}
+
 struct GasFlowCtx {
+    const TelemetryHistoryManager* self;
     bool havePrev;
-    uint32_t prevIdx, prevRt;
+    uint32_t prevEpoch, prevIdx, prevRt;
     uint32_t dIdx[10];  // last 10 qualifying intervals: rise in 1/1000 m3 and boiler ON seconds
     uint32_t dSec[10];
     uint8_t n;
@@ -562,25 +590,33 @@ struct GasFlowCtx {
 bool TelemetryHistoryManager::gasFlowMeasured(float& m3PerHour) const {
     GasFlowCtx c;
     memset(&c, 0, sizeof(c));
-    gasReadingsForEach([](uint32_t, uint32_t idx, uint32_t rt, void* p) {
+    c.self = this;
+    gasReadingsForEach([](uint32_t epoch, uint32_t idx, uint32_t rt, void* p) {
         GasFlowCtx* x = (GasFlowCtx*)p;
-        if (rt != GAS_NO_RUNTIME && x->havePrev && rt >= x->prevRt && idx > x->prevIdx && rt - x->prevRt >= 3600UL) {
-            if (x->n == 10) {
-                memmove(x->dIdx, x->dIdx + 1, 9 * sizeof(uint32_t));
-                memmove(x->dSec, x->dSec + 1, 9 * sizeof(uint32_t));
-                x->n = 9;
+        if (x->havePrev && idx > x->prevIdx) {
+            uint32_t sec = 0;
+            bool ok = false, five = false;
+            if (rt != GAS_NO_RUNTIME && x->prevRt != GAS_NO_RUNTIME) {
+                ok = rt >= x->prevRt;
+                sec = ok ? rt - x->prevRt : 0;
+            } else {
+                ok = x->self->boilerOnSeconds(x->prevEpoch, epoch, sec, five);
             }
-            x->dIdx[x->n] = idx - x->prevIdx;
-            x->dSec[x->n] = rt - x->prevRt;
-            x->n++;
+            if (ok && sec >= (five ? 14400UL : 3600UL)) {
+                if (x->n == 10) {
+                    memmove(x->dIdx, x->dIdx + 1, 9 * sizeof(uint32_t));
+                    memmove(x->dSec, x->dSec + 1, 9 * sizeof(uint32_t));
+                    x->n = 9;
+                }
+                x->dIdx[x->n] = idx - x->prevIdx;
+                x->dSec[x->n] = sec;
+                x->n++;
+            }
         }
-        if (rt != GAS_NO_RUNTIME) {
-            x->havePrev = true;
-            x->prevIdx = idx;
-            x->prevRt = rt;
-        } else {
-            x->havePrev = false;  // an interval needs two readings that both have a runtime
-        }
+        x->havePrev = true;
+        x->prevEpoch = epoch;
+        x->prevIdx = idx;
+        x->prevRt = rt;
     }, &c);
     if (c.n == 0) return false;
     double sumM3 = 0, sumH = 0;
