@@ -7,6 +7,16 @@ Entries before 29.10.2026 (the system before the lean clean-up):
 
 
 
+## [03.11.2026] - Day-group aware schedule highlighting, clear check conditions & active DTC panel (HEAD)
+
+- **Who / when / why:** firmware session (light mode), 03.11.2026; the owner observed that weekend moments were falsely highlighted as active on weekdays (Tuesday) in 5+2 schedule mode; Constant 24/7 mode displayed obsolete moment indices (Activ P2) in the schedule card badge; the FR-10.4 checks table showed confusing raw DTC codes in the rule column; and requested operational status rows for actuators/relays and boiler state alongside a dedicated active DTCs panel with human-readable causes.
+- **Where:**
+  - `src/ThermalZoneManager.cpp`: added `dayOfWeek` index (`0..6`, 0=Sunday) to `/api/schedule` payload.
+  - `web/index.html`: made `renderMomentsTableHtml` day-group aware (`groupIsActive` checks `isWknd` for 5+2 and matching day of week for 7-day tabs); updated schedule card badge to display `Constant 24/7` in constant mode; clarified `CHECK_RO` acceptance rules as explicit operating conditions; added operational checks for boiler (cazan ON/OFF/burn sec/protection) and relays (circuite deschise/închise); added `#dtcSection` with reassurance card when 0 DTCs are active and detailed cause table with `DTC_INFO` when DTCs occur.
+  - `docs/requirements_and_features.md`: updated FR-31, FR-10.2, FR-10.4 to reflect day-group aware highlighting, active DTC panel, and operational checks.
+  - `tools/sh_tests/t_ui_history.py` & `tools/sh_test_system.py`: added ASPICE SWE.5 tests `SWE.5-TC19.12` and `SWE.5-TC19.13`.
+- **Not changed:** hydronic safety limits, burner minimum run/pause, actuator interlock.
+
 ## [03.11.2026] - Clear obsolete report card & clarify schedule level names in import diff (e2536da)
 
 - **Who / when / why:** firmware session (light mode), 03.11.2026; the owner observed that the previous green import result card persisted on screen when clicking export/import or selecting a new file; additionally, schedule level diffs appeared ambiguous/duplicated (e.g. 'Living › Țintă day' vs 'Living › Țintă away') because the schedule context was not explicitly specified.

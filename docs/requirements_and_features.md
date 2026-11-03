@@ -313,7 +313,7 @@ one example:
 
 - **FR-29 (Levels & Moments):** *[now]* {SW; test} Each zone has comfort levels and multi-moment targets (up to 4 configurable daily moments P1..P4: Wake, Leave, Return, Sleep, with user-customizable moment names, plus configurable global Away temperature per zone; 5–30 °C; factory 23 / 21 / 18 °C).
 - **FR-30 (Level storage):** *[now]* {SW; test, inspection} Level and moment temperatures are stored in NVS, written only on change.
-- **FR-31 (Schedule):** *[now]* {SW; test} Multi-moment daily schedule supporting 4 selectable scheduling modes: Constant 24/7 (single setpoint all days), Weekly Unified (L–D identical moments), 5+2 (Weekday Mon–Fri / Weekend Sat–Sun), and 7-day Individual (Mon–Sun each customizable). Up to 8 slots per day HH:MM=level or direct moment targets, kept sorted. Time inputs use 24h format (HH:MM). Bilingual display (English / Romanian, NFR-3.1).
+- **FR-31 (Schedule):** *[now]* {SW; test} Multi-moment daily schedule supporting 4 selectable scheduling modes: Constant 24/7 (single setpoint all days), Weekly Unified (L–D identical moments), 5+2 (Weekday Mon–Fri / Weekend Sat–Sun), and 7-day Individual (Mon–Sun each customizable). Up to 8 slots per day HH:MM=level or direct moment targets, kept sorted. Time inputs use 24h format (HH:MM). Active moment indicator is day-group aware (active moment displayed exclusively for current day group; in Constant 24/7 mode, indicates Constant 24/7 rather than moment index). Bilingual display (English / Romanian, NFR-3.1).
 - **FR-44 (Away):** *[now]* {SW; test} Global away sets every zone's target to its away level and ends boosts; switching away off
   returns to the schedule.
 - **FR-12.1 (Time):** *[now]* {SW; test} Time from NTP with the Romanian time zone (`EET-2EEST,M3.5.0/3,M10.5.0/4`), including
@@ -356,10 +356,10 @@ one example:
 ### 3.8 Diagnostics
 
 - **FR-10.2 (Diagnostic codes):** *[now]* {SW; test} The controller raises the codes listed in §5 and shows active codes in the
-  page and `/api/status`.
+  page and `/api/status`. The web interface provides a dedicated active DTCs panel with code, severity, human-readable cause explanation, and duration, or confirms normal operation when no DTC is active.
 - **FR-10.4 (Basic self-test):** *[now]* {SW; test} `/api/diag/status`, `/api/diag/selftest`, console `DIAG` and the
   engineering view report a list of checks, each with its rule, its measured value and the result `OK` / `FAIL`, or
-  `INFO` when the controller cannot verify it. No output is switched; no health score or percentage is reported.
+  `INFO` when the controller cannot verify it. The UI clarifies rules as operating acceptance criteria without ambiguous code prefixes, and supplements checks with operational status for actuators/relays and boiler state. No output is switched; no health score or percentage is reported.
 
   | Check | `OK` when |
   |---|---|

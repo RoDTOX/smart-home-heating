@@ -67,6 +67,7 @@ code,.mono{font:13px/1.35 ui-monospace,SFMono-Regular,Consolas,monospace}
   <section>
     <h2>Verificări (FR-10.4)</h2>
     <div class="scroll"><table id="checks"></table></div>
+    <div id="dtcSection"></div>
   </section>
   <section>
     <h2>Zone – punere în funcțiune (FR-11.3)</h2>
@@ -310,10 +311,25 @@ const LEVELS = ["day", "night", "away"], LEVEL_RO = {day: "zi", night: "noapte",
 const STATE_RO = {FROST: "Protecție îngheț", DISABLED: "Zonă oprită", FAULT: "Senzor pierdut – încălzește de rezervă",
   ACQUIRING: "Așteaptă senzorul", WINDOW: "Fereastră deschisă", HEATING: "Încălzește", IDLE: "Temperatură atinsă"};
 // FR-10.4: check id -> rule in words
-const CHECK_RO = {wifi: "Wi-Fi conectat și semnal ≥ −82 dBm (DTC-401)", heap: "memorie liberă ≥ 60 KB (DTC-402)",
-  ble: "scanarea Bluetooth rulează", sensors: "fiecare zonă pornită are citire în sensorTimeout (DTC-101); INFO cât nu e nicio zonă pornită",
-  time: "ora sincronizată", weather: "temperatura de afară nu e mai veche de 6 h (FR-9)",
-  radio: "INFO: radioul nu are canal de întoarcere, reacția centralei nu se poate verifica"};
+const CHECK_RO = {
+  wifi: "Condiție: semnal Wi-Fi optim (prag minim ≥ -82 dBm)",
+  heap: "Condiție: memorie RAM liberă suficientă (prag minim ≥ 60 KB)",
+  ble: "Condiție: scanare pasivă Bluetooth activă pentru senzori",
+  sensors: "Condiție: fiecare zonă activă primește citiri în sensorTimeout",
+  time: "Condiție: ceas de sistem sincronizat via NTP",
+  weather: "Condiție: prognoză meteo actuală (< 6 ore)",
+  radio: "Canal simplex 433 MHz (fără canal de retur din cazan)"
+};
+// FR-10.2: DTC code -> friendly title & cause
+const DTC_INFO = {
+  "101": {title: "Senzor pierdut", cause: "Nicio citire în sensorTimeout. Zona a trecut pe încălzire de siguranță (fallback duty)."},
+  "102": {title: "Baterie descărcată", cause: "Nivel baterie senzor sub 20%. Înlocuiți bateria CR2032."},
+  "103": {title: "Citire coruptă", cause: "Temperatura sau umiditatea citită depășește limitele plauzibile."},
+  "201": {title: "Ciclare rapidă cazan", cause: "Comenzi de comutare prea frecvente. A intervenit protecția anti-short-cycling."},
+  "301": {title: "Duty învățat resetat", cause: "Valoarea istorică de încălzire a depășit limitele și a fost reinițializată."},
+  "401": {title: "Semnal Wi-Fi slab", cause: "Semnalul Wi-Fi a scăzut sub -82 dBm sau conexiunea a fost pierdută temporar."},
+  "402": {title: "Memorie liberă redusă", cause: "Memoria RAM liberă a scăzut temporar sub 60 KB."}
+};
 const RELAYS = [[32, "Releu 1 (GPIO32)"], [33, "Releu 2 (GPIO33)"], [25, "Releu 3 (GPIO25)"], [26, "Releu 4 (GPIO26)"]];
 const DOC = JSON.parse(document.getElementById("doc").textContent);
 const $ = id => document.getElementById(id);
@@ -427,8 +443,68 @@ function renderAlerts() {
 const busy = id => $(id).contains(document.activeElement);
 
 function renderChecks() {
-  $("checks").innerHTML = "<tr><th>Verificare</th><th>Rezultat</th><th>Valoare</th><th>Regula</th></tr>" + (D && D.checks || []).map(c =>
+  let rows = (D && D.checks || []).map(c =>
     `<tr><td><code>${esc(c.id)}</code></td><td class="${esc(c.result)}">${esc(c.result)}</td><td>${esc(c.value)}</td><td>${esc(CHECK_RO[c.id] || c.rule)}</td></tr>`).join("");
+
+  if (Z) {
+    const bOn = Z.boiler === "ON";
+    const bBurn = (Z.boilerRuntime && Z.boilerRuntime.currentBurnSec) ? `${Z.boilerRuntime.currentBurnSec} s` : "";
+    let bVal = bOn ? `PORNITĂ 🔥${bBurn ? ' (' + bBurn + ')' : ''}` : "OPRITĂ";
+    if (!bOn && Z.pendingAction && Z.pendingAction !== "NONE") {
+      bVal = `Așteaptă: ${Z.pendingAction} (${Z.pendingWaitSec || 0}s)`;
+    } else if (!bOn && Z.boilerCooldownSec > 0) {
+      bVal = `Pauză protecție (${Z.boilerCooldownSec}s)`;
+    }
+    rows += `<tr><td><code>boiler</code></td><td class="OK">OK</td><td>${esc(bVal)}</td><td>Comandă cazan (interlock actuator și protecție anti-ciclare scurtă)</td></tr>`;
+
+    const openZones = (Z.zones || []).filter(z => z.relayEngaged);
+    const openCount = openZones.length;
+    const totalCount = (Z.zones || []).length;
+    const openNames = openZones.map(z => z.name).join(", ");
+    const rVal = `${openCount}/${totalCount} deschiși ${openCount > 0 ? '(' + openNames + ')' : '(toate oprite)'}`;
+    rows += `<tr><td><code>relee</code></td><td class="OK">OK</td><td>${esc(rVal)}</td><td>Comandă actuatoare circuite (robineți NC pe relee)</td></tr>`;
+  }
+
+  $("checks").innerHTML = "<tr><th>Verificare</th><th>Rezultat</th><th>Valoare</th><th>Regulă</th></tr>" + rows;
+
+  const dtcBox = $("dtcSection");
+  if (dtcBox) {
+    const dtcs = (D && D.dtcs) || [];
+    if (dtcs.length === 0) {
+      dtcBox.innerHTML = `
+        <div style="margin-top:10px;padding:8px 12px;background:rgba(46,160,67,0.1);border:1px solid rgba(46,160,67,0.3);border-radius:6px;display:flex;align-items:center;gap:10px">
+          <span style="font-size:18px">✅</span>
+          <div>
+            <div style="font-weight:600;color:var(--ok)">Niciun cod de eroare activ (DTC)</div>
+            <div class="s" style="color:var(--mut)">Toate subsistemele (rețea, senzori BLE, memorie, logică hidraulică) funcționează în parametri normali.</div>
+          </div>
+        </div>`;
+    } else {
+      const formatAge = s => s < 60 ? `${s}s în urmă` : s < 3600 ? `${Math.floor(s/60)}m în urmă` : `${Math.floor(s/3600)}h în urmă`;
+      let tbl = `<div style="margin-top:10px;padding:10px 12px;background:rgba(248,81,73,0.1);border:1px solid rgba(248,81,73,0.3);border-radius:6px">
+        <div style="font-weight:600;color:var(--err);margin-bottom:8px;display:flex;align-items:center;gap:6px">
+          <span>⚠️</span> Coduri de eroare active (${dtcs.length}):
+        </div>
+        <div class="scroll"><table style="width:100%">
+          <thead><tr><th>Cod</th><th>Severitate</th><th>Descriere &amp; Cauză</th><th>Vechime</th><th>Apariții</th></tr></thead>
+          <tbody>`;
+      dtcs.forEach(d => {
+        const cleanCode = String(d.code).replace("DTC-", "");
+        const info = DTC_INFO[cleanCode];
+        const causeText = info ? `<div class="s" style="color:var(--mut);margin-top:2px">${esc(info.cause)}</div>` : "";
+        const titleText = info ? `<b>${esc(info.title)}:</b> ` : "";
+        tbl += `<tr>
+          <td><code style="font-weight:bold">${esc(d.code)}</code></td>
+          <td class="${d.severity === 'ERROR' ? 'FAIL' : 'INFO'}">${esc(d.severity)}</td>
+          <td>${titleText}${esc(d.message)}${causeText}</td>
+          <td>${formatAge(d.ageSec || 0)}</td>
+          <td>${d.count || 1}x</td>
+        </tr>`;
+      });
+      tbl += `</tbody></table></div></div>`;
+      dtcBox.innerHTML = tbl;
+    }
+  }
 }
 
 function renderSetup() {
@@ -551,8 +627,21 @@ function renderMomentsTableHtml(moments, groupTag, extraActions = "") {
   zones.forEach(z => { h += `<th>${esc(z.name)}</th>`; });
   h += `</tr></thead><tbody>`;
 
+  const curDow = (S && typeof S.dayOfWeek === "number") ? S.dayOfWeek : new Date().getDay();
+  const isWknd = (S && typeof S.isWeekend === "boolean") ? S.isWeekend : (curDow === 0 || curDow === 6);
+  let groupIsActive = false;
+  if (S && S.enabled && (!schedState || schedState.mode !== "constant")) {
+    if (groupTag === "unified") groupIsActive = true;
+    else if (groupTag === "wd") groupIsActive = !isWknd;
+    else if (groupTag === "we") groupIsActive = isWknd;
+    else if (groupTag && groupTag.startsWith("d")) {
+      const tagDow = parseInt(groupTag.substring(1), 10);
+      groupIsActive = (tagDow === curDow);
+    }
+  }
+
   moments.forEach((m, idx) => {
-    const isAct = (S && S.activeMoment === (idx + 1));
+    const isAct = groupIsActive && (S && S.activeMoment === (idx + 1));
     const actMark = isAct
       ? `<span style="color:var(--ok);font-size:13px;width:14px;display:inline-block;text-align:center" title="Moment activ acum">●</span>`
       : `<span style="color:var(--mut);opacity:0.4;font-size:13px;width:14px;display:inline-block;text-align:center" title="Moment inactiv">○</span>`;
@@ -587,10 +676,20 @@ function renderSchedule() {
   $("schedOn").checked = schedState.enabled;
 
   if ($("schedActiveBadge")) {
-    const actM = S.activeMoment ? `P${S.activeMoment}` : "";
-    $("schedActiveBadge").innerHTML = S.enabled
-      ? `<span class="OK">● Activ</span> ${actM ? `(${actM})` : ''}`
-      : `<span class="INFO">○ Oprit</span>`;
+    const isConst = (schedState && schedState.mode === "constant") || (S && S.scheduleMode === "constant");
+    const isAway = (S && S.away) || (Z && Z.away);
+    let badgeText = "";
+    if (!S || !S.enabled) {
+      badgeText = `<span class="INFO">○ Oprit</span>`;
+    } else if (isAway) {
+      badgeText = `<span class="INFO">● Activ (Mod Plecat)</span>`;
+    } else if (isConst) {
+      badgeText = `<span class="OK">● Activ (Constant 24/7)</span>`;
+    } else {
+      const actM = S.activeMoment ? `P${S.activeMoment}` : "";
+      badgeText = `<span class="OK">● Activ</span> ${actM ? `(${actM})` : ''}`;
+    }
+    $("schedActiveBadge").innerHTML = badgeText;
   }
 
   document.querySelectorAll(".sched-mode-btn").forEach(btn => {

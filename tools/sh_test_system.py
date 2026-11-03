@@ -119,6 +119,9 @@ class SystemTestSuite(SuiteBase, HealthTests, HydraulicsTests, ControlTests, UiH
             self.test_tc19_8_zone_state_codes,
             self.test_tc19_9_engineering_view_covers_api,
             self.test_tc19_10_commissioning_rules,
+            self.test_tc19_11_zone_card_direct_setpoint_steppers,
+            self.test_tc19_12_schedule_active_moment_day_group_aware,
+            self.test_tc19_13_diagnostics_active_dtc_panel_and_operational_checks,
             # Group 20: LittleFS Flash Telemetry History Buffer (FR-34)
             self.test_tc20_1_history_schema_24h,
             self.test_tc20_2_history_schema_5d,

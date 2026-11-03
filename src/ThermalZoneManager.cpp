@@ -1179,6 +1179,7 @@ String ThermalZoneManager::getScheduleJson() const {
     json += "\"minsToNextSlot\":" + String(_minsToNextSlot) + ",";
     json += "\"preHeatActive\":" + String(_preHeatActive ? "true" : "false") + ",";
     json += "\"isWeekend\":" + String(timeAndWeather.isWeekend() ? "true" : "false") + ",";
+    json += "\"dayOfWeek\":" + String(timeAndWeather.getDayOfWeekIndex()) + ",";
     json += "\"weekday\":\"" + getSlotsString(false) + "\",";
     json += "\"weekend\":\"" + getSlotsString(true) + "\",";
     json += "\"openLoopBypass\":" + String(_openLoopBypass ? "true" : "false") + ",";

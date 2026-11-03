@@ -388,3 +388,52 @@ class UiHistoryTests:
                               "served page has direct vertical setpoint steppers on room cards with room-main quick-view")
         except Exception as e:
             return TestResult(test_id, name, req, "FAIL", (time.time() - start) * 1000, str(e))
+
+    def test_tc19_12_schedule_active_moment_day_group_aware(self):
+        """SWE.5-TC19.12: Schedule Active Moment Day-Group Aware (FR-31)"""
+        test_id = "SWE.5-TC19.12"
+        name = "Schedule Active Moment Day-Group Aware"
+        req = "FR-31"
+        start = time.time()
+        try:
+            r_sched = requests.get(f"{self.base_url}/api/schedule", timeout=self.timeout)
+            assert r_sched.status_code == 200, f"/api/schedule: HTTP {r_sched.status_code}"
+            sj = r_sched.json()
+            assert "isWeekend" in sj, "Missing isWeekend in /api/schedule"
+            assert "dayOfWeek" in sj, "Missing dayOfWeek in /api/schedule"
+
+            r = requests.get(f"{self.base_url}/", timeout=self.timeout)
+            latency = (time.time() - start) * 1000
+            assert r.status_code == 200, f"page: HTTP {r.status_code}"
+            html = r.text
+            assert "groupIsActive" in html, "renderMomentsTableHtml must compute groupIsActive"
+            assert "tagDow === curDow" in html, "7-day mode must match tab DOW to current DOW"
+            assert "!isWknd" in html and "isWknd" in html, "5+2 mode must separate weekday vs weekend active groups"
+            assert "Constant 24/7" in html, "Schedule badge must display Constant 24/7 mode text"
+
+            return TestResult(test_id, name, req, "PASS", latency,
+                              f"dayOfWeek={sj['dayOfWeek']}, isWeekend={sj['isWeekend']}, day-group filtering present in UI")
+        except Exception as e:
+            return TestResult(test_id, name, req, "FAIL", (time.time() - start) * 1000, str(e))
+
+    def test_tc19_13_diagnostics_active_dtc_panel_and_operational_checks(self):
+        """SWE.5-TC19.13: Diagnostics Active DTC Panel and Operational Checks (FR-10.2, FR-10.4)"""
+        test_id = "SWE.5-TC19.13"
+        name = "Diagnostics DTC Panel & Operational Checks"
+        req = "FR-10.2, FR-10.4"
+        start = time.time()
+        try:
+            r = requests.get(f"{self.base_url}/", timeout=self.timeout)
+            latency = (time.time() - start) * 1000
+            assert r.status_code == 200, f"page: HTTP {r.status_code}"
+            html = r.text
+            assert 'id="dtcSection"' in html, "Missing #dtcSection container in page"
+            assert 'DTC_INFO' in html, "Missing DTC_INFO dictionary in page"
+            assert '<code>boiler</code>' in html, "Missing boiler check row in renderChecks"
+            assert '<code>relee</code>' in html, "Missing relays check row in renderChecks"
+            assert 'Condiție: semnal Wi-Fi optim' in html, "Wi-Fi check rule must formulate clear condition"
+
+            return TestResult(test_id, name, req, "PASS", latency,
+                              "served page has #dtcSection, clear acceptance conditions, and operational checks for boiler/relays")
+        except Exception as e:
+            return TestResult(test_id, name, req, "FAIL", (time.time() - start) * 1000, str(e))
