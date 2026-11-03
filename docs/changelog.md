@@ -7,7 +7,21 @@ Entries before 29.10.2026 (the system before the lean clean-up):
 
 
 
-## [03.11.2026] - Always show runtime badge on all room cards (0m fallback) (HEAD)
+## [03.11.2026] - Fix 5d vs 3d telemetry timeline scaling & remove door emojis (HEAD)
+
+- **Who / when / why:** firmware session (light mode), 03.11.2026; the owner observed that door emojis rendered as brown bricks next to room names on the activity chart, and that the 5-day chart looked identical to the 3-day chart.
+- **Where:**
+  - web/index.html:
+    - Removed `🚪` emoji from zone activity lane labels in SVG, leaving clean, clear text names (Living, Kids, Adults).
+    - Fixed time-window scaling: anchored time scale to `Acum` and computed point positions using `slotsAgo / totalWindowSlots`. Because the system has currently accumulated ~3 days (143 samples) of history, the 5-day view now realistically positions those 3 days in the right 60% of the chart, leaving the unrecorded 2 days on the left with an empty grid, rather than artificially stretching 3 days across 5 days.
+    - Updated summary text with collected hours: e.g. `5 Zile (143 eșantioane · ~72h înregistrate)`.
+  - include/TelemetryHistoryManager.h & src/TelemetryHistoryManager.cpp:
+    - Indexed `_ring5d` directly by deterministic half-hour slot `(now / 1800UL) % 240`, matching the absolute slot architecture of `_ring24h`.
+    - Eliminated unpersisted head pointer `_head5d`, ensuring that 5d history remains perfectly continuous and ordered across reboots.
+    - Exported `currentSlot: _currentSlot5d` in `api/history?range=5d`.
+- **Not changed:** hydronic safety limits, burner minimum run/pause, actuator interlock.
+
+## [03.11.2026] - Always show runtime badge on all room cards (0m fallback) (cd2f704)
 
 - **Who / when / why:** firmware session (light mode), 03.11.2026; the owner observed that room cards without heating runtime today (such as Kids) completely omitted the runtime line, causing visual misalignment and asymmetry across zone cards.
 - **Where:**

@@ -13,7 +13,7 @@ TelemetryHistoryManager telemetryHistory;
 
 TelemetryHistoryManager::TelemetryHistoryManager()
     : _fsMounted(false),
-      _head5d(0),
+      _currentSlot5d(0),
       _currentSlot24h(0),
       _lastSampleMs(0),
       _lastSampleEpoch(0),
@@ -90,7 +90,6 @@ void TelemetryHistoryManager::saveToFlash() {
 void TelemetryHistoryManager::clearHistory() {
     memset(_ring24h, 0, sizeof(_ring24h));
     memset(_ring5d, 0, sizeof(_ring5d));
-    _head5d = 0;
     _dirty24h = true;
     _dirty5d = true;
     saveToFlash();
@@ -115,16 +114,17 @@ void TelemetryHistoryManager::captureSample() {
         struct tm tmInfo;
         localtime_r(&now, &tmInfo);
         slot5m = (tmInfo.tm_hour * 60 + tmInfo.tm_min) / 5;
-        slot30m = (tmInfo.tm_hour * 60 + tmInfo.tm_min) / 30;
+        slot30m = (uint8_t)((now / 1800UL) % TELEMETRY_5D_POINTS);
         _lastSampleEpoch = (uint32_t)now;
     } else {
         // Fallback to uptime-based slot
         slot5m = (uint16_t)((millis() / 300000UL) % TELEMETRY_24H_POINTS);
-        slot30m = (uint8_t)((millis() / 1800000UL) % 48);
+        slot30m = (uint8_t)((millis() / 1800000UL) % TELEMETRY_5D_POINTS);
         _lastSampleEpoch = (uint32_t)(millis() / 1000);
     }
 
     _currentSlot24h = slot5m;
+    _currentSlot5d = slot30m;
 
     // Build sample point
     TelemetryPoint p;
@@ -162,10 +162,9 @@ void TelemetryHistoryManager::captureSample() {
     _dirty24h = true;
     _lastRecorded5mSlot = slot5m;
 
-    // 2. Store into 5d buffer on 30m boundary
+    // 2. Store into 5d slot
     if (slot30m != _lastRecorded30mSlot) {
-        _ring5d[_head5d] = p;
-        _head5d = (_head5d + 1) % TELEMETRY_5D_POINTS;
+        _ring5d[slot30m] = p;
         _dirty5d = true;
         _lastRecorded30mSlot = slot30m;
     }
@@ -200,6 +199,7 @@ String TelemetryHistoryManager::getHistoryJson(const String& range) {
     bool is5d = (range == "5d");
     size_t count = is5d ? TELEMETRY_5D_POINTS : TELEMETRY_24H_POINTS;
     uint32_t stepSec = is5d ? 1800 : 300;
+    uint16_t curSlot = is5d ? _currentSlot5d : _currentSlot24h;
 
     String json;
     json.reserve(is5d ? 3500 : 4500);
@@ -209,46 +209,24 @@ String TelemetryHistoryManager::getHistoryJson(const String& range) {
     json += "\",\"stepSec\":";
     json += String(stepSec);
     json += ",\"currentSlot\":";
-    json += String(_currentSlot24h);
+    json += String(curSlot);
     json += ",\"points\":[";
 
     size_t written = 0;
+    for (size_t i = 0; i < count; i++) {
+        const TelemetryPoint& pt = is5d ? _ring5d[i] : _ring24h[i];
+        if (!(pt.flags & 0x80)) continue; // Skip invalid
 
-    if (is5d) {
-        // Output rolling 5d points in chronological order starting from _head5d
-        for (size_t i = 0; i < count; i++) {
-            size_t idx = (_head5d + i) % TELEMETRY_5D_POINTS;
-            const TelemetryPoint& pt = _ring5d[idx];
-            if (!(pt.flags & 0x80)) continue; // Skip invalid
-
-            if (written > 0) json += ",";
-            json += "[";
-            json += String(i) + ",";
-            json += (pt.z1_temp == -999 ? "null" : String((float)pt.z1_temp / 10.0f, 1)) + ",";
-            json += (pt.z2_temp == -999 ? "null" : String((float)pt.z2_temp / 10.0f, 1)) + ",";
-            json += (pt.z3_temp == -999 ? "null" : String((float)pt.z3_temp / 10.0f, 1)) + ",";
-            json += (pt.out_temp == -999 ? "null" : String((float)pt.out_temp / 10.0f, 1)) + ",";
-            json += String(pt.flags);
-            json += "]";
-            written++;
-        }
-    } else {
-        // Output 24h slots 0 .. 287
-        for (size_t i = 0; i < count; i++) {
-            const TelemetryPoint& pt = _ring24h[i];
-            if (!(pt.flags & 0x80)) continue; // Skip invalid
-
-            if (written > 0) json += ",";
-            json += "[";
-            json += String(i) + ",";
-            json += (pt.z1_temp == -999 ? "null" : String((float)pt.z1_temp / 10.0f, 1)) + ",";
-            json += (pt.z2_temp == -999 ? "null" : String((float)pt.z2_temp / 10.0f, 1)) + ",";
-            json += (pt.z3_temp == -999 ? "null" : String((float)pt.z3_temp / 10.0f, 1)) + ",";
-            json += (pt.out_temp == -999 ? "null" : String((float)pt.out_temp / 10.0f, 1)) + ",";
-            json += String(pt.flags);
-            json += "]";
-            written++;
-        }
+        if (written > 0) json += ",";
+        json += "[";
+        json += String(i) + ",";
+        json += (pt.z1_temp == -999 ? "null" : String((float)pt.z1_temp / 10.0f, 1)) + ",";
+        json += (pt.z2_temp == -999 ? "null" : String((float)pt.z2_temp / 10.0f, 1)) + ",";
+        json += (pt.z3_temp == -999 ? "null" : String((float)pt.z3_temp / 10.0f, 1)) + ",";
+        json += (pt.out_temp == -999 ? "null" : String((float)pt.out_temp / 10.0f, 1)) + ",";
+        json += String(pt.flags);
+        json += "]";
+        written++;
     }
 
     json += "]}";

@@ -48,12 +48,13 @@ public:
     bool isFsMounted() const { return _fsMounted; }
     uint32_t getLastSampleTime() const { return _lastSampleEpoch; }
     uint16_t getCurrentSlot24h() const { return _currentSlot24h; }
+    uint8_t  getCurrentSlot5d() const { return _currentSlot5d; }
 
 private:
     bool _fsMounted;
     TelemetryPoint _ring24h[TELEMETRY_24H_POINTS];
     TelemetryPoint _ring5d[TELEMETRY_5D_POINTS];
-    uint16_t _head5d;
+    uint8_t  _currentSlot5d;
     uint16_t _currentSlot24h;
     uint32_t _lastSampleMs;
     uint32_t _lastSampleEpoch;

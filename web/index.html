@@ -638,25 +638,29 @@ function renderHistoryChart() {
     return;
   }
 
-  // Chronological reordering: eliminate yesterday-today jump/crossover line
-  let pts = [];
-  if (!isMultiDay) {
-    const cur = (data.currentSlot !== undefined) ? data.currentSlot : 0;
-    const allPts = data.points || [];
-    const slotMap = {};
-    allPts.forEach(p => slotMap[p[0]] = p);
-    const ordered = [];
-    for (let i = 1; i <= 288; i++) {
-      const s = (cur + i) % 288;
-      if (slotMap[s]) ordered.push(slotMap[s]);
+  const cur = (data.currentSlot !== undefined) ? data.currentSlot : 0;
+  const slotCapacity = isMultiDay ? 240 : 288;
+  const totalWindowSlots = (selectedHistRange === "12h") ? 144
+    : (selectedHistRange === "24h") ? 288
+    : (selectedHistRange === "3d") ? 144
+    : 240;
+
+  const slotMap = {};
+  (data.points || []).forEach(p => slotMap[p[0]] = p);
+
+  // Chronological reordering: eliminate jump/crossover line & place points at exact historical slot
+  const ordered = [];
+  for (let i = 1; i <= slotCapacity; i++) {
+    const s = (cur + i) % slotCapacity;
+    if (slotMap[s]) {
+      const slotsAgo = slotCapacity - i;
+      if (slotsAgo < totalWindowSlots) {
+        ordered.push({ p: slotMap[s], slotsAgo: slotsAgo });
+      }
     }
-    pts = (selectedHistRange === "12h") ? ordered.slice(-144) : ordered;
-  } else {
-    const allPts = data.points || [];
-    pts = (selectedHistRange === "3d") ? allPts.slice(-144) : allPts;
   }
 
-  if (!pts.length) {
+  if (!ordered.length) {
     container.innerHTML = `<div class="s" style="padding:20px;text-align:center">Date insuficiente pentru ${selectedHistRange}.</div>`;
     return;
   }
@@ -674,7 +678,7 @@ function renderHistoryChart() {
   zones.forEach((z, idx) => {
     const bit = 1 << (idx + 2);
     rowDefs.push({
-      label: "🚪 " + esc(z.name || ("Zona " + (idx + 1))),
+      label: esc(z.name || ("Zona " + (idx + 1))),
       bit: bit,
       color: zoneColors[idx % zoneColors.length]
     });
@@ -682,10 +686,11 @@ function renderHistoryChart() {
 
   const W = 880;
   const x0 = 105, x1 = 850, chartW = x1 - x0;
-  const slotW = chartW / pts.length;
+  const slotW = chartW / totalWindowSlots;
 
   let validTemps = [];
-  pts.forEach(p => {
+  ordered.forEach(item => {
+    const p = item.p;
     for (let k = 1; k <= 3; k++) {
       if (p[k] !== null && p[k] !== undefined && p[k] > 5 && p[k] < 35) validTemps.push(p[k]);
     }
@@ -720,17 +725,18 @@ function renderHistoryChart() {
     svgParts.push(`<line x1="${gx.toFixed(1)}" y1="${topActY}" x2="${gx.toFixed(1)}" y2="${tempBot}" stroke="var(--line)" stroke-width="1" stroke-dasharray="2,2" />`);
     
     // Label
-    const ptIdx = Math.min(pts.length - 1, Math.floor(frac * pts.length));
     let lbl = "";
     if (m === timeStepMarks) {
       lbl = "Acum";
     } else if (!isMultiDay) {
-      const slot = pts[ptIdx][0];
-      const hh = String(Math.floor((slot * 5) / 60)).padStart(2, "0");
-      const mm = String((slot * 5) % 60).padStart(2, "0");
+      const hoursAgo = (1 - frac) * (selectedHistRange === "12h" ? 12 : 24);
+      const curTotalMin = (cur * 5);
+      const markMin = (curTotalMin - Math.round(hoursAgo * 60) + 1440 * 2) % 1440;
+      const hh = String(Math.floor(markMin / 60)).padStart(2, "0");
+      const mm = String(markMin % 60).padStart(2, "0");
       lbl = `${hh}:${mm}`;
     } else {
-      const hAgo = Math.round((timeStepMarks - m) * (selectedHistRange === "3d" ? 12 : 24));
+      const hAgo = Math.round((1 - frac) * (selectedHistRange === "3d" ? 72 : 120));
       lbl = `-${hAgo}h`;
     }
     svgParts.push(`<text x="${gx.toFixed(1)}" y="${totalH - 12}" font-size="11" fill="var(--mut)" text-anchor="middle">${lbl}</text>`);
@@ -742,18 +748,13 @@ function renderHistoryChart() {
     svgParts.push(`<text x="${x0 - 8}" y="${(ry + 11).toFixed(1)}" font-size="11" font-weight="600" fill="var(--fg)" text-anchor="end">${r.label}</text>`);
     svgParts.push(`<rect x="${x0}" y="${ry}" width="${chartW}" height="${actRowH}" rx="3" fill="var(--bg)" stroke="var(--line)" />`);
 
-    let startIdx = -1;
-    for (let s = 0; s <= pts.length; s++) {
-      const active = (s < pts.length && pts[s] && (pts[s][5] & r.bit) !== 0);
-      if (active && startIdx === -1) {
-        startIdx = s;
-      } else if (!active && startIdx !== -1) {
-        const segX = x0 + startIdx * slotW;
-        const segW = Math.max(2, (s - startIdx) * slotW);
-        svgParts.push(`<rect x="${segX.toFixed(1)}" y="${ry}" width="${segW.toFixed(1)}" height="${actRowH}" rx="2" fill="${r.color}" />`);
-        startIdx = -1;
+    ordered.forEach(item => {
+      const active = (item.p[5] & r.bit) !== 0;
+      if (active) {
+        const segX = x1 - (item.slotsAgo + 1) * slotW;
+        svgParts.push(`<rect x="${segX.toFixed(1)}" y="${ry}" width="${Math.max(2, slotW).toFixed(1)}" height="${actRowH}" rx="1" fill="${r.color}" />`);
       }
-    }
+    });
   });
 
   // Temperature chart header & legends
@@ -773,9 +774,10 @@ function renderHistoryChart() {
 
   // Outdoor temperature polyline
   const outPts = [];
-  pts.forEach((p, idx) => {
+  ordered.forEach(item => {
+    const p = item.p;
     if (p[4] !== null && p[4] !== undefined) {
-      const px = x0 + idx * slotW;
+      const px = x1 - item.slotsAgo * slotW;
       const py = tempToY(Math.max(minT, Math.min(maxT, p[4])));
       outPts.push(`${px.toFixed(1)},${py.toFixed(1)}`);
     }
@@ -784,13 +786,14 @@ function renderHistoryChart() {
     svgParts.push(`<polyline fill="none" stroke="var(--mut)" stroke-width="1.2" stroke-dasharray="3,3" points="${outPts.join(' ')}" />`);
   }
 
-  // Zone temperature polylines (smooth chronological without crossover)
+  // Zone temperature polylines
   zones.forEach((z, idx) => {
     const k = idx + 1;
     const zPts = [];
-    pts.forEach((p, pidx) => {
+    ordered.forEach(item => {
+      const p = item.p;
       if (p[k] !== null && p[k] !== undefined && p[k] > 0) {
-        const px = x0 + pidx * slotW;
+        const px = x1 - item.slotsAgo * slotW;
         const py = tempToY(p[k]);
         zPts.push(`${px.toFixed(1)},${py.toFixed(1)}`);
       }
@@ -801,7 +804,7 @@ function renderHistoryChart() {
     }
   });
 
-  // Hairline cursor line (following mouse)
+  // Hairline cursor line
   svgParts.push(`<line id="histCursorLine" x1="0" y1="${topActY}" x2="0" y2="${tempBot}" stroke="#facc15" stroke-width="1.5" stroke-dasharray="3,2" style="display:none;pointer-events:none" />`);
 
   // Transparent hover overlay
@@ -817,9 +820,14 @@ function renderHistoryChart() {
     overlay.onmousemove = e => {
       const rect = overlay.getBoundingClientRect();
       const frac = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
-      const ptIdx = Math.min(pts.length - 1, Math.floor(frac * pts.length));
-      const p = pts[ptIdx];
-      if (!p) return;
+      const cursorSlotsAgo = (1 - frac) * totalWindowSlots;
+
+      // Find closest sample in ordered
+      let closest = null, minDiff = 99999;
+      ordered.forEach(item => {
+        const diff = Math.abs(item.slotsAgo - cursorSlotsAgo);
+        if (diff < minDiff) { minDiff = diff; closest = item; }
+      });
 
       const xPos = x0 + frac * chartW;
       if (curLine) {
@@ -828,6 +836,17 @@ function renderHistoryChart() {
         curLine.style.display = "block";
       }
 
+      if (!closest || minDiff > (isMultiDay ? 4 : 6)) {
+        const tipEl = $("histTooltip");
+        if (tipEl) {
+          tipEl.style.display = "block";
+          const hAgo = isMultiDay ? (cursorSlotsAgo * 0.5).toFixed(1) : (cursorSlotsAgo * (5/60)).toFixed(1);
+          tipEl.innerHTML = `<span style="color:var(--mut)">Acum ${hAgo} ore · Nicio înregistrare disponibilă (înainte de pornire sistem)</span>`;
+        }
+        return;
+      }
+
+      const p = closest.p;
       let timeLabel = "";
       if (!isMultiDay) {
         const slot = p[0];
@@ -835,8 +854,7 @@ function renderHistoryChart() {
         const mm = String((slot * 5) % 60).padStart(2, "0");
         timeLabel = `Ora ${hh}:${mm}`;
       } else {
-        const agoSlots = pts.length - 1 - ptIdx;
-        const hAgo = (agoSlots * 0.5).toFixed(1);
+        const hAgo = (closest.slotsAgo * 0.5).toFixed(1);
         timeLabel = `Acum ${hAgo} ore`;
       }
 
@@ -952,7 +970,9 @@ async function loadHistoryChart(force = false) {
       const pts = (j.points || []).length;
       const nowStr = (ST && ST.time) ? ST.time.slice(0, 5) : new Date().toLocaleTimeString().slice(0, 5);
       const rangeText = (selectedHistRange === "12h") ? "12 Ore" : ((selectedHistRange === "24h") ? "24 Ore" : ((selectedHistRange === "3d") ? "3 Zile" : "5 Zile"));
-      summaryEl.textContent = `${rangeText} (${pts} eșantioane) · Actualizat la ${nowStr}`;
+      const isMulti = (selectedHistRange === "3d" || selectedHistRange === "5d");
+      const hRec = isMulti ? (pts * 0.5).toFixed(0) : (pts * 5 / 60).toFixed(0);
+      summaryEl.textContent = `${rangeText} (${pts} eșantioane · ~${hRec}h înregistrate) · Actualizat la ${nowStr}`;
     }
   } catch(e) {
     if (summaryEl) summaryEl.textContent = "Eroare la încărcare: " + e.message;
