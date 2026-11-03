@@ -38,6 +38,8 @@ static const ParamDef PARAMS[(uint8_t)Param::Count] = {
     P("boilerSetTemp", "btset", 40, 25, 60, 1, P_NONE),
     P("boilerFlowObserved", "btflow", 43, 25, 65, 1, P_NONE),
     P("gasFlameRate", "grate", 0.60f, 0.20f, 2.50f, 100, P_NONE),
+    P("boilerPowerKw", "bkw", 24, 10, 45, 1, P_NONE),
+    P("gasPrice", "gprice", 3.30f, 1.00f, 10.00f, 100, P_NONE),
 };
 
 static const char* STATE_KEYS[(uint8_t)StateKey::Count] = {

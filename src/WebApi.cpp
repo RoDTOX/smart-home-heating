@@ -14,6 +14,63 @@
 #include <ArduinoJson.h>
 #include <WebServer.h>
 #include <WiFi.h>
+#include <LittleFS.h>
+
+static const char* FILE_GAS_CALIB = "/gas_calib.json";
+
+static String getGasCalibrationLogJson() {
+  if (LittleFS.exists(FILE_GAS_CALIB)) {
+    File f = LittleFS.open(FILE_GAS_CALIB, "r");
+    if (f) {
+      String s = f.readString();
+      f.close();
+      s.trim();
+      if (s.startsWith("[") && s.endsWith("]")) return s;
+    }
+  }
+  return "[]";
+}
+
+static void logGasCalibration(float index, float deltaM3, uint32_t burnSec, float empiricalRate, int setT, int flowT, int kw) {
+  String existing = getGasCalibrationLogJson();
+  JsonDocument doc;
+  DeserializationError err = deserializeJson(doc, existing);
+  JsonArray arr = doc.as<JsonArray>();
+  if (err || !arr) {
+    doc.clear();
+    arr = doc.to<JsonArray>();
+  }
+
+  JsonObject entry = arr.add<JsonObject>();
+  time_t now = time(nullptr);
+  char tBuf[32];
+  if (now > 1700000000UL) {
+    struct tm tmInfo;
+    localtime_r(&now, &tmInfo);
+    snprintf(tBuf, sizeof(tBuf), "%02d.%02d %02d:%02d", tmInfo.tm_mday, tmInfo.tm_mon + 1, tmInfo.tm_hour, tmInfo.tm_min);
+  } else {
+    snprintf(tBuf, sizeof(tBuf), "Boot+%um", (unsigned int)(millis() / 60000UL));
+  }
+  entry["time"] = tBuf;
+  entry["epoch"] = (uint32_t)now;
+  entry["index"] = serialized(String(index, 3));
+  entry["deltaM3"] = serialized(String(deltaM3, 3));
+  entry["burnSec"] = burnSec;
+  entry["rate"] = serialized(String(empiricalRate, 2));
+  entry["setT"] = setT;
+  entry["flowT"] = flowT;
+  entry["kw"] = kw;
+
+  while (arr.size() > 15) {
+    arr.remove(0);
+  }
+
+  File f = LittleFS.open(FILE_GAS_CALIB, "w");
+  if (f) {
+    serializeJson(doc, f);
+    f.close();
+  }
+}
 
 
 void handleRoot() {
@@ -142,9 +199,11 @@ static String getGasMeterJson() {
   float gasToday = ((float)boilerRadio.getRuntimeTodaySec() / 3600.0f) * flameRate;
   float gasYesterday = ((float)boilerRadio.getRuntimeYesterdaySec() / 3600.0f) * flameRate;
   float gasThisMonth = ((float)boilerRadio.getRuntimeThisMonthSec() / 3600.0f) * flameRate;
+  uint8_t boilerKw = paramStore.get(Param::BoilerPowerKw);
+  float gasPrice = paramStore.getf(Param::GasPrice);
 
   String j;
-  j.reserve(256);
+  j.reserve(800);
   j = "\"gasMeter\":{";
   j += "\"estimatedIndex\":" + String(currentEstimatedIndex, 3) + ",";
   j += "\"baseIndex\":" + String((float)baseIndex / 1000.0f, 3) + ",";
@@ -155,7 +214,10 @@ static String getGasMeterJson() {
   j += "\"gasThisMonthM3\":" + String(gasThisMonth, 2) + ",";
   j += "\"gasFlameRate\":" + String(flameRate, 2) + ",";
   j += "\"boilerSetTemp\":" + String(paramStore.get(Param::BoilerSetTemp)) + ",";
-  j += "\"boilerFlowObserved\":" + String(paramStore.get(Param::BoilerFlowObserved));
+  j += "\"boilerFlowObserved\":" + String(paramStore.get(Param::BoilerFlowObserved)) + ",";
+  j += "\"boilerPowerKw\":" + String(boilerKw) + ",";
+  j += "\"gasPrice\":" + String(gasPrice, 2) + ",";
+  j += "\"calibLog\":" + getGasCalibrationLogJson();
   j += "},";
   return j;
 }
@@ -170,12 +232,19 @@ void handleApiStatus();
 
 void handleApiBoilerGasMeter() {
   server.sendHeader("Access-Control-Allow-Origin", "*");
+  float prevIdx = (float)paramStore.state(StateKey::GasMeterBaseIndex) / 1000.0f;
+  uint32_t prevSec = paramStore.state(StateKey::GasMeterBaseSec);
+  uint32_t curSec = boilerRadio.getRuntimeTotalSec();
+  uint32_t burnSec = (curSec >= prevSec) ? (curSec - prevSec) : 0;
+  float newIdx = prevIdx;
+
   if (server.hasArg("index")) {
     float idx = server.arg("index").toFloat();
     if (idx >= 0.0f && idx <= 999999.0f) {
+      newIdx = idx;
       uint32_t baseIdx = (uint32_t)(round(idx * 1000.0f));
       paramStore.saveState(StateKey::GasMeterBaseIndex, baseIdx);
-      paramStore.saveState(StateKey::GasMeterBaseSec, boilerRadio.getRuntimeTotalSec());
+      paramStore.saveState(StateKey::GasMeterBaseSec, curSec);
       paramStore.saveState(StateKey::GasMeterBaseEpoch, (uint32_t)time(nullptr));
     }
   }
@@ -193,8 +262,34 @@ void handleApiBoilerGasMeter() {
   }
   if (server.hasArg("flameRate")) {
     float fr = server.arg("flameRate").toFloat();
-    paramStore.setf(Param::GasFlameRate, fr);
+    if (fr >= 0.10f && fr <= 5.00f) {
+      paramStore.setf(Param::GasFlameRate, fr);
+    }
   }
+  if (server.hasArg("boilerKw")) {
+    int32_t kw = server.arg("boilerKw").toInt();
+    if (paramStore.inRange(Param::BoilerPowerKw, kw)) {
+      paramStore.set(Param::BoilerPowerKw, kw);
+    }
+  }
+  if (server.hasArg("price")) {
+    float pr = server.arg("price").toFloat();
+    if (pr >= 0.50f && pr <= 20.00f) {
+      paramStore.setf(Param::GasPrice, pr);
+    }
+  }
+
+  // Calculate empirical flow rate & record log entry
+  float deltaM3 = (newIdx >= prevIdx && prevIdx > 0.0f) ? (newIdx - prevIdx) : 0.0f;
+  float empRate = paramStore.getf(Param::GasFlameRate);
+  if (burnSec >= 120 && deltaM3 > 0.001f) {
+    empRate = deltaM3 / ((float)burnSec / 3600.0f);
+  }
+  logGasCalibration(newIdx, deltaM3, burnSec, empRate,
+                    paramStore.get(Param::BoilerSetTemp),
+                    paramStore.get(Param::BoilerFlowObserved),
+                    paramStore.get(Param::BoilerPowerKw));
+
   handleApiStatus();
 }
 

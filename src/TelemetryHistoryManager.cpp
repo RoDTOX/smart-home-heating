@@ -8,11 +8,16 @@
 
 static const char* FILE_24H = "/telemetry_24h.bin";
 static const char* FILE_5D  = "/telemetry_5d.bin";
+static const char* FILE_BOOT = "/boot_events.bin";
 
 TelemetryHistoryManager telemetryHistory;
 
 TelemetryHistoryManager::TelemetryHistoryManager()
     : _fsMounted(false),
+      _bootRecordCount(0),
+      _currentBootRecorded(false),
+      _bootMs(millis()),
+      _bootReason((uint8_t)esp_reset_reason()),
       _currentSlot5d(0),
       _currentSlot24h(0),
       _lastSampleMs(0),
@@ -23,6 +28,7 @@ TelemetryHistoryManager::TelemetryHistoryManager()
       _dirty5d(false) {
     memset(_ring24h, 0, sizeof(_ring24h));
     memset(_ring5d, 0, sizeof(_ring5d));
+    memset(_bootRecords, 0, sizeof(_bootRecords));
 }
 
 void TelemetryHistoryManager::begin() {
@@ -62,6 +68,46 @@ void TelemetryHistoryManager::loadFromFlash() {
         }
     } else {
         netConsole.println(F("[HISTORY] No existing 5d history file found. Initialized blank."));
+    }
+
+    // Load Boot Records
+    if (LittleFS.exists(FILE_BOOT)) {
+        File f = LittleFS.open(FILE_BOOT, "r");
+        if (f) {
+            size_t bytesRead = f.read((uint8_t*)_bootRecords, sizeof(_bootRecords));
+            _bootRecordCount = bytesRead / sizeof(BootRecord);
+            f.close();
+            netConsole.printf("[HISTORY] Loaded %u boot event records\r\n", (unsigned int)_bootRecordCount);
+        }
+    }
+}
+
+void TelemetryHistoryManager::recordBootEvent() {
+    if (_currentBootRecorded || !_fsMounted) return;
+    _currentBootRecorded = true;
+    time_t now = time(nullptr);
+    uint32_t bootEpoch = 0;
+    if (now > 1700000000UL) {
+        bootEpoch = (uint32_t)now - (millis() - _bootMs) / 1000UL;
+    } else {
+        bootEpoch = (uint32_t)(millis() / 1000UL);
+    }
+
+    if (_bootRecordCount >= 10) {
+        for (size_t i = 1; i < 10; i++) _bootRecords[i - 1] = _bootRecords[i];
+        _bootRecordCount = 9;
+    }
+    BootRecord& rec = _bootRecords[_bootRecordCount++];
+    rec.epoch = bootEpoch;
+    rec.slot24h = _currentSlot24h;
+    rec.slot5d = _currentSlot5d;
+    rec.reason = _bootReason;
+
+    File f = LittleFS.open(FILE_BOOT, "w");
+    if (f) {
+        f.write((const uint8_t*)_bootRecords, _bootRecordCount * sizeof(BootRecord));
+        f.close();
+        netConsole.printf("[HISTORY] Recorded boot event (reason: %u, slot24: %u, slot5d: %u)\r\n", rec.reason, rec.slot24h, rec.slot5d);
     }
 }
 
@@ -146,6 +192,10 @@ void TelemetryHistoryManager::updateLiveSample(bool forceNewSlot) {
 
     _currentSlot24h = slot5m;
     _currentSlot5d = slot30m;
+
+    if (!_currentBootRecorded && (now > 1700000000UL || millis() > 15000UL)) {
+        recordBootEvent();
+    }
 
     bool isNew5mSlot = (slot5m != _lastRecorded5mSlot);
     if (isNew5mSlot && _lastRecorded5mSlot != 0xFFFF && _fsMounted && _dirty24h) {
@@ -263,6 +313,26 @@ String TelemetryHistoryManager::getHistoryJson(const String& range) {
         written++;
     }
 
+    json += "],\"reboots\":[";
+    for (size_t b = 0; b < _bootRecordCount; b++) {
+        if (b > 0) json += ",";
+        json += "{\"epoch\":";
+        json += String(_bootRecords[b].epoch);
+        json += ",\"slot24h\":";
+        json += String(_bootRecords[b].slot24h);
+        json += ",\"slot5d\":";
+        json += String(_bootRecords[b].slot5d);
+        json += ",\"reason\":\"";
+        switch (_bootRecords[b].reason) {
+            case ESP_RST_SW:       json += "Firmware Update / Software Reboot"; break;
+            case ESP_RST_POWERON:  json += "Pornire alimentare"; break;
+            case ESP_RST_PANIC:    json += "Eroare sistem (Crash)"; break;
+            case ESP_RST_INT_WDT:
+            case ESP_RST_TASK_WDT: json += "Watchdog Timeout"; break;
+            default:               json += "Repornire sistem"; break;
+        }
+        json += "\"}";
+    }
     json += "]}";
     return json;
 }

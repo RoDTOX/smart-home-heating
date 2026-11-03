@@ -797,6 +797,23 @@ function renderHistoryChart() {
     }
   });
 
+  // Render restart / firmware flash markers across activity and curves
+  const reboots = data.reboots || [];
+  const visibleReboots = [];
+  reboots.forEach(rb => {
+    const rSlot = isMultiDay ? rb.slot5d : rb.slot24h;
+    const slotCap = isMultiDay ? 240 : 288;
+    const slotsAgo = (cur >= rSlot) ? (cur - rSlot) : (cur + slotCap - rSlot);
+    if (slotsAgo < totalWindowSlots) {
+      const rx = x1 - slotsAgo * slotW;
+      visibleReboots.push({ rx: rx, slotsAgo: slotsAgo, rb: rb });
+      svgParts.push(`<line x1="${rx.toFixed(1)}" y1="${topActY - 2}" x2="${rx.toFixed(1)}" y2="${tempBot}" stroke="#f59e0b" stroke-width="1.5" stroke-dasharray="3,3" />`);
+      const bw = 66, bh = 14;
+      svgParts.push(`<rect x="${(rx - bw / 2).toFixed(1)}" y="${(topActY - bh - 2).toFixed(1)}" width="${bw}" height="${bh}" rx="3" fill="#f59e0b" />`);
+      svgParts.push(`<text x="${rx.toFixed(1)}" y="${(topActY - 3).toFixed(1)}" font-size="9" font-weight="700" fill="#000" text-anchor="middle">⚡ RESTART</text>`);
+    }
+  });
+
   // Temperature chart header & legends
   svgParts.push(`<text x="${x0}" y="${tempHeaderY - 2}" font-size="11" font-weight="600" fill="var(--fg)">Temperaturi înregistrate (°C)</text>`);
   let tempLegStr = zones.map((z, idx) => `<tspan fill="${zoneColors[idx % zoneColors.length]}">— ${esc(z.name)}</tspan>`).join("   ");
@@ -933,9 +950,19 @@ function renderHistoryChart() {
         if (diff < minDiff) { minDiff = diff; closest = item; }
       });
 
+      // Check if cursor is near a visible reboot marker
+      let nearReboot = null;
+      visibleReboots.forEach(vr => {
+        if (Math.abs(cursorSlotsAgo - vr.slotsAgo) <= (selectedHistRange === "1h" ? 0.9 : (isMultiDay ? 2.5 : 4))) {
+          nearReboot = vr.rb;
+        }
+      });
+
       const maxTipDist = (selectedHistRange === "1h") ? 1.2 : (isMultiDay ? 3 : 5);
       if (!closest || minDiff > maxTipDist) {
-        tipEl.innerHTML = `<b>${timeStr}</b> · <span style="color:var(--mut)">Fără date înregistrate în această perioadă</span>`;
+        let msg = `<b>${timeStr}</b> · <span style="color:var(--mut)">Fără date înregistrate în această perioadă</span>`;
+        if (nearReboot) msg += ` · <b style="color:#f59e0b">⚡ Restart: ${esc(nearReboot.reason || 'Sistem')}</b>`;
+        tipEl.innerHTML = msg;
         return;
       }
 
@@ -949,6 +976,7 @@ function renderHistoryChart() {
         tip += ` · <b>${esc(z.name)}</b>: ${temp} (${vOn ? '<span style="color:var(--ok)">vană deschisă</span>' : 'închis'})`;
       });
       if (p[4] !== null && p[4] !== undefined) tip += ` · Afară: ${p[4]}°C`;
+      if (nearReboot) tip += ` · <b style="color:#f59e0b">⚡ Restart: ${esc(nearReboot.reason || 'Sistem')}</b>`;
       tipEl.innerHTML = tip;
     };
     overlay.onmouseleave = () => {
@@ -960,6 +988,43 @@ function renderHistoryChart() {
 }
 
 // FR-47: Live TPI Algorithm Inspector & Calculation Breakdown
+
+let gasCalibOpen = false;
+
+function renderGasCalibTable(log) {
+  const container = $("gasCalibTableContainer");
+  if (!container) return;
+  if (!log || !log.length) {
+    container.innerHTML = `<div class="s" style="color:var(--mut);padding:8px 0">Nicio calibrare înregistrată încă în log. Introduceți indexul citit de pe contor pentru a începe istoricul de calibrare.</div>`;
+    return;
+  }
+  let h = `<div style="font-weight:600;font-size:12px;margin:12px 0 6px 0">📋 Istoric Calibrări & Citiri Contor:</div>
+  <div class="scroll"><table style="width:100%;border-collapse:collapse;font-size:11px">
+    <thead>
+      <tr style="border-bottom:1px solid var(--line);color:var(--mut);text-align:left">
+        <th style="padding:4px">Dată / Oră</th>
+        <th style="padding:4px">Index Citit</th>
+        <th style="padding:4px">Consum</th>
+        <th style="padding:4px">Timp Ardere</th>
+        <th style="padding:4px">Debit Rezultat</th>
+        <th style="padding:4px">Setat / Tur</th>
+      </tr>
+    </thead>
+    <tbody>`;
+  log.slice().reverse().forEach(row => {
+    const bH = (row.burnSec / 3600).toFixed(1);
+    h += `<tr style="border-bottom:1px solid var(--line)">
+      <td style="padding:4px"><b>${esc(row.time)}</b></td>
+      <td style="padding:4px;font-weight:600">${row.index} m³</td>
+      <td style="padding:4px;color:var(--heat)">+${row.deltaM3} m³</td>
+      <td style="padding:4px">${bH}h (${Math.round(row.burnSec/60)}m)</td>
+      <td style="padding:4px;font-weight:600;color:var(--fg)">${row.rate} m³/h</td>
+      <td style="padding:4px">${row.setT}°C / ~${row.flowT}°C (${row.kw || 24} kW)</td>
+    </tr>`;
+  });
+  h += `</tbody></table></div>`;
+  container.innerHTML = h;
+}
 
 function renderGasMeter() {
   const box = $("gasMeterBox");
@@ -979,67 +1044,152 @@ function renderGasMeter() {
   const setT = (gm.boilerSetTemp !== undefined) ? gm.boilerSetTemp : 40;
   const flowT = (gm.boilerFlowObserved !== undefined) ? gm.boilerFlowObserved : 43;
   const flameRate = (gm.gasFlameRate !== undefined) ? Number(gm.gasFlameRate).toFixed(2) : "0.60";
+  const boilerKw = (gm.boilerPowerKw !== undefined) ? gm.boilerPowerKw : 24;
+  const price = (gm.gasPrice !== undefined) ? Number(gm.gasPrice).toFixed(2) : "3.30";
 
-  const todayLei = (parseFloat(todayM3) * 3.30).toFixed(2);
-  const monthLei = (parseFloat(monthM3) * 3.30).toFixed(2);
+  const todayLei = (parseFloat(todayM3) * parseFloat(price)).toFixed(2);
+  const yestLei = (parseFloat(yestM3) * parseFloat(price)).toFixed(2);
+  const monthLei = (parseFloat(monthM3) * parseFloat(price)).toFixed(2);
 
+  const burnTodaySec = (B && B.runtimeTodaySec) ? B.runtimeTodaySec : ((RAW && RAW["api/boiler/status"] && RAW["api/boiler/status"].runtimeTodaySec) || 0);
+  const burnTodayH = (burnTodaySec / 3600).toFixed(1);
+
+  // In-place DOM update if already rendered: completely avoids destroying the open form or user inputs!
+  if ($("gasEstIdx")) {
+    $("gasEstIdx").textContent = estIdx;
+    $("gasTodayM3").textContent = todayM3;
+    $("gasTodayLei").textContent = `~ ${todayLei} Lei · Ieri: ${yestM3} m³ (${yestLei} Lei)`;
+    $("gasMonthM3").textContent = monthM3;
+    $("gasMonthLei").textContent = `~ ${monthLei} Lei (la ${price} Lei/m³)`;
+    $("gasSetT").textContent = `${setT}°C `;
+    $("gasFlowT").textContent = `(livrează ~${flowT}°C)`;
+    $("gasSubRate").textContent = `Debit estimat: ${flameRate} m³/h · ${boilerKw} kW`;
+    $("gasBurnTimeStr").textContent = `Timp ardere azi: ${burnTodayH}h`;
+    
+    // Gas consumption visual bars
+    if ($("barGasTodayM3")) $("barGasTodayM3").textContent = todayM3;
+    if ($("barGasTodayLei")) $("barGasTodayLei").textContent = todayLei;
+    if ($("barGasYestM3")) $("barGasYestM3").textContent = yestM3;
+    if ($("barGasYestLei")) $("barGasYestLei").textContent = yestLei;
+    if ($("barGasTodayFill")) $("barGasTodayFill").style.width = Math.min(100, Math.round(parseFloat(todayM3) / 10 * 100)) + "%";
+    if ($("barGasYestFill")) $("barGasYestFill").style.width = Math.min(100, Math.round(parseFloat(yestM3) / 10 * 100)) + "%";
+
+    // Only update calibration input fields when the user is NOT actively editing (form is closed)
+    if (!gasCalibOpen) {
+      if ($("cfgGasIndex")) $("cfgGasIndex").value = estIdx;
+      if ($("cfgGasSetTemp")) $("cfgGasSetTemp").value = setT;
+      if ($("cfgGasFlowObs")) $("cfgGasFlowObs").value = flowT;
+      if ($("cfgGasFlameRate")) $("cfgGasFlameRate").value = flameRate;
+      if ($("cfgGasBoilerKw")) $("cfgGasBoilerKw").value = boilerKw;
+      if ($("cfgGasPrice")) $("cfgGasPrice").value = price;
+    }
+    renderGasCalibTable(gm.calibLog || []);
+    return;
+  }
+
+  // Initial structure render
   box.innerHTML = `<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:10px">
     <div style="font-weight:600;font-size:14px">🔥 Monitorizare Contor Gaz & Centrală (FR-35.1)</div>
     <button type="button" class="sm" id="btnToggleGasCalib">⚙️ Calibrează Index / Setări</button>
   </div>
 
-  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:12px;margin-bottom:8px">
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:12px;margin-bottom:10px">
     <div style="background:var(--card);border:1px solid var(--line);border-radius:8px;padding:10px">
       <div class="s" style="color:var(--mut)">Index Contor Estimat</div>
-      <div style="font-size:22px;font-weight:700;color:var(--fg);margin:2px 0">${estIdx} <span style="font-size:14px;font-weight:400">m³</span></div>
-      <div class="s" style="color:var(--ok)">● Sincronizat cu arderea flăcării</div>
+      <div style="font-size:22px;font-weight:700;color:var(--fg);margin:2px 0"><span id="gasEstIdx">${estIdx}</span> <span style="font-size:14px;font-weight:400">m³</span></div>
+      <div class="s" id="gasBurnTimeStr" style="color:var(--mut)">Timp ardere azi: ${burnTodayH}h</div>
     </div>
     <div style="background:var(--card);border:1px solid var(--line);border-radius:8px;padding:10px">
       <div class="s" style="color:var(--mut)">Consum Gaz Azi</div>
-      <div style="font-size:22px;font-weight:700;color:var(--heat);margin:2px 0">${todayM3} <span style="font-size:14px;font-weight:400">m³</span></div>
-      <div class="s" style="color:var(--mut)">~ ${todayLei} Lei · Ieri: ${yestM3} m³</div>
+      <div style="font-size:22px;font-weight:700;color:var(--heat);margin:2px 0"><span id="gasTodayM3">${todayM3}</span> <span style="font-size:14px;font-weight:400">m³</span></div>
+      <div class="s" id="gasTodayLei" style="color:var(--mut)">~ ${todayLei} Lei · Ieri: ${yestM3} m³ (${yestLei} Lei)</div>
     </div>
     <div style="background:var(--card);border:1px solid var(--line);border-radius:8px;padding:10px">
       <div class="s" style="color:var(--mut)">Consum Luna Aceasta</div>
-      <div style="font-size:22px;font-weight:700;color:var(--fg);margin:2px 0">${monthM3} <span style="font-size:14px;font-weight:400">m³</span></div>
-      <div class="s" style="color:var(--mut)">~ ${monthLei} Lei (la 3.30 Lei/m³)</div>
+      <div style="font-size:22px;font-weight:700;color:var(--fg);margin:2px 0"><span id="gasMonthM3">${monthM3}</span> <span style="font-size:14px;font-weight:400">m³</span></div>
+      <div class="s" id="gasMonthLei" style="color:var(--mut)">~ ${monthLei} Lei (la ${price} Lei/m³)</div>
     </div>
     <div style="background:var(--card);border:1px solid var(--line);border-radius:8px;padding:10px">
       <div class="s" style="color:var(--mut)">Temperatură Tur Centrală</div>
-      <div style="font-size:22px;font-weight:700;color:var(--fg);margin:2px 0">${setT}°C <span style="font-size:13px;font-weight:400;color:var(--heat)">(livrează ~${flowT}°C)</span></div>
-      <div class="s" style="color:var(--mut)">Debit estimat: ${flameRate} m³/h</div>
+      <div style="font-size:22px;font-weight:700;color:var(--fg);margin:2px 0"><span id="gasSetT">${setT}°C </span><span id="gasFlowT" style="font-size:13px;font-weight:400;color:var(--heat)">(livrează ~${flowT}°C)</span></div>
+      <div class="s" id="gasSubRate" style="color:var(--mut)">Debit estimat: ${flameRate} m³/h · ${boilerKw} kW</div>
+    </div>
+  </div>
+
+  <div style="background:var(--card);border:1px solid var(--line);border-radius:8px;padding:10px 14px;margin-bottom:8px">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;font-size:12px;font-weight:600">
+      <span>Evoluție Consum Gaz (m³)</span>
+      <span style="color:var(--mut);font-weight:400">Preț referință: <span id="gasPriceRef">${price}</span> Lei/m³</span>
+    </div>
+    <div style="display:flex;gap:16px;align-items:center;flex-wrap:wrap">
+      <div style="flex:1;min-width:180px">
+        <div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:3px">
+          <span>Azi</span>
+          <span style="font-weight:600;color:var(--heat)"><span id="barGasTodayM3">${todayM3}</span> m³ (~<span id="barGasTodayLei">${todayLei}</span> Lei)</span>
+        </div>
+        <div style="height:8px;background:var(--bg);border-radius:4px;overflow:hidden">
+          <div id="barGasTodayFill" style="height:100%;background:var(--heat);width:${Math.min(100, Math.round(parseFloat(todayM3) / 10 * 100))}%;border-radius:4px"></div>
+        </div>
+      </div>
+      <div style="flex:1;min-width:180px">
+        <div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:3px">
+          <span>Ieri</span>
+          <span style="font-weight:600;color:var(--fg)"><span id="barGasYestM3">${yestM3}</span> m³ (~<span id="barGasYestLei">${yestLei}</span> Lei)</span>
+        </div>
+        <div style="height:8px;background:var(--bg);border-radius:4px;overflow:hidden">
+          <div id="barGasYestFill" style="height:100%;background:var(--mut);width:${Math.min(100, Math.round(parseFloat(yestM3) / 10 * 100))}%;border-radius:4px"></div>
+        </div>
+      </div>
     </div>
   </div>
 
   <div id="gasCalibForm" style="display:none;background:var(--card);border:1px solid var(--line);border-radius:8px;padding:12px;margin-top:10px">
-    <div style="font-weight:600;font-size:13px;margin-bottom:8px">Actualizare Index Fizic de pe Contor & Referință Tur</div>
-    <div class="row" style="gap:12px;align-items:flex-end">
+    <div style="font-weight:600;font-size:13px;margin-bottom:8px">Actualizare Index Fizic de pe Contor & Parametri Centrală</div>
+    <div class="row" style="gap:10px;align-items:flex-end;flex-wrap:wrap">
       <div>
         <label class="s" style="display:block;margin-bottom:3px">Index citit pe contor (m³)</label>
         <input type="number" step="0.001" id="cfgGasIndex" value="${estIdx}" style="width:130px" />
       </div>
       <div>
-        <label class="s" style="display:block;margin-bottom:3px">Temp. setată centrală (°C)</label>
-        <input type="number" step="1" id="cfgGasSetTemp" value="${setT}" style="width:85px" />
+        <label class="s" style="display:block;margin-bottom:3px">Putere centrală (kW)</label>
+        <input type="number" step="1" id="cfgGasBoilerKw" value="${boilerKw}" style="width:75px" />
       </div>
       <div>
-        <label class="s" style="display:block;margin-bottom:3px">Temp. observată pe tur (°C)</label>
-        <input type="number" step="1" id="cfgGasFlowObs" value="${flowT}" style="width:85px" />
+        <label class="s" style="display:block;margin-bottom:3px">Temp. setată centrală (°C)</label>
+        <input type="number" step="1" id="cfgGasSetTemp" value="${setT}" style="width:80px" />
+      </div>
+      <div>
+        <label class="s" style="display:block;margin-bottom:3px">Temp. observată tur (°C)</label>
+        <input type="number" step="1" id="cfgGasFlowObs" value="${flowT}" style="width:80px" />
       </div>
       <div>
         <label class="s" style="display:block;margin-bottom:3px">Debit ardere (m³/h)</label>
-        <input type="number" step="0.01" id="cfgGasFlameRate" value="${flameRate}" style="width:95px" />
+        <input type="number" step="0.01" id="cfgGasFlameRate" value="${flameRate}" style="width:85px" />
       </div>
-      <button type="button" id="btnSaveGasMeter" class="ok">💾 Salvează în NVS</button>
+      <div>
+        <label class="s" style="display:block;margin-bottom:3px">Preț gaz (Lei/m³)</label>
+        <input type="number" step="0.01" id="cfgGasPrice" value="${price}" style="width:80px" />
+      </div>
+      <button type="button" id="btnSaveGasMeter" class="ok">💾 Salvează & Înregistrează Calibrare</button>
     </div>
-    <div class="s" style="color:var(--mut);margin-top:6px">Notă: Centrala Immergas Victrix Tera 24 modulează flacăra pe sarcină mică și oprește arzătorul cu ~+3°C peste temperatura setată (40°C setat ➔ ~43°C livrat pe tur) pentru a preveni ciclarea deasă.</div>
+
+    <div style="background:rgba(56,189,248,0.08);border:1px solid rgba(56,189,248,0.25);border-radius:6px;padding:8px 10px;margin-top:10px;font-size:12px;color:var(--fg)">
+      💡 <b>Recomandare Calibrare Noapte (ACM = 0):</b> Pentru a determina cu exactitate debitul de gaz pe încălzire în pardoseală, citiți și salvați indexul <b>seara înainte de culcare</b> și <b>dimineața la trezire</b> (înainte de folosirea apei calde la duș sau chiuvetă). Pe timp de noapte consumul de apă caldă menajeră este nul, permițând algoritmului să izoleze exact gazul consumat exclusiv de încălzire în funcție de orele de funcționare a flăcării și temperatura exterioară.
+    </div>
+
+    <div class="s" style="color:var(--mut);margin-top:8px">
+      Notă: Pentru cazanele în condensare, temperatura de tur setată pe panoul centralei poate diferi ușor de temperatura efectivă de pe tur datorită histerezisului arzătorului și modulației pe sarcină redusă.
+    </div>
+
+    <div id="gasCalibTableContainer" style="margin-top:10px"></div>
   </div>`;
 
   const btnToggle = $("btnToggleGasCalib");
   const form = $("gasCalibForm");
   if (btnToggle && form) {
     btnToggle.onclick = () => {
-      form.style.display = (form.style.display === "none") ? "block" : "none";
+      gasCalibOpen = !gasCalibOpen;
+      form.style.display = gasCalibOpen ? "block" : "none";
     };
   }
 
@@ -1047,21 +1197,23 @@ function renderGasMeter() {
   if (btnSave) {
     btnSave.onclick = async () => {
       const idx = parseFloat($("cfgGasIndex").value);
+      const kw = parseInt($("cfgGasBoilerKw").value, 10);
       const st = parseInt($("cfgGasSetTemp").value, 10);
       const fo = parseInt($("cfgGasFlowObs").value, 10);
       const fr = parseFloat($("cfgGasFlameRate").value);
+      const pr = parseFloat($("cfgGasPrice").value);
       btnSave.disabled = true;
       btnSave.textContent = "Salvare...";
       try {
-        const body = `index=${encodeURIComponent(idx)}&setTemp=${encodeURIComponent(st)}&flowObserved=${encodeURIComponent(fo)}&flameRate=${encodeURIComponent(fr)}`;
+        const body = `index=${encodeURIComponent(idx)}&boilerKw=${encodeURIComponent(kw)}&setTemp=${encodeURIComponent(st)}&flowObserved=${encodeURIComponent(fo)}&flameRate=${encodeURIComponent(fr)}&price=${encodeURIComponent(pr)}`;
         const res = await fetch("/api/boiler/gas-meter", {
           method: "POST",
           headers: { "Content-Type": "application/x-www-form-urlencoded" },
           body: body
         });
         if (res.ok) {
-          btnSave.textContent = "✅ Salvat!";
-          setTimeout(() => { if (form) form.style.display = "none"; }, 1000);
+          btnSave.textContent = "✅ Calibrare înregistrată!";
+          setTimeout(() => { btnSave.textContent = "💾 Salvează & Înregistrează Calibrare"; }, 2500);
           poll();
         } else {
           alert("Eroare la salvare: HTTP " + res.status);
@@ -1070,10 +1222,11 @@ function renderGasMeter() {
         alert("Eroare de rețea: " + err);
       } finally {
         btnSave.disabled = false;
-        btnSave.textContent = "💾 Salvează în NVS";
       }
     };
   }
+
+  renderGasCalibTable(gm.calibLog || []);
 }
 
 function renderTpiInspector() {

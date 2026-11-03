@@ -449,7 +449,7 @@ one example:
   GET /api/history?range=24h|5d. The web UI presents a 24h timeline / history chart (grpHistory) displaying burner flame and per-zone valve binary activations labeled by configured zone names, outdoor and room temperatures, and time-cursor inspection.
 - **FR-35 (Burner counters):** *[now]* {SW; test} Burner time counters: total, today, yesterday, this month, last month,
   current burn; reported in boiler status. Zone-level heating runtime counters (todaySec, yesterdaySec) are reported in `/api/zones` and on zone cards.
-- **FR-35.1 (Gas meter tracking & boiler flow setpoint):** *[now]* {SW; test} Calibration and tracking of physical gas meter index and boiler flow temperature. Initial / calibrated meter index `gasMeterIndex` (m³, 3 decimal places, stored as thousandths), calibration timestamp and boiler runtime baseline are stored in NVS. Estimated current meter index, gas consumed today, yesterday and this month (m³) are computed using calibrated burner rate `gasFlameRate` (default 0.60 m³/h, range 0.20–2.50 m³/h per §6) and exposed in `/api/boiler/status`. The dialed boiler central-heating flow setpoint `boilerSetTemp` (default 40 °C, range 25–60 °C per §6) and observed flow temperature `boilerFlowObserved` (default 43 °C, range 25–65 °C per §6) are stored in NVS and exposed in `/api/boiler/status` and `/api/config/system`. Web UI provides index calibration and real-time gas consumption tracking.
+- **FR-35.1 (Gas meter tracking & boiler flow setpoint):** *[now]* {SW; test} Calibration and tracking of physical gas meter index and boiler flow temperature. Initial / calibrated meter index `gasMeterIndex` (m³, 3 decimal places, stored as thousandths), calibration timestamp and boiler runtime baseline are stored in NVS. Estimated current meter index, gas consumed today, yesterday and this month (m³) are computed using calibrated burner rate `gasFlameRate` (default 0.60 m³/h, range 0.20–2.50 m³/h per §6) and exposed in `/api/boiler/status`. The dialed boiler central-heating flow setpoint `boilerSetTemp` (default 40 °C, range 25–60 °C per §6), observed flow temperature `boilerFlowObserved` (default 43 °C, range 25–65 °C per §6), boiler nominal capacity `boilerPowerKw` (default 24 kW, range 10–45 kW per §6) and gas price `gasPrice` (default 3.30 Lei/m³, range 1.00–10.00 Lei/m³ per §6) are stored in NVS and exposed in `/api/boiler/status` and `/api/config/system`. Web UI provides non-destructive index calibration, historical calibration event log, night-time calibration advice, and real-time gas consumption tracking.
 - **FR-41 (Wi-Fi supervisor):** *[now]* {SW; test} Wi-Fi is checked every 10 s and reconnected; after 90 s down the stack is
   re-initialised. DTC-401 `WARN_WIFI_SIGNAL_DEGRADED` while down or RSSI < −82 dBm. Control continues (NFR-1.1).
 - **FR-42 (Configuration API limits):** *[now]* {SW; test} `/api/config/system` exposes hydraulic and radio timings and rejects
@@ -734,6 +734,8 @@ Set via API and console, stored in NVS (written on change only). A value outside
 | `boilerSetTemp` | 40 °C | 25–60 °C | FR-35.1 |
 | `boilerFlowObserved` | 43 °C | 25–65 °C | FR-35.1 |
 | `gasFlameRate` | 0.60 m³/h | 0.20–2.50 m³/h | FR-35.1 |
+| `boilerPowerKw` | 24 kW | 10–45 kW | FR-35.1 |
+| `gasPrice` | 3.30 Lei/m³ | 1.00–10.00 Lei/m³ | FR-35.1 |
 | `boilerLinkType` | `rf433` | `rf433` / `wired` / `receiver` (ESP32-class, link open) | FR-55 |
 | `seasonMode` | AUTO | AUTO / ON / OFF | FR-12.2 |
 | `location` | not set (commissioning) | latitude −90…90, longitude −180…180 | FR-9.2 |

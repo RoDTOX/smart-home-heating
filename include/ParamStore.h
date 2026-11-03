@@ -26,6 +26,8 @@ enum class Param : uint8_t {
     BoilerSetTemp,       // C       FR-35.1
     BoilerFlowObserved,  // C       FR-35.1
     GasFlameRate,        // 0.01 m3/h  FR-35.1
+    BoilerPowerKw,       // kW      FR-35.1
+    GasPrice,            // 0.01 Lei/m3 FR-35.1
     Count
 };
 

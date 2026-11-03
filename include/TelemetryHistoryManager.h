@@ -18,6 +18,13 @@ struct TelemetryPoint {
     uint8_t flags;      // Bit 0: Boiler ON, Bit 1: Pump ON, Bit 2: Z1 Valve, Bit 3: Z2 Valve, Bit 4: Z3 Valve, Bit 7: Valid
     uint8_t reserved;   // Future extension / padding
 };
+
+struct BootRecord {
+    uint32_t epoch;
+    uint16_t slot24h;
+    uint8_t  slot5d;
+    uint8_t  reason;
+};
 #pragma pack(pop)
 
 class TelemetryHistoryManager {
@@ -59,10 +66,20 @@ public:
     uint32_t getZoneRuntimeTodayFromHistory(size_t zoneIndex) const;
     uint32_t getZoneRuntimeYesterdayFromHistory(size_t zoneIndex) const;
 
+    // Boot & restart tracking
+    void recordBootEvent();
+    uint8_t getBootRecordCount() const { return _bootRecordCount; }
+    const BootRecord* getBootRecords() const { return _bootRecords; }
+
 private:
     bool _fsMounted;
     TelemetryPoint _ring24h[TELEMETRY_24H_POINTS];
     TelemetryPoint _ring5d[TELEMETRY_5D_POINTS];
+    BootRecord _bootRecords[10];
+    uint8_t  _bootRecordCount;
+    bool     _currentBootRecorded;
+    uint32_t _bootMs;
+    uint8_t  _bootReason;
     uint8_t  _currentSlot5d;
     uint16_t _currentSlot24h;
     uint32_t _lastSampleMs;
