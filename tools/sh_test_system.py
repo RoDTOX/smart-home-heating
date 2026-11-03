@@ -88,6 +88,7 @@ class SystemTestSuite(SuiteBase, HealthTests, HydraulicsTests, ControlTests, UiH
             self.test_tc11_2_zone_setpoint_mutation,
             self.test_tc11_3_zone_setpoint_restoration,
             self.test_tc11_4_operating_mode_contract,
+            self.test_tc11_5_tpi_deficit_duty,
             # Group 12: NTP Time & Weather
             self.test_tc12_1_ntp_time_sync,
             self.test_tc12_2_heating_season_detection,
@@ -111,6 +112,9 @@ class SystemTestSuite(SuiteBase, HealthTests, HydraulicsTests, ControlTests, UiH
             self.test_tc16_3_slots_roundtrip_sorted,
             self.test_tc16_4_invalid_schedule_rejection,
             self.test_tc16_5_global_away_roundtrip,
+            self.test_tc16_6_honeywell_moments,
+            self.test_tc16_7_custom_moment_names,
+            self.test_tc16_8_schedule_ui_dirty_protection,
             # Group 19: Negative Validation & Boundary Constraints
             self.test_tc19_2_temperature_boundary_clamping,
             self.test_tc19_3_invalid_zone_index_handling,
@@ -191,6 +195,7 @@ class SystemTestSuite(SuiteBase, HealthTests, HydraulicsTests, ControlTests, UiH
             self.test_tc29_33_round_trip,
             self.test_tc29_36_target_not_in_file,
             self.test_tc29_37_levels_restored_from_export,
+            self.test_tc29_38_pre_import_diff_preview_and_confirmation,
             self.test_tc29_34_import_sensor_swap,
             self.test_tc29_35_import_sensor_of_other_zone,
             self.test_tc30_1_zone_add,

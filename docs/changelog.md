@@ -7,6 +7,13 @@ Entries before 29.10.2026 (the system before the lean clean-up):
 
 
 
+## [03.11.2026] - Five unregistered tests registered and run on the board (PB-86)
+
+- **Who / when / why:** process session, 03.11.2026; owner decision to run the tests that never ran.
+- **Changed:** `tools/sh_test_system.py` runs TC11.5, TC16.6, TC16.7, TC16.8 and TC29.38 (registration only, no test body changed).
+- **Board (a9c5175, 192.168.1.20), those five run alone:** all five PASS. TC16.6 left the schedule changed (mode `5+2`, weekday P1 06:45, away Z1 18.5); restored by hand from the copy saved before (`schedule_before_tests_2026-11-03.json` in the side-session notes), then compared equal. The full suite was not run.
+- **Still open:** the test findings PB-87 ... PB-89 (TC11.5 tolerance 0.35, no restore in `finally`, hollow asserts) are not fixed.
+
 ## [03.11.2026] - Process review of 31b8496..6170f16 (records only)
 
 - **Who / when / why:** process session (light mode), 03.11.2026; the owner worked with another AI tool outside the chain (43 commits) and several records were missing.
