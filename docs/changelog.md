@@ -7,6 +7,14 @@ Entries before 29.10.2026 (the system before the lean clean-up):
 
 
 
+## [03.11.2026] - PB-97: stale WINDOW state and the window button of the room card (649eb31)
+
+- **Who / when / why:** firmware session (light mode), 03.11.2026; the owner saw the page keep the 'Fereastră deschisă' card with pause 0 min and an error text when pressing 'Închide pauza'.
+- **Found:** (1) after an automatic pause end the zone state stayed WINDOW, so the zone could not start heating again; (2) the click handler of the room cards took the window button as a setpoint stepper (`Z.zones[NaN]`).
+- **Tests first (red on the old firmware, then green):** TC26.5 (state WINDOW only with an active pause, FR-8.4), TC19.17 (the stepper handler acts only on buttons with an action, FR-8.1).
+- **Changed:** `ThermalZoneManager.cpp` (state to IDLE at the pause end, when detection is switched off and in the AUTO control branch; interlock path unchanged); `web/index.html` guard. `sh-safety-reviewer` light: no BLOCKER; the MANUAL / detection-off RISK and the stateChangedMs NOTE fixed.
+- **PB-80:** `df5fd70` (made outside the chain, by AGY) was read and kept: the meter default is 0 = not calibrated, no hard-coded reading; PB-80 fixed by it.
+
 ## [03.11.2026] - PB-72: window baseline is the peak of the last 5 min (c5eb53d)
 
 - **Who / when / why:** firmware session (light mode), 03.11.2026; owner decision: FR-40 says a drop within 5 min, the code kept the baseline up to 10 min (slow cooling closed a zone for 30 min).

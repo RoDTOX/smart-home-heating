@@ -44,7 +44,7 @@ Only what holds now and what comes next. A line that no longer holds is replaced
   (all agents) on the owner's request and before a release - AGENTS.md §5.
 
 ## Next
-- Round 1 (PB-72, window 5 min) committed c5eb53d, flashed; owner hands-on pending. Rounds left: PB-80 meter default, PB-75 day/night levels, console login (C-21).
+- PB-72 closed (owner OK). PB-80 fixed by df5fd70 (AGY, read and kept). PB-97 (stale WINDOW state, window button) fixed, flashed, owner test pending. Rounds left: PB-75 day/night levels, console login (C-21).
 - Out-of-chain work kept (owner, 03.11.2026): folded into steps 7, 8, 11, tests first.
 - Process review of 03.11.2026 (`docs/review_agy_03_11.md`): PB-71 ... PB-94 open (PB-71 and PB-74 safety). Owner has not tested 1.11.03.x; no acceptance row for it, and the OK for `OutputBank` (step 3) is still open.
 - Owner decisions: console authentication (FR-58, D42, D49), wording of FR-34 / FR-40 / FR-35 / FR-31, the unit of the 1.25 MB limit.
