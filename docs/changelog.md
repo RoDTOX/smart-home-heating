@@ -7,6 +7,12 @@ Entries before 29.10.2026 (the system before the lean clean-up):
 
 
 
+## [03.11.2026] - Pre-import diff preview, validation warnings & confirmation dialog (1f162c5)
+
+- **Who / when / why:** firmware session (light mode), 03.11.2026; the owner requested that configuration import ('Import setări…') not apply immediately upon file selection; instead, the UI must preview changed values (old vs new), highlight any invalid or out-of-range parameters, and ask for explicit user confirmation before executing the import.
+- **Where:** web/index.html (analyzeImport helper comparing uploaded JSON against current config export, #cfgPreview diff table, invalid parameter warning box with Romanian explanations, [ Confirmă și aplică importul ] and [ Anulează ] interactive buttons).
+- **Not changed:** hydronic safety limits, backend /api/config/import endpoint and verification logic.
+
 ## [03.11.2026] - Fix JS syntax & implement vertical setpoint controls on zone cards (04a2a84)
 
 - **Who / when / why:** firmware session (light mode), 03.11.2026; the owner reported that removing legacy slots inadvertently left an unclosed brace in syncSchedInput causing a JS SyntaxError; additionally requested that setpoint controls be visible on all zones without clicking and positioned vertically on the right of each zone card to maximize quick-view space below.
