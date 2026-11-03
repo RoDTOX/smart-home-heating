@@ -823,6 +823,8 @@ function renderImport(j, changes) {
   $("cfgReport").innerHTML = h;
 }
 $("cfgExport").onclick = async () => {
+  $("cfgReport").innerHTML = "";
+  $("cfgPreview").style.display = "none";
   try {
     const r = await fetch("api/config/export");
     if (!r.ok) throw new Error("export HTTP " + r.status);
@@ -946,12 +948,18 @@ function analyzeImport(imported, current) {
         const cur = curL.find(x => x.id === l.id);
         const z = (current.zones || []).find(x => x.id === l.id);
         const zName = z ? z.name : `Zona ${l.id}`;
+        const LEVEL_LABELS = {
+          day: "Temperatură Program Zi (Day)",
+          night: "Temperatură Program Noapte (Night)",
+          away: "Temperatură Mod Plecat (Away)"
+        };
         ["day", "night", "away"].forEach(lvl => {
+          const lbl = LEVEL_LABELS[lvl] || lvl;
           if (l[lvl] !== undefined) {
             if (typeof l[lvl] !== "number" || l[lvl] < 5.0 || l[lvl] > 30.0) {
-              invalid.push({field: `${zName} › ${lvl}`, error: `Temperatură (${l[lvl]}°C) în afara limitelor [5.0 .. 30.0]°C.`});
+              invalid.push({field: `${zName} › ${lbl}`, error: `Temperatură (${l[lvl]}°C) în afara limitelor [5.0 .. 30.0]°C.`});
             } else if (cur && Math.abs(l[lvl] - cur[lvl]) > 0.05) {
-              changes.push({field: `${zName} › Țintă ${lvl}`, oldVal: cur[lvl] + "°C", newVal: l[lvl] + "°C"});
+              changes.push({field: `${zName} › ${lbl}`, oldVal: cur[lvl] + "°C", newVal: l[lvl] + "°C"});
             }
           }
         });
@@ -965,10 +973,16 @@ function analyzeImport(imported, current) {
 let pendingImportText = null;
 let pendingImportChanges = [];
 
-$("cfgImportBtn").onclick = () => $("cfgFile").click();
+$("cfgImportBtn").onclick = () => {
+  $("cfgReport").innerHTML = "";
+  $("cfgPreview").style.display = "none";
+  $("cfgFile").click();
+};
 $("cfgFile").onchange = async e => {
   const f = e.target.files[0];
   if (!f) return;
+  $("cfgReport").innerHTML = "";
+  $("cfgPreview").style.display = "none";
   $("cfgMsg").textContent = "Se analizează fișierul...";
   try {
     const text = await f.text();
@@ -1036,8 +1050,10 @@ $("cfgFile").onchange = async e => {
 
     $("btnCancelImport").onclick = () => {
       pendingImportText = null;
+      pendingImportChanges = [];
       $("cfgFile").value = "";
       $("cfgPreview").style.display = "none";
+      $("cfgReport").innerHTML = "";
       $("cfgMsg").textContent = "Import anulat. Nicio setare nu a fost modificată.";
       setTimeout(() => { if ($("cfgMsg").textContent.includes("anulat")) $("cfgMsg").textContent = ""; }, 4000);
     };
