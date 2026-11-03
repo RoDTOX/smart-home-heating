@@ -232,3 +232,28 @@ String TelemetryHistoryManager::getHistoryJson(const String& range) {
     json += "]}";
     return json;
 }
+
+
+uint32_t TelemetryHistoryManager::getZoneRuntimeTodayFromHistory(size_t zoneIndex) const {
+    if (zoneIndex >= 3) return 0;
+    uint8_t bit = 1 << (zoneIndex + 2);
+    uint32_t count = 0;
+    for (uint16_t s = 0; s <= _currentSlot24h && s < TELEMETRY_24H_POINTS; s++) {
+        if ((_ring24h[s].flags & 0x80) && (_ring24h[s].flags & bit)) {
+            count++;
+        }
+    }
+    return count * 300UL;
+}
+
+uint32_t TelemetryHistoryManager::getZoneRuntimeYesterdayFromHistory(size_t zoneIndex) const {
+    if (zoneIndex >= 3) return 0;
+    uint8_t bit = 1 << (zoneIndex + 2);
+    uint32_t count = 0;
+    for (uint16_t s = _currentSlot24h + 1; s < TELEMETRY_24H_POINTS; s++) {
+        if ((_ring24h[s].flags & 0x80) && (_ring24h[s].flags & bit)) {
+            count++;
+        }
+    }
+    return count * 300UL;
+}

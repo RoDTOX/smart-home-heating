@@ -1,4 +1,6 @@
 #include "ThermalZoneManager.h"
+#include "TelemetryHistoryManager.h"
+#include <LittleFS.h>
 #include "NetworkConsole.h"
 #include "OutputBank.h"
 #include "BleSensorScanner.h"
@@ -233,6 +235,7 @@ void ThermalZoneManager::begin() {
     loadConfig();
     loadSchedule();
     evaluateSchedule(millis());
+    loadRuntimeFromFlash();
 
     _bootWarmupActive = true;
     _bootWarmupStartMs = millis();
@@ -1681,6 +1684,7 @@ void ThermalZoneManager::update(BoilerRadioTrigger& boiler) {
 
     // Accumulate active heating runtime per zone
     uint32_t nowMs = millis();
+    static uint32_t lastFlashSaveMs = 0;
     if (_lastZoneRuntimeMs == 0) {
         _lastZoneRuntimeMs = nowMs;
     } else {
@@ -1695,6 +1699,10 @@ void ThermalZoneManager::update(BoilerRadioTrigger& boiler) {
                     _zoneRuntimeMsAcc[i] %= 1000;
                 }
             }
+        }
+        if (nowMs - lastFlashSaveMs >= 60000UL) {
+            saveRuntimeToFlash();
+            lastFlashSaveMs = nowMs;
         }
     }
 }
@@ -1712,6 +1720,58 @@ void ThermalZoneManager::updateRuntimeDay(uint8_t day) {
             _zoneRuntimeMsAcc[i] = 0;
         }
         _lastDay = day;
+        saveRuntimeToFlash();
         netConsole.printf("[Thermal][Runtime] Rollover to new day %u.\n", day);
     }
+}
+
+
+uint32_t ThermalZoneManager::getZoneRuntimeTodaySec(size_t index) const {
+    if (index >= MAX_THERMAL_ZONES) return 0;
+    uint32_t hist = (index < 3) ? telemetryHistory.getZoneRuntimeTodayFromHistory(index) : 0;
+    return (_zoneRuntimeTodaySec[index] > hist) ? _zoneRuntimeTodaySec[index] : hist;
+}
+
+uint32_t ThermalZoneManager::getZoneRuntimeYesterdaySec(size_t index) const {
+    if (index >= MAX_THERMAL_ZONES) return 0;
+    uint32_t hist = (index < 3) ? telemetryHistory.getZoneRuntimeYesterdayFromHistory(index) : 0;
+    return (_zoneRuntimeYesterdaySec[index] > hist) ? _zoneRuntimeYesterdaySec[index] : hist;
+}
+
+void ThermalZoneManager::syncRuntimeFromHistory() {
+    for (size_t i = 0; i < MAX_THERMAL_ZONES && i < 3; i++) {
+        uint32_t histToday = telemetryHistory.getZoneRuntimeTodayFromHistory(i);
+        uint32_t histYest  = telemetryHistory.getZoneRuntimeYesterdayFromHistory(i);
+        if (_zoneRuntimeTodaySec[i] < histToday) {
+            _zoneRuntimeTodaySec[i] = histToday;
+        }
+        if (_zoneRuntimeYesterdaySec[i] < histYest) {
+            _zoneRuntimeYesterdaySec[i] = histYest;
+        }
+    }
+}
+
+void ThermalZoneManager::saveRuntimeToFlash() {
+    File f = LittleFS.open("/zone_runtime.bin", "w");
+    if (f) {
+        f.write((const uint8_t*)&_lastDay, sizeof(_lastDay));
+        f.write((const uint8_t*)_zoneRuntimeTodaySec, sizeof(_zoneRuntimeTodaySec));
+        f.write((const uint8_t*)_zoneRuntimeYesterdaySec, sizeof(_zoneRuntimeYesterdaySec));
+        f.close();
+    }
+}
+
+void ThermalZoneManager::loadRuntimeFromFlash() {
+    if (LittleFS.exists("/zone_runtime.bin")) {
+        File f = LittleFS.open("/zone_runtime.bin", "r");
+        if (f) {
+            uint8_t savedDay = 0;
+            f.read((uint8_t*)&savedDay, sizeof(savedDay));
+            f.read((uint8_t*)_zoneRuntimeTodaySec, sizeof(_zoneRuntimeTodaySec));
+            f.read((uint8_t*)_zoneRuntimeYesterdaySec, sizeof(_zoneRuntimeYesterdaySec));
+            f.close();
+            _lastDay = savedDay;
+        }
+    }
+    syncRuntimeFromHistory();
 }

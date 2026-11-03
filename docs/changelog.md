@@ -7,7 +7,23 @@ Entries before 29.10.2026 (the system before the lean clean-up):
 
 
 
-## [03.11.2026] - Fix 5d vs 3d telemetry timeline scaling & remove door emojis (HEAD)
+## [03.11.2026] - Single source of truth for runtime counters & refined telemetry chart (HEAD)
+
+- **Who / when / why:** firmware session (light mode), 03.11.2026; the owner observed that zone runtime counters reset to 0m after reboots despite telemetry showing hours of heating (violating the single-source-of-truth invariant), and requested chart improvements: human-readable X-axis day+hour labels, dotted lines across recording gaps rather than solid lines across missing days, thinner lines with explicit sample dots, and persistent hover tooltips across the entire chart.
+- **Where:**
+  - include/TelemetryHistoryManager.h & src/TelemetryHistoryManager.cpp:
+    - Added `getZoneRuntimeTodayFromHistory(zoneIndex)` and `getZoneRuntimeYesterdayFromHistory(zoneIndex)` extracting active valve time directly from the 24h LittleFS ring buffer (`_ring24h`).
+  - include/ThermalZoneManager.h & src/ThermalZoneManager.cpp:
+    - Anchored `getZoneRuntimeTodaySec(index)` and `getZoneRuntimeYesterdaySec(index)` to the maximum of real-time seconds and historical LittleFS buffer seconds (`telemetryHistory`), establishing `telemetry_24h` as the single source of truth across all reboots and firmware flashes.
+    - Added persistence to LittleFS file `/zone_runtime.bin` saved periodically and on day rollovers.
+  - web/index.html:
+    - Replaced relative `-24h` / `-48h` X-axis marks with Romanian day of week and clock hours (e.g. `Dum 15:00`, `Lun 03:00`, `Lun 15:00`, `Acum (15:25)`).
+    - Added gap detection: split solid polyline segments when gap > 1h (3d/5d) or > 20m (24h), rendering faint dotted lines across missing periods rather than continuous misleading solid lines.
+    - Thinned curves to `stroke-width="1.3"` and added distinct sample dots (`<circle r="1.5">`) on all recorded data points.
+    - Kept hover tooltip persistently active across the chart, clearly explaining `Data și ora · Fără date înregistrate în această perioadă` when hovering over empty periods.
+- **Not changed:** hydronic safety limits, burner minimum run/pause, actuator interlock.
+
+## [03.11.2026] - Fix 5d vs 3d telemetry timeline scaling & remove door emojis (008b5bd)
 
 - **Who / when / why:** firmware session (light mode), 03.11.2026; the owner observed that door emojis rendered as brown bricks next to room names on the activity chart, and that the 5-day chart looked identical to the 3-day chart.
 - **Where:**

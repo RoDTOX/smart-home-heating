@@ -719,6 +719,9 @@ function renderHistoryChart() {
 
   // Time grid marks across chart
   const timeStepMarks = (selectedHistRange === "12h") ? 6 : ((selectedHistRange === "24h") ? 6 : ((selectedHistRange === "3d") ? 6 : 5));
+  const daysShort = ["Dum", "Lun", "Mar", "Mie", "Joi", "Vin", "Sâm"];
+  const nowMs = Date.now();
+
   for (let m = 0; m <= timeStepMarks; m++) {
     const frac = m / timeStepMarks;
     const gx = x0 + frac * chartW;
@@ -726,18 +729,21 @@ function renderHistoryChart() {
     
     // Label
     let lbl = "";
+    const hoursAgo = isMultiDay
+      ? (1 - frac) * (selectedHistRange === "3d" ? 72 : 120)
+      : (1 - frac) * (selectedHistRange === "12h" ? 12 : 24);
+    const markDate = new Date(nowMs - hoursAgo * 3600 * 1000);
+    const dName = daysShort[markDate.getDay()];
+    const hh = String(markDate.getHours()).padStart(2, "0");
+    const mm = String(markDate.getMinutes()).padStart(2, "0");
+
     if (m === timeStepMarks) {
-      lbl = "Acum";
-    } else if (!isMultiDay) {
-      const hoursAgo = (1 - frac) * (selectedHistRange === "12h" ? 12 : 24);
-      const curTotalMin = (cur * 5);
-      const markMin = (curTotalMin - Math.round(hoursAgo * 60) + 1440 * 2) % 1440;
-      const hh = String(Math.floor(markMin / 60)).padStart(2, "0");
-      const mm = String(markMin % 60).padStart(2, "0");
-      lbl = `${hh}:${mm}`;
+      lbl = `Acum (${hh}:${mm})`;
+    } else if (isMultiDay) {
+      lbl = `${dName} ${hh}:${mm}`;
     } else {
-      const hAgo = Math.round((1 - frac) * (selectedHistRange === "3d" ? 72 : 120));
-      lbl = `-${hAgo}h`;
+      const isToday = (markDate.getDate() === new Date(nowMs).getDate());
+      lbl = (isToday ? "" : "Ieri ") + `${hh}:${mm}`;
     }
     svgParts.push(`<text x="${gx.toFixed(1)}" y="${totalH - 12}" font-size="11" fill="var(--mut)" text-anchor="middle">${lbl}</text>`);
   }
@@ -772,36 +778,76 @@ function renderHistoryChart() {
     svgParts.push(`<text x="${x0 - 8}" y="${(gy + 4).toFixed(1)}" font-size="10" fill="var(--mut)" text-anchor="end">${t}°</text>`);
   }
 
+  // Helper to render temperature curves with gap detection (dotted across gap), thinner lines, and sample dots
+  const maxGapSlots = isMultiDay ? 3 : 4;
+  const renderCurve = (pointsList, color, isDashed = false) => {
+    if (!pointsList.length) return;
+    const segments = [];
+    let curSeg = [];
+    pointsList.forEach(pt => {
+      if (curSeg.length > 0) {
+        const prev = curSeg[curSeg.length - 1];
+        if (prev.slotsAgo - pt.slotsAgo > maxGapSlots) {
+          segments.push(curSeg);
+          curSeg = [];
+        }
+      }
+      curSeg.push(pt);
+    });
+    if (curSeg.length > 0) segments.push(curSeg);
+
+    // Draw faint dotted connecting lines across gaps
+    for (let si = 0; si < segments.length - 1; si++) {
+      const segA = segments[si];
+      const segB = segments[si + 1];
+      const ptA = segA[segA.length - 1];
+      const ptB = segB[0];
+      svgParts.push(`<line x1="${ptA.px.toFixed(1)}" y1="${ptA.py.toFixed(1)}" x2="${ptB.px.toFixed(1)}" y2="${ptB.py.toFixed(1)}" stroke="${color}" stroke-width="1" stroke-dasharray="2,3" opacity="0.3" />`);
+    }
+
+    // Draw solid line segments and sample dots
+    segments.forEach(seg => {
+      if (seg.length > 1) {
+        const ptsStr = seg.map(p => `${p.px.toFixed(1)},${p.py.toFixed(1)}`).join(" ");
+        const dashAttr = isDashed ? ' stroke-dasharray="3,3"' : '';
+        svgParts.push(`<polyline fill="none" stroke="${color}" stroke-width="1.3" stroke-linejoin="round" stroke-linecap="round"${dashAttr} points="${ptsStr}" />`);
+      }
+      seg.forEach(p => {
+        svgParts.push(`<circle cx="${p.px.toFixed(1)}" cy="${p.py.toFixed(1)}" r="1.5" fill="${color}" />`);
+      });
+    });
+  };
+
   // Outdoor temperature polyline
-  const outPts = [];
+  const outPoints = [];
   ordered.forEach(item => {
     const p = item.p;
     if (p[4] !== null && p[4] !== undefined) {
-      const px = x1 - item.slotsAgo * slotW;
-      const py = tempToY(Math.max(minT, Math.min(maxT, p[4])));
-      outPts.push(`${px.toFixed(1)},${py.toFixed(1)}`);
+      outPoints.push({
+        px: x1 - item.slotsAgo * slotW,
+        py: tempToY(Math.max(minT, Math.min(maxT, p[4]))),
+        slotsAgo: item.slotsAgo
+      });
     }
   });
-  if (outPts.length > 1) {
-    svgParts.push(`<polyline fill="none" stroke="var(--mut)" stroke-width="1.2" stroke-dasharray="3,3" points="${outPts.join(' ')}" />`);
-  }
+  renderCurve(outPoints, "var(--mut)", true);
 
   // Zone temperature polylines
   zones.forEach((z, idx) => {
     const k = idx + 1;
-    const zPts = [];
+    const color = zoneColors[idx % zoneColors.length];
+    const zPoints = [];
     ordered.forEach(item => {
       const p = item.p;
       if (p[k] !== null && p[k] !== undefined && p[k] > 0) {
-        const px = x1 - item.slotsAgo * slotW;
-        const py = tempToY(p[k]);
-        zPts.push(`${px.toFixed(1)},${py.toFixed(1)}`);
+        zPoints.push({
+          px: x1 - item.slotsAgo * slotW,
+          py: tempToY(p[k]),
+          slotsAgo: item.slotsAgo
+        });
       }
     });
-    if (zPts.length > 1) {
-      const color = zoneColors[idx % zoneColors.length];
-      svgParts.push(`<polyline fill="none" stroke="${color}" stroke-width="2" stroke-linejoin="round" points="${zPts.join(' ')}" />`);
-    }
+    renderCurve(zPoints, color, false);
   });
 
   // Hairline cursor line
@@ -813,21 +859,13 @@ function renderHistoryChart() {
 
   container.innerHTML = svgParts.join("");
 
-  // Attach interactive hover tracking
-  const overlay = $("histOverlay");
+    const overlay = $("histOverlay");
   const curLine = $("histCursorLine");
   if (overlay) {
     overlay.onmousemove = e => {
       const rect = overlay.getBoundingClientRect();
       const frac = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
       const cursorSlotsAgo = (1 - frac) * totalWindowSlots;
-
-      // Find closest sample in ordered
-      let closest = null, minDiff = 99999;
-      ordered.forEach(item => {
-        const diff = Math.abs(item.slotsAgo - cursorSlotsAgo);
-        if (diff < minDiff) { minDiff = diff; closest = item; }
-      });
 
       const xPos = x0 + frac * chartW;
       if (curLine) {
@@ -836,30 +874,34 @@ function renderHistoryChart() {
         curLine.style.display = "block";
       }
 
+      // Calculate exact day and clock time under cursor
+      const hoursAgo = isMultiDay ? (cursorSlotsAgo * 0.5) : (cursorSlotsAgo * (5 / 60));
+      const curDate = new Date(Date.now() - hoursAgo * 3600 * 1000);
+      const daysFull = ["Duminică", "Luni", "Marți", "Miercuri", "Joi", "Vineri", "Sâmbătă"];
+      const dFull = daysFull[curDate.getDay()];
+      const ch = String(curDate.getHours()).padStart(2, "0");
+      const cm = String(curDate.getMinutes()).padStart(2, "0");
+      const timeStr = `${dFull} ${ch}:${cm} (acum ${hoursAgo < 1 ? Math.round(hoursAgo * 60) + 'm' : hoursAgo.toFixed(1) + 'h'})`;
+
+      const tipEl = $("histTooltip");
+      if (!tipEl) return;
+      tipEl.style.display = "block";
+
+      // Find closest sample in ordered
+      let closest = null, minDiff = 99999;
+      ordered.forEach(item => {
+        const diff = Math.abs(item.slotsAgo - cursorSlotsAgo);
+        if (diff < minDiff) { minDiff = diff; closest = item; }
+      });
+
       if (!closest || minDiff > (isMultiDay ? 4 : 6)) {
-        const tipEl = $("histTooltip");
-        if (tipEl) {
-          tipEl.style.display = "block";
-          const hAgo = isMultiDay ? (cursorSlotsAgo * 0.5).toFixed(1) : (cursorSlotsAgo * (5/60)).toFixed(1);
-          tipEl.innerHTML = `<span style="color:var(--mut)">Acum ${hAgo} ore · Nicio înregistrare disponibilă (înainte de pornire sistem)</span>`;
-        }
+        tipEl.innerHTML = `<b>${timeStr}</b> · <span style="color:var(--mut)">Fără date înregistrate în această perioadă</span>`;
         return;
       }
 
       const p = closest.p;
-      let timeLabel = "";
-      if (!isMultiDay) {
-        const slot = p[0];
-        const hh = String(Math.floor((slot * 5) / 60)).padStart(2, "0");
-        const mm = String((slot * 5) % 60).padStart(2, "0");
-        timeLabel = `Ora ${hh}:${mm}`;
-      } else {
-        const hAgo = (closest.slotsAgo * 0.5).toFixed(1);
-        timeLabel = `Acum ${hAgo} ore`;
-      }
-
       const bOn = (p[5] & 1) !== 0;
-      let tip = `<b>${timeLabel}</b> · Cazan: ${bOn ? '🔥 <span style="color:var(--heat)">Pornit (flacără)</span>' : 'Oprit'}`;
+      let tip = `<b>${timeStr}</b> · Cazan: ${bOn ? '🔥 <span style="color:var(--heat)">Pornit (flacără)</span>' : 'Oprit'}`;
       zones.forEach((z, idx) => {
         const bit = 1 << (idx + 2);
         const vOn = (p[5] & bit) !== 0;
@@ -867,8 +909,7 @@ function renderHistoryChart() {
         tip += ` · <b>${esc(z.name)}</b>: ${temp} (${vOn ? '<span style="color:var(--ok)">vană deschisă</span>' : 'închis'})`;
       });
       if (p[4] !== null && p[4] !== undefined) tip += ` · Afară: ${p[4]}°C`;
-      const tipEl = $("histTooltip");
-      if (tipEl) { tipEl.style.display = "block"; tipEl.innerHTML = tip; }
+      tipEl.innerHTML = tip;
     };
     overlay.onmouseleave = () => {
       if (curLine) curLine.style.display = "none";

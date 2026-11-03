@@ -200,16 +200,13 @@ public:
     size_t getPairedZoneCount() const;
     size_t getAcquiredZoneCount() const;
 
-    // Zone heating runtime counters (today / yesterday)
-    uint32_t getZoneRuntimeTodaySec(size_t index) const {
-        if (index >= MAX_THERMAL_ZONES) return 0;
-        return _zoneRuntimeTodaySec[index];
-    }
-    uint32_t getZoneRuntimeYesterdaySec(size_t index) const {
-        if (index >= MAX_THERMAL_ZONES) return 0;
-        return _zoneRuntimeYesterdaySec[index];
-    }
+    // Zone heating runtime counters (today / yesterday) - single source of truth
+    uint32_t getZoneRuntimeTodaySec(size_t index) const;
+    uint32_t getZoneRuntimeYesterdaySec(size_t index) const;
     void updateRuntimeDay(uint8_t day);
+    void saveRuntimeToFlash();
+    void loadRuntimeFromFlash();
+    void syncRuntimeFromHistory();
 
     // Setters
     void setTargetTemperature(size_t index, float target);

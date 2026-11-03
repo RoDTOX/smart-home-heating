@@ -50,6 +50,10 @@ public:
     uint16_t getCurrentSlot24h() const { return _currentSlot24h; }
     uint8_t  getCurrentSlot5d() const { return _currentSlot5d; }
 
+    // History-derived runtime counters (single source of truth from 24h LittleFS buffer)
+    uint32_t getZoneRuntimeTodayFromHistory(size_t zoneIndex) const;
+    uint32_t getZoneRuntimeYesterdayFromHistory(size_t zoneIndex) const;
+
 private:
     bool _fsMounted;
     TelemetryPoint _ring24h[TELEMETRY_24H_POINTS];
