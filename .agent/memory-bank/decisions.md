@@ -573,3 +573,10 @@ restores them (a test proves it). An old file with `target` skips it as unknown 
 **Decided by**: owner (chat, 03.11.2026), relayed by the main chat; text of FR-35.1 shown to the owner before the tests.
 **Affects**: FR-35.1, FR-65.1, `WebApi.cpp`, `docs/gas_meter_readings_03_11.md`.
 **Consequences**: round of C-25 follows after the owner's OK of the text; the board's meter value is not touched until the owner types the current reading.
+
+## 2026-11-03 — "Correct a reading" (C-28) rejected, flow from the history (C-29)
+**Context**: the owner first said the first reading was taken at 15:30, then confirmed 15:39; the board entry (15:39) is right. The owner will not type past readings.
+**Decision**: C-28 (correct a stored reading) is rejected: no requirement, no code, no tests. C-29: the measured flow takes the boiler ON time from the telemetry history when a reading has no stored runtime (24 h history while both readings are under 24 h old, else 5 day history with an interval of at least 4 h ON time; the history must be complete for the interval).
+**Decided by**: owner (chat, 03.11.2026), relayed by the main chat.
+**Affects**: FR-35.1, `TelemetryHistoryManager`, `docs/gas_meter_readings_03_11.md`.
+**Consequences**: the readings 2265.304 (15:39) and 2265.996 (21:59) are enough to measure the flow; no manual correction function.
