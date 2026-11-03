@@ -66,14 +66,18 @@ public:
     uint32_t getZoneRuntimeTodayFromHistory(size_t zoneIndex) const;
     uint32_t getZoneRuntimeYesterdayFromHistory(size_t zoneIndex) const;
 
-    // FR-35.1: gas meter readings typed by the user, /gas_readings.bin, 8 bytes each (epoch, index in 1/1000 m3)
+    // FR-35.1: gas meter readings typed by the user, /gas_log.bin, 12 bytes each
+    // (epoch, index in 1/1000 m3, boiler ON runtime in s when typed, GAS_NO_RUNTIME if unknown)
+    static const uint32_t GAS_NO_RUNTIME = 0xFFFFFFFFUL;
     void gasReadingsBegin();
     uint32_t gasReadingCount() const;
     uint32_t gasReadingsReplaced() const;
-    bool gasReadingAdd(uint32_t epoch, uint32_t indexMilli);
-    void gasReadingsForEach(void (*cb)(uint32_t epoch, uint32_t indexMilli, void* ctx), void* ctx) const;
+    bool gasReadingAdd(uint32_t epoch, uint32_t indexMilli, uint32_t runtimeSec);
+    void gasReadingsForEach(void (*cb)(uint32_t epoch, uint32_t indexMilli, uint32_t runtimeSec, void* ctx), void* ctx) const;
     // Gas of the month of `epoch` from readings: last reading of that month minus last reading of the month before
     bool gasMonthFromReadings(uint32_t epoch, float& m3) const;
+    // Measured flow in m3 per boiler ON hour: last 10 intervals of >= 1 h with a rising index, weighted by hours
+    bool gasFlowMeasured(float& m3PerHour) const;
 
     // Boot & restart tracking
     void recordBootEvent();

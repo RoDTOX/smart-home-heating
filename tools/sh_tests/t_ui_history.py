@@ -524,6 +524,111 @@ class UiHistoryTests:
             return f"estimate {gm['estimatedIndex']} >= reading {gm['lastReadingIndex']}"
         return self._gas_result("SWE.5-TC21.8", "Gas Estimate Not Below Last Reading", run)
 
+    def _gas_expected_flow(self, readings):
+        """FR-35.1 measured flow from the readings list: consecutive readings that both have a runtime,
+        >= 1 h boiler ON time between them and a rise of the index; average of the last 10 such
+        intervals weighted by boiler ON hours (= sum of rises / sum of hours). None while there is none."""
+        ivs = []
+        for a, b in zip(readings, readings[1:]):
+            ra, rb = a.get("runtimeSec"), b.get("runtimeSec")
+            if ra is None or rb is None:
+                continue
+            dt, rise = rb - ra, b["index"] - a["index"]
+            if dt >= 3600 and rise > 0:
+                ivs.append((rise, dt / 3600.0))
+        ivs = ivs[-10:]
+        if not ivs:
+            return None
+        return sum(r for r, _ in ivs) / sum(h for _, h in ivs)
+
+    def test_tc21_9_gas_flow_parameters_read_only(self):
+        """SWE.5-TC21.9: gasFlameRate and boilerPowerKw refused 400 on /api/config/system, unchanged (FR-35.1)"""
+        def run():
+            url = f"{self.base_url}/api/config/system"
+            before = requests.get(url, timeout=self.timeout).json()
+            # both values are inside the section 6 range (gasFlameRate 0.20-2.50, boilerPowerKw 10-45):
+            # the refusal is because the user may not set them (read-only), not because of the range
+            for field, val in [("gasFlameRate", 0.50), ("boilerPowerKw", 20)]:
+                assert 0 < val, "test value"
+                r = requests.post(url, data={field: val}, timeout=self.timeout)
+                assert r.status_code == 400, f"{field}={val} (in range, read-only) expected 400, got {r.status_code}"
+            after = requests.get(url, timeout=self.timeout).json()
+            # settable parameters are only READ here (no write on the live board): in the section 6 range
+            ranges = {"boilerSetTemp": (25, 60), "boilerFlowObserved": (25, 65), "gasPrice": (1.00, 10.00),
+                      "gasFlameRate": (0.20, 2.50), "boilerPowerKw": (10, 45)}
+            for f, (lo, hi) in ranges.items():
+                assert f in after, f"Missing '{f}' in /api/config/system"
+                assert lo <= after[f] <= hi, f"{f}={after[f]} outside section 6 range {lo}-{hi}"
+            for f in ranges:
+                assert after[f] == before[f], f"{f} changed by a refused POST: {before[f]} -> {after[f]}"
+            return "gasFlameRate=0.50 and boilerPowerKw=20 refused 400, config unchanged"
+        return self._gas_result("SWE.5-TC21.9", "Gas Flow and Boiler Power Read-Only", run)
+
+    def test_tc21_10_gas_flow_boiler_power_no_page_input(self):
+        """SWE.5-TC21.10: page has no input for the burner flow or the boiler power (FR-35.1)"""
+        def run():
+            page = requests.get(f"{self.base_url}/", timeout=self.timeout).text
+            assert page, "empty page"
+            for token in ["cfgGasFlameRate", "cfgGasBoilerKw", "Debit ardere", "Putere centrală"]:
+                assert token not in page, f"page still offers the read-only parameter: '{token}'"
+            return "no burner flow / boiler power input in the page"
+        return self._gas_result("SWE.5-TC21.10", "Gas Flow and Boiler Power No Page Input", run)
+
+    def test_tc21_11_gas_flow_measured_field(self):
+        """SWE.5-TC21.11: gasMeter.gasFlowMeasured null or number 0.01-5.0 m3/h, matches the readings (FR-35.1)"""
+        def run():
+            gm, lst = self._gas_state()
+            assert "gasFlowMeasured" in gm, "Missing 'gasFlowMeasured' in gasMeter"
+            v = gm["gasFlowMeasured"]
+            if v is not None:
+                assert isinstance(v, (int, float)) and not isinstance(v, bool), f"gasFlowMeasured not a number: {v!r}"
+                assert 0.01 <= v <= 5.0, f"gasFlowMeasured {v} outside 0.01-5.0 m3/h"
+            exp = self._gas_expected_flow(lst["readings"])
+            if exp is None:
+                # no interval with runtime on both ends, >= 1 h ON time and a rise: nothing measured
+                assert v is None, f"no qualifying interval, gasFlowMeasured must be null, got {v}"
+                return "PASS note: gasFlowMeasured null (no qualifying interval)"
+            assert v is not None, f"qualifying interval exists (flow {exp:.3f}), gasFlowMeasured is null"
+            # tolerance 0.02 m3/h: index has 3 decimals, runtime whole seconds, firmware rounding
+            assert abs(v - exp) <= 0.02, f"gasFlowMeasured {v} != weighted average of last 10 intervals {exp:.3f}"
+            return f"gasFlowMeasured {v} matches readings ({exp:.3f})"
+        return self._gas_result("SWE.5-TC21.11", "Gas Flow Measured Field", run)
+
+    def test_tc21_12_gas_readings_runtime_field(self):
+        """SWE.5-TC21.12: each gas-readings entry has runtimeSec null or integer >= 0, oldest first (FR-35.1)"""
+        def run():
+            _, lst = self._gas_state()
+            readings = lst["readings"]
+            for i, e in enumerate(readings):
+                for k in ("time", "index", "runtimeSec"):
+                    assert k in e, f"entry {i} lacks '{k}'"
+                rt = e["runtimeSec"]
+                assert rt is None or (isinstance(rt, int) and not isinstance(rt, bool) and rt >= 0), \
+                    f"entry {i} runtimeSec must be null or integer >= 0, got {rt!r}"
+            times = [e["time"] for e in readings]
+            assert times == sorted(times), "readings are not oldest first"
+            return f"{len(readings)} entries with runtimeSec, oldest first"
+        return self._gas_result("SWE.5-TC21.12", "Gas Readings Runtime Field", run)
+
+    def test_tc21_13_gas_estimate_uses_measured_flow(self):
+        """SWE.5-TC21.13: estimate rises from the last reading at the measured flow (FR-35.1)"""
+        def run():
+            gm, lst = self._gas_state()
+            if gm["gasFlowMeasured"] is None:
+                return "PASS note: gasFlowMeasured null, estimate rule (measured flow) not checkable"
+            last = lst["readings"][-1] if lst["readings"] else None
+            if last is None or last.get("runtimeSec") is None:
+                return "PASS note: last reading has no runtime, estimate rule not checkable"
+            assert gm["estimatedIndex"] >= gm["lastReadingIndex"], "estimate below the last reading"
+            # the runtime since the last reading is not in the API; the estimate can only be bounded:
+            # the gas of the estimate cannot exceed 24 h x measured flow per day since the reading
+            days = max(0.0, (time.time() - gm["lastReadingTime"]) / 86400.0) + 0.05  # +0.05 d: clock slack
+            cap = 24.0 * days * gm["gasFlowMeasured"]
+            assert gm["estimatedIndex"] - gm["lastReadingIndex"] <= cap, \
+                f"estimate rise {gm['estimatedIndex'] - gm['lastReadingIndex']:.3f} > {cap:.3f} (24 h/day at measured flow)"
+            return "estimate within last reading + measured flow x elapsed time"
+        return self._gas_result("SWE.5-TC21.13", "Gas Estimate Uses Measured Flow", run)
+
     def test_tc19_11_zone_card_direct_setpoint_steppers(self):
         """SWE.5-TC19.11: Zone Card Direct Vertical Setpoint Steppers (FR-8.1)"""
         test_id = "SWE.5-TC19.11"

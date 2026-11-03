@@ -306,7 +306,8 @@ code,.mono{font:13px/1.35 ui-monospace,SFMono-Regular,Consolas,monospace}
 "gasMeter.gasTodayM3": ["Gaz estimat azi (m³)", "FR-35.1"],
 "gasMeter.gasYesterdayM3": ["Gaz estimat ieri (m³)", "FR-35.1"],
 "gasMeter.gasThisMonthM3": ["Gaz în luna aceasta (m³): din citiri, altfel estimat", "FR-35.1"],
-"gasMeter.gasFlameRate": ["gasFlameRate: debitul de gaz al arzătorului (m³/h)", "FR-35.1"],
+"gasMeter.gasFlameRate": ["gasFlameRate: debitul de pornire al estimării, până se măsoară unul (m³/h; nu se setează)", "FR-35.1"],
+"gasMeter.gasFlowMeasured": ["Debit măsurat din citiri și orele de centrală pornită (m³/h, null = încă nemăsurat)", "FR-35.1"],
 "gasMeter.boilerSetTemp": ["boilerSetTemp: temperatura de tur setată pe centrală (°C)", "FR-35.1"],
 "gasMeter.boilerFlowObserved": ["boilerFlowObserved: temperatura de tur observată (°C)", "FR-35.1"],
 "gasMeter.boilerPowerKw": ["boilerPowerKw: puterea centralei (kW)", "FR-35.1"],
@@ -1107,7 +1108,9 @@ function renderGasMeter() {
   const yestM3 = Number(gm.gasYesterdayM3 || 0).toFixed(2);
   const monthM3 = Number(gm.gasThisMonthM3 || 0).toFixed(2);
   const setT = gm.boilerSetTemp, flowT = gm.boilerFlowObserved;
-  const flameRate = Number(gm.gasFlameRate).toFixed(2);
+  const measured = (gm.gasFlowMeasured !== null && gm.gasFlowMeasured !== undefined);
+  const flameRate = Number(measured ? gm.gasFlowMeasured : gm.gasFlameRate).toFixed(2);
+  const flowLabel = measured ? "Debit măsurat" : "Debit estimat (implicit, se corectează singur)";
   const boilerKw = gm.boilerPowerKw;
   const price = Number(gm.gasPrice).toFixed(2);
   const todayLei = (parseFloat(todayM3) * parseFloat(price)).toFixed(2);
@@ -1125,13 +1128,11 @@ function renderGasMeter() {
     $("gasMonthLei").textContent = `~ ${monthLei} Lei (la ${price} Lei/m³)`;
     $("gasSetT").textContent = `${setT}°C `;
     $("gasFlowT").textContent = `(livrează ~${flowT}°C)`;
-    $("gasSubRate").textContent = `Debit estimat: ${flameRate} m³/h · ${boilerKw} kW`;
+    $("gasSubRate").textContent = `${flowLabel}: ${flameRate} m³/h`;
     $("gasBurnTimeStr").textContent = `Timp ardere azi: ${burnTodayH}h`;
     if (!gasFormOpen) {
       if ($("cfgGasSetTemp")) $("cfgGasSetTemp").value = setT;
       if ($("cfgGasFlowObs")) $("cfgGasFlowObs").value = flowT;
-      if ($("cfgGasFlameRate")) $("cfgGasFlameRate").value = flameRate;
-      if ($("cfgGasBoilerKw")) $("cfgGasBoilerKw").value = boilerKw;
       if ($("cfgGasPrice")) $("cfgGasPrice").value = price;
     }
     if (gm.readingCount !== gasReadingsSeen) loadGasReadings();
@@ -1162,7 +1163,7 @@ function renderGasMeter() {
     <div style="background:var(--card);border:1px solid var(--line);border-radius:8px;padding:10px">
       <div class="s" style="color:var(--mut)">Temperatură tur centrală</div>
       <div style="font-size:22px;font-weight:700;color:var(--fg);margin:2px 0"><span id="gasSetT">${setT}°C </span><span id="gasFlowT" style="font-size:13px;font-weight:400;color:var(--heat)">(livrează ~${flowT}°C)</span></div>
-      <div class="s" id="gasSubRate" style="color:var(--mut)">Debit estimat: ${flameRate} m³/h · ${boilerKw} kW</div>
+      <div class="s" id="gasSubRate" style="color:var(--mut)">${flowLabel}: ${flameRate} m³/h</div>
     </div>
   </div>
   <div id="gasReadForm" style="display:none;background:var(--card);border:1px solid var(--line);border-radius:8px;padding:12px;margin-top:10px">
@@ -1175,10 +1176,8 @@ function renderGasMeter() {
     </div>
     <div style="font-weight:600;font-size:13px;margin:14px 0 8px 0">Setări centrală & gaz</div>
     <div class="row" style="gap:10px;align-items:flex-end;flex-wrap:wrap">
-      <div><label class="s" style="display:block;margin-bottom:3px">Putere centrală (kW)</label><input type="number" step="1" id="cfgGasBoilerKw" value="${boilerKw}" style="width:75px" /></div>
       <div><label class="s" style="display:block;margin-bottom:3px">Temp. setată centrală (°C)</label><input type="number" step="1" id="cfgGasSetTemp" value="${setT}" style="width:80px" /></div>
       <div><label class="s" style="display:block;margin-bottom:3px">Temp. observată tur (°C)</label><input type="number" step="1" id="cfgGasFlowObs" value="${flowT}" style="width:80px" /></div>
-      <div><label class="s" style="display:block;margin-bottom:3px">Debit ardere (m³/h)</label><input type="number" step="0.01" id="cfgGasFlameRate" value="${flameRate}" style="width:85px" /></div>
       <div><label class="s" style="display:block;margin-bottom:3px">Preț gaz (Lei/m³)</label><input type="number" step="0.01" id="cfgGasPrice" value="${price}" style="width:80px" /></div>
       <button type="button" id="btnSaveGasSettings" class="ok">💾 Salvează setările</button>
     </div>
@@ -1204,7 +1203,7 @@ function renderGasMeter() {
     } catch (err) { msg.textContent = "Eroare de rețea: " + err; }
   };
   $("btnSaveGasSettings").onclick = async () => {
-    const body = `boilerPowerKw=${encodeURIComponent($("cfgGasBoilerKw").value)}&boilerSetTemp=${encodeURIComponent($("cfgGasSetTemp").value)}&boilerFlowObserved=${encodeURIComponent($("cfgGasFlowObs").value)}&gasFlameRate=${encodeURIComponent($("cfgGasFlameRate").value)}&gasPrice=${encodeURIComponent($("cfgGasPrice").value)}`;
+    const body = `boilerSetTemp=${encodeURIComponent($("cfgGasSetTemp").value)}&boilerFlowObserved=${encodeURIComponent($("cfgGasFlowObs").value)}&gasPrice=${encodeURIComponent($("cfgGasPrice").value)}`;
     try {
       const res = await fetch("api/config/system", { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body });
       $("gasReadMsg").textContent = res.ok ? "✅ Setări salvate" : "Respinse: valoare în afara limitelor (HTTP " + res.status + ")";

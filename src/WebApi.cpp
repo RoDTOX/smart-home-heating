@@ -131,7 +131,9 @@ void handleApiBoilerCancelPending() {
 }
 
 static String getGasMeterJson() {
-  float flameRate = paramStore.getf(Param::GasFlameRate);
+  float measuredFlow = 0.0f;
+  bool haveMeasured = telemetryHistory.gasFlowMeasured(measuredFlow);
+  float flameRate = haveMeasured ? measuredFlow : paramStore.getf(Param::GasFlameRate);
   uint32_t lastEpoch = paramStore.state(StateKey::GasMeterBaseEpoch);  // 0 = no reading typed yet (FR-35.1)
   bool haveReading = lastEpoch != 0;
   float lastIndex = (float)paramStore.state(StateKey::GasMeterBaseIndex) / 1000.0f;
@@ -158,7 +160,8 @@ static String getGasMeterJson() {
   j += "\"gasTodayM3\":" + String(gasToday, 2) + ",";
   j += "\"gasYesterdayM3\":" + String(gasYesterday, 2) + ",";
   j += "\"gasThisMonthM3\":" + String(gasThisMonth, 2) + ",";
-  j += "\"gasFlameRate\":" + String(flameRate, 2) + ",";
+  j += "\"gasFlowMeasured\":" + (haveMeasured ? String(measuredFlow, 3) : String("null")) + ",";
+  j += "\"gasFlameRate\":" + String(paramStore.getf(Param::GasFlameRate), 2) + ",";
   j += "\"boilerSetTemp\":" + String(paramStore.get(Param::BoilerSetTemp)) + ",";
   j += "\"boilerFlowObserved\":" + String(paramStore.get(Param::BoilerFlowObserved)) + ",";
   j += "\"boilerPowerKw\":" + String(paramStore.get(Param::BoilerPowerKw)) + ",";
@@ -211,7 +214,9 @@ void handleApiBoilerGasMeter() {
   bool dry = server.hasArg("dryRun") && server.arg("dryRun") == "1";
   bool stored = false;
   if (!dry) {
-    if (!telemetryHistory.gasReadingAdd(epoch, idxMilli)) {
+    // the burner runtime is known only for a reading typed now, not for a back-dated one
+    uint32_t runtimeAtReading = (epoch + 120UL >= now) ? boilerRadio.getRuntimeTotalSec() : TelemetryHistoryManager::GAS_NO_RUNTIME;
+    if (!telemetryHistory.gasReadingAdd(epoch, idxMilli, runtimeAtReading)) {
       server.send(500, "application/json", F("{\"status\":\"error\",\"error\":\"reading not stored\"}"));
       return;
     }
@@ -245,9 +250,10 @@ void handleApiGasReadings() {
   GasListCtx ctx;
   ctx.first = true;
   telemetryHistory.gasReadingsForEach(
-      [](uint32_t e, uint32_t idx, void* p) {
+      [](uint32_t e, uint32_t idx, uint32_t rt, void* p) {
         GasListCtx* c = (GasListCtx*)p;
-        c->chunk += String(c->first ? "" : ",") + "{\"time\":" + String(e) + ",\"index\":" + String((double)idx / 1000.0, 3) + "}";
+        c->chunk += String(c->first ? "" : ",") + "{\"time\":" + String(e) + ",\"index\":" + String((double)idx / 1000.0, 3) +
+                    ",\"runtimeSec\":" + (rt == TelemetryHistoryManager::GAS_NO_RUNTIME ? String("null") : String(rt)) + "}";
         c->first = false;
         if (c->chunk.length() > 400) {
           server.sendContent(c->chunk);
@@ -1226,8 +1232,6 @@ static const ConfigArg CONFIG_ARGS[] = {
     {"windowThreshold", Param::WindowThreshold},
     {"boilerSetTemp", Param::BoilerSetTemp},
     {"boilerFlowObserved", Param::BoilerFlowObserved},
-    {"gasFlameRate", Param::GasFlameRate},
-    {"boilerPowerKw", Param::BoilerPowerKw},
     {"gasPrice", Param::GasPrice},
 };
 static const char* CONFIG_FLAGS[] = {"openLoopBypass", "rfSafetyHeartbeatEnabled", "pumpControlEnabled",
@@ -1303,8 +1307,6 @@ void handleApiConfigSystemPost() {
   if (server.hasArg("windowThreshold")) thermalZones.setWindowThreshold(server.arg("windowThreshold").toFloat());
   if (server.hasArg("boilerSetTemp")) paramStore.set(Param::BoilerSetTemp, server.arg("boilerSetTemp").toInt());
   if (server.hasArg("boilerFlowObserved")) paramStore.set(Param::BoilerFlowObserved, server.arg("boilerFlowObserved").toInt());
-  if (server.hasArg("gasFlameRate")) paramStore.setf(Param::GasFlameRate, server.arg("gasFlameRate").toFloat());
-  if (server.hasArg("boilerPowerKw")) paramStore.set(Param::BoilerPowerKw, server.arg("boilerPowerKw").toInt());
   if (server.hasArg("gasPrice")) paramStore.setf(Param::GasPrice, server.arg("gasPrice").toFloat());
   if (server.hasArg("openLoopBypass")) thermalZones.setOpenLoopBypass(flagOn(server.arg("openLoopBypass")));
   if (server.hasArg("rfSafetyHeartbeatEnabled")) boilerRadio.setSafetyHeartbeatEnabled(flagOn(server.arg("rfSafetyHeartbeatEnabled")));

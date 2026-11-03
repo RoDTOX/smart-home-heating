@@ -144,6 +144,11 @@ class SystemTestSuite(SuiteBase, HealthTests, HydraulicsTests, ControlTests, UiH
             self.test_tc21_6_gas_parameters_range_and_rejection,
             self.test_tc21_7_gas_meter_card_wording,
             self.test_tc21_8_gas_estimate_not_below_last_reading,
+            self.test_tc21_9_gas_flow_parameters_read_only,
+            self.test_tc21_10_gas_flow_boiler_power_no_page_input,
+            self.test_tc21_11_gas_flow_measured_field,
+            self.test_tc21_12_gas_readings_runtime_field,
+            self.test_tc21_13_gas_estimate_uses_measured_flow,
             # Group 23: FSM Relay Decoupling & Safety Invariant (FR-37)
             self.test_tc23_1_fsm_instant_warmup_abort_contract,
             self.test_tc23_2_orphaned_relay_safety_invariant,
