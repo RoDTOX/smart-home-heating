@@ -7,6 +7,12 @@ Entries before 29.10.2026 (the system before the lean clean-up):
 
 
 
+## [03.11.2026] - Clean import result card, value changes table & collapsible technical details (7eae5ee)
+
+- **Who / when / why:** firmware session (light mode), 03.11.2026; the owner observed that the post-import report dumped an unformatted, raw wall of 34 parameter names without values ('Aplicat: params.actuatorDelaySec, params.pumpOverrunSec...').
+- **Where:** web/index.html (updated renderImport to display a sleek green result card, a clear table of actual modified settings with friendly names and before/after values, skipped parameters with reasons, and tucked the raw 34 technical API keys into a collapsible <details> dropdown).
+- **Not changed:** ASPICE SWE.5-TC29.27 compliance (reads applied, kept, skipped, reason), backend import API.
+
 ## [03.11.2026] - Align import preview limits with §6, document & test UI additions (PB-70, f5ccb5d)
 
 - **Who / when / why:** firmware session (light mode), 03.11.2026; the owner reported that exporting and re-importing the same configuration flagged a false warning on 'params.rfSafetyHeartbeatSec (900)' out of range [10..300], and noted process drift (requirements and tests were not kept in sync with recent UI additions).
