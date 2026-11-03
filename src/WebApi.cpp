@@ -983,6 +983,43 @@ void handleApiScheduleMoment() {
   server.send(400, "application/json", F("{\"status\":\"error\",\"error\":\"Invalid moment parameters\"}"));
 }
 
+void handleApiScheduleNames() {
+  server.sendHeader("Access-Control-Allow-Origin", "*");
+  if (server.hasArg("plain")) {
+    JsonDocument doc;
+    if (!deserializeJson(doc, server.arg("plain"))) {
+      if (doc.containsKey("names") && doc["names"].is<JsonArray>()) {
+        JsonArray arr = doc["names"].as<JsonArray>();
+        for (size_t i = 0; i < arr.size() && i < MAX_SCHEDULE_MOMENTS; i++) {
+          thermalZones.setMomentName((uint8_t)i, arr[i].as<const char*>());
+        }
+        server.send(200, "application/json", thermalZones.getScheduleJson());
+        return;
+      } else if (doc.containsKey("moment") && doc.containsKey("name")) {
+        int m = doc["moment"].as<int>();
+        if (m >= 1 && m <= MAX_SCHEDULE_MOMENTS) {
+          thermalZones.setMomentName((uint8_t)(m - 1), doc["name"].as<const char*>());
+          server.send(200, "application/json", thermalZones.getScheduleJson());
+          return;
+        }
+      }
+    }
+  }
+  for (size_t i = 0; i < MAX_SCHEDULE_MOMENTS; i++) {
+    String pKey = "p" + String(i + 1);
+    if (server.hasArg(pKey)) {
+      thermalZones.setMomentName((uint8_t)i, server.arg(pKey).c_str());
+    }
+  }
+  if (server.hasArg("moment") && server.hasArg("name")) {
+    int m = server.arg("moment").toInt();
+    if (m >= 1 && m <= MAX_SCHEDULE_MOMENTS) {
+      thermalZones.setMomentName((uint8_t)(m - 1), server.arg("name").c_str());
+    }
+  }
+  server.send(200, "application/json", thermalZones.getScheduleJson());
+}
+
 void handleApiHistory() {
   server.sendHeader("Access-Control-Allow-Origin", "*");
   if (server.hasArg("time")) {
@@ -1227,6 +1264,7 @@ void registerWebRoutes() {
   server.on("/api/schedule/reset", HTTP_POST, handleApiScheduleReset);
   server.on("/api/schedule/mode", HTTP_POST, handleApiScheduleMode);
   server.on("/api/schedule/moment", HTTP_POST, handleApiScheduleMoment);
+  server.on("/api/schedule/names", HTTP_POST, handleApiScheduleNames);
   server.on("/api/history", HTTP_GET, handleApiHistory);
   server.on("/api/history/clear", HTTP_POST, handleApiHistoryClear);
   server.on("/api/config/system", HTTP_GET, handleApiConfigSystemGet);

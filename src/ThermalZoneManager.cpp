@@ -164,6 +164,13 @@ void ThermalZoneManager::loadSchedule() {
     ScheduleConfig loaded;
     if (paramStore.loadBlob("cfg3", &loaded, sizeof(loaded))) {
         _scheduleConfig = loaded;
+        if (_scheduleConfig.momentNames[0][0] == '\0') {
+            strlcpy(_scheduleConfig.momentNames[0], "Trezire", sizeof(_scheduleConfig.momentNames[0]));
+            strlcpy(_scheduleConfig.momentNames[1], "Plecat", sizeof(_scheduleConfig.momentNames[1]));
+            strlcpy(_scheduleConfig.momentNames[2], "Sear\xC4\x83", sizeof(_scheduleConfig.momentNames[2]));
+            strlcpy(_scheduleConfig.momentNames[3], "Noapte", sizeof(_scheduleConfig.momentNames[3]));
+            saveSchedule();
+        }
         Serial.println(F("[Thermal] Schedule v3 loaded from NVS."));
         return;
     }
@@ -639,6 +646,10 @@ ScheduleConfig ThermalZoneManager::getFactoryDefaultSchedule() {
         cfg.levelTemps[LEVEL_AWAY][i] = 18.0f;
         cfg.awayTemps[i] = encodeTempByte(18.0f);
     }
+    strlcpy(cfg.momentNames[0], "Trezire", sizeof(cfg.momentNames[0]));
+    strlcpy(cfg.momentNames[1], "Plecat", sizeof(cfg.momentNames[1]));
+    strlcpy(cfg.momentNames[2], "Sear\xC4\x83", sizeof(cfg.momentNames[2]));
+    strlcpy(cfg.momentNames[3], "Noapte", sizeof(cfg.momentNames[3]));
     cfg.weekdayCount = 2;
     cfg.weekday[0] = {6, 30, LEVEL_DAY};
     cfg.weekday[1] = {22, 30, LEVEL_NIGHT};
@@ -770,6 +781,26 @@ float ThermalZoneManager::getAwayTemp(size_t index) const {
     if (index >= MAX_THERMAL_ZONES) return 18.0f;
     if (_scheduleConfig.awayTemps[index] > 0) return decodeTempByte(_scheduleConfig.awayTemps[index]);
     return _scheduleConfig.levelTemps[LEVEL_AWAY][index];
+}
+
+const char* ThermalZoneManager::getMomentName(uint8_t index) const {
+    if (index >= MAX_SCHEDULE_MOMENTS) return "";
+    if (_scheduleConfig.momentNames[index][0] == '\0') {
+        switch (index) {
+            case 0: return "Trezire";
+            case 1: return "Plecat";
+            case 2: return "Sear\xC4\x83";
+            case 3: return "Noapte";
+        }
+    }
+    return _scheduleConfig.momentNames[index];
+}
+
+bool ThermalZoneManager::setMomentName(uint8_t index, const char* name) {
+    if (index >= MAX_SCHEDULE_MOMENTS || !name || strlen(name) == 0) return false;
+    strlcpy(_scheduleConfig.momentNames[index], name, sizeof(_scheduleConfig.momentNames[index]));
+    saveSchedule();
+    return true;
 }
 
 bool ThermalZoneManager::setLevelTemp(size_t index, ComfortLevel level, float temp) {
@@ -1154,6 +1185,12 @@ String ThermalZoneManager::getScheduleJson() const {
     json += "\"interlockDelaySec\":" + String(_interlockDelayMs / 1000) + ",";
     json += "\"pumpOverrunSec\":" + String(_pumpOverrunMs / 1000) + ",";
     json += "\"pumpControlEnabled\":" + String(_pumpControlEnabled ? "true" : "false") + ",";
+    json += "\"momentNames\":[";
+    for (size_t m = 0; m < MAX_SCHEDULE_MOMENTS; m++) {
+        if (m > 0) json += ",";
+        json += "\"" + String(getMomentName((uint8_t)m)) + "\"";
+    }
+    json += "],";
 
     // Weekday moments (Monday index 1)
     json += "\"weekday_moments\":[";

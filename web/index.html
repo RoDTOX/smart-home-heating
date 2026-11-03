@@ -513,9 +513,11 @@ function renderSlotChips(containerId, rawInputId) {
 function initSchedStateFromS() {
   if (!S) return;
   const zones = S.zones || [];
+  const defaultNames = ["Trezire", "Plecat", "Seară", "Noapte"];
   schedState = {
     mode: S.scheduleMode || "5+2",
     enabled: !!S.enabled,
+    momentNames: (S.momentNames && S.momentNames.length === 4) ? [...S.momentNames] : defaultNames,
     awayTemps: {},
     constantTemps: {},
     days: []
@@ -570,7 +572,11 @@ function renderMomentsTableHtml(moments, groupTag, extraActions = "") {
     const isAct = (S && S.activeMoment === (idx + 1));
     const actMark = isAct ? `<span style="color:var(--ok);font-weight:bold" title="Moment activ acum">● </span>` : "";
     h += `<tr class="${isAct ? 'chg' : ''}">`;
-    h += `<td><b>${actMark}${MOMENT_LABELS[idx]}</b></td>`;
+    const mName = (schedState && schedState.momentNames && schedState.momentNames[idx]) ? schedState.momentNames[idx] : MOMENT_LABELS[idx];
+    h += `<td><div style="display:flex;align-items:center;gap:4px">
+      ${actMark}<span class="s" style="font-weight:bold">P${idx + 1}:</span>
+      <input type="text" class="mom-name" data-m="${idx}" value="${esc(mName)}" maxlength="15" title="Redenumește momentul" style="width:105px;font-weight:600;padding:2px 4px;font-size:13px">
+    </div></td>`;
     h += `<td><input type="text" class="time24" data-group="${groupTag}" data-m="${idx}" value="${esc(m.time)}" placeholder="06:30" maxlength="5"></td>`;
     zones.forEach(z => {
       const val = (m.temps && m.temps[z.id] !== undefined) ? Number(m.temps[z.id]).toFixed(1) : "22.0";
@@ -588,9 +594,9 @@ function renderMomentsTableHtml(moments, groupTag, extraActions = "") {
 
 function renderSchedule() {
   if (!S) return;
-  if (!schedDirty && !editing) {
-    initSchedStateFromS();
-  }
+  const isEditing = schedDirty || editing || (schedForm && schedForm.contains(document.activeElement));
+  if (isEditing) return; // Protect active user inputs from periodic refresh overwrite
+  initSchedStateFromS();
   if (!schedState) return;
 
   $("schedOn").checked = schedState.enabled;
@@ -907,35 +913,37 @@ function markSchedDirty() {
   schedDirty = true;
   $("undoSched").style.display = "";
 }
-schedForm.addEventListener("input", e => {
-  if (e.target.id === "schedOn") {
-    if (schedState) schedState.enabled = $("schedOn").checked;
-    markSchedDirty();
-  } else if (e.target.id === "wd") renderSlotChips("wdSlots", "wd");
-  else if (e.target.id === "we") renderSlotChips("weSlots", "we");
-});
-schedForm.addEventListener("change", e => {
-  if (e.target.id === "schedOn") {
-    if (schedState) schedState.enabled = $("schedOn").checked;
-    markSchedDirty();
-  } else if (e.target.classList.contains("time24")) {
-    const grp = e.target.dataset.group, m = +e.target.dataset.m, val = e.target.value.trim();
-    if (schedState && /^[0-2]?[0-9]:[0-5][0-9]$/.test(val)) {
-      if (grp === "unified") {
-        for (let d = 0; d < 7; d++) schedState.days[d][m].time = val;
-      } else if (grp === "wd") {
-        for (let d = 1; d <= 5; d++) schedState.days[d][m].time = val;
-      } else if (grp === "we") {
-        schedState.days[0][m].time = val; schedState.days[6][m].time = val;
-      } else if (grp && grp.startsWith("day_")) {
-        const d = +grp.split("_")[1];
-        schedState.days[d][m].time = val;
-      }
-      markSchedDirty();
+function syncSchedInput(t) {
+  markSchedDirty();
+  editing = true;
+  if (!schedState) return;
+
+  if (t.id === "schedOn") {
+    schedState.enabled = t.checked;
+  } else if (t.classList.contains("mom-name")) {
+    const m = +t.dataset.m, val = t.value.trim();
+    if (schedState.momentNames && val) {
+      schedState.momentNames[m] = val;
+      // Mirror name in other moment name inputs if visible
+      document.querySelectorAll(`.mom-name[data-m="${m}"]`).forEach(inp => {
+        if (inp !== t) inp.value = val;
+      });
     }
-  } else if (e.target.classList.contains("sched-t")) {
-    const grp = e.target.dataset.group, m = +e.target.dataset.m, z = e.target.dataset.z, val = parseFloat(e.target.value);
-    if (schedState && !isNaN(val)) {
+  } else if (t.classList.contains("time24")) {
+    const grp = t.dataset.group, m = +t.dataset.m, val = t.value.trim();
+    if (grp === "unified") {
+      for (let d = 0; d < 7; d++) schedState.days[d][m].time = val;
+    } else if (grp === "wd") {
+      for (let d = 1; d <= 5; d++) schedState.days[d][m].time = val;
+    } else if (grp === "we") {
+      schedState.days[0][m].time = val; schedState.days[6][m].time = val;
+    } else if (grp && grp.startsWith("day_")) {
+      const d = +grp.split("_")[1];
+      schedState.days[d][m].time = val;
+    }
+  } else if (t.classList.contains("sched-t")) {
+    const grp = t.dataset.group, m = +t.dataset.m, z = t.dataset.z, val = parseFloat(t.value);
+    if (!isNaN(val)) {
       if (grp === "unified") {
         for (let d = 0; d < 7; d++) schedState.days[d][m].temps[z] = val;
       } else if (grp === "wd") {
@@ -946,23 +954,24 @@ schedForm.addEventListener("change", e => {
         const d = +grp.split("_")[1];
         schedState.days[d][m].temps[z] = val;
       }
-      markSchedDirty();
     }
-  } else if (e.target.classList.contains("const-t")) {
-    const z = e.target.dataset.z, val = parseFloat(e.target.value);
-    if (schedState && !isNaN(val)) {
+  } else if (t.classList.contains("const-t")) {
+    const z = t.dataset.z, val = parseFloat(t.value);
+    if (!isNaN(val)) {
       schedState.constantTemps[z] = val;
       for (let d = 0; d < 7; d++) schedState.days[d][0].temps[z] = val;
-      markSchedDirty();
     }
-  } else if (e.target.classList.contains("away-t")) {
-    const z = e.target.dataset.z, val = parseFloat(e.target.value);
-    if (schedState && !isNaN(val)) {
+  } else if (t.classList.contains("away-t")) {
+    const z = t.dataset.z, val = parseFloat(t.value);
+    if (!isNaN(val)) {
       schedState.awayTemps[z] = val;
-      markSchedDirty();
     }
-  }
-});
+  } else if (t.id === "wd") renderSlotChips("wdSlots", "wd");
+  else if (t.id === "we") renderSlotChips("weSlots", "we");
+}
+
+schedForm.addEventListener("input", e => syncSchedInput(e.target));
+schedForm.addEventListener("change", e => syncSchedInput(e.target));
 schedForm.addEventListener("focusin", () => editing = true);
 schedForm.addEventListener("focusout", () => {
   if (!schedForm.contains(document.activeElement) && !schedDirty) editing = false;
@@ -1093,6 +1102,11 @@ $("saveSched").onclick = async () => {
     $("schedMsg").textContent = "Se salvează...";
     // 1. Enable / disable
     await api("api/schedule/enable", {enabled: $("schedOn").checked ? 1 : 0});
+
+    // 1b. Customizable moment names
+    if (schedState.momentNames && schedState.momentNames.length === 4) {
+      await api("api/schedule/names", {names: schedState.momentNames}, true);
+    }
 
     // 2. Mode
     const mode = schedState.mode;

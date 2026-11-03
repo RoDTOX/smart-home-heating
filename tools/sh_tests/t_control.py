@@ -529,3 +529,54 @@ class ControlTests:
         finally:
             if not orig_hold:
                 requests.post(f"{self.base_url}/api/zones/hold/clear?id={target_zone_id}", timeout=self.timeout)
+
+    def test_tc16_7_custom_moment_names(self):
+        """SWE.5-TC16.7: Customizable Moment Names in Schedule (FR-29)"""
+        test_id = "SWE.5-TC16.7"
+        name = "Customizable Moment Names"
+        req = "FR-29"
+        start = time.time()
+        try:
+            r = requests.get(f"{self.base_url}/api/schedule", timeout=self.timeout)
+            assert r.status_code == 200, f"HTTP {r.status_code}"
+            d = r.json()
+            assert "momentNames" in d, "Missing momentNames in /api/schedule"
+            orig_names = d["momentNames"]
+            assert len(orig_names) == 4, f"Expected 4 moment names, got {len(orig_names)}"
+
+            new_names = ["Dimineață", "Muncă", "Acasă", "Somn"]
+            r_post = requests.post(
+                f"{self.base_url}/api/schedule/names",
+                json={"names": new_names},
+                timeout=self.timeout
+            )
+            assert r_post.status_code == 200, f"POST /api/schedule/names failed: HTTP {r_post.status_code}"
+            d_post = r_post.json()
+            assert d_post.get("momentNames") == new_names, f"Names not updated: {d_post.get('momentNames')}"
+
+            r_get = requests.get(f"{self.base_url}/api/schedule", timeout=self.timeout).json()
+            assert r_get.get("momentNames") == new_names, f"GET did not reflect names: {r_get.get('momentNames')}"
+
+            requests.post(f"{self.base_url}/api/schedule/names", json={"names": orig_names}, timeout=self.timeout)
+            latency = (time.time() - start) * 1000
+            return TestResult(test_id, name, req, "PASS", latency, "Moment names customizable and persistent")
+        except Exception as e:
+            return TestResult(test_id, name, req, "FAIL", (time.time() - start) * 1000, str(e))
+
+    def test_tc16_8_schedule_ui_dirty_protection(self):
+        """SWE.5-TC16.8: Schedule Form Guard Against Refresh Overwrite (FR-8.1)"""
+        test_id = "SWE.5-TC16.8"
+        name = "Schedule UI Refresh Protection"
+        req = "FR-8.1"
+        start = time.time()
+        try:
+            r = requests.get(f"{self.base_url}/", timeout=self.timeout)
+            assert r.status_code == 200, f"HTTP {r.status_code}"
+            html = r.text
+            assert "schedDirty" in html, "Missing schedDirty guard in web page"
+            assert "mom-name" in html or "momentNames" in html, "Missing moment name input in schedule table"
+            assert "undoSched" in html, "Missing undoSched button in web page"
+            latency = (time.time() - start) * 1000
+            return TestResult(test_id, name, req, "PASS", latency, "Schedule UI dirty protection and editable moment names verified")
+        except Exception as e:
+            return TestResult(test_id, name, req, "FAIL", (time.time() - start) * 1000, str(e))

@@ -7,6 +7,12 @@ Entries before 29.10.2026 (the system before the lean clean-up):
 
 
 
+## [03.11.2026] - Schedule form refresh overwrite protection & customizable moment names (C-16, PB-69)
+
+- **Who / when / why:** firmware session (light mode), 03.11.2026; the owner observed that background 2s polling refreshes reconstructed `c.innerHTML`, destroying active form input focus and reverting uncommitted values before saving; additionally requested that moment names (P1: Trezire, etc.) be user-customizable.
+- **Where:** `FR-8.1`, `FR-29` (baseline updated), `include/ThermalZoneManager.h` (`momentNames` array in `ScheduleConfig`), `src/ThermalZoneManager.cpp` (`getMomentName`/`setMomentName`, `getScheduleJson` serialization), `src/WebApi.cpp` (`POST /api/schedule/names`), `web/index.html` (strict `renderSchedule()` guard when editing or dirty, immediate input event synchronization, editable `.mom-name` fields), `tools/sh_tests/t_control.py` (`SWE.5-TC16.7` custom moment names, `SWE.5-TC16.8` refresh dirty protection).
+- **Not changed:** hydronic safety invariants and schedule evaluation logic.
+
 ## [03.11.2026] - Honeywell 4-Moment Scheduling, 4 Operating Modes & Configurable Away (C-15, PB-68)
 
 - **Who / when / why:** firmware session (light mode), 03.11.2026; the owner requested an intuitive multi-moment schedule model inspired by Honeywell T6/Evohome with 4 modes (Constant 24/7, Unified L–D, 5+2 Weekday/Weekend, 7-Day individual) supporting up to 4 daily moments (P1 Trezire, P2 Plecat/Zi, P3 Seară, P4 Somn) with direct per-zone target temperatures, user-configurable Away temperatures per room with quick global apply, and clean 24h UI eliminating AM/PM browser confusion and raw token mismatches.

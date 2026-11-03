@@ -91,6 +91,7 @@ struct ScheduleConfig {
     ScheduleSlot weekend[MAX_SCHEDULE_SLOTS];
     MomentConfig days[MAX_SCHEDULE_DAYS][MAX_SCHEDULE_MOMENTS]; // 0=Sun, 1=Mon ... 6=Sat
     uint8_t awayTemps[MAX_THERMAL_ZONES];
+    char momentNames[MAX_SCHEDULE_MOMENTS][16];
 };
 
 struct WindowDetectionState {
@@ -261,6 +262,8 @@ public:
     bool setMomentForGroup(const char* group, uint8_t momentIndex, uint8_t hour, uint8_t minute, const float* temps);
     bool setAwayTemp(size_t index, float temp);
     float getAwayTemp(size_t index) const;
+    const char* getMomentName(uint8_t index) const;
+    bool setMomentName(uint8_t index, const char* name);
 
     // Open Window Detection State
     bool isWindowPauseActive(size_t index) const;
