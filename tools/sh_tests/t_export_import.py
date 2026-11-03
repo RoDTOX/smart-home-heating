@@ -1520,7 +1520,7 @@ class ExportImportTests:
         """SWE.5-TC29.38: Served Page Offers Pre-Import Diff Preview and Confirmation Dialog (FR-8.1, FR-65.7)"""
         test_id = "SWE.5-TC29.38"
         name = "Pre-Import Diff Preview and Confirmation"
-        req = "FR-8.1"
+        req = "FR-8.1, FR-65.7"
         start = time.time()
         try:
             r = requests.get(f"{self.base_url}/", timeout=self.timeout)
