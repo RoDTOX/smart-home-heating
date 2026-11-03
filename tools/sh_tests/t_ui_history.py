@@ -815,3 +815,20 @@ class UiHistoryTests:
             return TestResult(test_id, name, req, "PASS", latency, "stepper handler acts only on buttons with a setpoint action")
         except Exception as e:
             return TestResult(test_id, name, req, "FAIL", (time.time() - start) * 1000, str(e))
+
+    def test_tc21_14_gas_figures_only_with_measured_flow(self):
+        """SWE.5-TC21.14: Gas figures of the page appear only with a measured flow (FR-35.1)"""
+        test_id = "SWE.5-TC21.14"
+        name = "Gas Figures Need Measured Flow"
+        req = "FR-35.1"
+        start = time.time()
+        try:
+            html = requests.get(f"{self.base_url}/", timeout=self.timeout).text
+            latency = (time.time() - start) * 1000
+            assert "gasFlowMeasured" in html, "the page does not look at gasFlowMeasured"
+            assert "se calculează după" in html, "the page lacks the note that consumption is calculated after two readings"
+            assert "gasMeasured ? " in html, "the gas figures are not conditional on a measured flow"
+            assert "boilerRuntime.todaySec" in html and "Timp ardere azi" in html, "boiler ON time of today has no source"
+            return TestResult(test_id, name, req, "PASS", latency, "gas figures conditional on gasFlowMeasured, note present")
+        except Exception as e:
+            return TestResult(test_id, name, req, "FAIL", (time.time() - start) * 1000, str(e))

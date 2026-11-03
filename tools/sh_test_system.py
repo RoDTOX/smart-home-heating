@@ -149,6 +149,7 @@ class SystemTestSuite(SuiteBase, HealthTests, HydraulicsTests, ControlTests, UiH
             self.test_tc21_11_gas_flow_measured_field,
             self.test_tc21_12_gas_readings_runtime_field,
             self.test_tc21_13_gas_estimate_uses_measured_flow,
+            self.test_tc21_14_gas_figures_only_with_measured_flow,
             # Group 23: FSM Relay Decoupling & Safety Invariant (FR-37)
             self.test_tc23_1_fsm_instant_warmup_abort_contract,
             self.test_tc23_2_orphaned_relay_safety_invariant,

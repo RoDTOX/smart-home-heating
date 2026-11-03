@@ -1104,32 +1104,35 @@ function renderGasMeter() {
   const has = gm.lastReadingTime !== null && gm.lastReadingTime !== undefined;
   const estIdx = (has && gm.estimatedIndex !== null) ? Number(gm.estimatedIndex).toFixed(3) : "—";
   const lastStr = has ? `Ultima citire: ${Number(gm.lastReadingIndex).toFixed(3)} m³ · ${fmtReadingTime(gm.lastReadingTime)}` : "Nicio citire de contor încă";
-  const todayM3 = Number(gm.gasTodayM3 || 0).toFixed(2);
-  const yestM3 = Number(gm.gasYesterdayM3 || 0).toFixed(2);
-  const monthM3 = Number(gm.gasThisMonthM3 || 0).toFixed(2);
+  const gasMeasured = (gm.gasFlowMeasured !== null && gm.gasFlowMeasured !== undefined);
+  const NOTE_GAS = "se calculează după două citiri de contor";
+  const todayM3 = gasMeasured ? Number(gm.gasTodayM3 || 0).toFixed(2) : "—";
+  const yestM3 = gasMeasured ? Number(gm.gasYesterdayM3 || 0).toFixed(2) : "—";
+  const monthM3 = gasMeasured ? Number(gm.gasThisMonthM3 || 0).toFixed(2) : "—";
   const setT = gm.boilerSetTemp, flowT = gm.boilerFlowObserved;
   const measured = (gm.gasFlowMeasured !== null && gm.gasFlowMeasured !== undefined);
   const flameRate = Number(measured ? gm.gasFlowMeasured : gm.gasFlameRate).toFixed(2);
   const flowLabel = measured ? "Debit măsurat" : "Debit estimat (implicit, se corectează singur)";
   const boilerKw = gm.boilerPowerKw;
   const price = Number(gm.gasPrice).toFixed(2);
-  const todayLei = (parseFloat(todayM3) * parseFloat(price)).toFixed(2);
-  const yestLei = (parseFloat(yestM3) * parseFloat(price)).toFixed(2);
-  const monthLei = (parseFloat(monthM3) * parseFloat(price)).toFixed(2);
-  const burnTodaySec = (B && B.runtimeTodaySec) ? B.runtimeTodaySec : ((RAW && RAW["api/boiler/status"] && RAW["api/boiler/status"].runtimeTodaySec) || 0);
+  const todayLei = gasMeasured ? (parseFloat(todayM3) * parseFloat(price)).toFixed(2) : "—";
+  const yestLei = gasMeasured ? (parseFloat(yestM3) * parseFloat(price)).toFixed(2) : "—";
+  const monthLei = gasMeasured ? (parseFloat(monthM3) * parseFloat(price)).toFixed(2) : "—";
+  const bst = (RAW && RAW["api/boiler/status"]) ? RAW["api/boiler/status"] : null;
+  const burnTodaySec = (bst && bst.boilerRuntime && bst.boilerRuntime.todaySec) ? bst.boilerRuntime.todaySec : 0;  // boilerRuntime.todaySec
   const burnTodayH = (burnTodaySec / 3600).toFixed(1);
 
   if ($("gasEstIdx")) {
     $("gasEstIdx").textContent = estIdx;
     $("gasLastReading").textContent = lastStr;
     $("gasTodayM3").textContent = todayM3;
-    $("gasTodayLei").textContent = `~ ${todayLei} Lei · Ieri: ${yestM3} m³ (${yestLei} Lei)`;
+    $("gasTodayLei").textContent = gasMeasured ? `~ ${todayLei} Lei · Ieri: ${yestM3} m³ (${yestLei} Lei)` : NOTE_GAS;
     $("gasMonthM3").textContent = monthM3;
-    $("gasMonthLei").textContent = `~ ${monthLei} Lei (la ${price} Lei/m³)`;
+    $("gasMonthLei").textContent = gasMeasured ? `~ ${monthLei} Lei (la ${price} Lei/m³)` : NOTE_GAS;
     $("gasSetT").textContent = `${setT}°C `;
     $("gasFlowT").textContent = `(livrează ~${flowT}°C)`;
     $("gasSubRate").textContent = `${flowLabel}: ${flameRate} m³/h`;
-    $("gasBurnTimeStr").textContent = `Timp ardere azi: ${burnTodayH}h`;
+    $("gasBurnTimeStr").textContent = `Timp ardere azi: ${burnTodayH}h (centrală pornită)`;
     if (!gasFormOpen) {
       if ($("cfgGasSetTemp")) $("cfgGasSetTemp").value = setT;
       if ($("cfgGasFlowObs")) $("cfgGasFlowObs").value = flowT;
@@ -1153,12 +1156,12 @@ function renderGasMeter() {
     <div style="background:var(--card);border:1px solid var(--line);border-radius:8px;padding:10px">
       <div class="s" style="color:var(--mut)">Consum gaz azi</div>
       <div style="font-size:22px;font-weight:700;color:var(--heat);margin:2px 0"><span id="gasTodayM3">${todayM3}</span> <span style="font-size:14px;font-weight:400">m³</span></div>
-      <div class="s" id="gasTodayLei" style="color:var(--mut)">~ ${todayLei} Lei · Ieri: ${yestM3} m³ (${yestLei} Lei)</div>
+      <div class="s" id="gasTodayLei" style="color:var(--mut)">${gasMeasured ? `~ ${todayLei} Lei · Ieri: ${yestM3} m³ (${yestLei} Lei)` : NOTE_GAS}</div>
     </div>
     <div style="background:var(--card);border:1px solid var(--line);border-radius:8px;padding:10px">
       <div class="s" style="color:var(--mut)">Consum luna aceasta</div>
       <div style="font-size:22px;font-weight:700;color:var(--fg);margin:2px 0"><span id="gasMonthM3">${monthM3}</span> <span style="font-size:14px;font-weight:400">m³</span></div>
-      <div class="s" id="gasMonthLei" style="color:var(--mut)">~ ${monthLei} Lei (la ${price} Lei/m³)</div>
+      <div class="s" id="gasMonthLei" style="color:var(--mut)">${gasMeasured ? `~ ${monthLei} Lei (la ${price} Lei/m³)` : NOTE_GAS}</div>
     </div>
     <div style="background:var(--card);border:1px solid var(--line);border-radius:8px;padding:10px">
       <div class="s" style="color:var(--mut)">Temperatură tur centrală</div>
