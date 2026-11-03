@@ -425,8 +425,24 @@ bool ParamStore::loadBlob(const char* key, void* buf, size_t len) {
 void ParamStore::saveBlob(const char* key, const void* buf, size_t len) {
     Preferences prefs;
     if (!prefs.begin(NS_BLOB, false)) return;
-    uint8_t current[512];
-    bool same = len <= sizeof(current) && prefs.getBytes(key, current, len) == len && memcmp(current, buf, len) == 0;
+    bool same = false;
+    size_t stored = prefs.getBytesLength(key);
+    if (stored == len) {
+        if (len <= 512) {
+            uint8_t current[512];
+            if (prefs.getBytes(key, current, len) == len && memcmp(current, buf, len) == 0) {
+                same = true;
+            }
+        } else {
+            uint8_t* current = (uint8_t*)malloc(len);
+            if (current) {
+                if (prefs.getBytes(key, current, len) == len && memcmp(current, buf, len) == 0) {
+                    same = true;
+                }
+                free(current);
+            }
+        }
+    }
     if (!same) prefs.putBytes(key, buf, len);
     prefs.end();
 }

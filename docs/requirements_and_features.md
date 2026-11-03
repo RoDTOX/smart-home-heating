@@ -311,9 +311,9 @@ one example:
 
 ### 3.6 Schedule, modes and season
 
-- **FR-29 (Levels):** *[now]* {SW; test} Each zone has three levels: day, night, away (5–30 °C; factory 23 / 21 / 18 °C).
-- **FR-30 (Level storage):** *[now]* {SW; test, inspection} Level temperatures are stored in NVS, written only on change.
-- **FR-31 (Schedule):** *[now]* {SW; test} One weekday and one weekend list of up to 8 slots `HH:MM=level`, kept sorted.
+- **FR-29 (Levels & Moments):** *[now]* {SW; test} Each zone has comfort levels and multi-moment targets (up to 4 configurable daily moments P1..P4: Wake, Leave, Return, Sleep, plus configurable global Away temperature per zone; 5–30 °C; factory 23 / 21 / 18 °C).
+- **FR-30 (Level storage):** *[now]* {SW; test, inspection} Level and moment temperatures are stored in NVS, written only on change.
+- **FR-31 (Schedule):** *[now]* {SW; test} Multi-moment daily schedule supporting 4 selectable scheduling modes: Constant 24/7 (single setpoint all days), Weekly Unified (L–D identical moments), 5+2 (Weekday Mon–Fri / Weekend Sat–Sun), and 7-day Individual (Mon–Sun each customizable). Up to 8 slots per day HH:MM=level or direct moment targets, kept sorted. Time inputs use 24h format (HH:MM). Bilingual display (English / Romanian, NFR-3.1).
 - **FR-44 (Away):** *[now]* {SW; test} Global away sets every zone's target to its away level and ends boosts; switching away off
   returns to the schedule.
 - **FR-12.1 (Time):** *[now]* {SW; test} Time from NTP with the Romanian time zone (`EET-2EEST,M3.5.0/3,M10.5.0/4`), including

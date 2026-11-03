@@ -75,7 +75,7 @@ ThermalZoneManager::ThermalZoneManager()
 }
 
 static_assert(MAX_THERMAL_ZONES == PARAM_ZONES, "ParamStore zone records must match the zone count");
-static_assert(sizeof(ScheduleConfig) <= 512, "ParamStore::saveBlob compares at most 512 bytes");
+static_assert(sizeof(ScheduleConfig) <= 1984, "ScheduleConfig must fit in single NVS blob");
 
 // A slot that is not a zone: no output (pin 0), switched off, so no loop over the slots can act on it
 void ThermalZoneManager::clearZoneSlot(size_t i) {
@@ -162,49 +162,53 @@ struct ScheduleConfigV1 {
 
 void ThermalZoneManager::loadSchedule() {
     ScheduleConfig loaded;
-    if (!paramStore.loadBlob("cfg2", &loaded, sizeof(loaded))) {
-        ScheduleConfigV1 old;
-        if (!paramStore.loadBlob("cfg2", &old, sizeof(old))) return;  // factory schedule (constructor)
-        // Same settings for 32 zone slots: the old levels of the first three, factory levels for the rest
+    if (paramStore.loadBlob("cfg3", &loaded, sizeof(loaded))) {
+        _scheduleConfig = loaded;
+        Serial.println(F("[Thermal] Schedule v3 loaded from NVS."));
+        return;
+    }
+    ScheduleConfigV1 old;
+    if (paramStore.loadBlob("cfg2", &old, sizeof(old))) {
         loaded = getFactoryDefaultSchedule();
         loaded.enabled = old.enabled;
         loaded.preHeatEnabled = old.preHeatEnabled;
         loaded.windowDetectionEnabled = old.windowDetectionEnabled;
         loaded.away = old.away;
-        for (uint8_t l = 0; l < LEVEL_COUNT; l++)
+        for (uint8_t l = 0; l < LEVEL_COUNT; l++) {
             for (size_t i = 0; i < 3; i++) loaded.levelTemps[l][i] = old.levelTemps[l][i];
+        }
+        for (size_t i = 0; i < MAX_THERMAL_ZONES; i++) {
+            loaded.awayTemps[i] = encodeTempByte(loaded.levelTemps[LEVEL_AWAY][i]);
+        }
         loaded.weekdayCount = old.weekdayCount;
         loaded.weekendCount = old.weekendCount;
         memcpy(loaded.weekday, old.weekday, sizeof(loaded.weekday));
         memcpy(loaded.weekend, old.weekend, sizeof(loaded.weekend));
-    }
-    bool valid = loaded.weekdayCount >= 1 && loaded.weekdayCount <= MAX_SCHEDULE_SLOTS &&
-                 loaded.weekendCount >= 1 && loaded.weekendCount <= MAX_SCHEDULE_SLOTS;
-    for (uint8_t l = 0; valid && l < LEVEL_COUNT; l++) {
-        for (size_t i = 0; i < MAX_THERMAL_ZONES; i++) {
-            float t = loaded.levelTemps[l][i];
-            if (!(t >= 5.0f && t <= 30.0f)) valid = false;  // FR-29 range
-        }
-    }
-    for (uint8_t n = 0; valid && n < MAX_SCHEDULE_SLOTS; n++) {
-        const ScheduleSlot* lists[2] = {&loaded.weekday[n], &loaded.weekend[n]};
-        uint8_t counts[2] = {loaded.weekdayCount, loaded.weekendCount};
-        for (uint8_t w = 0; w < 2; w++) {
-            if (n < counts[w] && (lists[w]->hour > 23 || lists[w]->minute > 59 || lists[w]->level >= LEVEL_COUNT)) {
-                valid = false;
-            }
-        }
-    }
-    if (valid) {
         _scheduleConfig = loaded;
-        Serial.println(F("[Thermal] Schedule loaded from NVS."));
-    } else {
-        netConsole.println(F("[Thermal] Stored schedule invalid, factory schedule used."));
+        saveSchedule();
+        Serial.println(F("[Thermal] Schedule migrated from cfg2 to cfg3."));
+        return;
     }
+    _scheduleConfig = getFactoryDefaultSchedule();
+    saveSchedule();
 }
 
 void ThermalZoneManager::saveSchedule() {
-    paramStore.saveBlob("cfg2", &_scheduleConfig, sizeof(_scheduleConfig));
+    paramStore.saveBlob("cfg3", &_scheduleConfig, sizeof(_scheduleConfig));
+    ScheduleConfigV1 old;
+    memset(&old, 0, sizeof(old));
+    old.enabled = _scheduleConfig.enabled;
+    old.preHeatEnabled = _scheduleConfig.preHeatEnabled;
+    old.windowDetectionEnabled = _scheduleConfig.windowDetectionEnabled;
+    old.away = _scheduleConfig.away;
+    for (uint8_t l = 0; l < LEVEL_COUNT; l++) {
+        for (size_t i = 0; i < 3; i++) old.levelTemps[l][i] = _scheduleConfig.levelTemps[l][i];
+    }
+    old.weekdayCount = _scheduleConfig.weekdayCount;
+    old.weekendCount = _scheduleConfig.weekendCount;
+    memcpy(old.weekday, _scheduleConfig.weekday, sizeof(old.weekday));
+    memcpy(old.weekend, _scheduleConfig.weekend, sizeof(old.weekend));
+    paramStore.saveBlob("cfg2", &old, sizeof(old));
 }
 
 void ThermalZoneManager::applyRelay(uint8_t pin, bool active) {
@@ -627,10 +631,13 @@ ScheduleConfig ThermalZoneManager::getFactoryDefaultSchedule() {
     cfg.enabled = true;
     cfg.preHeatEnabled = true;
     cfg.windowDetectionEnabled = true;
+    cfg.scheduleMode = SCHED_MODE_5_2;
+
     for (size_t i = 0; i < MAX_THERMAL_ZONES; i++) {
         cfg.levelTemps[LEVEL_DAY][i] = 23.0f;    // FR-29 factory levels
         cfg.levelTemps[LEVEL_NIGHT][i] = 21.0f;
         cfg.levelTemps[LEVEL_AWAY][i] = 18.0f;
+        cfg.awayTemps[i] = encodeTempByte(18.0f);
     }
     cfg.weekdayCount = 2;
     cfg.weekday[0] = {6, 30, LEVEL_DAY};
@@ -638,12 +645,139 @@ ScheduleConfig ThermalZoneManager::getFactoryDefaultSchedule() {
     cfg.weekendCount = 2;
     cfg.weekend[0] = {8, 0, LEVEL_DAY};
     cfg.weekend[1] = {23, 0, LEVEL_NIGHT};
+
+    // Honeywell 4-moment daily matrix
+    // Weekday: P1 06:30 (23.0), P2 08:30 (20.0), P3 17:00 (23.0), P4 22:30 (21.0)
+    for (uint8_t d = 1; d <= 5; d++) {
+        cfg.days[d][0].hour = 6;  cfg.days[d][0].minute = 30;
+        cfg.days[d][1].hour = 8;  cfg.days[d][1].minute = 30;
+        cfg.days[d][2].hour = 17; cfg.days[d][2].minute = 0;
+        cfg.days[d][3].hour = 22; cfg.days[d][3].minute = 30;
+        for (size_t z = 0; z < MAX_THERMAL_ZONES; z++) {
+            cfg.days[d][0].temps[z] = encodeTempByte(23.0f);
+            cfg.days[d][1].temps[z] = encodeTempByte(20.0f);
+            cfg.days[d][2].temps[z] = encodeTempByte(23.0f);
+            cfg.days[d][3].temps[z] = encodeTempByte(21.0f);
+        }
+    }
+    // Weekend: P1 08:00 (23.0), P2 12:00 (23.0), P3 18:00 (23.0), P4 23:00 (21.0)
+    for (uint8_t d : {0, 6}) {
+        cfg.days[d][0].hour = 8;  cfg.days[d][0].minute = 0;
+        cfg.days[d][1].hour = 12; cfg.days[d][1].minute = 0;
+        cfg.days[d][2].hour = 18; cfg.days[d][2].minute = 0;
+        cfg.days[d][3].hour = 23; cfg.days[d][3].minute = 0;
+        for (size_t z = 0; z < MAX_THERMAL_ZONES; z++) {
+            cfg.days[d][0].temps[z] = encodeTempByte(23.0f);
+            cfg.days[d][1].temps[z] = encodeTempByte(23.0f);
+            cfg.days[d][2].temps[z] = encodeTempByte(23.0f);
+            cfg.days[d][3].temps[z] = encodeTempByte(21.0f);
+        }
+    }
     return cfg;
+}
+
+void ThermalZoneManager::setScheduleMode(uint8_t mode) {
+    if (mode > SCHED_MODE_7DAY) mode = SCHED_MODE_5_2;
+    _scheduleConfig.scheduleMode = mode;
+    saveSchedule();
+    evaluateSchedule(millis());
+}
+
+const char* ThermalZoneManager::getScheduleModeName() const {
+    switch (_scheduleConfig.scheduleMode) {
+        case SCHED_MODE_CONSTANT: return "constant";
+        case SCHED_MODE_UNIFIED:  return "unified";
+        case SCHED_MODE_7DAY:     return "7day";
+        default:                  return "5+2";
+    }
+}
+
+bool ThermalZoneManager::setScheduleModeByName(const char* name) {
+    if (!name) return false;
+    if (strcasecmp(name, "constant") == 0) _scheduleConfig.scheduleMode = SCHED_MODE_CONSTANT;
+    else if (strcasecmp(name, "unified") == 0) _scheduleConfig.scheduleMode = SCHED_MODE_UNIFIED;
+    else if (strcasecmp(name, "7day") == 0 || strcasecmp(name, "7-day") == 0) _scheduleConfig.scheduleMode = SCHED_MODE_7DAY;
+    else if (strcasecmp(name, "5+2") == 0 || strcasecmp(name, "5_2") == 0 || strcasecmp(name, "5 2") == 0 || strcasecmp(name, "5-2") == 0) _scheduleConfig.scheduleMode = SCHED_MODE_5_2;
+    else return false;
+    saveSchedule();
+    evaluateSchedule(millis());
+    return true;
+}
+
+bool ThermalZoneManager::setMoment(uint8_t dayIndex, uint8_t momentIndex, uint8_t hour, uint8_t minute, const float* temps) {
+    if (dayIndex >= MAX_SCHEDULE_DAYS || momentIndex >= MAX_SCHEDULE_MOMENTS || hour > 23 || minute > 59) return false;
+    _scheduleConfig.days[dayIndex][momentIndex].hour = hour;
+    _scheduleConfig.days[dayIndex][momentIndex].minute = minute;
+    if (temps) {
+        for (size_t z = 0; z < _zoneCount && z < MAX_THERMAL_ZONES; z++) {
+            if (temps[z] >= 5.0f && temps[z] <= 30.0f) {
+                _scheduleConfig.days[dayIndex][momentIndex].temps[z] = encodeTempByte(temps[z]);
+            }
+        }
+    }
+    saveSchedule();
+    evaluateSchedule(millis());
+    return true;
+}
+
+bool ThermalZoneManager::setMomentForGroup(const char* group, uint8_t momentIndex, uint8_t hour, uint8_t minute, const float* temps) {
+    if (!group || momentIndex >= MAX_SCHEDULE_MOMENTS || hour > 23 || minute > 59) return false;
+    if (strcasecmp(group, "weekday") == 0) {
+        for (uint8_t d = 1; d <= 5; d++) {
+            setMoment(d, momentIndex, hour, minute, temps);
+        }
+    } else if (strcasecmp(group, "weekend") == 0) {
+        setMoment(0, momentIndex, hour, minute, temps);
+        setMoment(6, momentIndex, hour, minute, temps);
+    } else if (strcasecmp(group, "all") == 0) {
+        for (uint8_t d = 0; d < MAX_SCHEDULE_DAYS; d++) {
+            setMoment(d, momentIndex, hour, minute, temps);
+        }
+    } else if (strcasecmp(group, "sun") == 0 || strcmp(group, "0") == 0) {
+        return setMoment(0, momentIndex, hour, minute, temps);
+    } else if (strcasecmp(group, "mon") == 0 || strcmp(group, "1") == 0) {
+        return setMoment(1, momentIndex, hour, minute, temps);
+    } else if (strcasecmp(group, "tue") == 0 || strcmp(group, "2") == 0) {
+        return setMoment(2, momentIndex, hour, minute, temps);
+    } else if (strcasecmp(group, "wed") == 0 || strcmp(group, "3") == 0) {
+        return setMoment(3, momentIndex, hour, minute, temps);
+    } else if (strcasecmp(group, "thu") == 0 || strcmp(group, "4") == 0) {
+        return setMoment(4, momentIndex, hour, minute, temps);
+    } else if (strcasecmp(group, "fri") == 0 || strcmp(group, "5") == 0) {
+        return setMoment(5, momentIndex, hour, minute, temps);
+    } else if (strcasecmp(group, "sat") == 0 || strcmp(group, "6") == 0) {
+        return setMoment(6, momentIndex, hour, minute, temps);
+    } else {
+        int d = atoi(group);
+        if (d >= 0 && d < MAX_SCHEDULE_DAYS) {
+            return setMoment((uint8_t)d, momentIndex, hour, minute, temps);
+        }
+        return false;
+    }
+    return true;
+}
+
+bool ThermalZoneManager::setAwayTemp(size_t index, float temp) {
+    if (index >= _zoneCount || temp < 5.0f || temp > 30.0f) return false;
+    _scheduleConfig.awayTemps[index] = encodeTempByte(temp);
+    _scheduleConfig.levelTemps[LEVEL_AWAY][index] = temp;
+    saveSchedule();
+    evaluateSchedule(millis());
+    return true;
+}
+
+float ThermalZoneManager::getAwayTemp(size_t index) const {
+    if (index >= MAX_THERMAL_ZONES) return 18.0f;
+    if (_scheduleConfig.awayTemps[index] > 0) return decodeTempByte(_scheduleConfig.awayTemps[index]);
+    return _scheduleConfig.levelTemps[LEVEL_AWAY][index];
 }
 
 bool ThermalZoneManager::setLevelTemp(size_t index, ComfortLevel level, float temp) {
     if (index >= _zoneCount || level >= LEVEL_COUNT || temp < 5.0f || temp > 30.0f) return false;
     _scheduleConfig.levelTemps[level][index] = temp;
+    if (level == LEVEL_AWAY) {
+        _scheduleConfig.awayTemps[index] = encodeTempByte(temp);
+    }
     saveSchedule();
     evaluateSchedule(millis());
     netConsole.printf("[Thermal] Zone %u (%s) %s level set to %.1f C\n",
@@ -756,6 +890,20 @@ void ThermalZoneManager::evaluateSchedule(uint32_t now) {
     _activeLevel = slots[activeIdx].level;
     _nextLevel = slots[nextIdx].level;
 
+    // Honeywell moment tracking
+    int dayOfWeek = timeAndWeather.getDayOfWeekIndex(); // 0=Sun..6=Sat
+    int evalDay = dayOfWeek;
+    if (_scheduleConfig.scheduleMode == SCHED_MODE_UNIFIED) evalDay = 1;
+    else if (_scheduleConfig.scheduleMode == SCHED_MODE_5_2) evalDay = (dayOfWeek == 0 || dayOfWeek == 6) ? 0 : 1;
+
+    size_t actM = MAX_SCHEDULE_MOMENTS - 1;
+    for (size_t m = 0; m < MAX_SCHEDULE_MOMENTS; m++) {
+        uint32_t mMins = _scheduleConfig.days[evalDay][m].hour * 60 + _scheduleConfig.days[evalDay][m].minute;
+        if (curMinutes >= mMins) actM = m;
+    }
+    _activeMomentIdx = (uint8_t)actM;
+    _nextMomentIdx = (uint8_t)((actM + 1) % MAX_SCHEDULE_MOMENTS);
+
     // Pre-Heat: start early (weather-dependent lead) if the next level is warmer in any zone
     _preHeatActive = false;
     if (_scheduleConfig.preHeatEnabled && _minsToNextSlot <= getPreHeatLeadMinutes()) {
@@ -859,8 +1007,28 @@ bool ThermalZoneManager::evaluateTpi(size_t index, float target, uint32_t now) {
 float ThermalZoneManager::getEffectiveTargetTemp(size_t index) const {
     if (index >= MAX_THERMAL_ZONES) return DEFAULT_SETPOINT_TEMP;
     if (_statuses[index].isManualHold) return _configs[index].targetTemp;
-    if (_scheduleConfig.away) return _scheduleConfig.levelTemps[LEVEL_AWAY][index];
+    if (_scheduleConfig.away) {
+        if (_scheduleConfig.awayTemps[index] > 0) return decodeTempByte(_scheduleConfig.awayTemps[index]);
+        return _scheduleConfig.levelTemps[LEVEL_AWAY][index];
+    }
     if (!_scheduleConfig.enabled || !timeAndWeather.isTimeSynced()) return _configs[index].targetTemp;
+
+    int dayOfWeek = timeAndWeather.getDayOfWeekIndex();
+    int evalDay = dayOfWeek;
+    if (_scheduleConfig.scheduleMode == SCHED_MODE_UNIFIED) evalDay = 1;
+    else if (_scheduleConfig.scheduleMode == SCHED_MODE_5_2) evalDay = (dayOfWeek == 0 || dayOfWeek == 6) ? 0 : 1;
+
+    if (_scheduleConfig.scheduleMode == SCHED_MODE_CONSTANT) {
+        if (_scheduleConfig.days[evalDay][0].temps[index] > 0) {
+            return decodeTempByte(_scheduleConfig.days[evalDay][0].temps[index]);
+        }
+        return _scheduleConfig.levelTemps[LEVEL_DAY][index];
+    }
+
+    size_t targetM = _preHeatActive ? _nextMomentIdx : _activeMomentIdx;
+    if (_scheduleConfig.days[evalDay][targetM].temps[index] > 0) {
+        return decodeTempByte(_scheduleConfig.days[evalDay][targetM].temps[index]);
+    }
     return _scheduleConfig.levelTemps[_preHeatActive ? _nextLevel : _activeLevel][index];
 }
 
@@ -965,11 +1133,14 @@ uint32_t ThermalZoneManager::getWindowLastDetectionDurationSec(size_t index) con
 
 String ThermalZoneManager::getScheduleJson() const {
     String json;
-    json.reserve(1536);
+    json.reserve(2560);
     json = "{";
     json += "\"status\":\"ok\",";
     json += "\"enabled\":" + String(_scheduleConfig.enabled ? "true" : "false") + ",";
     json += "\"away\":" + String(_scheduleConfig.away ? "true" : "false") + ",";
+    json += "\"scheduleMode\":\"" + String(getScheduleModeName()) + "\",";
+    json += "\"activeMoment\":" + String((unsigned)(_activeMomentIdx + 1)) + ",";
+    json += "\"nextMoment\":" + String((unsigned)(_nextMomentIdx + 1)) + ",";
     json += "\"preHeatEnabled\":" + String(_scheduleConfig.preHeatEnabled ? "true" : "false") + ",";
     json += "\"windowDetectionEnabled\":" + String(_scheduleConfig.windowDetectionEnabled ? "true" : "false") + ",";
     json += "\"activeLevel\":\"" + String(getLevelName(_activeLevel)) + "\",";
@@ -984,6 +1155,68 @@ String ThermalZoneManager::getScheduleJson() const {
     json += "\"pumpOverrunSec\":" + String(_pumpOverrunMs / 1000) + ",";
     json += "\"pumpControlEnabled\":" + String(_pumpControlEnabled ? "true" : "false") + ",";
 
+    // Weekday moments (Monday index 1)
+    json += "\"weekday_moments\":[";
+    for (size_t m = 0; m < MAX_SCHEDULE_MOMENTS; m++) {
+        if (m > 0) json += ",";
+        char tBuf[8];
+        snprintf(tBuf, sizeof(tBuf), "%02u:%02u", _scheduleConfig.days[1][m].hour, _scheduleConfig.days[1][m].minute);
+        json += "{\"moment\":" + String(m + 1) + ",\"time\":\"" + String(tBuf) + "\",\"temps\":{";
+        for (size_t z = 0; z < _zoneCount; z++) {
+            if (z > 0) json += ",";
+            float t = _scheduleConfig.days[1][m].temps[z] > 0 ? decodeTempByte(_scheduleConfig.days[1][m].temps[z]) : _scheduleConfig.levelTemps[m == 3 ? LEVEL_NIGHT : LEVEL_DAY][z];
+            json += "\"" + String(_configs[z].id) + "\":" + String(t, 1);
+        }
+        json += "}}";
+    }
+    json += "],";
+
+    // Weekend moments (Sunday index 0)
+    json += "\"weekend_moments\":[";
+    for (size_t m = 0; m < MAX_SCHEDULE_MOMENTS; m++) {
+        if (m > 0) json += ",";
+        char tBuf[8];
+        snprintf(tBuf, sizeof(tBuf), "%02u:%02u", _scheduleConfig.days[0][m].hour, _scheduleConfig.days[0][m].minute);
+        json += "{\"moment\":" + String(m + 1) + ",\"time\":\"" + String(tBuf) + "\",\"temps\":{";
+        for (size_t z = 0; z < _zoneCount; z++) {
+            if (z > 0) json += ",";
+            float t = _scheduleConfig.days[0][m].temps[z] > 0 ? decodeTempByte(_scheduleConfig.days[0][m].temps[z]) : _scheduleConfig.levelTemps[m == 3 ? LEVEL_NIGHT : LEVEL_DAY][z];
+            json += "\"" + String(_configs[z].id) + "\":" + String(t, 1);
+        }
+        json += "}}";
+    }
+    json += "],";
+
+    // awayTemps
+    json += "\"awayTemps\":{";
+    for (size_t z = 0; z < _zoneCount; z++) {
+        if (z > 0) json += ",";
+        float t = _scheduleConfig.awayTemps[z] > 0 ? decodeTempByte(_scheduleConfig.awayTemps[z]) : _scheduleConfig.levelTemps[LEVEL_AWAY][z];
+        json += "\"" + String(_configs[z].id) + "\":" + String(t, 1);
+    }
+    json += "},";
+
+    // days (0..6)
+    json += "\"days\":[";
+    for (size_t d = 0; d < 7; d++) {
+        if (d > 0) json += ",";
+        json += "[";
+        for (size_t m = 0; m < MAX_SCHEDULE_MOMENTS; m++) {
+            if (m > 0) json += ",";
+            char tBuf[8];
+            snprintf(tBuf, sizeof(tBuf), "%02u:%02u", _scheduleConfig.days[d][m].hour, _scheduleConfig.days[d][m].minute);
+            json += "{\"moment\":" + String(m + 1) + ",\"time\":\"" + String(tBuf) + "\",\"temps\":{";
+            for (size_t z = 0; z < _zoneCount; z++) {
+                if (z > 0) json += ",";
+                float t = _scheduleConfig.days[d][m].temps[z] > 0 ? decodeTempByte(_scheduleConfig.days[d][m].temps[z]) : _scheduleConfig.levelTemps[m == 3 ? LEVEL_NIGHT : LEVEL_DAY][z];
+                json += "\"" + String(_configs[z].id) + "\":" + String(t, 1);
+            }
+            json += "}}";
+        }
+        json += "]";
+    }
+    json += "],";
+
     json += "\"zones\":[";
     for (size_t i = 0; i < _zoneCount; i++) {
         if (i > 0) json += ",";
@@ -991,7 +1224,9 @@ String ThermalZoneManager::getScheduleJson() const {
         json += "\"id\":" + String(_configs[i].id) + ",";
         json += "\"name\":\"" + String(_configs[i].name) + "\",";
         for (uint8_t l = 0; l < LEVEL_COUNT; l++) {
-            json += "\"" + String(getLevelName(l)) + "\":" + String(_scheduleConfig.levelTemps[l][i], 1) + ",";
+            float lvVal = _scheduleConfig.levelTemps[l][i];
+            if (l == LEVEL_AWAY && _scheduleConfig.awayTemps[i] > 0) lvVal = decodeTempByte(_scheduleConfig.awayTemps[i]);
+            json += "\"" + String(getLevelName(l)) + "\":" + String(lvVal, 1) + ",";
         }
         json += "\"effectiveTarget\":" + String(getEffectiveTargetTemp(i), 1) + ",";
         json += "\"isManualHold\":" + String(_statuses[i].isManualHold ? "true" : "false") + ",";

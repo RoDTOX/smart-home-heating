@@ -7,6 +7,12 @@ Entries before 29.10.2026 (the system before the lean clean-up):
 
 
 
+## [03.11.2026] - Honeywell 4-Moment Scheduling, 4 Operating Modes & Configurable Away (C-15, PB-68)
+
+- **Who / when / why:** firmware session (light mode), 03.11.2026; the owner requested an intuitive multi-moment schedule model inspired by Honeywell T6/Evohome with 4 modes (Constant 24/7, Unified L–D, 5+2 Weekday/Weekend, 7-Day individual) supporting up to 4 daily moments (P1 Trezire, P2 Plecat/Zi, P3 Seară, P4 Somn) with direct per-zone target temperatures, user-configurable Away temperatures per room with quick global apply, and clean 24h UI eliminating AM/PM browser confusion and raw token mismatches.
+- **Where:** `FR-29`, `FR-31` (baseline updated), `include/ThermalZoneManager.h`, `src/ThermalZoneManager.cpp`, `src/WebApi.cpp`, `src/ParamStore.cpp` (dynamic comparison buffer for blobs up to 1984 bytes preserving write-on-change wear leveling), `web/index.html` (Honeywell UI, mode pills, 24h inputs, copy helpers, away card, undo/save, collapsible legacy compatibility block), `tools/sh_tests/t_control.py` (`SWE.5-TC16.6` multi-moment matrix & modes roundtrip test).
+- **Not changed:** hydronic safety invariants (interlockDelay 180s, pump overrun 180s, anti-short-cycling, frost guard). Full backwards compatibility maintained for legacy `/api/schedule` endpoints, slots, and level setpoints.
+
 ## [03.11.2026] - Underfloor thermal deficit full duty, weather compensation & UI ergonomics (C-14, PB-66, PB-67)
 
 - **Who / when / why:** firmware session (light mode), 03.11.2026; the owner observed that corner rooms with high heat loss (Adults bedroom) remained cold due to rigid TPI duty (~33 % for 0.5 °C error shutting off after 20 min, dissipating screed momentum) while the UI falsely reported "Temperatură atinsă"; plus UI inputs were wiped by polling refresh before saving, and separate sensor search buttons were confusing.

@@ -45,6 +45,31 @@ enum ComfortLevel : uint8_t {
 };
 
 #define MAX_SCHEDULE_SLOTS 8
+#define MAX_SCHEDULE_MOMENTS 4
+#define MAX_SCHEDULE_DAYS 7
+
+enum ScheduleMode : uint8_t {
+    SCHED_MODE_5_2 = 0,
+    SCHED_MODE_CONSTANT = 1,
+    SCHED_MODE_UNIFIED = 2,
+    SCHED_MODE_7DAY = 3
+};
+
+// Encodes 5.0..30.0 C with 0.1 C resolution into 0..250
+inline uint8_t encodeTempByte(float t) {
+    if (t < 5.0f) t = 5.0f;
+    if (t > 30.0f) t = 30.0f;
+    return (uint8_t)lroundf((t - 5.0f) * 10.0f);
+}
+inline float decodeTempByte(uint8_t b) {
+    return 5.0f + (float)b / 10.0f;
+}
+
+struct MomentConfig {
+    uint8_t hour;
+    uint8_t minute;
+    uint8_t temps[MAX_THERMAL_ZONES]; // 0..250 maps to 5.0..30.0 C
+};
 
 // From hour:minute on, all zones follow `level`
 struct ScheduleSlot {
@@ -58,11 +83,14 @@ struct ScheduleConfig {
     bool preHeatEnabled;
     bool windowDetectionEnabled;
     bool away;  // Global away override (ignores slots)
+    uint8_t scheduleMode; // 0 = 5+2, 1 = constant, 2 = unified, 3 = 7day
     float levelTemps[LEVEL_COUNT][MAX_THERMAL_ZONES];
     uint8_t weekdayCount;
     ScheduleSlot weekday[MAX_SCHEDULE_SLOTS];
     uint8_t weekendCount;
     ScheduleSlot weekend[MAX_SCHEDULE_SLOTS];
+    MomentConfig days[MAX_SCHEDULE_DAYS][MAX_SCHEDULE_MOMENTS]; // 0=Sun, 1=Mon ... 6=Sat
+    uint8_t awayTemps[MAX_THERMAL_ZONES];
 };
 
 struct WindowDetectionState {
@@ -225,6 +253,15 @@ public:
     uint32_t getMinutesToNextSlot() const { return _minsToNextSlot; }
     bool isPreHeatActive() const { return _preHeatActive; }
 
+    void setScheduleMode(uint8_t mode);
+    uint8_t getScheduleMode() const { return _scheduleConfig.scheduleMode; }
+    const char* getScheduleModeName() const;
+    bool setScheduleModeByName(const char* name);
+    bool setMoment(uint8_t dayIndex, uint8_t momentIndex, uint8_t hour, uint8_t minute, const float* temps);
+    bool setMomentForGroup(const char* group, uint8_t momentIndex, uint8_t hour, uint8_t minute, const float* temps);
+    bool setAwayTemp(size_t index, float temp);
+    float getAwayTemp(size_t index) const;
+
     // Open Window Detection State
     bool isWindowPauseActive(size_t index) const;
     uint32_t getWindowPauseRemainingSec(size_t index) const;
@@ -255,6 +292,8 @@ private:
     int16_t _activeSlotKey;  // weekend * 16 + slot index, -1 = none
     uint8_t _activeLevel;
     uint8_t _nextLevel;
+    uint8_t _activeMomentIdx = 0;
+    uint8_t _nextMomentIdx = 1;
     uint32_t _minsToNextSlot;
     bool _preHeatActive;
     WindowDetectionState _windowStates[MAX_THERMAL_ZONES];

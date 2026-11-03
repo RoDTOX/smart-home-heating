@@ -913,6 +913,76 @@ void handleApiScheduleReset() {
   server.send(200, "application/json", thermalZones.getScheduleJson());
 }
 
+void handleApiScheduleMode() {
+  server.sendHeader("Access-Control-Allow-Origin", "*");
+  String m = server.hasArg("mode") ? server.arg("mode") : "";
+  if (m.length() == 0 && server.hasArg("plain")) {
+    JsonDocument doc;
+    if (!deserializeJson(doc, server.arg("plain")) && doc.containsKey("mode")) {
+      m = doc["mode"].as<String>();
+    }
+  }
+  if (m.length() > 0) {
+    if (!thermalZones.setScheduleModeByName(m.c_str())) {
+      server.send(400, "application/json", F("{\"status\":\"error\",\"error\":\"Use mode=5+2|constant|unified|7day\"}"));
+      return;
+    }
+  }
+  server.send(200, "application/json", thermalZones.getScheduleJson());
+}
+
+void handleApiScheduleMoment() {
+  server.sendHeader("Access-Control-Allow-Origin", "*");
+  String day = server.arg("day");
+  int moment = server.arg("moment").toInt();
+  String timeStr = server.arg("time");
+
+  if (server.hasArg("plain")) {
+    JsonDocument doc;
+    DeserializationError err = deserializeJson(doc, server.arg("plain"));
+    if (!err) {
+      if (doc.containsKey("day")) day = doc["day"].as<String>();
+      if (doc.containsKey("moment")) moment = doc["moment"].as<int>();
+      if (doc.containsKey("time")) timeStr = doc["time"].as<String>();
+      if (doc.containsKey("temps")) {
+        JsonObject tempsObj = doc["temps"].as<JsonObject>();
+        float tArr[MAX_THERMAL_ZONES];
+        for (size_t i = 0; i < MAX_THERMAL_ZONES; i++) tArr[i] = -1.0f;
+        for (JsonPair p : tempsObj) {
+          int zId = atoi(p.key().c_str());
+          if (zId >= 1 && zId <= (int)thermalZones.getZoneCount()) {
+            tArr[zId - 1] = p.value().as<float>();
+          }
+        }
+        int h = 0, m = 0;
+        if (sscanf(timeStr.c_str(), "%d:%d", &h, &m) == 2 && moment >= 1 && moment <= 4 && h >= 0 && h <= 23 && m >= 0 && m <= 59) {
+          if (thermalZones.setMomentForGroup(day.c_str(), (uint8_t)(moment - 1), (uint8_t)h, (uint8_t)m, tArr)) {
+            server.send(200, "application/json", thermalZones.getScheduleJson());
+            return;
+          }
+        }
+      }
+    }
+  }
+
+  if (moment >= 1 && moment <= 4) {
+    int h = 0, m = 0;
+    if (sscanf(timeStr.c_str(), "%d:%d", &h, &m) == 2 && h >= 0 && h <= 23 && m >= 0 && m <= 59) {
+      float tArr[MAX_THERMAL_ZONES];
+      for (size_t i = 0; i < MAX_THERMAL_ZONES; i++) {
+        String key = "temp_" + String(i + 1);
+        tArr[i] = server.hasArg(key) ? server.arg(key).toFloat() : -1.0f;
+      }
+      if (thermalZones.setMomentForGroup(day.c_str(), (uint8_t)(moment - 1), (uint8_t)h, (uint8_t)m, tArr)) {
+        server.send(200, "application/json", thermalZones.getScheduleJson());
+        return;
+      }
+    }
+  }
+
+  server.send(400, "application/json", F("{\"status\":\"error\",\"error\":\"Invalid moment parameters\"}"));
+}
+
 void handleApiHistory() {
   server.sendHeader("Access-Control-Allow-Origin", "*");
   if (server.hasArg("time")) {
@@ -1155,6 +1225,8 @@ void registerWebRoutes() {
   server.on("/api/schedule/level", HTTP_POST, handleApiScheduleLevel);
   server.on("/api/schedule/slots", HTTP_POST, handleApiScheduleSlots);
   server.on("/api/schedule/reset", HTTP_POST, handleApiScheduleReset);
+  server.on("/api/schedule/mode", HTTP_POST, handleApiScheduleMode);
+  server.on("/api/schedule/moment", HTTP_POST, handleApiScheduleMoment);
   server.on("/api/history", HTTP_GET, handleApiHistory);
   server.on("/api/history/clear", HTTP_POST, handleApiHistoryClear);
   server.on("/api/config/system", HTTP_GET, handleApiConfigSystemGet);

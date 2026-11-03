@@ -445,6 +445,55 @@ class ControlTests:
         except Exception as e:
             return TestResult(test_id, name, req, "FAIL", (time.time() - start)*1000, str(e))
 
+    def test_tc16_6_honeywell_moments(self):
+        """SWE.5-TC16.6: Honeywell Multi-Moment Matrix and Modes Roundtrip (FR-29, FR-31)"""
+        test_id = "SWE.5-TC16.6"
+        name = "Honeywell Moments Matrix & Modes Roundtrip"
+        req = "FR-29, FR-31"
+        start = time.time()
+        try:
+            # 1. Verify GET /api/schedule contains Honeywell moments structure or scheduleMode
+            r = requests.get(f"{self.base_url}/api/schedule", timeout=self.timeout)
+            assert r.status_code == 200, f"HTTP {r.status_code}"
+            d = r.json()
+            assert "scheduleMode" in d or "moments" in d, "Missing Honeywell schedule structure in /api/schedule"
+
+            # 2. Test mode switching: 5+2, constant, unified, 7day
+            for m in ("constant", "unified", "5+2", "7day"):
+                r_mode = requests.post(f"{self.base_url}/api/schedule/mode?mode={m}", timeout=self.timeout)
+                assert r_mode.status_code == 200, f"Failed setting schedule mode {m}: HTTP {r_mode.status_code}"
+                assert requests.get(f"{self.base_url}/api/schedule", timeout=self.timeout).json().get("scheduleMode") == m
+
+            # Restore 5+2 mode
+            requests.post(f"{self.base_url}/api/schedule/mode?mode=5+2", timeout=self.timeout)
+
+            # 3. Test updating a specific moment via /api/schedule/moment
+            payload = {
+                "day": "weekday",
+                "moment": 1,
+                "time": "06:45",
+                "temps": {"1": 23.5, "2": 23.0, "3": 22.5}
+            }
+            r_post = requests.post(f"{self.base_url}/api/schedule/moment", json=payload, timeout=self.timeout)
+            assert r_post.status_code == 200, f"POST /api/schedule/moment failed: HTTP {r_post.status_code}"
+
+            # 4. Verify the updated moment is reflected in /api/schedule
+            r2 = requests.get(f"{self.base_url}/api/schedule", timeout=self.timeout)
+            d2 = r2.json()
+            weekday_moments = d2.get("weekday_moments") or d2.get("moments", {}).get("weekday") or []
+            assert any(m.get("time") == "06:45" for m in weekday_moments), "Updated moment time 06:45 not found"
+
+            # 5. Test configurable away setpoint per zone
+            r_away = requests.post(f"{self.base_url}/api/schedule/level?zone=1&level=away&temp=18.5", timeout=self.timeout)
+            assert r_away.status_code == 200, f"Failed setting away temp: HTTP {r_away.status_code}"
+            z1_away = requests.get(f"{self.base_url}/api/schedule", timeout=self.timeout).json()["zones"][0]["away"]
+            assert abs(z1_away - 18.5) < 0.05, f"Expected away 18.5, got {z1_away}"
+
+            latency = (time.time() - start) * 1000
+            return TestResult(test_id, name, req, "PASS", latency, "Honeywell moments schedule matrix verified")
+        except Exception as e:
+            return TestResult(test_id, name, req, "FAIL", (time.time() - start) * 1000, str(e))
+
     def test_tc11_5_tpi_deficit_duty(self):
         """SWE.5-TC11.5: TPI 100% Duty on Thermal Deficit >= 0.4 C (FR-47)"""
         test_id = "SWE.5-TC11.5"

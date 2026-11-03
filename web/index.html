@@ -15,6 +15,12 @@ header h1{font-size:20px;margin:0}
 .meta{color:var(--mut);display:flex;gap:14px;flex-wrap:wrap}
 button{font:inherit;border:1px solid var(--line);background:var(--card);color:var(--fg);border-radius:10px;padding:8px 14px;cursor:pointer}
 button.on{background:var(--fg);color:var(--bg)}button.danger{border-color:var(--bad);color:var(--bad)}button.sm{padding:3px 8px;font-size:13px;border-radius:6px}.slot-chip{display:inline-flex;gap:6px;align-items:center;background:var(--bg);padding:4px 8px;border-radius:8px;border:1px solid var(--line);margin:4px 4px 4px 0}
+.sched-moment-tbl{width:100%;border-collapse:collapse}
+.sched-moment-tbl th,.sched-moment-tbl td{padding:5px 6px;text-align:center}
+.sched-moment-tbl td:first-child{text-align:left}
+.sched-mode-btn,.day-tab-btn{font-size:13px;padding:5px 11px;border-radius:8px}
+input.time24{width:68px;text-align:center;font-weight:600;font-size:14px;border-radius:6px}
+.sched-away-card{margin-top:14px;padding:12px;background:var(--bg);border-radius:10px;border:1px solid var(--line)}
 .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:12px}
 .room{background:var(--card);border:1px solid var(--line);border-left:6px solid var(--idle);border-radius:14px;padding:14px;cursor:pointer}
 .room.heat{border-left-color:var(--heat)}.room.away{border-left-color:var(--away)}.room.bad{border-left-color:var(--bad)}
@@ -72,18 +78,54 @@ code,.mono{font:13px/1.35 ui-monospace,SFMono-Regular,Consolas,monospace}
     <div class="s">Căutarea ține până apeși Stop, cel mult 10 minute. În afara căutării controlerul ține doar senzorii zonelor.</div>
     <div class="scroll"><table id="sensors"></table></div>
   </section>
-  <section>
-    <h2>Program (același pentru toate zonele)</h2>
-    <div class="row"><label><input type="checkbox" id="schedOn"> Program activ</label></div>
-    <div class="scroll"><table id="levels"></table></div>
-    <div style="margin-top:10px"><b>Momente Luni–Vineri:</b></div>
-    <div id="wdSlots" class="row"></div>
-    <div class="row"><button id="addWdSlot" type="button" class="sm">+ Adaugă moment (L-V)</button></div>
-    <div style="margin-top:10px"><b>Momente Weekend:</b></div>
-    <div id="weSlots" class="row"></div>
-    <div class="row"><button id="addWeSlot" type="button" class="sm">+ Adaugă moment (Weekend)</button></div>
-    <div class="row s" style="margin-top:8px">Editare text direct (sincronizat): <input class="w" id="wd" style="font-size:12px;max-width:260px"> <input class="w" id="we" style="font-size:12px;max-width:260px"></div>
-    <div class="row"><button id="saveSched">Salvează programul</button><button id="undoSched" type="button" style="display:none">↩ Anulează modificările</button><span id="schedMsg" class="s"></span></div>
+  <section id="schedSection">
+    <h2>Program încălzire (Honeywell)</h2>
+    <div class="row" style="justify-content:space-between">
+      <label style="font-weight:600"><input type="checkbox" id="schedOn"> Program activ</label>
+      <div id="schedActiveBadge" class="s"></div>
+    </div>
+    
+    <div style="margin-top:10px"><b>Mod programare:</b></div>
+    <div class="row" id="schedModeTabs" style="gap:6px;margin:6px 0 10px 0">
+      <button type="button" class="sm sched-mode-btn" data-mode="5+2">5 + 2 Zile (L–V / S–D)</button>
+      <button type="button" class="sm sched-mode-btn" data-mode="unified">Zilnic unificat (L–D)</button>
+      <button type="button" class="sm sched-mode-btn" data-mode="7day">7 Zile individuale</button>
+      <button type="button" class="sm sched-mode-btn" data-mode="constant">Constant 24/7</button>
+    </div>
+    <div id="schedModeDesc" class="s" style="margin-bottom:12px"></div>
+
+    <!-- Dynamic mode view -->
+    <div id="schedContent"></div>
+
+    <!-- Configurable Away Mode Temperatures -->
+    <div class="sched-away-card">
+      <div style="font-weight:600;margin-bottom:4px">Temperaturi Mod Plecat (Away)</div>
+      <div class="s" style="margin-bottom:8px">Temperaturi menținute când este activat butonul „Plecat” din antet.</div>
+      <div id="awayInputs" class="row" style="gap:10px;flex-wrap:wrap"></div>
+      <div class="row" style="margin-top:8px">
+        <span class="s">Setare rapidă toate camerele:</span>
+        <input type="number" step="0.5" min="5" max="30" id="quickAwayVal" value="18.0" style="width:60px">
+        <button type="button" class="sm" id="btnQuickAway">Aplică la toate</button>
+      </div>
+    </div>
+
+    <!-- Actions -->
+    <div class="row" style="margin-top:14px">
+      <button id="saveSched" class="on">Salvează programul</button>
+      <button id="undoSched" type="button" style="display:none">↩ Anulează modificările</button>
+      <span id="schedMsg" class="s" style="font-weight:600"></span>
+    </div>
+
+    <!-- Legacy compatibility elements (hidden from primary view) -->
+    <details style="margin-top:14px"><summary class="s" style="cursor:pointer">Avansat / Diagnostic compatibilitate</summary>
+      <div class="scroll"><table id="levels"></table></div>
+      <div id="wdSlots"></div>
+      <div id="weSlots"></div>
+      <input id="wd" style="display:none">
+      <input id="we" style="display:none">
+      <button id="addWdSlot" style="display:none"></button>
+      <button id="addWeSlot" style="display:none"></button>
+    </details>
   </section>
   <section>
     <h2>Sistem</h2>
@@ -291,12 +333,19 @@ let again = false, lastFound = [];
 let RAW = {}, prevFlat = {}, changed = new Set(), trace = [], openSig = null;
 const dirtyRows = new Set();
 
-async function api(path, params) {
-  const opt = params ? {method: "POST", body: new URLSearchParams(params)} : {};
+async function api(path, params, isJson = false) {
+  let opt = {};
+  if (params) {
+    if (isJson) {
+      opt = {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify(params)};
+    } else {
+      opt = {method: "POST", body: new URLSearchParams(params)};
+    }
+  }
   const r = await fetch(path, opt);
   if (!r.ok) {
     let msg = path + " HTTP " + r.status;
-    try { const j = await r.json(); if (j.message) msg = j.message; } catch (e) {}
+    try { const j = await r.json(); if (j.message) msg = j.message; else if (j.error) msg = j.error; } catch (e) {}
     throw new Error(msg);
   }
   return r.json();
@@ -339,14 +388,17 @@ function renderRooms() {
 function scheduleText() {
   if (Z.away) return "Mod plecat: toate camerele pe treapta plecat";
   if (!Z.scheduleEnabled) return "Program oprit: camerele țin ținta setată";
+  if (S && S.scheduleMode === "constant") return "Program: Temperatură constantă 24/7";
   let at = "";
   const m = ST && /^(\d\d):(\d\d)/.exec(ST.time || "");
   if (m) {
     const t = (+m[1] * 60 + +m[2] + Z.minsToNextSlot) % 1440;
     at = " până la " + String(Math.floor(t / 60)).padStart(2, "0") + ":" + String(t % 60).padStart(2, "0");
   }
-  const pre = Z.preHeatActive ? " · preîncălzire pentru " + LEVEL_RO[Z.nextLevel] : "";
-  return `Program: ${LEVEL_RO[Z.activeLevel]}${at}, apoi ${LEVEL_RO[Z.nextLevel]}${pre}`;
+  const pre = Z.preHeatActive ? " · preîncălzire" : "";
+  const curMom = S && S.activeMoment ? `P${S.activeMoment}` : LEVEL_RO[Z.activeLevel];
+  const nxtMom = S && S.nextMoment ? `P${S.nextMoment}` : LEVEL_RO[Z.nextLevel];
+  return `Program: ${curMom}${at}, apoi ${nxtMom}${pre}`;
 }
 
 function renderHeader() {
@@ -412,7 +464,26 @@ function renderSensors() {
   }).join("");
 }
 
+const MOMENT_LABELS = [
+  "P1: Trezire",
+  "P2: Plecat / Zi",
+  "P3: Seară",
+  "P4: Somn / Noapte"
+];
+const DAY_TABS = [
+  {idx: 1, key: "mon", label: "Luni"},
+  {idx: 2, key: "tue", label: "Marți"},
+  {idx: 3, key: "wed", label: "Miercuri"},
+  {idx: 4, key: "thu", label: "Joi"},
+  {idx: 5, key: "fri", label: "Vineri"},
+  {idx: 6, key: "sat", label: "Sâmbătă"},
+  {idx: 0, key: "sun", label: "Duminică"}
+];
+
 let schedDirty = false;
+let schedState = null;
+let activeDayIndex = 1; // 1 = Monday
+
 function parseSlots(str) {
   if (!str || !str.trim()) return [];
   return str.split(",").map(part => {
@@ -429,7 +500,7 @@ function renderSlotChips(containerId, rawInputId) {
   const slots = parseSlots($(rawInputId).value);
   cont.innerHTML = slots.map((s, idx) => `
     <span class="slot-chip">
-      <input type="time" class="slot-time" data-raw="${rawInputId}" data-idx="${idx}" value="${esc(s.time)}">
+      <input type="text" class="slot-time" data-raw="${rawInputId}" data-idx="${idx}" value="${esc(s.time)}" style="width:55px;text-align:center">
       <select class="slot-lvl" data-raw="${rawInputId}" data-idx="${idx}">
         <option value="day" ${s.level === "day" ? "selected" : ""}>Zi</option>
         <option value="night" ${s.level === "night" ? "selected" : ""}>Noapte</option>
@@ -438,15 +509,175 @@ function renderSlotChips(containerId, rawInputId) {
       <button type="button" class="sm danger del-slot" data-raw="${rawInputId}" data-idx="${idx}" title="Șterge moment">✕</button>
     </span>`).join("");
 }
+
+function initSchedStateFromS() {
+  if (!S) return;
+  const zones = S.zones || [];
+  schedState = {
+    mode: S.scheduleMode || "5+2",
+    enabled: !!S.enabled,
+    awayTemps: {},
+    constantTemps: {},
+    days: []
+  };
+
+  zones.forEach(z => {
+    schedState.awayTemps[z.id] = (S.awayTemps && S.awayTemps[z.id] !== undefined) ? S.awayTemps[z.id] : (z.away !== undefined ? z.away : 18.0);
+    schedState.constantTemps[z.id] = z.day !== undefined ? z.day : 22.0;
+  });
+
+  const defaultTimes = ["06:30", "08:30", "17:00", "22:30"];
+  const defaultWeTimes = ["07:30", "09:30", "18:00", "23:00"];
+
+  for (let d = 0; d < 7; d++) {
+    const isWk = (d === 0 || d === 6);
+    const dayMoments = [];
+    const srcMoments = (S.days && S.days[d]) ? S.days[d] : (isWk ? S.weekend_moments : S.weekday_moments) || [];
+    
+    for (let m = 0; m < 4; m++) {
+      const srcM = srcMoments[m] || {};
+      const t = srcM.time || (isWk ? defaultWeTimes[m] : defaultTimes[m]);
+      const temps = {};
+      zones.forEach(z => {
+        if (srcM.temps && srcM.temps[z.id] !== undefined) {
+          temps[z.id] = srcM.temps[z.id];
+        } else {
+          temps[z.id] = m === 3 ? (z.night || 21.0) : (z.day || 23.0);
+        }
+      });
+      dayMoments.push({moment: m + 1, time: t, temps: temps});
+    }
+    schedState.days.push(dayMoments);
+  }
+
+  if (schedState.days[1] && schedState.days[1][0] && schedState.days[1][0].temps) {
+    zones.forEach(z => {
+      if (schedState.days[1][0].temps[z.id] !== undefined) {
+        schedState.constantTemps[z.id] = schedState.days[1][0].temps[z.id];
+      }
+    });
+  }
+}
+
+function renderMomentsTableHtml(moments, groupTag, extraActions = "") {
+  const zones = S.zones || [];
+  let h = `<div class="scroll" style="margin-top:6px"><table class="sched-moment-tbl">`;
+  h += `<thead><tr><th>Moment</th><th>Oră (24h)</th>`;
+  zones.forEach(z => { h += `<th>${esc(z.name)}</th>`; });
+  h += `</tr></thead><tbody>`;
+
+  moments.forEach((m, idx) => {
+    const isAct = (S && S.activeMoment === (idx + 1));
+    const actMark = isAct ? `<span style="color:var(--ok);font-weight:bold" title="Moment activ acum">● </span>` : "";
+    h += `<tr class="${isAct ? 'chg' : ''}">`;
+    h += `<td><b>${actMark}${MOMENT_LABELS[idx]}</b></td>`;
+    h += `<td><input type="text" class="time24" data-group="${groupTag}" data-m="${idx}" value="${esc(m.time)}" placeholder="06:30" maxlength="5"></td>`;
+    zones.forEach(z => {
+      const val = (m.temps && m.temps[z.id] !== undefined) ? Number(m.temps[z.id]).toFixed(1) : "22.0";
+      h += `<td><input type="number" step="0.5" min="5" max="30" class="n sched-t" data-group="${groupTag}" data-m="${idx}" data-z="${z.id}" value="${val}"></td>`;
+    });
+    h += `</tr>`;
+  });
+
+  h += `</tbody></table></div>`;
+  if (extraActions) {
+    h += `<div class="row" style="margin-top:8px;gap:6px">${extraActions}</div>`;
+  }
+  return h;
+}
+
 function renderSchedule() {
-  if (!S || schedDirty || editing) return;
-  $("schedOn").checked = S.enabled;
-  $("wd").value = S.weekday;
-  $("we").value = S.weekend;
+  if (!S) return;
+  if (!schedDirty && !editing) {
+    initSchedStateFromS();
+  }
+  if (!schedState) return;
+
+  $("schedOn").checked = schedState.enabled;
+
+  if ($("schedActiveBadge")) {
+    const actM = S.activeMoment ? `P${S.activeMoment}` : "";
+    $("schedActiveBadge").innerHTML = S.enabled
+      ? `<span class="OK">● Activ</span> ${actM ? `(${actM})` : ''}`
+      : `<span class="INFO">○ Oprit</span>`;
+  }
+
+  document.querySelectorAll(".sched-mode-btn").forEach(btn => {
+    btn.classList.toggle("on", btn.dataset.mode === schedState.mode);
+  });
+
+  const descEl = $("schedModeDesc");
+  if (descEl) {
+    const descs = {
+      "5+2": "Program diferențiat: 4 momente zilnice pentru Luni–Vineri și 4 momente pentru Weekend.",
+      "unified": "Program unificat: același set de 4 momente aplicat în fiecare zi a săptămânii (Luni–Duminică).",
+      "7day": "Program pe 7 zile: câte 4 momente configurabile independent pentru fiecare zi a săptămânii.",
+      "constant": "Temperatură constantă: o singură valoare țintă 24/7 menținută continuu pentru fiecare cameră."
+    };
+    descEl.textContent = descs[schedState.mode] || "";
+  }
+
+  const c = $("schedContent");
+  if (c) {
+    const zones = S.zones || [];
+    if (schedState.mode === "constant") {
+      let h = `<div class="scroll"><table style="max-width:480px"><thead><tr><th>Cameră</th><th>Temperatură țintă (°C)</th></tr></thead><tbody>`;
+      zones.forEach(z => {
+        const val = Number(schedState.constantTemps[z.id] !== undefined ? schedState.constantTemps[z.id] : 22.0).toFixed(1);
+        h += `<tr><td><b>${esc(z.name)}</b></td><td><input type="number" step="0.5" min="5" max="30" class="n const-t" data-z="${z.id}" value="${val}"></td></tr>`;
+      });
+      h += `</tbody></table></div>`;
+      c.innerHTML = h;
+    } else if (schedState.mode === "unified") {
+      c.innerHTML = renderMomentsTableHtml(schedState.days[1], "unified");
+    } else if (schedState.mode === "5+2") {
+      let h = `<div style="font-weight:600;margin-top:4px">Momente Luni – Vineri:</div>`;
+      h += renderMomentsTableHtml(schedState.days[1], "wd");
+      h += `<div style="font-weight:600;margin-top:14px">Momente Weekend (Sâmbătă – Duminică):</div>`;
+      h += renderMomentsTableHtml(schedState.days[0], "we", `
+        <button type="button" class="sm" id="btnCopyWdToWe">Copiază L–V în Weekend</button>
+        <button type="button" class="sm" id="btnCopyWeToWd">Copiază Weekend în L–V</button>
+      `);
+      c.innerHTML = h;
+    } else if (schedState.mode === "7day") {
+      let h = `<div class="row" id="dayTabs" style="gap:4px;margin-bottom:8px">`;
+      DAY_TABS.forEach(d => {
+        h += `<button type="button" class="sm day-tab-btn ${d.idx === activeDayIndex ? 'on' : ''}" data-day="${d.idx}">${d.label}</button>`;
+      });
+      h += `</div>`;
+      const curTab = DAY_TABS.find(d => d.idx === activeDayIndex) || DAY_TABS[0];
+      const copyActions = `
+        <button type="button" class="sm" id="btnCopyDayToAll">Copiază ${curTab.label} la toate zilele</button>
+        <button type="button" class="sm" id="btnCopyDayToWd">Copiază la L–V</button>
+        <button type="button" class="sm" id="btnCopyDayToWe">Copiază la Weekend</button>
+      `;
+      h += renderMomentsTableHtml(schedState.days[activeDayIndex], `day_${activeDayIndex}`, copyActions);
+      c.innerHTML = h;
+    }
+  }
+
+  const awayCont = $("awayInputs");
+  if (awayCont) {
+    const zones = S.zones || [];
+    awayCont.innerHTML = zones.map(z => {
+      const val = Number(schedState.awayTemps[z.id] !== undefined ? schedState.awayTemps[z.id] : 18.0).toFixed(1);
+      return `<label class="slot-chip" style="display:inline-flex;gap:6px;align-items:center">
+        <span>${esc(z.name)}:</span>
+        <input type="number" step="0.5" min="5" max="30" class="n away-t" data-z="${z.id}" value="${val}">
+        <span class="s">°C</span>
+      </label>`;
+    }).join("");
+  }
+
+  if ($("levels")) {
+    const zones = S.zones || [];
+    $("levels").innerHTML = "<tr><th>Zonă</th><th>Zi</th><th>Noapte</th><th>Plecat</th></tr>" + zones.map((z, i) =>
+      `<tr><td>${esc(z.name)}</td>${LEVELS.map(l => `<td><input class="n" type="number" step="0.5" min="5" max="30" data-z="${i + 1}" data-l="${l}" value="${(z[l] || 20).toFixed(1)}"></td>`).join("")}</tr>`).join("");
+  }
+  if ($("wd")) $("wd").value = S.weekday || "";
+  if ($("we")) $("we").value = S.weekend || "";
   renderSlotChips("wdSlots", "wd");
   renderSlotChips("weSlots", "we");
-  $("levels").innerHTML = "<tr><th>Zonă</th><th>Zi</th><th>Noapte</th><th>Plecat</th></tr>" + S.zones.map((z, i) =>
-    `<tr><td>${esc(z.name)}</td>${LEVELS.map(l => `<td><input class="n" type="number" step="0.5" min="5" max="30" data-z="${i + 1}" data-l="${l}" value="${z[l].toFixed(1)}"></td>`).join("")}</tr>`).join("");
 }
 
 // ---- Engineering view: every API value with its name, explanation and requirement (FR-8.1)
@@ -677,18 +908,148 @@ function markSchedDirty() {
   $("undoSched").style.display = "";
 }
 schedForm.addEventListener("input", e => {
-  if (e.target.id === "wd") renderSlotChips("wdSlots", "wd");
+  if (e.target.id === "schedOn") {
+    if (schedState) schedState.enabled = $("schedOn").checked;
+    markSchedDirty();
+  } else if (e.target.id === "wd") renderSlotChips("wdSlots", "wd");
   else if (e.target.id === "we") renderSlotChips("weSlots", "we");
-  markSchedDirty();
 });
-schedForm.addEventListener("change", markSchedDirty);
+schedForm.addEventListener("change", e => {
+  if (e.target.id === "schedOn") {
+    if (schedState) schedState.enabled = $("schedOn").checked;
+    markSchedDirty();
+  } else if (e.target.classList.contains("time24")) {
+    const grp = e.target.dataset.group, m = +e.target.dataset.m, val = e.target.value.trim();
+    if (schedState && /^[0-2]?[0-9]:[0-5][0-9]$/.test(val)) {
+      if (grp === "unified") {
+        for (let d = 0; d < 7; d++) schedState.days[d][m].time = val;
+      } else if (grp === "wd") {
+        for (let d = 1; d <= 5; d++) schedState.days[d][m].time = val;
+      } else if (grp === "we") {
+        schedState.days[0][m].time = val; schedState.days[6][m].time = val;
+      } else if (grp && grp.startsWith("day_")) {
+        const d = +grp.split("_")[1];
+        schedState.days[d][m].time = val;
+      }
+      markSchedDirty();
+    }
+  } else if (e.target.classList.contains("sched-t")) {
+    const grp = e.target.dataset.group, m = +e.target.dataset.m, z = e.target.dataset.z, val = parseFloat(e.target.value);
+    if (schedState && !isNaN(val)) {
+      if (grp === "unified") {
+        for (let d = 0; d < 7; d++) schedState.days[d][m].temps[z] = val;
+      } else if (grp === "wd") {
+        for (let d = 1; d <= 5; d++) schedState.days[d][m].temps[z] = val;
+      } else if (grp === "we") {
+        schedState.days[0][m].temps[z] = val; schedState.days[6][m].temps[z] = val;
+      } else if (grp && grp.startsWith("day_")) {
+        const d = +grp.split("_")[1];
+        schedState.days[d][m].temps[z] = val;
+      }
+      markSchedDirty();
+    }
+  } else if (e.target.classList.contains("const-t")) {
+    const z = e.target.dataset.z, val = parseFloat(e.target.value);
+    if (schedState && !isNaN(val)) {
+      schedState.constantTemps[z] = val;
+      for (let d = 0; d < 7; d++) schedState.days[d][0].temps[z] = val;
+      markSchedDirty();
+    }
+  } else if (e.target.classList.contains("away-t")) {
+    const z = e.target.dataset.z, val = parseFloat(e.target.value);
+    if (schedState && !isNaN(val)) {
+      schedState.awayTemps[z] = val;
+      markSchedDirty();
+    }
+  }
+});
 schedForm.addEventListener("focusin", () => editing = true);
 schedForm.addEventListener("focusout", () => {
   if (!schedForm.contains(document.activeElement) && !schedDirty) editing = false;
 });
 
-// Slot interactive buttons (+ and x)
-document.addEventListener("click", e => {
+// Interactive clicks for Mode, Day Tabs, Copy, Quick Away, Legacy Slots
+schedForm.addEventListener("click", e => {
+  // Mode selection button
+  const modeBtn = e.target.closest(".sched-mode-btn");
+  if (modeBtn && schedState) {
+    schedState.mode = modeBtn.dataset.mode;
+    markSchedDirty();
+    renderSchedule();
+    return;
+  }
+
+  // 7-Day Day tab button
+  const dayBtn = e.target.closest(".day-tab-btn");
+  if (dayBtn) {
+    activeDayIndex = +dayBtn.dataset.day;
+    renderSchedule();
+    return;
+  }
+
+  // Quick Away apply
+  if (e.target.id === "btnQuickAway" && schedState) {
+    const qv = parseFloat($("quickAwayVal").value);
+    if (!isNaN(qv) && qv >= 5 && qv <= 30) {
+      (S.zones || []).forEach(z => schedState.awayTemps[z.id] = qv);
+      markSchedDirty();
+      renderSchedule();
+    }
+    return;
+  }
+
+  // Copy helpers for 5+2
+  if (e.target.id === "btnCopyWdToWe" && schedState) {
+    for (let m = 0; m < 4; m++) {
+      schedState.days[0][m] = JSON.parse(JSON.stringify(schedState.days[1][m]));
+      schedState.days[6][m] = JSON.parse(JSON.stringify(schedState.days[1][m]));
+    }
+    markSchedDirty();
+    renderSchedule();
+    return;
+  }
+  if (e.target.id === "btnCopyWeToWd" && schedState) {
+    for (let d = 1; d <= 5; d++) {
+      for (let m = 0; m < 4; m++) {
+        schedState.days[d][m] = JSON.parse(JSON.stringify(schedState.days[0][m]));
+      }
+    }
+    markSchedDirty();
+    renderSchedule();
+    return;
+  }
+
+  // Copy helpers for 7day
+  if (e.target.id === "btnCopyDayToAll" && schedState) {
+    const src = schedState.days[activeDayIndex];
+    for (let d = 0; d < 7; d++) {
+      if (d !== activeDayIndex) {
+        schedState.days[d] = JSON.parse(JSON.stringify(src));
+      }
+    }
+    markSchedDirty();
+    renderSchedule();
+    return;
+  }
+  if (e.target.id === "btnCopyDayToWd" && schedState) {
+    const src = schedState.days[activeDayIndex];
+    for (let d = 1; d <= 5; d++) {
+      schedState.days[d] = JSON.parse(JSON.stringify(src));
+    }
+    markSchedDirty();
+    renderSchedule();
+    return;
+  }
+  if (e.target.id === "btnCopyDayToWe" && schedState) {
+    const src = schedState.days[activeDayIndex];
+    schedState.days[0] = JSON.parse(JSON.stringify(src));
+    schedState.days[6] = JSON.parse(JSON.stringify(src));
+    markSchedDirty();
+    renderSchedule();
+    return;
+  }
+
+  // Legacy slot delete
   const delBtn = e.target.closest(".del-slot");
   if (delBtn) {
     const rawId = delBtn.dataset.raw, idx = +delBtn.dataset.idx;
@@ -717,45 +1078,74 @@ document.addEventListener("click", e => {
   }
 });
 
-// Slot interactive edits (time / select)
-document.addEventListener("change", e => {
-  if (e.target.classList.contains("slot-time") || e.target.classList.contains("slot-lvl")) {
-    const rawId = e.target.dataset.raw, idx = +e.target.dataset.idx;
-    const chip = e.target.closest(".slot-chip");
-    if (!chip) return;
-    const slots = parseSlots($(rawId).value);
-    if (slots[idx]) {
-      slots[idx].time = chip.querySelector(".slot-time").value;
-      slots[idx].level = chip.querySelector(".slot-lvl").value;
-      $(rawId).value = serializeSlots(slots);
-      markSchedDirty();
-    }
-  }
-});
-
 $("undoSched").onclick = () => {
   schedDirty = false;
   editing = false;
   $("undoSched").style.display = "none";
   $("schedMsg").textContent = "Modificări anulate.";
+  initSchedStateFromS();
   renderSchedule();
 };
 
 $("saveSched").onclick = async () => {
+  if (!schedState) return;
   try {
+    $("schedMsg").textContent = "Se salvează...";
+    // 1. Enable / disable
     await api("api/schedule/enable", {enabled: $("schedOn").checked ? 1 : 0});
-    for (const el of document.querySelectorAll("#levels input")) {
-      const z = S.zones[el.dataset.z - 1];
-      if (Math.abs(z[el.dataset.l] - parseFloat(el.value)) > 0.04) await api("api/schedule/level", {zone: el.dataset.z, level: el.dataset.l, temp: el.value});
+
+    // 2. Mode
+    const mode = schedState.mode;
+    await api("api/schedule/mode", {mode: mode});
+
+    // 3. Save moments according to mode
+    if (mode === "constant") {
+      const temps = {};
+      (S.zones || []).forEach(z => {
+        const v = parseFloat(schedState.constantTemps[z.id] || 22.0);
+        temps[z.id] = v;
+      });
+      await api("api/schedule/moment", {day: "all", moment: 1, time: "00:00", temps: temps}, true);
+      for (const z of (S.zones || [])) {
+        await api("api/schedule/level", {zone: z.id, level: "day", temp: temps[z.id]});
+      }
+    } else if (mode === "unified") {
+      for (let m = 0; m < 4; m++) {
+        const mom = schedState.days[1][m];
+        await api("api/schedule/moment", {day: "all", moment: m + 1, time: mom.time, temps: mom.temps}, true);
+      }
+    } else if (mode === "5+2") {
+      for (let m = 0; m < 4; m++) {
+        const momWd = schedState.days[1][m];
+        await api("api/schedule/moment", {day: "weekday", moment: m + 1, time: momWd.time, temps: momWd.temps}, true);
+        const momWe = schedState.days[0][m];
+        await api("api/schedule/moment", {day: "weekend", moment: m + 1, time: momWe.time, temps: momWe.temps}, true);
+      }
+    } else if (mode === "7day") {
+      const dayKeys = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"];
+      for (let d = 0; d < 7; d++) {
+        for (let m = 0; m < 4; m++) {
+          const mom = schedState.days[d][m];
+          await api("api/schedule/moment", {day: dayKeys[d], moment: m + 1, time: mom.time, temps: mom.temps}, true);
+        }
+      }
     }
-    if ($("wd").value !== S.weekday) await api("api/schedule/slots", {weekend: 0, slots: $("wd").value});
-    if ($("we").value !== S.weekend) await api("api/schedule/slots", {weekend: 1, slots: $("we").value});
-    $("schedMsg").textContent = "Salvat.";
+
+    // 4. Save Away temps
+    for (const z of (S.zones || [])) {
+      const aw = parseFloat(schedState.awayTemps[z.id] || 18.0);
+      await api("api/schedule/level", {zone: z.id, level: "away", temp: aw});
+    }
+
     schedDirty = false;
     editing = false;
     $("undoSched").style.display = "none";
-  } catch (e) { $("schedMsg").textContent = "Eroare: " + e.message; }
-  refresh();
+    $("schedMsg").textContent = "Program salvat cu succes.";
+    setTimeout(() => { if ($("schedMsg").textContent === "Program salvat cu succes.") $("schedMsg").textContent = ""; }, 4000);
+    refresh();
+  } catch (e) {
+    $("schedMsg").textContent = "Eroare: " + e.message;
+  }
 };
 
 $("saveLoc").onclick = async () => {
