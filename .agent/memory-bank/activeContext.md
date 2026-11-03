@@ -5,14 +5,16 @@ Only what holds now and what comes next. A line that no longer holds is replaced
 [`docs/archive/active_context_until_2026-11-02.md`](../../docs/archive/active_context_until_2026-11-02.md).
 
 ## Now
-- Live gas meter index tracking, calibration history & generic boiler model (FR-35.1) implemented and verified on board:
+- Live gas meter index tracking, calibration history, generic boiler model, and refined telemetry & debug tools:
   - Base index calibrated: `2265.304 m³` (NVS key `mindex`).
   - Boiler dial setpoint: `40°C` (NVS `btset`), observed delivery: `43°C` (NVS `btflow`), calibrated flame rate: `0.60 m³/h` (NVS `grate`).
   - Boiler capacity: `24 kW` (NVS `bkw`), gas price: `3.30 Lei/m³` (NVS `gprice`).
-  - Calibration history log (`/gas_calib.json`) stores up to 15 calibration events with empirical burn rate calculation ($\Delta m^3 / \Delta t_{\text{burn}}$) and night-time calibration advice (ACM = 0).
-  - UI `#gasMeterBox` updated with non-destructive in-place DOM updates (inputs retain focus/state during polling), subtle gas consumption comparison bar (Azi vs Ieri), and removed hardcoded boiler model text.
-  - Telemetry chart features `⚡ RESTART` timeline markers for board reboots/flashes backed by `/boot_events.bin` and `/api/history`.
-  - Board flashed via OTA with commit `4532f7b` (v1.11.03.26); SWE.5-TC20, TC21, TC19.16 PASS.
+  - Calibration history log (`/gas_calib.json`) stores up to 15 calibration events with empirical burn rate calculation and night calibration guidance.
+  - Telemetry chart features minimalist circular `⚡` restart pins with fine 1px dashed amber lines and hover tooltip integration.
+  - Open window detection visualized with cyan blocks and `🪟` icons on zone activity rows, hover tooltip status, and room card countdown badge with instant cancel button (`/api/zones/window/clear`).
+  - Sliding peak baseline evaluation in `ThermalZoneManager.cpp` ensures real-world room cooling trends are not truncated prematurely by 5-minute fixed clock boundaries.
+  - Live Console & Log Stream embedded in "Instrumente Inginerie & Debug" streaming real-time firmware activity from `/api/console/logs` with command execution.
+  - Board flashed via OTA with commit `a9c5175` (v1.11.03.27); SWE.5-TC20, TC21, TC26, TC19.16 PASS; `tools/sh_process_check.py` 0 errors.
 - Migration of `docs/architecture.md` §18, status in [`docs/plan.md`](../../docs/plan.md). Step 1 (`ParamStore`)
   committed (413fa60, fix 7743c26) and flashed; the owner's page test fixes committed (43ffe48 PB-15, 2b7564f
   PB-17 ... PB-21). Not pushed.

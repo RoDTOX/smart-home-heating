@@ -7,6 +7,27 @@ Entries before 29.10.2026 (the system before the lean clean-up):
 
 
 
+## [03.11.2026] - Minimalist Restart Pins, Window Open Visualization & Live Debug Console (a9c5175)
+
+- **Who / when / why:** firmware session (light mode), 03.11.2026; the owner requested redesigning the telemetry chart restart marker to be small and elegant (a subtle lightning glyph pin instead of a bulky overlapping orange box), displaying open window detection on the telemetry chart and room cards, optimizing the baseline evaluation for open window detection to prevent premature resets during ongoing aeration, adding a live log window / console in "Instrumente Inginerie & Debug", and performing a full process check in preparation for Claude handoff.
+- **Where:**
+  - `web/index.html`:
+    - Replaced the large 66px solid orange restart rectangle with a discreet 12px circular pin (`<circle r="6" fill="#18181b" stroke="#f59e0b">`) containing a crisp `⚡` symbol and a fine 1px dashed amber line (`opacity="0.65"`). Hover tooltip preserves full reboot reason.
+    - Added Open Window detection visualization on the telemetry chart: active window pauses render as cyan blocks with `🪟` icons on zone activity rows, and hover tooltips explicitly indicate `🪟 pauză geam`.
+    - Room cards now dynamically display open window status: `.room.win` style with cyan border accent, countdown (`🪟 Fereastră deschisă · Pauză Xm`), and an inline quick-cancel button (`[Închide pauza ✕]` via `POST /api/zones/window/clear`).
+    - Added Live Console & Firmware Stream terminal inside `grpDebug` ("Instrumente Inginerie & Debug"): streams real-time logs from `/api/console/logs`, supports auto-scrolling, clear buffer, pause/resume, and interactive command execution (`POST /api/console/cmd`).
+  - `src/ThermalZoneManager.cpp`:
+    - Refined `evaluateWindowDetection()` baseline tracking: maintains pre-aeration baseline during ongoing cooling trends and only expires the baseline if 10 minutes elapse without completing the drop threshold or if temperature is flat (<0.10°C drop over 5m), preventing premature baseline truncation during real-world window aeration.
+  - `src/TelemetryHistoryManager.cpp`:
+    - Encoded active zone window pause into bits 5 and 6 of `TelemetryPoint.flags` (0: none, 1: Z1, 2: Z2, 3: Z3) preserving the 6-element binary contract (`[slot, z1, z2, z3, out, flags]`).
+    - Exposed `"windows": [...]` array in `/api/history` with zone ID, name, and remaining pause duration.
+- **Verification:**
+  - `pio run` builds clean: 1.22 MB flash (65.0%).
+  - `python tools/sh_process_check.py` and `board` PASS with 0 errors.
+  - Flashed to ESP32 board via OTA and running commit `a9c5175`.
+  - ASPICE SWE.5 tests TC20 (history), TC26 (open window safety), and TC19.16 (UI) all PASS against board.
+- **Not changed:** hydronic safety limits, burner minimum run/pause, actuator interlock.
+
 ## [03.11.2026] - Persistent Gas Calibration Form, Generic Boiler Model, Calibration History & Restart Markers (4532f7b)
 
 - **Who / when / why:** firmware session (light mode), 03.11.2026; the owner reported that clicking "Calibrează Index / Setări" caused the input form to disappear on subsequent poll ticks, objected to hardcoding a specific boiler brand/model in the UI note, requested generic configurable boiler power and gas price, asked for a calibration history log with empirical burn rate calculation and night-time reading guidance (ACM = 0), requested replacing the jarring green status badge with a dedicated consumption comparison bar, and asked to visualize board reboot/flash events directly on the telemetry chart.
