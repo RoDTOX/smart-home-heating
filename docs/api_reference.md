@@ -72,6 +72,8 @@ Invalid schedule input returns `400`.
 
 | Method | Path | Purpose |
 |---|---|---|
+| — | login (FR-75.1) | `POST /api/console/send` needs HTTP Basic authentication, user `console`; `401` + `WWW-Authenticate` without it, `403 {"error":"password change required"}` while the first password still has to be changed, `429` while locked out (FR-75.4). Without a password set only `cmd=HELP` and `cmd=STATUS` are accepted, anything else `401`. `GET /api/console/logs` and `GET /api/security/events` are public on the home network, on the setup access point they need the login |
+| GET | `/api/security/events` | FR-77: `{"count":n,"events":[{"time":epoch,"type":"login-fail\|login-ok\|lockout\|command\|password-change\|factory-reset","source":"http\|telnet\|serial","client":"a.b.c.x"}]}` oldest first, at most 50 |
 | POST | `/api/console/send` | `cmd` = console command (same as Telnet :23), returns new log lines |
 | GET | `/api/console/logs` | `since` = sequence number |
 
