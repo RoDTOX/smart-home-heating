@@ -566,3 +566,10 @@ restores them (a test proves it). An old file with `target` skips it as unknown 
 **Decided by**: owner (chat, 03.11.2026), relayed by the main chat.
 **Affects**: FR-58, FR-45, FR-7.1, NFR-2.8, FR-29, FR-31, FR-34, FR-35, FR-40; PB-72, PB-73, PB-75, PB-82, PB-83, PB-86, PB-90, PB-92.
 **Consequences**: order of work: register the five unregistered tests and run them (PB-86); cheap fixes (window 5 min, meter default, owner's day / night levels); then the console login in its own round.
+
+## 2026-11-03 — Gas meter readings are data, not a calibration (C-25)
+**Context**: every POST to `/api/boiler/gas-meter` wrote a log entry in an 8-entry ring and moved the base; the owner's readings were mixed with test entries and could be overwritten (PB-80, PB-99).
+**Decision**: a reading typed by the user is stored with its time in a LittleFS file that survives a flash, reset and import; never overwritten or dropped; only a typed reading writes an entry; the page says "Citire contor"; no default reading. The physical reading 2265.304 m3 was taken at 15:39 on 03.11.2026 (owner) and seeds the log. Cap (1000 entries, monthly compaction after 13 months) and the optional reading time are proposals awaiting the owner's OK.
+**Decided by**: owner (chat, 03.11.2026), relayed by the main chat; text of FR-35.1 shown to the owner before the tests.
+**Affects**: FR-35.1, FR-65.1, `WebApi.cpp`, `docs/gas_meter_readings_03_11.md`.
+**Consequences**: round of C-25 follows after the owner's OK of the text; the board's meter value is not touched until the owner types the current reading.

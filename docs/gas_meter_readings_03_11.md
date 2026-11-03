@@ -9,6 +9,7 @@ State at the backup: `baseIndex` 2265.304 m3, `baseSec` 127312, `baseEpoch` 1793
 
 | Time (local) | Epoch | Index m3 | deltaM3 | burnSec | Origin |
 |---|---|---|---|---|---|
+| 03.11 15:39 | 1793713140 | 2265.304 | — | — | owner: the physical meter reading, told by the owner in chat 03.11.2026; no log entry exists for this time (the first entry of the board is 16:25, the time it was typed in the page). This is the first reading to seed the persistent log of FR-35.1 (C-25). |
 | 03.11 16:25 | 1793715949 | 2265.304 | 0 | 88 | owner (first entry, as told by the owner); the reading itself was put into the code by AGY in 63accff at 15:53:03, so it was taken at or before 15:53 - exact time not recorded, to be asked |
 | 03.11 16:26 | 1793715997 | 2265.304 | 0 | 0 | unverified: written by a POST to `/api/boiler/gas-meter`; the time of 19:56 ... 20:39 coincides with full system test runs of the process session (TC21.3 posts index 2265.304); the owner says which are theirs |
 | 03.11 16:28 | 1793716090 | 2265.304 | 0 | 0 | unverified: written by a POST to `/api/boiler/gas-meter`; the time of 19:56 ... 20:39 coincides with full system test runs of the process session (TC21.3 posts index 2265.304); the owner says which are theirs |
