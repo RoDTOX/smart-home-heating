@@ -16,63 +16,6 @@
 #include <WiFi.h>
 #include <LittleFS.h>
 
-static const char* FILE_GAS_CALIB = "/gas_calib.json";
-
-static String getGasCalibrationLogJson() {
-  if (LittleFS.exists(FILE_GAS_CALIB)) {
-    File f = LittleFS.open(FILE_GAS_CALIB, "r");
-    if (f) {
-      String s = f.readString();
-      f.close();
-      s.trim();
-      if (s.startsWith("[") && s.endsWith("]")) return s;
-    }
-  }
-  return "[]";
-}
-
-static void logGasCalibration(float index, float deltaM3, uint32_t burnSec, float empiricalRate, int setT, int flowT, int kw) {
-  String existing = getGasCalibrationLogJson();
-  JsonDocument doc;
-  DeserializationError err = deserializeJson(doc, existing);
-  JsonArray arr = doc.as<JsonArray>();
-  if (err || !arr) {
-    doc.clear();
-    arr = doc.to<JsonArray>();
-  }
-
-  JsonObject entry = arr.add<JsonObject>();
-  time_t now = time(nullptr);
-  char tBuf[32];
-  if (now > 1700000000UL) {
-    struct tm tmInfo;
-    localtime_r(&now, &tmInfo);
-    snprintf(tBuf, sizeof(tBuf), "%02d.%02d %02d:%02d", tmInfo.tm_mday, tmInfo.tm_mon + 1, tmInfo.tm_hour, tmInfo.tm_min);
-  } else {
-    snprintf(tBuf, sizeof(tBuf), "Boot+%um", (unsigned int)(millis() / 60000UL));
-  }
-  entry["time"] = tBuf;
-  entry["epoch"] = (uint32_t)now;
-  entry["index"] = serialized(String(index, 3));
-  entry["deltaM3"] = serialized(String(deltaM3, 3));
-  entry["burnSec"] = burnSec;
-  entry["rate"] = serialized(String(empiricalRate, 2));
-  entry["setT"] = setT;
-  entry["flowT"] = flowT;
-  entry["kw"] = kw;
-
-  while (arr.size() > 15) {
-    arr.remove(0);
-  }
-
-  File f = LittleFS.open(FILE_GAS_CALIB, "w");
-  if (f) {
-    serializeJson(doc, f);
-    f.close();
-  }
-}
-
-
 void handleRoot() {
   server.sendHeader("Access-Control-Allow-Origin", "*");
   server.sendHeader("Content-Encoding", "gzip");
@@ -189,34 +132,37 @@ void handleApiBoilerCancelPending() {
 
 static String getGasMeterJson() {
   float flameRate = paramStore.getf(Param::GasFlameRate);
-  uint32_t baseIndex = paramStore.state(StateKey::GasMeterBaseIndex);
+  uint32_t lastEpoch = paramStore.state(StateKey::GasMeterBaseEpoch);  // 0 = no reading typed yet (FR-35.1)
+  bool haveReading = lastEpoch != 0;
+  float lastIndex = (float)paramStore.state(StateKey::GasMeterBaseIndex) / 1000.0f;
   uint32_t baseSec = paramStore.state(StateKey::GasMeterBaseSec);
   uint32_t totalSec = boilerRadio.getRuntimeTotalSec();
   uint32_t elapsedSec = (totalSec >= baseSec) ? (totalSec - baseSec) : 0;
-  float gasBurnedSinceBase = (elapsedSec / 3600.0f) * flameRate;
-  float currentEstimatedIndex = ((float)baseIndex / 1000.0f) + gasBurnedSinceBase;
+  float currentEstimatedIndex = lastIndex + (elapsedSec / 3600.0f) * flameRate;
   float gasToday = ((float)boilerRadio.getRuntimeTodaySec() / 3600.0f) * flameRate;
   float gasYesterday = ((float)boilerRadio.getRuntimeYesterdaySec() / 3600.0f) * flameRate;
   float gasThisMonth = ((float)boilerRadio.getRuntimeThisMonthSec() / 3600.0f) * flameRate;
-  uint8_t boilerKw = paramStore.get(Param::BoilerPowerKw);
-  float gasPrice = paramStore.getf(Param::GasPrice);
+  time_t nowT = time(nullptr);
+  if (nowT >= 1700000000) {
+    float fromReadings = 0.0f;
+    if (telemetryHistory.gasMonthFromReadings((uint32_t)nowT, fromReadings)) gasThisMonth = fromReadings;
+  }
 
   String j;
-  j.reserve(800);
+  j.reserve(520);
   j = "\"gasMeter\":{";
-  j += "\"estimatedIndex\":" + String(currentEstimatedIndex, 3) + ",";
-  j += "\"baseIndex\":" + String((float)baseIndex / 1000.0f, 3) + ",";
-  j += "\"baseSec\":" + String(baseSec) + ",";
-  j += "\"baseEpoch\":" + String(paramStore.state(StateKey::GasMeterBaseEpoch)) + ",";
+  j += "\"lastReadingIndex\":" + (haveReading ? String(lastIndex, 3) : String("null")) + ",";
+  j += "\"lastReadingTime\":" + (haveReading ? String(lastEpoch) : String("null")) + ",";
+  j += "\"estimatedIndex\":" + (haveReading ? String(currentEstimatedIndex, 3) : String("null")) + ",";
+  j += "\"readingCount\":" + String(telemetryHistory.gasReadingCount()) + ",";
   j += "\"gasTodayM3\":" + String(gasToday, 2) + ",";
   j += "\"gasYesterdayM3\":" + String(gasYesterday, 2) + ",";
   j += "\"gasThisMonthM3\":" + String(gasThisMonth, 2) + ",";
   j += "\"gasFlameRate\":" + String(flameRate, 2) + ",";
   j += "\"boilerSetTemp\":" + String(paramStore.get(Param::BoilerSetTemp)) + ",";
   j += "\"boilerFlowObserved\":" + String(paramStore.get(Param::BoilerFlowObserved)) + ",";
-  j += "\"boilerPowerKw\":" + String(boilerKw) + ",";
-  j += "\"gasPrice\":" + String(gasPrice, 2) + ",";
-  j += "\"calibLog\":" + getGasCalibrationLogJson();
+  j += "\"boilerPowerKw\":" + String(paramStore.get(Param::BoilerPowerKw)) + ",";
+  j += "\"gasPrice\":" + String(paramStore.getf(Param::GasPrice), 2);
   j += "},";
   return j;
 }
@@ -229,67 +175,89 @@ void handleApiBoilerResetRuntime() {
 
 void handleApiStatus();
 
+// FR-35.1: the only call that writes a reading. dryRun=1 validates and answers, stores nothing (test mode).
 void handleApiBoilerGasMeter() {
   server.sendHeader("Access-Control-Allow-Origin", "*");
-  float prevIdx = (float)paramStore.state(StateKey::GasMeterBaseIndex) / 1000.0f;
-  uint32_t prevSec = paramStore.state(StateKey::GasMeterBaseSec);
-  uint32_t curSec = boilerRadio.getRuntimeTotalSec();
-  uint32_t burnSec = (curSec >= prevSec) ? (curSec - prevSec) : 0;
-  float newIdx = prevIdx;
+  String idxArg = server.hasArg("index") ? server.arg("index") : String("");
+  char* end = nullptr;
+  double idx = strtod(idxArg.c_str(), &end);
+  if (idxArg.length() == 0 || !end || *end != '\0' || !(idx >= 0.0 && idx <= 999999.9995)) {
+    server.send(400, "application/json",
+                F("{\"status\":\"error\",\"error\":\"index missing or outside 0 to 999999 (FR-35.1)\"}"));
+    return;
+  }
+  uint32_t now = (uint32_t)time(nullptr);
+  uint32_t epoch = now;
+  if (server.hasArg("time")) {
+    String tArg = server.arg("time");
+    char* tEnd = nullptr;
+    unsigned long tv = strtoul(tArg.c_str(), &tEnd, 10);
+    if (tArg.length() == 0 || !tEnd || *tEnd != '\0' || tv < 1700000000UL || tv > (unsigned long)now) {
+      server.send(400, "application/json",
+                  F("{\"status\":\"error\",\"error\":\"time must be an epoch in the past (FR-35.1)\"}"));
+      return;
+    }
+    epoch = (uint32_t)tv;
+  }
+  if (epoch < 1700000000UL) {
+    server.send(400, "application/json", F("{\"status\":\"error\",\"error\":\"clock not set, give time (FR-35.1)\"}"));
+    return;
+  }
+  uint32_t idxMilli = (uint32_t)lround(idx * 1000.0);
+  if (server.hasArg("dryRun") && server.arg("dryRun") != "1" && server.arg("dryRun") != "0") {
+    server.send(400, "application/json", F("{\"status\":\"error\",\"error\":\"dryRun must be 0 or 1\"}"));
+    return;
+  }
+  bool dry = server.hasArg("dryRun") && server.arg("dryRun") == "1";
+  bool stored = false;
+  if (!dry) {
+    if (!telemetryHistory.gasReadingAdd(epoch, idxMilli)) {
+      server.send(500, "application/json", F("{\"status\":\"error\",\"error\":\"reading not stored\"}"));
+      return;
+    }
+    stored = true;
+    // the last reading (by time) is the base of the estimate; an older reading only joins the log
+    if (epoch >= paramStore.state(StateKey::GasMeterBaseEpoch)) {
+      paramStore.saveState(StateKey::GasMeterBaseIndex, idxMilli);
+      paramStore.saveState(StateKey::GasMeterBaseSec, boilerRadio.getRuntimeTotalSec());
+      paramStore.saveState(StateKey::GasMeterBaseEpoch, epoch);
+    }
+  }
+  String resp = String("{\"status\":\"ok\",\"stored\":") + (stored ? "true" : "false") + ",\"reading\":{\"time\":" +
+                String(epoch) + ",\"index\":" + String((double)idxMilli / 1000.0, 3) + "}," + getGasMeterJson();
+  if (resp.endsWith(",")) resp.remove(resp.length() - 1);
+  resp += "}";
+  server.send(200, "application/json", resp);
+}
 
-  if (server.hasArg("index")) {
-    float idx = server.arg("index").toFloat();
-    if (idx >= 0.0f && idx <= 999999.0f) {
-      newIdx = idx;
-      uint32_t baseIdx = (uint32_t)(round(idx * 1000.0f));
-      paramStore.saveState(StateKey::GasMeterBaseIndex, baseIdx);
-      paramStore.saveState(StateKey::GasMeterBaseSec, curSec);
-      paramStore.saveState(StateKey::GasMeterBaseEpoch, (uint32_t)time(nullptr));
-    }
-  }
-  if (server.hasArg("setTemp")) {
-    int32_t st = server.arg("setTemp").toInt();
-    if (paramStore.inRange(Param::BoilerSetTemp, st)) {
-      paramStore.set(Param::BoilerSetTemp, st);
-    }
-  }
-  if (server.hasArg("flowObserved")) {
-    int32_t fo = server.arg("flowObserved").toInt();
-    if (paramStore.inRange(Param::BoilerFlowObserved, fo)) {
-      paramStore.set(Param::BoilerFlowObserved, fo);
-    }
-  }
-  if (server.hasArg("flameRate")) {
-    float fr = server.arg("flameRate").toFloat();
-    if (fr >= 0.10f && fr <= 5.00f) {
-      paramStore.setf(Param::GasFlameRate, fr);
-    }
-  }
-  if (server.hasArg("boilerKw")) {
-    int32_t kw = server.arg("boilerKw").toInt();
-    if (paramStore.inRange(Param::BoilerPowerKw, kw)) {
-      paramStore.set(Param::BoilerPowerKw, kw);
-    }
-  }
-  if (server.hasArg("price")) {
-    float pr = server.arg("price").toFloat();
-    if (pr >= 0.50f && pr <= 20.00f) {
-      paramStore.setf(Param::GasPrice, pr);
-    }
-  }
+struct GasListCtx {
+  String chunk;
+  bool first;
+};
 
-  // Calculate empirical flow rate & record log entry
-  float deltaM3 = (newIdx >= prevIdx && prevIdx > 0.0f) ? (newIdx - prevIdx) : 0.0f;
-  float empRate = paramStore.getf(Param::GasFlameRate);
-  if (burnSec >= 120 && deltaM3 > 0.001f) {
-    empRate = deltaM3 / ((float)burnSec / 3600.0f);
-  }
-  logGasCalibration(newIdx, deltaM3, burnSec, empRate,
-                    paramStore.get(Param::BoilerSetTemp),
-                    paramStore.get(Param::BoilerFlowObserved),
-                    paramStore.get(Param::BoilerPowerKw));
-
-  handleApiStatus();
+// FR-35.1: all stored readings, oldest first, streamed (up to 1000 entries)
+void handleApiGasReadings() {
+  server.sendHeader("Access-Control-Allow-Origin", "*");
+  server.setContentLength(CONTENT_LENGTH_UNKNOWN);
+  server.send(200, "application/json", "");
+  server.sendContent(String("{\"count\":") + telemetryHistory.gasReadingCount() + ",\"replaced\":" +
+                     telemetryHistory.gasReadingsReplaced() + ",\"readings\":[");
+  GasListCtx ctx;
+  ctx.first = true;
+  telemetryHistory.gasReadingsForEach(
+      [](uint32_t e, uint32_t idx, void* p) {
+        GasListCtx* c = (GasListCtx*)p;
+        c->chunk += String(c->first ? "" : ",") + "{\"time\":" + String(e) + ",\"index\":" + String((double)idx / 1000.0, 3) + "}";
+        c->first = false;
+        if (c->chunk.length() > 400) {
+          server.sendContent(c->chunk);
+          c->chunk = "";
+        }
+      },
+      &ctx);
+  ctx.chunk += "]}";
+  server.sendContent(ctx.chunk);
+  server.sendContent("");
 }
 
 void handleApiZones() {
@@ -333,7 +301,6 @@ void handleApiZones() {
   json += "\"lastMonthSec\":" + String(boilerRadio.getRuntimeLastMonthSec()) + ",";
   json += "\"currentBurnSec\":" + String(boilerRadio.getCurrentFlameDurationSec());
   json += "},";
-  json += getGasMeterJson();
   json += "\"zones\":[";
 
   for (size_t i = 0; i < thermalZones.getZoneCount(); i++) {
@@ -1224,6 +1191,8 @@ void handleApiConfigSystemGet() {
   json += "\"boilerSetTemp\":" + String(paramStore.get(Param::BoilerSetTemp)) + ",";
   json += "\"boilerFlowObserved\":" + String(paramStore.get(Param::BoilerFlowObserved)) + ",";
   json += "\"gasFlameRate\":" + String(paramStore.getf(Param::GasFlameRate), 2) + ",";
+  json += "\"boilerPowerKw\":" + String(paramStore.get(Param::BoilerPowerKw)) + ",";
+  json += "\"gasPrice\":" + String(paramStore.getf(Param::GasPrice), 2) + ",";
   json += "\"zones\":[";
   for (size_t i = 0; i < thermalZones.getZoneCount(); i++) {
     if (i > 0) json += ",";
@@ -1258,6 +1227,8 @@ static const ConfigArg CONFIG_ARGS[] = {
     {"boilerSetTemp", Param::BoilerSetTemp},
     {"boilerFlowObserved", Param::BoilerFlowObserved},
     {"gasFlameRate", Param::GasFlameRate},
+    {"boilerPowerKw", Param::BoilerPowerKw},
+    {"gasPrice", Param::GasPrice},
 };
 static const char* CONFIG_FLAGS[] = {"openLoopBypass", "rfSafetyHeartbeatEnabled", "pumpControlEnabled",
                                      "actuatorNormallyClosed"};
@@ -1333,6 +1304,8 @@ void handleApiConfigSystemPost() {
   if (server.hasArg("boilerSetTemp")) paramStore.set(Param::BoilerSetTemp, server.arg("boilerSetTemp").toInt());
   if (server.hasArg("boilerFlowObserved")) paramStore.set(Param::BoilerFlowObserved, server.arg("boilerFlowObserved").toInt());
   if (server.hasArg("gasFlameRate")) paramStore.setf(Param::GasFlameRate, server.arg("gasFlameRate").toFloat());
+  if (server.hasArg("boilerPowerKw")) paramStore.set(Param::BoilerPowerKw, server.arg("boilerPowerKw").toInt());
+  if (server.hasArg("gasPrice")) paramStore.setf(Param::GasPrice, server.arg("gasPrice").toFloat());
   if (server.hasArg("openLoopBypass")) thermalZones.setOpenLoopBypass(flagOn(server.arg("openLoopBypass")));
   if (server.hasArg("rfSafetyHeartbeatEnabled")) boilerRadio.setSafetyHeartbeatEnabled(flagOn(server.arg("rfSafetyHeartbeatEnabled")));
   if (server.hasArg("pumpControlEnabled")) thermalZones.setPumpControlEnabled(flagOn(server.arg("pumpControlEnabled")));
@@ -1410,6 +1383,7 @@ void registerWebRoutes() {
   server.on("/api/boiler/cancel", HTTP_POST, handleApiBoilerCancelPending);
   server.on("/api/boiler/runtime/reset", HTTP_POST, handleApiBoilerResetRuntime);
   server.on("/api/boiler/gas-meter", HTTP_POST, handleApiBoilerGasMeter);
+  server.on("/api/boiler/gas-readings", HTTP_GET, handleApiGasReadings);
   server.on("/api/boiler/status", HTTP_GET, handleApiStatus);
   server.on("/api/zones", HTTP_GET, handleApiZones);
   server.on("/api/zones/setpoint", HTTP_POST, handleApiZoneSetpoint);

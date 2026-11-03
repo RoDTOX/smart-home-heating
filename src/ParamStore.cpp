@@ -44,7 +44,7 @@ static const ParamDef PARAMS[(uint8_t)Param::Count] = {
 
 static const char* STATE_KEYS[(uint8_t)StateKey::Count] = {
     "auto", "as_epoch", "b_on", "rt_tot", "rt_today", "rt_yest", "rt_mon", "rt_lmon", "rt_day", "rt_month", "zcount",
-    "mindex", "msec", "mepoch",
+    "mindex", "msec", "mepoch", "gmig", "gcomp",
 };
 
 static const uint8_t DEFAULT_PINS[3] = {PIN_RELAY_ZONE_1, PIN_RELAY_ZONE_2, PIN_RELAY_ZONE_3};

@@ -138,7 +138,12 @@ class SystemTestSuite(SuiteBase, HealthTests, HydraulicsTests, ControlTests, UiH
             # Group 21: Thermal Gas Consumption Model & Telemetry (FR-35)
             self.test_tc21_1_gas_model_schema,
             self.test_tc21_2_gas_model_calculations,
-            self.test_tc21_3_gas_meter_tracking_and_boiler_flow_reference,
+            self.test_tc21_3_gas_meter_status_schema,
+            self.test_tc21_4_gas_meter_dry_run_stores_nothing,
+            self.test_tc21_5_gas_meter_refusals_and_bounds,
+            self.test_tc21_6_gas_parameters_range_and_rejection,
+            self.test_tc21_7_gas_meter_card_wording,
+            self.test_tc21_8_gas_estimate_not_below_last_reading,
             # Group 23: FSM Relay Decoupling & Safety Invariant (FR-37)
             self.test_tc23_1_fsm_instant_warmup_abort_contract,
             self.test_tc23_2_orphaned_relay_safety_invariant,

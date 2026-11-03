@@ -66,6 +66,15 @@ public:
     uint32_t getZoneRuntimeTodayFromHistory(size_t zoneIndex) const;
     uint32_t getZoneRuntimeYesterdayFromHistory(size_t zoneIndex) const;
 
+    // FR-35.1: gas meter readings typed by the user, /gas_readings.bin, 8 bytes each (epoch, index in 1/1000 m3)
+    void gasReadingsBegin();
+    uint32_t gasReadingCount() const;
+    uint32_t gasReadingsReplaced() const;
+    bool gasReadingAdd(uint32_t epoch, uint32_t indexMilli);
+    void gasReadingsForEach(void (*cb)(uint32_t epoch, uint32_t indexMilli, void* ctx), void* ctx) const;
+    // Gas of the month of `epoch` from readings: last reading of that month minus last reading of the month before
+    bool gasMonthFromReadings(uint32_t epoch, float& m3) const;
+
     // Boot & restart tracking
     void recordBootEvent();
     uint8_t getBootRecordCount() const { return _bootRecordCount; }

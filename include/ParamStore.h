@@ -44,9 +44,11 @@ enum class StateKey : uint8_t {
     RuntimeDay,
     RuntimeMonth,
     ZoneCount,  // number of zones (FR-69, §6 `number of zones`)
-    GasMeterBaseIndex,  // thousandths of m3 (0 = not calibrated, FR-35.1)
-    GasMeterBaseSec,    // boiler runtime totalSec at calibration (FR-35.1)
-    GasMeterBaseEpoch,  // unix timestamp of calibration (FR-35.1)
+    GasMeterBaseIndex,  // last typed reading, thousandths of m3 (FR-35.1)
+    GasMeterBaseSec,    // boiler runtime totalSec when the last reading was stored (FR-35.1)
+    GasMeterBaseEpoch,  // time of the last typed reading, 0 = none (FR-35.1)
+    GasLogMigrated,     // 1 = the old calibration ring was dropped and the reading log started (FR-35.1)
+    GasCompacted,       // oldest readings replaced because the log was full (FR-35.1)
     Count
 };
 

@@ -369,41 +369,160 @@ class UiHistoryTests:
         except Exception as e:
             return TestResult(test_id, name, req, "FAIL", (time.time() - start)*1000, str(e))
 
-    def test_tc21_3_gas_meter_tracking_and_boiler_flow_reference(self):
-        """SWE.5-TC21.3: Gas Meter Index Tracking & Boiler Flow Reference (FR-35.1)"""
-        test_id = "SWE.5-TC21.3"
-        name = "Gas Meter Tracking & Boiler Flow Reference"
-        req = "FR-35.1"
+    # FR-35.1 gas meter readings (C-25). HARD RULE (owner, 03.11.2026): the board holds the owner's real
+    # readings. No test here stores a reading, writes an entry or changes a gas parameter: every POST to
+    # /api/boiler/gas-meter carries dryRun=1 or is refused with 400; parameters are only read, or POSTed
+    # out of range (refused, nothing stored).
+
+    def _gas_state(self):
+        """Return (gasMeter object of /api/boiler/status, GET /api/boiler/gas-readings JSON)."""
+        s = requests.get(f"{self.base_url}/api/boiler/status", timeout=self.timeout)
+        assert s.status_code == 200, f"status: {s.status_code}"
+        gm = s.json().get("gasMeter")
+        assert isinstance(gm, dict), "Missing 'gasMeter' object in /api/boiler/status"
+        g = requests.get(f"{self.base_url}/api/boiler/gas-readings", timeout=self.timeout)
+        assert g.status_code == 200, f"gas-readings: {g.status_code}"
+        return gm, g.json()
+
+    def _gas_post(self, data):
+        """POST /api/boiler/gas-meter; dryRun=1 is always added, a test must never store."""
+        d = dict(data)
+        d["dryRun"] = "1"
+        return requests.post(f"{self.base_url}/api/boiler/gas-meter", data=d, timeout=self.timeout)
+
+    def _gas_result(self, test_id, name, fn):
         start = time.time()
         try:
-            r = requests.get(f"{self.base_url}/api/boiler/status", timeout=self.timeout)
-            assert r.status_code == 200, f"Failed fetching boiler status: {r.status_code}"
-            data = r.json()
-            assert "gasMeter" in data, "Missing 'gasMeter' in /api/boiler/status"
-            gm = data["gasMeter"]
-            assert "estimatedIndex" in gm, "Missing 'estimatedIndex' in gasMeter"
-            assert isinstance(gm["estimatedIndex"], (int, float)) and gm["estimatedIndex"] >= 2000.0
-            assert "gasTodayM3" in gm, "Missing 'gasTodayM3' in gasMeter"
-            assert "boilerSetTemp" in gm, "Missing 'boilerSetTemp' in gasMeter"
-            assert "boilerFlowObserved" in gm, "Missing 'boilerFlowObserved' in gasMeter"
-            assert 25 <= gm["boilerSetTemp"] <= 60
-            assert 25 <= gm["boilerFlowObserved"] <= 65
-
-            # Test updating index via POST /api/boiler/gas-meter
-            r_post = requests.post(f"{self.base_url}/api/boiler/gas-meter",
-                                   data={"index": "2265.304", "setTemp": "40", "flowObserved": "43", "flameRate": "0.60"},
-                                   timeout=self.timeout)
-            assert r_post.status_code == 200, f"POST /api/boiler/gas-meter failed: {r_post.status_code}"
-            updated = r_post.json().get("gasMeter", {})
-            assert abs(updated.get("baseIndex", 0) - 2265.304) < 0.005, f"Expected baseIndex 2265.304, got {updated.get('baseIndex')}"
-            assert updated.get("boilerSetTemp") == 40
-            assert updated.get("boilerFlowObserved") == 43
-
-            latency = (time.time() - start) * 1000
-            details = f"Gas meter tracking validated: Base={updated.get('baseIndex')} m³, Set={updated.get('boilerSetTemp')}°C, Flow={updated.get('boilerFlowObserved')}°C"
-            return TestResult(test_id, name, req, "PASS", latency, details)
+            details = fn()
+            return TestResult(test_id, name, "FR-35.1", "PASS", (time.time() - start) * 1000, details)
         except Exception as e:
-            return TestResult(test_id, name, req, "FAIL", (time.time() - start) * 1000, str(e))
+            return TestResult(test_id, name, "FR-35.1", "FAIL", (time.time() - start) * 1000, str(e))
+
+    def test_tc21_3_gas_meter_status_schema(self):
+        """SWE.5-TC21.3: gasMeter object of boiler status, readings list oldest first (FR-35.1)"""
+        def run():
+            gm, lst = self._gas_state()
+            for f in ["lastReadingIndex", "lastReadingTime", "estimatedIndex", "readingCount", "gasTodayM3",
+                      "gasYesterdayM3", "gasThisMonthM3", "gasFlameRate", "boilerSetTemp",
+                      "boilerFlowObserved", "boilerPowerKw", "gasPrice"]:
+                assert f in gm, f"Missing '{f}' in gasMeter"
+            readings = lst.get("readings")
+            assert isinstance(readings, list), "gas-readings has no 'readings' list"
+            assert gm["readingCount"] == len(readings) == lst.get("count"), \
+                f"readingCount {gm['readingCount']} != readings {len(readings)} / count {lst.get('count')}"
+            if gm["readingCount"] == 0:
+                # no reading is a default: the first three are null and nothing is estimated
+                for f in ["lastReadingIndex", "lastReadingTime", "estimatedIndex"]:
+                    assert gm[f] is None, f"{f} must be null without a reading, got {gm[f]}"
+            else:
+                for f in ["lastReadingIndex", "lastReadingTime", "estimatedIndex"]:
+                    assert isinstance(gm[f], (int, float)), f"{f} must be a number with a reading"
+                times = [e["time"] for e in readings]
+                assert times == sorted(times), "readings are not oldest first"
+                assert abs(readings[-1]["index"] - gm["lastReadingIndex"]) < 0.0005, \
+                    "last entry of gas-readings differs from gasMeter.lastReadingIndex"
+                assert readings[-1]["time"] == gm["lastReadingTime"], "last entry time != lastReadingTime"
+            for f in ["gasTodayM3", "gasYesterdayM3", "gasThisMonthM3"]:
+                assert isinstance(gm[f], (int, float)) and gm[f] >= 0, f"{f} invalid: {gm[f]}"
+            return f"gasMeter schema ok, readingCount={gm['readingCount']}"
+        return self._gas_result("SWE.5-TC21.3", "Gas Meter Status Schema", run)
+
+    def test_tc21_4_gas_meter_dry_run_stores_nothing(self):
+        """SWE.5-TC21.4: dryRun=1 answers stored:false and changes no reading (FR-35.1)"""
+        def run():
+            before_gm, before_lst = self._gas_state()
+            typed = 1234.567  # test value, never stored (dryRun)
+            r = self._gas_post({"index": f"{typed:.3f}"})
+            assert r.status_code == 200, f"dryRun POST: {r.status_code} {r.text}"
+            j = r.json()
+            assert j.get("stored") is False, f"dryRun must answer stored:false, got {j.get('stored')}"
+            rd = j.get("reading") or {}
+            assert "time" in rd and "index" in rd, f"reading must carry time and index: {rd}"
+            assert abs(rd["index"] - typed) < 0.0005, f"reading index {rd['index']} != typed {typed}"
+            after_gm, after_lst = self._gas_state()
+            assert after_gm["readingCount"] == before_gm["readingCount"], "dryRun changed readingCount"
+            assert after_lst["readings"] == before_lst["readings"], "dryRun changed the readings list"
+            assert after_gm["lastReadingIndex"] == before_gm["lastReadingIndex"], "dryRun changed lastReadingIndex"
+            assert after_gm["lastReadingTime"] == before_gm["lastReadingTime"], "dryRun changed lastReadingTime"
+            return "dryRun: stored:false, nothing changed"
+        return self._gas_result("SWE.5-TC21.4", "Gas Meter dryRun Stores Nothing", run)
+
+    def test_tc21_5_gas_meter_refusals_and_bounds(self):
+        """SWE.5-TC21.5: reading outside 0-999999 or in the future refused 400; bounds accepted (FR-35.1)"""
+        def run():
+            before_gm, before_lst = self._gas_state()
+            future = str(int(time.time()) + 10 * 365 * 86400)  # 10 years: safe against board clock error
+            cases = {
+                "missing index": {},
+                "index -1": {"index": "-1"},
+                "index 1000000": {"index": "1000000"},
+                "future time": {"index": "100.000", "time": future},
+            }
+            for label, data in cases.items():
+                r = self._gas_post(data)
+                assert r.status_code == 400, f"{label}: expected HTTP 400, got {r.status_code}"
+            # lower and upper limit of the range (0-999999, 3 decimals) are accepted (dryRun: nothing stored)
+            for idx in ["0", "999999.999"]:
+                r = self._gas_post({"index": idx})
+                assert r.status_code == 200, f"index {idx} must be accepted, got {r.status_code}"
+                assert r.json().get("stored") is False, f"index {idx}: dryRun stored something"
+            after_gm, after_lst = self._gas_state()
+            assert after_lst["readings"] == before_lst["readings"], "a refused or dryRun call changed the readings"
+            assert after_gm["readingCount"] == before_gm["readingCount"], "readingCount changed"
+            return "4 refusals (400), bounds 0 and 999999.999 accepted, nothing stored"
+        return self._gas_result("SWE.5-TC21.5", "Gas Meter Refusals and Bounds", run)
+
+    def test_tc21_6_gas_parameters_range_and_rejection(self):
+        """SWE.5-TC21.6: gas parameters of requirements section 6 inside range, out of range refused (FR-35.1)"""
+        def run():
+            r = requests.get(f"{self.base_url}/api/config/system", timeout=self.timeout)
+            assert r.status_code == 200, f"config/system: {r.status_code}"
+            cfg = r.json()
+            ranges = {  # §6: boilerSetTemp, boilerFlowObserved, gasFlameRate, boilerPowerKw, gasPrice
+                "boilerSetTemp": (25, 60),
+                "boilerFlowObserved": (25, 65),
+                "gasFlameRate": (0.20, 2.50),
+                "boilerPowerKw": (10, 45),
+                "gasPrice": (1.00, 10.00),
+            }
+            for f, (lo, hi) in ranges.items():
+                assert f in cfg, f"Missing '{f}' in /api/config/system"
+                assert lo <= cfg[f] <= hi, f"{f}={cfg[f]} outside §6 range {lo}-{hi}"
+            # out of range (gasFlameRate max 2.50): refused with 400, value unchanged
+            bad = requests.post(f"{self.base_url}/api/config/system", data={"gasFlameRate": 9}, timeout=self.timeout)
+            assert bad.status_code == 400, f"gasFlameRate=9 expected 400, got {bad.status_code}"
+            bad2 = requests.post(f"{self.base_url}/api/config/system", data={"gasPrice": 0.5}, timeout=self.timeout)
+            assert bad2.status_code == 400, f"gasPrice=0.5 (min 1.00) expected 400, got {bad2.status_code}"
+            after = requests.get(f"{self.base_url}/api/config/system", timeout=self.timeout).json()
+            for f in ranges:
+                assert after[f] == cfg[f], f"{f} changed by a refused POST: {cfg[f]} -> {after[f]}"
+            return "gas parameters in §6 ranges, out-of-range refused, unchanged"
+        return self._gas_result("SWE.5-TC21.6", "Gas Parameters Range and Rejection", run)
+
+    def test_tc21_7_gas_meter_card_wording(self):
+        """SWE.5-TC21.7: page says 'Citire contor', never calibration (FR-35.1)"""
+        def run():
+            page = requests.get(f"{self.base_url}/", timeout=self.timeout).text
+            assert "Citire contor" in page, "page lacks the text 'Citire contor'"
+            # the gas meter card: the page text around its title (the card has no documented id)
+            pos = page.index("Citire contor")
+            card = page[max(0, pos - 2000):pos + 2000].lower()
+            assert "calibrare" not in card, "gas meter card still says 'calibrare'"
+            return "page uses 'Citire contor', no 'calibrare' in the card"
+        return self._gas_result("SWE.5-TC21.7", "Gas Meter Card Wording", run)
+
+    def test_tc21_8_gas_estimate_not_below_last_reading(self):
+        """SWE.5-TC21.8: estimatedIndex >= last reading (FR-35.1)"""
+        def run():
+            gm, _ = self._gas_state()
+            if gm["readingCount"] == 0:
+                assert gm["estimatedIndex"] is None, "estimate without a reading must be null"
+                return "no reading: nothing estimated"
+            # estimate = last reading + burner runtime since it x gasFlameRate, runtime never negative
+            assert gm["estimatedIndex"] >= gm["lastReadingIndex"], \
+                f"estimatedIndex {gm['estimatedIndex']} < lastReadingIndex {gm['lastReadingIndex']}"
+            return f"estimate {gm['estimatedIndex']} >= reading {gm['lastReadingIndex']}"
+        return self._gas_result("SWE.5-TC21.8", "Gas Estimate Not Below Last Reading", run)
 
     def test_tc19_11_zone_card_direct_setpoint_steppers(self):
         """SWE.5-TC19.11: Zone Card Direct Vertical Setpoint Steppers (FR-8.1)"""

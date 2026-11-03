@@ -5,6 +5,7 @@
 #include "BoilerRadioTrigger.h"
 #include "TimeAndWeatherService.h"
 #include "NetworkConsole.h"
+#include "ParamStore.h"
 
 static const char* FILE_24H = "/telemetry_24h.bin";
 static const char* FILE_5D  = "/telemetry_5d.bin";
@@ -40,6 +41,7 @@ void TelemetryHistoryManager::begin() {
         _fsMounted = true;
         netConsole.println(F("[HISTORY] LittleFS mounted successfully."));
         loadFromFlash();
+        gasReadingsBegin();
     }
 }
 
@@ -382,4 +384,144 @@ uint32_t TelemetryHistoryManager::getZoneRuntimeYesterdayFromHistory(size_t zone
         }
     }
     return count * 300UL;
+}
+
+// ---------------------------------------------------------------------------------------------------------
+// FR-35.1: gas meter readings typed by the user (the owner's data: never overwritten, never dropped)
+// ---------------------------------------------------------------------------------------------------------
+static const char* FILE_GAS_READINGS = "/gas_readings.bin";
+static const char* FILE_GAS_READINGS_TMP = "/gas_readings.tmp";
+static const char* FILE_GAS_CALIB_OLD = "/gas_calib.json";
+static const uint32_t GAS_READINGS_CAP = 1000;           // full: the oldest entry is replaced
+
+static uint32_t gasMonthKey(uint32_t epoch) {
+    time_t t = (time_t)epoch;
+    struct tm tmv;
+    localtime_r(&t, &tmv);
+    return (uint32_t)(tmv.tm_year * 12 + tmv.tm_mon);
+}
+
+void TelemetryHistoryManager::gasReadingsBegin() {
+    if (!_fsMounted) return;
+    if (paramStore.state(StateKey::GasLogMigrated) != 0) return;
+    // First start with the reading log: the old calibration ring (test entries included) is dropped and the base
+    // of the old firmware is not a reading; the log starts with the readings the owner confirms.
+    LittleFS.remove(FILE_GAS_CALIB_OLD);
+    paramStore.saveState(StateKey::GasMeterBaseIndex, 0);
+    paramStore.saveState(StateKey::GasMeterBaseSec, 0);
+    paramStore.saveState(StateKey::GasMeterBaseEpoch, 0);
+    paramStore.saveState(StateKey::GasLogMigrated, 1);
+    netConsole.println(F("[GAS] Old calibration log dropped; reading log started (FR-35.1)."));
+}
+
+uint32_t TelemetryHistoryManager::gasReadingsReplaced() const {
+    return paramStore.state(StateKey::GasCompacted);
+}
+
+uint32_t TelemetryHistoryManager::gasReadingCount() const {
+    if (!_fsMounted) return 0;
+    File f = LittleFS.open(FILE_GAS_READINGS, "r");
+    if (!f) return 0;
+    uint32_t n = (uint32_t)(f.size() / 8);
+    f.close();
+    return n;
+}
+
+void TelemetryHistoryManager::gasReadingsForEach(void (*cb)(uint32_t, uint32_t, void*), void* ctx) const {
+    if (!_fsMounted) return;
+    File f = LittleFS.open(FILE_GAS_READINGS, "r");
+    if (!f) return;
+    uint32_t rec[2];
+    while (f.read((uint8_t*)rec, 8) == 8) cb(rec[0], rec[1], ctx);
+    f.close();
+}
+
+// One pass old file -> temp file: the new reading goes in at its place by time; with dropOldest the first (oldest)
+// entry is left out. The temp file replaces the log only when complete.
+static bool gasRewrite(uint32_t newEpoch, uint32_t newIndex, bool dropOldest, uint32_t count) {
+    File in = LittleFS.open(FILE_GAS_READINGS, "r");
+    if (!in && count > 0) return false;  // never replace a log that could not be read
+    File out = LittleFS.open(FILE_GAS_READINGS_TMP, "w");
+    if (!out) {
+        if (in) in.close();
+        return false;
+    }
+    uint32_t readCount = 0;
+    bool newDone = false;
+    bool first = true;
+    bool ok = true;
+    uint32_t rec[2];
+    uint32_t nr[2] = {newEpoch, newIndex};
+    while (in && in.read((uint8_t*)rec, 8) == 8) {
+        readCount++;
+        if (first && dropOldest) {
+            first = false;
+            continue;
+        }
+        first = false;
+        if (!newDone && newEpoch < rec[0]) {
+            if (out.write((const uint8_t*)nr, 8) != 8) ok = false;
+            newDone = true;
+        }
+        if (out.write((const uint8_t*)rec, 8) != 8) ok = false;
+    }
+    if (!newDone && out.write((const uint8_t*)nr, 8) != 8) ok = false;
+    if (in) in.close();
+    out.close();
+    if (readCount != count) ok = false;  // a short read: keep the old log
+    if (!ok) {
+        LittleFS.remove(FILE_GAS_READINGS_TMP);
+        return false;
+    }
+    return LittleFS.rename(FILE_GAS_READINGS_TMP, FILE_GAS_READINGS);
+}
+
+bool TelemetryHistoryManager::gasReadingAdd(uint32_t epoch, uint32_t indexMilli) {
+    if (!_fsMounted) return false;
+    uint32_t count = gasReadingCount();
+    uint32_t lastEpoch = 0;
+    if (count > 0) {
+        File f = LittleFS.open(FILE_GAS_READINGS, "r");
+        if (!f) return false;
+        f.seek((count - 1) * 8);
+        uint32_t rec[2] = {0, 0};
+        f.read((uint8_t*)rec, 8);
+        f.close();
+        lastEpoch = rec[0];
+    }
+    bool full = count >= GAS_READINGS_CAP;
+    if (epoch >= lastEpoch && !full) {
+        File f = LittleFS.open(FILE_GAS_READINGS, "a");
+        if (!f) return false;
+        uint32_t rec[2] = {epoch, indexMilli};
+        bool ok = f.write((uint8_t*)rec, 8) == 8;
+        f.close();
+        return ok;
+    }
+    if (!gasRewrite(epoch, indexMilli, full, count)) return false;
+    if (full) {
+        paramStore.saveState(StateKey::GasCompacted, paramStore.state(StateKey::GasCompacted) + 1);
+        netConsole.println(F("[GAS] Reading log full (1000): the oldest reading was replaced."));
+    }
+    return true;
+}
+
+struct GasMonthCtx {
+    uint32_t thisKey, prevKey;
+    bool haveThis, havePrev;
+    uint32_t thisIdx, prevIdx;
+};
+
+bool TelemetryHistoryManager::gasMonthFromReadings(uint32_t epoch, float& m3) const {
+    GasMonthCtx c = {gasMonthKey(epoch), 0, false, false, 0, 0};
+    c.prevKey = c.thisKey - 1;  // months are consecutive keys
+    gasReadingsForEach([](uint32_t e, uint32_t idx, void* p) {
+        GasMonthCtx* x = (GasMonthCtx*)p;
+        uint32_t k = gasMonthKey(e);
+        if (k == x->thisKey) { x->haveThis = true; x->thisIdx = idx; }
+        else if (k == x->prevKey) { x->havePrev = true; x->prevIdx = idx; }
+    }, &c);
+    if (!c.haveThis || !c.havePrev || c.thisIdx < c.prevIdx) return false;
+    m3 = (float)(c.thisIdx - c.prevIdx) / 1000.0f;
+    return true;
 }
