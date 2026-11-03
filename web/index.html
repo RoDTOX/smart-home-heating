@@ -102,11 +102,7 @@ code,.mono{font:13px/1.35 ui-monospace,SFMono-Regular,Consolas,monospace}
       <div style="font-weight:600;margin-bottom:4px">Temperaturi Mod Plecat (Away)</div>
       <div class="s" style="margin-bottom:8px">Temperaturi menținute când este activat butonul „Plecat” din antet.</div>
       <div id="awayInputs" class="row" style="gap:10px;flex-wrap:wrap"></div>
-      <div class="row" style="margin-top:8px">
-        <span class="s">Setare rapidă toate camerele:</span>
-        <input type="number" step="0.5" min="5" max="30" id="quickAwayVal" value="18.0" style="width:60px">
-        <button type="button" class="sm" id="btnQuickAway">Aplică la toate</button>
-      </div>
+
     </div>
 
     <!-- Actions -->
@@ -116,16 +112,7 @@ code,.mono{font:13px/1.35 ui-monospace,SFMono-Regular,Consolas,monospace}
       <span id="schedMsg" class="s" style="font-weight:600"></span>
     </div>
 
-    <!-- Legacy compatibility elements (hidden from primary view) -->
-    <details style="margin-top:14px"><summary class="s" style="cursor:pointer">Avansat / Diagnostic compatibilitate</summary>
-      <div class="scroll"><table id="levels"></table></div>
-      <div id="wdSlots"></div>
-      <div id="weSlots"></div>
-      <input id="wd" style="display:none">
-      <input id="we" style="display:none">
-      <button id="addWdSlot" style="display:none"></button>
-      <button id="addWeSlot" style="display:none"></button>
-    </details>
+
   </section>
   <section>
     <h2>Sistem</h2>
@@ -489,31 +476,7 @@ function isSchedBusy() {
   return schedDirty || editing || (sf && sf.contains(document.activeElement));
 }
 
-function parseSlots(str) {
-  if (!str || !str.trim()) return [];
-  return str.split(",").map(part => {
-    const [t, lvl] = part.trim().split("=");
-    return {time: (t || "08:00").trim(), level: (lvl || "day").trim()};
-  }).filter(s => /^\d\d:\d\d$/.test(s.time));
-}
-function serializeSlots(arr) {
-  return arr.slice().sort((a, b) => a.time.localeCompare(b.time)).map(s => `${s.time}=${s.level}`).join(",");
-}
-function renderSlotChips(containerId, rawInputId) {
-  const cont = $(containerId);
-  if (!cont) return;
-  const slots = parseSlots($(rawInputId).value);
-  cont.innerHTML = slots.map((s, idx) => `
-    <span class="slot-chip">
-      <input type="text" class="slot-time" data-raw="${rawInputId}" data-idx="${idx}" value="${esc(s.time)}" style="width:55px;text-align:center">
-      <select class="slot-lvl" data-raw="${rawInputId}" data-idx="${idx}">
-        <option value="day" ${s.level === "day" ? "selected" : ""}>Zi</option>
-        <option value="night" ${s.level === "night" ? "selected" : ""}>Noapte</option>
-        <option value="away" ${s.level === "away" ? "selected" : ""}>Plecat</option>
-      </select>
-      <button type="button" class="sm danger del-slot" data-raw="${rawInputId}" data-idx="${idx}" title="Șterge moment">✕</button>
-    </span>`).join("");
-}
+
 
 function initSchedStateFromS() {
   if (!S) return;
@@ -682,15 +645,7 @@ function renderSchedule() {
     }).join("");
   }
 
-  if ($("levels")) {
-    const zones = S.zones || [];
-    $("levels").innerHTML = "<tr><th>Zonă</th><th>Zi</th><th>Noapte</th><th>Plecat</th></tr>" + zones.map((z, i) =>
-      `<tr><td>${esc(z.name)}</td>${LEVELS.map(l => `<td><input class="n" type="number" step="0.5" min="5" max="30" data-z="${i + 1}" data-l="${l}" value="${(z[l] || 20).toFixed(1)}"></td>`).join("")}</tr>`).join("");
-  }
-  if ($("wd")) $("wd").value = S.weekday || "";
-  if ($("we")) $("we").value = S.weekend || "";
-  renderSlotChips("wdSlots", "wd");
-  renderSlotChips("weSlots", "we");
+
 }
 
 // ---- Engineering view: every API value with its name, explanation and requirement (FR-8.1)
@@ -975,8 +930,7 @@ function syncSchedInput(t) {
     if (!isNaN(val)) {
       schedState.awayTemps[z] = val;
     }
-  } else if (t.id === "wd") renderSlotChips("wdSlots", "wd");
-  else if (t.id === "we") renderSlotChips("weSlots", "we");
+
 }
 
 schedForm.addEventListener("input", e => syncSchedInput(e.target));
@@ -1007,16 +961,7 @@ schedForm.addEventListener("click", e => {
     return;
   }
 
-  // Quick Away apply
-  if (e.target.id === "btnQuickAway" && schedState) {
-    const qv = parseFloat($("quickAwayVal").value);
-    if (!isNaN(qv) && qv >= 5 && qv <= 30) {
-      (S.zones || []).forEach(z => schedState.awayTemps[z.id] = qv);
-      markSchedDirty();
-      renderSchedule();
-    }
-    return;
-  }
+
 
   // Copy helpers for 5+2
   if (e.target.id === "btnCopyWdToWe" && schedState) {
@@ -1069,33 +1014,7 @@ schedForm.addEventListener("click", e => {
     return;
   }
 
-  // Legacy slot delete
-  const delBtn = e.target.closest(".del-slot");
-  if (delBtn) {
-    const rawId = delBtn.dataset.raw, idx = +delBtn.dataset.idx;
-    const slots = parseSlots($(rawId).value);
-    slots.splice(idx, 1);
-    $(rawId).value = serializeSlots(slots);
-    renderSlotChips(rawId === "wd" ? "wdSlots" : "weSlots", rawId);
-    markSchedDirty();
-    return;
-  }
-  if (e.target.id === "addWdSlot") {
-    const slots = parseSlots($("wd").value);
-    slots.push({time: "18:00", level: "day"});
-    $("wd").value = serializeSlots(slots);
-    renderSlotChips("wdSlots", "wd");
-    markSchedDirty();
-    return;
-  }
-  if (e.target.id === "addWeSlot") {
-    const slots = parseSlots($("we").value);
-    slots.push({time: "18:00", level: "day"});
-    $("we").value = serializeSlots(slots);
-    renderSlotChips("weSlots", "we");
-    markSchedDirty();
-    return;
-  }
+
 });
 
 $("undoSched").onclick = () => {
