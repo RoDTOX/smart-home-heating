@@ -7,6 +7,12 @@ Entries before 29.10.2026 (the system before the lean clean-up):
 
 
 
+## [03.11.2026] - C-27: gas figures only with a measured flow; correction (page)
+
+- **Why:** the page showed 8.10 m3 for today (13.5 boiler ON hours x the starting flow 0.60 m3/h) while the index rose 0.692 m3 in 6 h 20 min; and `Timp ardere azi: 0.0h` read a wrong field.
+- **Changed:** FR-35.1 Report and row C-27; the page shows `—` and `se calculează după două citiri de contor` for gas today, yesterday, this month and the costs until `gasFlowMeasured` exists; the boiler ON time of today comes from `boilerRuntime.todaySec`. Test first: TC21.14 (red, then green). Flashed 1.11.03.34 (page only).
+- **Correction of the entries of this day:** the owner's second reading was typed at 21:59 (epoch 1793735988), not 22:19 as written in the C-26 entry and in the record file (fixed there).
+
 ## [03.11.2026] - C-26: burner flow measured from the readings, not typed (cbc83f0)
 
 - **Who / when / why:** firmware session (light mode), 03.11.2026; owner: nobody can calculate the flow per hour or the boiler power, the controller must correct itself; no manual value for either.

@@ -36,4 +36,4 @@ That is by design: the typed value replaces the estimate. What is not lost: `gas
 
 | Time (local) | Epoch | Index m3 | Origin |
 |---|---|---|---|
-| 03.11 22:19 | 1793735988 | 2265.996 | owner, typed by hand in the page; stored without a runtime (the runtime field came with C-26). In 6 h 40 min the index rose 0.692 m3 against 3.9 h of boiler ON time (history of the board): 0.18 m3 per ON hour |
+| 03.11 21:59 | 1793735988 | 2265.996 | owner, typed by hand in the page; stored without a runtime (the runtime field came with C-26). In 6 h 20 min the index rose 0.692 m3 against 3.9 h of boiler ON time (history of the board): 0.18 m3 per ON hour |
