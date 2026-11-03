@@ -484,6 +484,11 @@ let schedDirty = false;
 let schedState = null;
 let activeDayIndex = 1; // 1 = Monday
 
+function isSchedBusy() {
+  const sf = $("saveSched") ? $("saveSched").closest("section") : null;
+  return schedDirty || editing || (sf && sf.contains(document.activeElement));
+}
+
 function parseSlots(str) {
   if (!str || !str.trim()) return [];
   return str.split(",").map(part => {
@@ -596,9 +601,9 @@ function renderMomentsTableHtml(moments, groupTag, extraActions = "") {
 
 function renderSchedule() {
   if (!S) return;
-  const isEditing = schedDirty || editing || (schedForm && schedForm.contains(document.activeElement));
-  if (isEditing) return; // Protect active user inputs from periodic refresh overwrite
-  initSchedStateFromS();
+  if (!schedDirty && !editing) {
+    initSchedStateFromS();
+  }
   if (!schedState) return;
 
   $("schedOn").checked = schedState.enabled;
@@ -781,7 +786,9 @@ async function refresh() {
     S = RAW["api/schedule"] || S;
     renderHeader(); renderRooms(); renderAlerts();
     if (admin) {
-      renderChecks(); renderSetup(); renderSensors(); renderSchedule(); updateWatch();
+      renderChecks(); renderSetup(); renderSensors();
+      if (!isSchedBusy()) renderSchedule();
+      updateWatch();
       if (!busy("loc") && RAW["api/setup/location"]) $("loc").value = RAW["api/setup/location"].coords;
     }
     $("err").textContent = "";
@@ -976,7 +983,9 @@ schedForm.addEventListener("input", e => syncSchedInput(e.target));
 schedForm.addEventListener("change", e => syncSchedInput(e.target));
 schedForm.addEventListener("focusin", () => editing = true);
 schedForm.addEventListener("focusout", () => {
-  if (!schedForm.contains(document.activeElement) && !schedDirty) editing = false;
+  setTimeout(() => {
+    if (schedForm && !schedForm.contains(document.activeElement) && !schedDirty) editing = false;
+  }, 50);
 });
 
 // Interactive clicks for Mode, Day Tabs, Copy, Quick Away, Legacy Slots
