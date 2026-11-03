@@ -7,6 +7,19 @@ Entries before 29.10.2026 (the system before the lean clean-up):
 
 
 
+## [03.11.2026] - 24h telemetry history chart (TPI timeline & temperature curves) and card subtitle cleanup (HEAD)
+
+- **Who / when / why:** firmware session (light mode), 03.11.2026; the owner requested optimizing room cards by removing redundant target setpoints, clarifying humidity percentages as 💧 X% RH, formatting TPI heating status in understandable terms (Încălzire TPI · X min/h (Y%) and Pauză ciclu (menține din șapă)), and adding a full-width 24-hour history chart showing burner and valve binary activations labeled by configured zone names, outdoor and zone temperature curves, and interactive cursor inspection.
+- **Where:**
+  - web/index.html:
+    - Cleaned room card subtitles: removed redundant target setpoints (already displayed on steppers), formatted humidity clearly as 💧 X% RH, formatted boost as Boost manual.
+    - Humanized TPI cycle status: Încălzire TPI · X min/h (Y%), Încălzire continuă (100%), Pauză ciclu (menține din șapă), Temperatură atinsă.
+    - Added dedicated collapsible section <details class=adm-card id=grpHistory> containing full-width responsive SVG 24h chart with burner activity, dynamic zone valve lanes labeled with actual zone names (Living, KidsDorm, etc.), 24h temperature curves, current-time indicator line ("acum"), and interactive hover inspection tooltip.
+    - Optimized chart polling: fetches pi/history?range=24h only when grpHistory is expanded, throttled to at most once per minute.
+  - docs/requirements_and_features.md: updated FR-8.1 and FR-34 to formally document card subtitle formatting and 24h telemetry chart.
+  - 	ools/sh_tests/t_ui_history.py & 	ools/sh_test_system.py: added ASPICE SWE.5 test SWE.5-TC19.16.
+- **Not changed:** hydronic safety limits, burner minimum run/pause, actuator interlock.
+
 ## [03.11.2026] - Zone heating runtime counters (today/yesterday) & collapse all admin sections (HEAD)
 
 - **Who / when / why:** firmware session (light mode), 03.11.2026; the owner requested that Confort & Programare also be minimized by default in the admin panel, and requested per-zone active heating runtime counters (today / yesterday) so the homeowner can see exactly how long each zone called for heat.

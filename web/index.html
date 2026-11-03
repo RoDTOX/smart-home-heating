@@ -117,7 +117,23 @@ code,.mono{font:13px/1.35 ui-monospace,SFMono-Regular,Consolas,monospace}
     </div>
   </details>
 
-  <!-- 3. Configurare Instalație (Default: COLLAPSED) -->
+  <!-- 3. Istoric & Grafic 24h (Default: COLLAPSED, FR-34) -->
+  <details class="adm-card" id="grpHistory">
+    <summary><h2>Istoric &amp; Grafic 24h (TPI, Activitate, Temperaturi)</h2></summary>
+    <div class="adm-body" id="histBody">
+      <div class="row" style="justify-content:space-between;align-items:center;margin-bottom:8px">
+        <div class="s" id="histSummary">288 eșantioane LittleFS (la 5 min). Graficul evidențiază ciclurile TPI de încălzire și stabilitatea termică.</div>
+        <button type="button" id="btnRefreshHist" class="sm">🔄 Reîmprospătează</button>
+      </div>
+      <div id="histLegend" class="row" style="gap:12px;margin-bottom:8px;font-size:13px;flex-wrap:wrap"></div>
+      <div id="histChartBox" style="position:relative;background:var(--card);border:1px solid var(--line);border-radius:10px;padding:8px;overflow-x:auto">
+        <div id="histSvgContainer"></div>
+        <div id="histTooltip" style="display:none;margin-top:8px;padding:6px 10px;background:var(--bg);border:1px solid var(--line);border-radius:6px;font-size:12px"></div>
+      </div>
+    </div>
+  </details>
+
+  <!-- 4. Configurare Instalație (Default: COLLAPSED) -->
   <details class="adm-card" id="grpSetup">
     <summary><h2>Configurare Instalație</h2></summary>
     <div class="adm-body">
@@ -143,7 +159,7 @@ code,.mono{font:13px/1.35 ui-monospace,SFMono-Regular,Consolas,monospace}
     </div>
   </details>
 
-  <!-- 4. Instrumente Inginerie & Debug (Default: COLLAPSED) -->
+  <!-- 5. Instrumente Inginerie & Debug (Default: COLLAPSED) -->
   <details class="adm-card" id="grpDebug">
     <summary><h2>Instrumente Inginerie &amp; Debug</h2></summary>
     <div class="adm-body">
@@ -356,6 +372,7 @@ const $ = id => document.getElementById(id);
 const esc = s => String(s).replace(/[&<>"]/g, c => ({"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;"}[c]));
 const isAdmin = () => document.body.classList.contains("admin");
 let Z = null, S = null, B = [], ST = null, D = null, openRoom = -1, editing = false, dtcHistory = [];
+let histData = null, histLoading = false, lastHistFetch = 0;
 let again = false, lastFound = [];
 let RAW = {}, prevFlat = {}, changed = new Set(), trace = [], openSig = null;
 const dirtyRows = new Set();
@@ -398,17 +415,29 @@ function renderRooms() {
   $("rooms").innerHTML = list.map(([z, i]) => {
     const s = hum[(z.sensorMac || "").toUpperCase()];
     const t = z.sensorValid ? z.currentTemp.toFixed(1) + "°" : "--";
-    const h = s ? " · " + Math.round(s.hum) + "%" : "";
-    const hold = z.isManualHold ? " · boost" : "";
-    const statusText = (z.state === "IDLE")
-      ? (z.sensorValid && z.currentTemp < (z.effectiveTarget - 0.15) ? "Pauză TPI (Așteaptă ciclu)" : "Temperatură atinsă")
-      : (z.state === "HEATING" && z.duty === 100 ? "Încălzește (100% continuu)"
-      : (z.state === "HEATING" ? `Încălzește (${z.duty}% ciclu)`
-      : (STATE_RO[z.state] || z.state)));
+    const humStr = s ? `💧 ${Math.round(s.hum)}% RH` : "";
+    const holdStr = z.isManualHold ? "Boost manual" : "";
+    const subParts = [];
+    if (humStr) subParts.push(humStr);
+    if (holdStr) subParts.push(holdStr);
+    const subText = subParts.length ? subParts.join(" · ") : (z.sensorValid ? "Senzor activ" : "Fără senzor");
+
+    const onMin = Math.round((z.duty || 0) * 0.6);
+    let statusText = STATE_RO[z.state] || z.state;
+    if (z.state === "IDLE") {
+      statusText = (z.sensorValid && z.currentTemp < (z.effectiveTarget - 0.15))
+        ? "Pauză ciclu (menține din șapă)"
+        : "Temperatură atinsă";
+    } else if (z.state === "HEATING") {
+      statusText = (z.duty === 100)
+        ? "Încălzire continuă (100%)"
+        : `Încălzire TPI · ${onMin} min/h (${z.duty}%)`;
+    }
+
     const rtToday = z.runtimeTodaySec || 0;
     const rtYest = z.runtimeYesterdaySec || 0;
-    const formatRt = s => {
-      const m = Math.round(s / 60);
+    const formatRt = sec => {
+      const m = Math.round(sec / 60);
       if (m < 60) return `${m}m`;
       return `${Math.floor(m / 60)}h ${m % 60}m`;
     };
@@ -419,7 +448,7 @@ function renderRooms() {
       <div class="room-main">
         <div style="font-weight:600">${esc(z.name)}</div>
         <div class="t">${t}</div>
-        <div class="s">țintă ${z.effectiveTarget.toFixed(1)}°${h}${hold}</div>
+        <div class="s">${esc(subText)}</div>
         <div class="s" style="margin-top:2px">${esc(statusText)}</div>
         ${rtBadge ? `<div class="s" style="margin-top:2px;font-size:12px;opacity:0.85">${esc(rtBadge)}</div>` : ""}
       </div>
@@ -582,6 +611,199 @@ function renderChecks() {
         };
       }
     }
+  }
+}
+
+
+// FR-34: 24h LittleFS Telemetry Timeline & Temperature Curves
+function renderHistoryChart(data) {
+  const container = $("histSvgContainer");
+  if (!container) return;
+  if (!data || !data.points || !data.points.length) {
+    container.innerHTML = `<div class="s" style="padding:20px;text-align:center">Nicio înregistrare disponibilă în istoricul telemetric.</div>`;
+    return;
+  }
+  const points = data.points;
+  const currentSlot = (data.currentSlot !== undefined) ? data.currentSlot : -1;
+  const zones = (Z && Z.zones && Z.zones.length) ? Z.zones : [
+    {id: 1, name: "Zona 1"},
+    {id: 2, name: "Zona 2"},
+    {id: 3, name: "Zona 3"}
+  ];
+
+  const zoneColors = ["#38bdf8", "#a78bfa", "#f472b6", "#34d399"];
+  const rowDefs = [
+    { label: "🔥 Centrală", bit: 1, color: "var(--heat)" }
+  ];
+  zones.forEach((z, idx) => {
+    const bit = 1 << (idx + 2);
+    rowDefs.push({
+      label: esc(z.name || ("Zona " + (idx + 1))),
+      bit: bit,
+      color: zoneColors[idx % zoneColors.length]
+    });
+  });
+
+  const legEl = $("histLegend");
+  if (legEl) {
+    let lHtml = rowDefs.map(r => `<span><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:${r.color};margin-right:4px;vertical-align:middle"></span><b>${r.label}</b></span>`).join("");
+    lHtml += `<span><span style="display:inline-block;width:16px;height:2px;border-top:2px dashed var(--mut);vertical-align:middle;margin-right:4px"></span><span style="color:var(--mut)">Afară</span></span>`;
+    legEl.innerHTML = lHtml;
+  }
+
+  const W = 880;
+  const x0 = 100, x1 = 840, chartW = x1 - x0;
+  const slotW = chartW / 288;
+
+  let validTemps = [];
+  points.forEach(p => {
+    for (let k = 1; k <= 3; k++) {
+      if (p[k] !== null && p[k] !== undefined && p[k] > 5 && p[k] < 35) validTemps.push(p[k]);
+    }
+  });
+  let minT = 18, maxT = 26;
+  if (validTemps.length > 0) {
+    minT = Math.floor(Math.min(...validTemps)) - 1;
+    maxT = Math.ceil(Math.max(...validTemps)) + 1;
+  }
+  if (maxT - minT < 4) maxT = minT + 4;
+
+  const topActY = 22;
+  const actRowH = 14;
+  const actGap = 5;
+  const actTotalH = rowDefs.length * (actRowH + actGap);
+  const tempTop = topActY + actTotalH + 18;
+  const tempH = 110;
+  const tempBot = tempTop + tempH;
+  const totalH = tempBot + 35;
+
+  const tempToY = t => tempBot - ((t - minT) / (maxT - minT)) * tempH;
+
+  const svgParts = [];
+  svgParts.push(`<svg viewBox="0 0 ${W} ${totalH}" style="width:100%;height:auto;display:block;font-family:system-ui,-apple-system,sans-serif">`);
+
+  for (let h = 0; h <= 24; h += 3) {
+    const slot = h * 12;
+    const gx = x0 + Math.min(288, slot) * slotW;
+    svgParts.push(`<line x1="${gx.toFixed(1)}" y1="${topActY}" x2="${gx.toFixed(1)}" y2="${tempBot}" stroke="var(--line)" stroke-width="1" stroke-dasharray="2,2" />`);
+    svgParts.push(`<text x="${gx.toFixed(1)}" y="${totalH - 12}" font-size="11" fill="var(--mut)" text-anchor="middle">${String(h).padStart(2, '0')}:00</text>`);
+  }
+
+  rowDefs.forEach((r, ri) => {
+    const ry = topActY + ri * (actRowH + actGap);
+    svgParts.push(`<text x="${x0 - 8}" y="${(ry + 11).toFixed(1)}" font-size="11" font-weight="600" fill="var(--fg)" text-anchor="end">${r.label}</text>`);
+    svgParts.push(`<rect x="${x0}" y="${ry}" width="${chartW}" height="${actRowH}" rx="3" fill="var(--bg)" stroke="var(--line)" />`);
+
+    let startSlot = -1;
+    for (let s = 0; s <= 288; s++) {
+      const active = (s < points.length && points[s] && (points[s][5] & r.bit) !== 0);
+      if (active && startSlot === -1) {
+        startSlot = s;
+      } else if (!active && startSlot !== -1) {
+        const segX = x0 + startSlot * slotW;
+        const segW = Math.max(2, (s - startSlot) * slotW);
+        svgParts.push(`<rect x="${segX.toFixed(1)}" y="${ry}" width="${segW.toFixed(1)}" height="${actRowH}" rx="2" fill="${r.color}" />`);
+        startSlot = -1;
+      }
+    }
+  });
+
+  svgParts.push(`<rect x="${x0}" y="${tempTop}" width="${chartW}" height="${tempH}" rx="4" fill="var(--bg)" stroke="var(--line)" />`);
+  const tStep = (maxT - minT > 8) ? 3 : 2;
+  for (let t = minT; t <= maxT; t += tStep) {
+    const gy = tempToY(t);
+    svgParts.push(`<line x1="${x0}" y1="${gy.toFixed(1)}" x2="${x1}" y2="${gy.toFixed(1)}" stroke="var(--line)" stroke-width="1" />`);
+    svgParts.push(`<text x="${x0 - 8}" y="${(gy + 4).toFixed(1)}" font-size="10" fill="var(--mut)" text-anchor="end">${t}°</text>`);
+  }
+
+  const outPts = [];
+  points.forEach(p => {
+    if (p[4] !== null && p[4] !== undefined) {
+      const px = x0 + p[0] * slotW;
+      const py = tempToY(Math.max(minT, Math.min(maxT, p[4])));
+      outPts.push(`${px.toFixed(1)},${py.toFixed(1)}`);
+    }
+  });
+  if (outPts.length > 1) {
+    svgParts.push(`<polyline fill="none" stroke="var(--mut)" stroke-width="1.2" stroke-dasharray="3,3" points="${outPts.join(' ')}" />`);
+  }
+
+  zones.forEach((z, idx) => {
+    const k = idx + 1;
+    const zPts = [];
+    points.forEach(p => {
+      if (p[k] !== null && p[k] !== undefined && p[k] > 0) {
+        const px = x0 + p[0] * slotW;
+        const py = tempToY(p[k]);
+        zPts.push(`${px.toFixed(1)},${py.toFixed(1)}`);
+      }
+    });
+    if (zPts.length > 1) {
+      const color = zoneColors[idx % zoneColors.length];
+      svgParts.push(`<polyline fill="none" stroke="${color}" stroke-width="2" stroke-linejoin="round" points="${zPts.join(' ')}" />`);
+    }
+  });
+
+  if (currentSlot >= 0 && currentSlot <= 288) {
+    const curX = x0 + currentSlot * slotW;
+    svgParts.push(`<line x1="${curX.toFixed(1)}" y1="${topActY - 5}" x2="${curX.toFixed(1)}" y2="${tempBot}" stroke="var(--bad)" stroke-width="1.5" stroke-dasharray="4,3" />`);
+    svgParts.push(`<text x="${curX.toFixed(1)}" y="${topActY - 8}" font-size="10" font-weight="600" fill="var(--bad)" text-anchor="middle">acum</text>`);
+  }
+
+  svgParts.push(`<rect id="histOverlay" x="${x0}" y="${topActY}" width="${chartW}" height="${tempBot - topActY}" fill="transparent" style="cursor:crosshair" />`);
+  svgParts.push(`</svg>`);
+
+  container.innerHTML = svgParts.join("");
+
+  const overlay = $("histOverlay");
+  if (overlay) {
+    overlay.onmousemove = e => {
+      const rect = overlay.getBoundingClientRect();
+      const frac = (e.clientX - rect.left) / rect.width;
+      const slot = Math.max(0, Math.min(287, Math.floor(frac * 288)));
+      const p = points[slot];
+      if (!p) return;
+      const hh = String(Math.floor((slot * 5) / 60)).padStart(2, "0");
+      const mm = String((slot * 5) % 60).padStart(2, "0");
+      const bOn = (p[5] & 1) !== 0;
+      let tip = `<b>Ora ${hh}:${mm}</b> · Centrală: ${bOn ? '🔥 <span style="color:var(--heat)">Pornită</span>' : 'Oprită'}`;
+      zones.forEach((z, idx) => {
+        const bit = 1 << (idx + 2);
+        const vOn = (p[5] & bit) !== 0;
+        const temp = (p[idx + 1] !== null && p[idx + 1] !== undefined) ? p[idx + 1] + '°C' : '--';
+        tip += ` · <b>${esc(z.name)}</b>: ${temp} (${vOn ? 'deschis' : 'închis'})`;
+      });
+      if (p[4] !== null && p[4] !== undefined) tip += ` · Afară: ${p[4]}°C`;
+      const tipEl = $("histTooltip");
+      if (tipEl) { tipEl.style.display = "block"; tipEl.innerHTML = tip; }
+    };
+    overlay.onmouseleave = () => {
+      const tipEl = $("histTooltip");
+      if (tipEl) tipEl.style.display = "none";
+    };
+  }
+}
+
+async function loadHistoryChart() {
+  if (histLoading) return;
+  histLoading = true;
+  lastHistFetch = Date.now();
+  const summaryEl = $("histSummary");
+  if (summaryEl) summaryEl.textContent = "Se încarcă datele de telemetrie pe 24h...";
+  try {
+    const r = await fetch("api/history?range=24h");
+    if (!r.ok) throw new Error("HTTP " + r.status);
+    histData = await r.json();
+    renderHistoryChart(histData);
+    if (summaryEl) {
+      const pts = (histData.points || []).length;
+      const nowStr = (ST && ST.time) ? ST.time.slice(0, 5) : new Date().toLocaleTimeString().slice(0, 5);
+      summaryEl.textContent = `${pts} eșantioane LittleFS (la 5 min) · Actualizat la ${nowStr}`;
+    }
+  } catch(e) {
+    if (summaryEl) summaryEl.textContent = "Eroare la încărcare istoric: " + e.message;
+  } finally {
+    histLoading = false;
   }
 }
 
@@ -939,6 +1161,9 @@ async function refresh() {
     if (admin) {
       renderChecks(); renderSetup(); renderSensors();
       if (!isSchedBusy()) renderSchedule();
+      if ($("grpHistory") && $("grpHistory").open && (!histData || (Date.now() - lastHistFetch > 60000))) {
+        loadHistoryChart();
+      }
       if (debugOpen) updateWatch();
       if (!busy("loc") && RAW["api/setup/location"]) $("loc").value = RAW["api/setup/location"].coords;
     }
@@ -1250,6 +1475,16 @@ $("away").onclick = async () => { await api("api/schedule/enable", {away: Z.away
 let timer = null;
 function startTimer() { clearInterval(timer); timer = setInterval(() => { if (!document.hidden) refresh(); }, isAdmin() ? 2000 : 5000); }
 $("toggleAdmin").onclick = e => { e.preventDefault(); document.body.classList.toggle("admin"); location.hash = isAdmin() ? "admin" : ""; startTimer(); refresh(); };
+const grpHist = $("grpHistory");
+if (grpHist) {
+  grpHist.addEventListener("toggle", () => {
+    if (grpHist.open && !histData) loadHistoryChart();
+  });
+}
+const btnRefHist = $("btnRefreshHist");
+if (btnRefHist) {
+  btnRefHist.onclick = () => loadHistoryChart();
+}
 if (location.hash === "#admin") document.body.classList.add("admin");
 
 // Commissioning: a row being edited is not overwritten by the refresh until it is saved

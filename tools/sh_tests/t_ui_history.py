@@ -496,3 +496,41 @@ class UiHistoryTests:
             return TestResult(test_id, name, req, "PASS", latency, f"Zone runtimes: {rt_summary}")
         except Exception as e:
             return TestResult(test_id, name, req, "FAIL", (time.time() - start) * 1000, str(e))
+
+    def test_tc19_16_history_24h_chart_and_card_subtitles(self):
+        """SWE.5-TC19.16: 24h Telemetry Chart and Room Card TPI Subtitles (FR-8.1, FR-34)"""
+        test_id = "SWE.5-TC19.16"
+        name = "24h Telemetry Chart & Card TPI Subtitles"
+        req = "FR-8.1, FR-34"
+        start = time.time()
+        try:
+            # 1. Check /api/history endpoint responds with 288 points
+            r_hist = requests.get(f"{self.base_url}/api/history?range=24h", timeout=self.timeout)
+            assert r_hist.status_code == 200, f"/api/history: HTTP {r_hist.status_code}"
+            h_data = r_hist.json()
+            assert h_data.get("range") == "24h", f"Expected range 24h, got {h_data.get('range')}"
+            assert "points" in h_data and len(h_data["points"]) == 288, f"Expected 288 points, got {len(h_data.get('points', []))}"
+
+            # 2. Check served page structure
+            r_page = requests.get(f"{self.base_url}/", timeout=self.timeout)
+            latency = (time.time() - start) * 1000
+            assert r_page.status_code == 200, f"page: HTTP {r_page.status_code}"
+            html = r_page.text
+
+            # Room card subtitle improvements: no redundant target in subText, clean humidity with RH
+            assert "💧" in html and "% RH" in html, "Missing humidity % RH formatting in page"
+            assert "Boost manual" in html, "Missing 'Boost manual' status in page"
+            assert "Încălzire TPI" in html and "min/h" in html, "Missing 'Încălzire TPI · X min/h' formatting in page"
+            assert "Pauză ciclu (menține din șapă)" in html, "Missing TPI pause description in page"
+
+            # 24h History card and chart rendering elements
+            assert 'id="grpHistory"' in html, "Missing grpHistory collapsible container"
+            assert 'id="histSvgContainer"' in html, "Missing histSvgContainer in page"
+            assert 'renderHistoryChart' in html, "Missing renderHistoryChart JS function"
+            assert 'api/history?range=24h' in html, "Missing api/history call in frontend"
+            assert '🔥 Centrală' in html, "Missing boiler activity label in chart logic"
+
+            return TestResult(test_id, name, req, "PASS", latency,
+                              "24h history chart (SVG timeline/curves) and room card TPI/RH subtitles verified")
+        except Exception as e:
+            return TestResult(test_id, name, req, "FAIL", (time.time() - start) * 1000, str(e))

@@ -403,7 +403,7 @@ one example:
   lines; `CLEAR` empties the log buffer.
 - ~~**FR-7.2 (Web console page `/console`):** retired, page removed.~~
 - **FR-8.1 (Web page):** *[now]* {SW; test, inspection} One page served at `/`:
-  - family view: rooms (temperature, target, humidity, state), outdoor weather, boost, one global Home / Away switch,
+  - family view: rooms (temperature, relative humidity e.g. 💧 X% RH, active heating state with TPI cycle minutes and duty percentage, TPI pause status, boost indicator, without redundant setpoints in subtitles), outdoor weather, boost, one global Home / Away switch,
     active alarms; each room card provides direct vertical setpoint steppers ([+], target, [-], boost reset) visible
     without expanding; the header says in words what the schedule does now and when it changes next (e.g.
     `Program: zi până la 22:30, apoi noapte`), or why the house does not follow it (away, schedule off);
@@ -446,7 +446,7 @@ one example:
   valve commands respect it.
 - ~~**FR-15.2 (Compatibility statement):** retired, merged into FR-15.1.~~
 - **FR-34 (Telemetry history):** *[now]* {SW; test} History in LittleFS: 24 h at 5 min and 5 days at 30 min resolution, served by
-  `GET /api/history?range=24h|5d`.
+  GET /api/history?range=24h|5d. The web UI presents a 24h timeline / history chart (grpHistory) displaying burner flame and per-zone valve binary activations labeled by configured zone names, outdoor and room temperatures, and time-cursor inspection.
 - **FR-35 (Burner counters):** *[now]* {SW; test} Burner time counters: total, today, yesterday, this month, last month,
   current burn; reported in boiler status. Zone-level heating runtime counters (todaySec, yesterdaySec) are reported in `/api/zones` and on zone cards.
 - **FR-41 (Wi-Fi supervisor):** *[now]* {SW; test} Wi-Fi is checked every 10 s and reconnected; after 90 s down the stack is
