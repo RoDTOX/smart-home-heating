@@ -7,6 +7,13 @@ Entries before 29.10.2026 (the system before the lean clean-up):
 
 
 
+## [03.11.2026] - PB-72: window baseline is the peak of the last 5 min (c5eb53d)
+
+- **Who / when / why:** firmware session (light mode), 03.11.2026; owner decision: FR-40 says a drop within 5 min, the code kept the baseline up to 10 min (slow cooling closed a zone for 30 min).
+- **Changed:** `ThermalZoneManager.cpp` `evaluateWindowDetection`: the baseline is the highest reading of the last 5 min, kept in five 60 s buckets per zone (4 to 5 min of history, no heap); manual clear and detection-off reset the buckets (safety review findings). Requirement unchanged.
+- **No test first:** the board cannot be fed a room temperature, so no automatic test can fail on the old code (PB-95). Verified by build (1.22 MB), `sh-safety-reviewer` (no BLOCKER; one RISK and one NOTE fixed) and the owner's hands-on.
+- **Board:** flashed 1.11.03.28; system test: first run right after the flash 38 FAIL, second run 5 FAIL (TC01.2 heap 98.9 KB, TC19.7, TC19.9, TC30.9, TC30.10), none about the window; PB-96. The schedule was restored after the run.
+
 ## [03.11.2026] - Five unregistered tests registered and run on the board (PB-86)
 
 - **Who / when / why:** process session, 03.11.2026; owner decision to run the tests that never ran.
