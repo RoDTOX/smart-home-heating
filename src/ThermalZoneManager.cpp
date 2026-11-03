@@ -71,7 +71,12 @@ ThermalZoneManager::ThermalZoneManager()
         _statuses[i].relayEngaged = false;
         _statuses[i].stateChangedMs = 0;
         _statuses[i].isManualHold = false;
+        _zoneRuntimeTodaySec[i] = 0;
+        _zoneRuntimeYesterdaySec[i] = 0;
+        _zoneRuntimeMsAcc[i] = 0;
     }
+    _lastZoneRuntimeMs = 0;
+    _lastDay = 0;
 }
 
 static_assert(MAX_THERMAL_ZONES == PARAM_ZONES, "ParamStore zone records must match the zone count");
@@ -1672,5 +1677,41 @@ void ThermalZoneManager::update(BoilerRadioTrigger& boiler) {
                 }
             }
         }
+    }
+
+    // Accumulate active heating runtime per zone
+    uint32_t nowMs = millis();
+    if (_lastZoneRuntimeMs == 0) {
+        _lastZoneRuntimeMs = nowMs;
+    } else {
+        uint32_t deltaMs = nowMs - _lastZoneRuntimeMs;
+        _lastZoneRuntimeMs = nowMs;
+        for (size_t i = 0; i < _zoneCount && i < MAX_THERMAL_ZONES; i++) {
+            if (_statuses[i].relayEngaged) {
+                _zoneRuntimeMsAcc[i] += deltaMs;
+                if (_zoneRuntimeMsAcc[i] >= 1000) {
+                    uint32_t addSec = _zoneRuntimeMsAcc[i] / 1000;
+                    _zoneRuntimeTodaySec[i] += addSec;
+                    _zoneRuntimeMsAcc[i] %= 1000;
+                }
+            }
+        }
+    }
+}
+
+void ThermalZoneManager::updateRuntimeDay(uint8_t day) {
+    if (day == 0) return;
+    if (_lastDay == 0) {
+        _lastDay = day;
+        return;
+    }
+    if (day != _lastDay) {
+        for (size_t i = 0; i < MAX_THERMAL_ZONES; i++) {
+            _zoneRuntimeYesterdaySec[i] = _zoneRuntimeTodaySec[i];
+            _zoneRuntimeTodaySec[i] = 0;
+            _zoneRuntimeMsAcc[i] = 0;
+        }
+        _lastDay = day;
+        netConsole.printf("[Thermal][Runtime] Rollover to new day %u.\n", day);
     }
 }

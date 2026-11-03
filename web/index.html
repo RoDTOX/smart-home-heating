@@ -72,7 +72,7 @@ code,.mono{font:13px/1.35 ui-monospace,SFMono-Regular,Consolas,monospace}
 
 <div id="admin">
   <!-- 1. Confort & Programare (Default: OPEN) -->
-  <details class="adm-card" id="grpSched" open>
+  <details class="adm-card" id="grpSched">
     <summary><h2>Confort &amp; Programare (Honeywell)</h2></summary>
     <div class="adm-body" id="schedSection">
       <div class="row" style="justify-content:space-between">
@@ -217,6 +217,8 @@ code,.mono{font:13px/1.35 ui-monospace,SFMono-Regular,Consolas,monospace}
 "zones[].duty": ["Duty acum (%): cât din ciclu stă robinetul deschis", "FR-47"],
 "zones[].learnedDuty": ["Duty de bază învățat (%)", "FR-47"],
 "zones[].tempOffset": ["Corecția senzorului, adăugată la citire (°C)", "FR-49"],
+"zones[].runtimeTodaySec": ["Timpul cât robinetul a fost deschis azi (s)", "FR-35"],
+"zones[].runtimeYesterdaySec": ["Timpul cât robinetul a fost deschis ieri (s)", "FR-35"],
 "zones[].state": ["Starea zonei", "FR-8.4"],
 "zones[].day": ["Temperatura treptei zi (°C)", "FR-29"],
 "zones[].night": ["Temperatura treptei noapte (°C)", "FR-29"],
@@ -403,12 +405,23 @@ function renderRooms() {
       : (z.state === "HEATING" && z.duty === 100 ? "Încălzește (100% continuu)"
       : (z.state === "HEATING" ? `Încălzește (${z.duty}% ciclu)`
       : (STATE_RO[z.state] || z.state)));
+    const rtToday = z.runtimeTodaySec || 0;
+    const rtYest = z.runtimeYesterdaySec || 0;
+    const formatRt = s => {
+      const m = Math.round(s / 60);
+      if (m < 60) return `${m}m`;
+      return `${Math.floor(m / 60)}h ${m % 60}m`;
+    };
+    const rtBadge = rtToday > 0
+      ? `⏱ Încălzit azi: ${formatRt(rtToday)}${rtYest > 0 ? ' (ieri ' + formatRt(rtYest) + ')' : ''}`
+      : (rtYest > 0 ? `⏱ Ieri: ${formatRt(rtYest)}` : "");
     return `<div class="room ${roomClass(z)}" data-i="${i}">
       <div class="room-main">
         <div style="font-weight:600">${esc(z.name)}</div>
         <div class="t">${t}</div>
         <div class="s">țintă ${z.effectiveTarget.toFixed(1)}°${h}${hold}</div>
         <div class="s" style="margin-top:2px">${esc(statusText)}</div>
+        ${rtBadge ? `<div class="s" style="margin-top:2px;font-size:12px;opacity:0.85">${esc(rtBadge)}</div>` : ""}
       </div>
       <div class="ctl">
         <button type="button" data-a="up" data-i="${i}" title="Crește ținta">+</button>
@@ -480,7 +493,14 @@ function renderChecks() {
     const totalCount = (Z.zones || []).length;
     const openNames = openZones.map(z => z.name).join(", ");
     const rVal = `${openCount}/${totalCount} deschiși ${openCount > 0 ? '(' + openNames + ')' : '(toate oprite)'}`;
-    rows += `<tr><td><code>relee</code></td><td class="OK">OK</td><td>${esc(rVal)}</td><td>Comandă actuatoare circuite (robineți NC pe relee)</td></tr>`;
+    const formatRtCh = s => {
+      const m = Math.round(s / 60);
+      if (m < 60) return `${m}m`;
+      return `${Math.floor(m / 60)}h ${m % 60}m`;
+    };
+    const rtBreakdown = (Z.zones || []).map(z => `${z.name} ${formatRtCh(z.runtimeTodaySec || 0)}`).join(", ");
+    const rRule = `Comandă actuatoare circuite (robineți NC) · Timp încălzit azi: ${rtBreakdown || "0m"}`;
+    rows += `<tr><td><code>relee</code></td><td class="OK">OK</td><td>${esc(rVal)}</td><td>${esc(rRule)}</td></tr>`;
   }
 
   $("checks").innerHTML = "<tr><th>Verificare</th><th>Rezultat</th><th>Valoare</th><th>Regulă</th></tr>" + rows;

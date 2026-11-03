@@ -240,6 +240,8 @@ void handleApiZones() {
     json += "\"duty\":" + String((int)(thermalZones.getDuty(i) * 100)) + ",";
     json += "\"learnedDuty\":" + String(thermalZones.getLearnedDutyPct(i), 1) + ",";
     json += "\"tempOffset\":" + String(cfg.tempOffset, 1) + ",";
+    json += "\"runtimeTodaySec\":" + String(thermalZones.getZoneRuntimeTodaySec(i)) + ",";
+    json += "\"runtimeYesterdaySec\":" + String(thermalZones.getZoneRuntimeYesterdaySec(i)) + ",";
     json += "\"state\":\"" + String(thermalZones.getStateCode(i)) + "\"";
     json += "}";
   }

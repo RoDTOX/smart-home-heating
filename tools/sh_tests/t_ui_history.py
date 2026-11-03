@@ -450,7 +450,7 @@ class UiHistoryTests:
             assert r.status_code == 200, f"page: HTTP {r.status_code}"
             html = r.text
 
-            assert 'id="grpSched"' in html and 'open' in html, "grpSched missing or not open by default"
+            assert 'id="grpSched"' in html, "grpSched missing"
             assert 'id="grpDiag"' in html, "grpDiag missing"
             assert 'id="grpSetup"' in html, "grpSetup missing"
             assert 'id="grpDebug"' in html, "grpDebug missing"
@@ -462,5 +462,37 @@ class UiHistoryTests:
 
             return TestResult(test_id, name, req, "PASS", latency,
                               "served page has 4 collapsible admin groups, polling optimization, and functional DTC clear")
+        except Exception as e:
+            return TestResult(test_id, name, req, "FAIL", (time.time() - start) * 1000, str(e))
+
+    def test_tc19_15_zone_heating_runtime_telemetry(self):
+        """SWE.5-TC19.15: Zone Heating Runtime Telemetry Counters (FR-35)"""
+        test_id = "SWE.5-TC19.15"
+        name = "Zone Heating Runtime Telemetry Counters"
+        req = "FR-35"
+        start = time.time()
+        try:
+            r = requests.get(f"{self.base_url}/api/zones", timeout=self.timeout)
+            latency = (time.time() - start) * 1000
+            assert r.status_code == 200, f"/api/zones: HTTP {r.status_code}"
+            zones = r.json().get("zones", [])
+            assert len(zones) > 0, "No zones in /api/zones"
+
+            for z in zones:
+                assert "runtimeTodaySec" in z, f"Missing runtimeTodaySec in zone {z.get('id')}"
+                assert "runtimeYesterdaySec" in z, f"Missing runtimeYesterdaySec in zone {z.get('id')}"
+                assert isinstance(z["runtimeTodaySec"], (int, float)), f"Invalid runtimeTodaySec type: {type(z['runtimeTodaySec'])}"
+                assert isinstance(z["runtimeYesterdaySec"], (int, float)), f"Invalid runtimeYesterdaySec type: {type(z['runtimeYesterdaySec'])}"
+
+            # Served page check
+            r_page = requests.get(f"{self.base_url}/", timeout=self.timeout)
+            assert r_page.status_code == 200, f"page: HTTP {r_page.status_code}"
+            html = r_page.text
+            assert 'zones[].runtimeTodaySec' in html, "doc missing zones[].runtimeTodaySec"
+            assert 'zones[].runtimeYesterdaySec' in html, "doc missing zones[].runtimeYesterdaySec"
+            assert 'runtimeTodaySec' in html and 'formatRt' in html, "Page missing runtime display logic"
+
+            rt_summary = ", ".join(f"{z['name']} today={z['runtimeTodaySec']}s" for z in zones)
+            return TestResult(test_id, name, req, "PASS", latency, f"Zone runtimes: {rt_summary}")
         except Exception as e:
             return TestResult(test_id, name, req, "FAIL", (time.time() - start) * 1000, str(e))

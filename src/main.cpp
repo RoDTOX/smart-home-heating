@@ -255,6 +255,7 @@ void loop() {
   timeAndWeather.update();
   if (timeAndWeather.isTimeSynced()) {
     boilerRadio.updateRuntimeDayMonth(timeAndWeather.getDay(), timeAndWeather.getMonth());
+    thermalZones.updateRuntimeDay(timeAndWeather.getDay());
   }
   telemetryHistory.update();
   diagEngine.update();

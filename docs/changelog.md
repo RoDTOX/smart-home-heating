@@ -7,7 +7,20 @@ Entries before 29.10.2026 (the system before the lean clean-up):
 
 
 
-## [03.11.2026] - Reorganize admin in 4 collapsible groups, clear DTC button & polling throttle (HEAD)
+## [03.11.2026] - Zone heating runtime counters (today/yesterday) & collapse all admin sections (HEAD)
+
+- **Who / when / why:** firmware session (light mode), 03.11.2026; the owner requested that Confort & Programare also be minimized by default in the admin panel, and requested per-zone active heating runtime counters (today / yesterday) so the homeowner can see exactly how long each zone called for heat.
+- **Where:**
+  - `include/ThermalZoneManager.h`: added `_zoneRuntimeTodaySec`, `_zoneRuntimeYesterdaySec`, `_zoneRuntimeMsAcc`, getters and `updateRuntimeDay()`.
+  - `src/ThermalZoneManager.cpp`: accumulated exact relay engagement duration per zone in `update()`; added rollover on day change.
+  - `src/main.cpp`: invoked `thermalZones.updateRuntimeDay(timeAndWeather.getDay())` on daily sync.
+  - `src/WebApi.cpp`: exposed `runtimeTodaySec` and `runtimeYesterdaySec` in `/api/zones`.
+  - `web/index.html`: closed `grpSched` by default (all 4 admin sections now collapsed initially); added `zones[].runtimeTodaySec` / `yesterdaySec` in `doc`; rendered runtime badge (`⏱ Încălzit azi: Xh Ym (ieri Ah Bm)`) on zone cards and in the diagnostic `relee` breakdown.
+  - `docs/requirements_and_features.md`: updated FR-35 to cover zone-level runtime counters.
+  - `tools/sh_tests/t_ui_history.py` & `tools/sh_test_system.py`: added ASPICE SWE.5 test `SWE.5-TC19.15` and updated `TC19.14`.
+- **Not changed:** hydronic safety invariants, burner minimum run/pause, actuator interlock.
+
+## [03.11.2026] - Reorganize admin in 4 collapsible groups, clear DTC button & polling throttle (90a14dd)
 
 - **Who / when / why:** firmware session (light mode), 03.11.2026; the owner requested reorganizing the long admin panel into minimizable collapsible sections, where by default all sections are collapsed except Confort & Programare; requested a button to clear DTC codes with history; and asked whether collapsed debug/trace sections still poll the ESP32.
 - **Where:**

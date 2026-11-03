@@ -448,7 +448,7 @@ one example:
 - **FR-34 (Telemetry history):** *[now]* {SW; test} History in LittleFS: 24 h at 5 min and 5 days at 30 min resolution, served by
   `GET /api/history?range=24h|5d`.
 - **FR-35 (Burner counters):** *[now]* {SW; test} Burner time counters: total, today, yesterday, this month, last month,
-  current burn; reported in boiler status.
+  current burn; reported in boiler status. Zone-level heating runtime counters (todaySec, yesterdaySec) are reported in `/api/zones` and on zone cards.
 - **FR-41 (Wi-Fi supervisor):** *[now]* {SW; test} Wi-Fi is checked every 10 s and reconnected; after 90 s down the stack is
   re-initialised. DTC-401 `WARN_WIFI_SIGNAL_DEGRADED` while down or RSSI < −82 dBm. Control continues (NFR-1.1).
 - **FR-42 (Configuration API limits):** *[now]* {SW; test} `/api/config/system` exposes hydraulic and radio timings and rejects

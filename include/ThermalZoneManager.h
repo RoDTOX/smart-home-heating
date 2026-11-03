@@ -200,6 +200,17 @@ public:
     size_t getPairedZoneCount() const;
     size_t getAcquiredZoneCount() const;
 
+    // Zone heating runtime counters (today / yesterday)
+    uint32_t getZoneRuntimeTodaySec(size_t index) const {
+        if (index >= MAX_THERMAL_ZONES) return 0;
+        return _zoneRuntimeTodaySec[index];
+    }
+    uint32_t getZoneRuntimeYesterdaySec(size_t index) const {
+        if (index >= MAX_THERMAL_ZONES) return 0;
+        return _zoneRuntimeYesterdaySec[index];
+    }
+    void updateRuntimeDay(uint8_t day);
+
     // Setters
     void setTargetTemperature(size_t index, float target);
     void setZoneEnabled(size_t index, bool enabled);
@@ -302,6 +313,11 @@ private:
     WindowDetectionState _windowStates[MAX_THERMAL_ZONES];
     TpiState _tpi[MAX_THERMAL_ZONES];
     uint8_t _zoneCount = 0;
+    uint32_t _zoneRuntimeTodaySec[MAX_THERMAL_ZONES];
+    uint32_t _zoneRuntimeYesterdaySec[MAX_THERMAL_ZONES];
+    uint32_t _zoneRuntimeMsAcc[MAX_THERMAL_ZONES];
+    uint32_t _lastZoneRuntimeMs = 0;
+    uint8_t _lastDay = 0;
     void clearZoneSlot(size_t index);
     uint32_t _lastScheduleEvalMs;
 
