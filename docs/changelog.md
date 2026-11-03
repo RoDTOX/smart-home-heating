@@ -7,6 +7,12 @@ Entries before 29.10.2026 (the system before the lean clean-up):
 
 
 
+## [03.11.2026] - Fix JS syntax & implement vertical setpoint controls on zone cards (04a2a84)
+
+- **Who / when / why:** firmware session (light mode), 03.11.2026; the owner reported that removing legacy slots inadvertently left an unclosed brace in syncSchedInput causing a JS SyntaxError; additionally requested that setpoint controls be visible on all zones without clicking and positioned vertically on the right of each zone card to maximize quick-view space below.
+- **Where:** web/index.html (restored missing closing brace in syncSchedInput, updated .room to flex row with .room-main and vertical .ctl, widened MAX_T to 30°C, always-visible [ + ] [ val ] [ - ] stepper on every card with ↺ prog boost reset).
+- **Not changed:** hydraulic safety invariants, backend endpoints.
+
 ## [03.11.2026] - Remove legacy compatibility details and quick-away button (f7ad961)
 
 - **Who / when / why:** firmware session (light mode), 03.11.2026; the owner confirmed that the obsolete '<details> Avansat / Diagnostic compatibilitate' section and the 'Setare rapidă toate camerele' quick-away helper are unnecessary and clutter the UI.
