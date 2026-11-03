@@ -7,6 +7,12 @@ Entries before 29.10.2026 (the system before the lean clean-up):
 
 
 
+## [03.11.2026] - Clear obsolete report card & clarify schedule level names in import diff (e2536da)
+
+- **Who / when / why:** firmware session (light mode), 03.11.2026; the owner observed that the previous green import result card persisted on screen when clicking export/import or selecting a new file; additionally, schedule level diffs appeared ambiguous/duplicated (e.g. 'Living › Țintă day' vs 'Living › Țintă away') because the schedule context was not explicitly specified.
+- **Where:** web/index.html (cleared #cfgReport and #cfgPreview on cfgExport, cfgImportBtn, cfgFile.onchange, and btnCancelImport; disambiguated schedule levels in analyzeImport with self-explanatory names: 'Temperatură Program Zi (Day)', 'Temperatură Program Noapte (Night)', 'Temperatură Mod Plecat (Away)').
+- **Not changed:** hydronic safety limits, backend endpoints.
+
 ## [03.11.2026] - Clean import result card, value changes table & collapsible technical details (7eae5ee)
 
 - **Who / when / why:** firmware session (light mode), 03.11.2026; the owner observed that the post-import report dumped an unformatted, raw wall of 34 parameter names without values ('Aplicat: params.actuatorDelaySec, params.pumpOverrunSec...').
