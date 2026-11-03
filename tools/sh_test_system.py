@@ -129,6 +129,7 @@ class SystemTestSuite(SuiteBase, HealthTests, HydraulicsTests, ControlTests, UiH
             self.test_tc19_14_admin_collapsible_groups_and_dtc_clear,
             self.test_tc19_15_zone_heating_runtime_telemetry,
             self.test_tc19_16_history_24h_chart_and_card_subtitles,
+            self.test_tc19_17_window_clear_button_not_handled_as_stepper,
             # Group 20: LittleFS Flash Telemetry History Buffer (FR-34)
             self.test_tc20_1_history_schema_24h,
             self.test_tc20_2_history_schema_5d,
@@ -151,6 +152,7 @@ class SystemTestSuite(SuiteBase, HealthTests, HydraulicsTests, ControlTests, UiH
             self.test_tc26_2_open_window_threshold_mutation_persistence,
             self.test_tc26_3_open_window_clear_api,
             self.test_tc26_4_open_window_safety_cutoff_contract,
+            self.test_tc26_5_window_state_matches_pause,
             # Group 27: System Configuration, Multi-Relay & Presets 2.0 (FR-42, FR-43, FR-44, FR-45)
             self.test_tc27_1_system_config_schema,
             self.test_tc27_2_system_config_mutation_persistence,

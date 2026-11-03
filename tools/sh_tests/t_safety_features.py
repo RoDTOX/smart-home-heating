@@ -401,3 +401,22 @@ class SafetyFeatureTests:
             return TestResult(test_id, name, req, "PASS", latency, details)
         except Exception as e:
             return TestResult(test_id, name, req, "FAIL", (time.time() - start)*1000, str(e))
+
+    def test_tc26_5_window_state_matches_pause(self):
+        """SWE.5-TC26.5: Zone state WINDOW only while the window pause is active (FR-8.4)"""
+        test_id = "SWE.5-TC26.5"
+        name = "Window State Matches Pause"
+        req = "FR-8.4"
+        start = time.time()
+        try:
+            zones = requests.get(f"{self.base_url}/api/zones", timeout=self.timeout).json().get("zones", [])
+            latency = (time.time() - start) * 1000
+            assert zones, "No zones"
+            for z in zones:
+                if z.get("state") == "WINDOW":
+                    assert z.get("windowPauseActive") is True,                         f"Zone {z.get('id')} shows state WINDOW but windowPauseActive is {z.get('windowPauseActive')}: a stale state keeps the valve closed (FR-8.4: WINDOW = window pause of FR-40)"
+                if z.get("windowPauseActive") is True:
+                    assert z.get("state") == "WINDOW", f"Zone {z.get('id')} has an active window pause but state {z.get('state')}"
+            return TestResult(test_id, name, req, "PASS", latency, "State WINDOW and windowPauseActive agree on every zone")
+        except Exception as e:
+            return TestResult(test_id, name, req, "FAIL", (time.time() - start) * 1000, str(e))

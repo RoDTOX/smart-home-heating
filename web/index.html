@@ -1756,7 +1756,7 @@ async function refresh() {
 
 $("rooms").addEventListener("click", async e => {
   const b = e.target.closest("button");
-  if (b) {
+  if (b && b.dataset.a) {
     const i = +b.dataset.i, z = Z.zones[i];
     try {
       if (b.dataset.a === "clr") await api("api/zones/hold/clear", {id: i + 1});

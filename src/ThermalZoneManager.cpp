@@ -1078,6 +1078,10 @@ void ThermalZoneManager::evaluateWindowDetection(size_t index, float currentTemp
     if (!_scheduleConfig.windowDetectionEnabled) {
         _windowStates[index].pauseActive = false;
         _windowStates[index].bucketStartMs = 0;
+        if (_statuses[index].state == ZONE_WINDOW_PAUSE) {
+            _statuses[index].state = ZONE_IDLE;
+            _statuses[index].stateChangedMs = now;
+        }
         return;
     }
 
@@ -1138,6 +1142,10 @@ void ThermalZoneManager::evaluateWindowDetection(size_t index, float currentTemp
             _windowStates[index].baselineTemp = currentTemp;
             _windowStates[index].baselineMs = now;
             _windowStates[index].bucketStartMs = 0;
+            if (_statuses[index].state == ZONE_WINDOW_PAUSE) {
+                _statuses[index].state = ZONE_IDLE;
+                _statuses[index].stateChangedMs = now;
+            }
             netConsole.printf("[Thermal][WINDOW] Zone %u (%s) window pause cleared (%s, lasted %us). Resuming normal thermostat loop.\n",
                               _configs[index].id, _configs[index].name,
                               timeoutExpired ? "30 min timeout" : "temp rebounded +0.6 \xC2\xB0""C",
@@ -1485,6 +1493,7 @@ void ThermalZoneManager::update(BoilerRadioTrigger& boiler) {
                     _statuses[i].demand = false;
                     _statuses[i].state = ZONE_WINDOW_PAUSE;
                 } else {
+                    if (_statuses[i].state == ZONE_WINDOW_PAUSE) { _statuses[i].state = ZONE_IDLE; _statuses[i].stateChangedMs = now; } // pause over: leave the stale state (FR-8.4)
                     _statuses[i].demand = evaluateTpi(i, getEffectiveTargetTemp(i), now);
                 }
             }

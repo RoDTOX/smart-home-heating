@@ -572,3 +572,22 @@ class UiHistoryTests:
                               "24h history chart (SVG timeline/curves) and room card TPI/RH subtitles verified")
         except Exception as e:
             return TestResult(test_id, name, req, "FAIL", (time.time() - start) * 1000, str(e))
+
+    def test_tc19_17_window_clear_button_not_handled_as_stepper(self):
+        """SWE.5-TC19.17: Room card buttons without a setpoint action are ignored by the stepper handler (FR-8.1)"""
+        test_id = "SWE.5-TC19.17"
+        name = "Window Clear Button Not A Stepper"
+        req = "FR-8.1"
+        start = time.time()
+        try:
+            r_page = requests.get(f"{self.base_url}/", timeout=self.timeout)
+            latency = (time.time() - start) * 1000
+            assert r_page.status_code == 200, f"page: HTTP {r_page.status_code}"
+            html = r_page.text
+            i = html.index('$("rooms").addEventListener("click"')
+            handler = html[i:i + 900]
+            assert "onclick=\"clearWindowPause(" in html, "window clear button missing on the room card"
+            assert re.search(r'if\s*\(\s*b\s*&&\s*b\.dataset\.a\s*\)', handler),                 "the click handler of the room cards takes every button as a stepper: the window clear button (no data-a) ends in 'Cannot read properties of undefined (reading effectiveTarget)'"
+            return TestResult(test_id, name, req, "PASS", latency, "stepper handler acts only on buttons with a setpoint action")
+        except Exception as e:
+            return TestResult(test_id, name, req, "FAIL", (time.time() - start) * 1000, str(e))
