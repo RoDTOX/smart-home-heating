@@ -397,3 +397,65 @@ class HealthTests:
             return TestResult(test_id, name, req, "PASS", latency, details)
         except Exception as e:
             return TestResult(test_id, name, req, "FAIL", (time.time() - start)*1000, str(e))
+
+    # ---------------------------------------------------------
+    # Group 32 (cont.): memory diagnostics (FR-10.6, PB-115)
+    # ---------------------------------------------------------
+
+    def test_tc32_4_diag_mem_shape(self):
+        """SWE.5-TC32.4: GET /api/diag/mem Reports Heap Figures and Task Stack Minimums (FR-10.6)"""
+        test_id = "SWE.5-TC32.4"
+        name = "Memory Diagnostics Shape"
+        req = "FR-10.6"
+        start = time.time()
+        try:
+            r = requests.get(f"{self.base_url}/api/diag/mem", timeout=self.timeout)
+            latency = (time.time() - start) * 1000
+            assert r.status_code == 200, f"/api/diag/mem answered {r.status_code}"
+            d = r.json()
+            for key in ("free", "minFreeEver", "largestBlock", "allocated", "internalFree", "internalMin", "uptime"):
+                assert isinstance(d.get(key), int), f"'{key}' missing or not an integer: {d.get(key)}"
+            assert d["minFreeEver"] <= d["free"] + 20000, f"minFreeEver {d['minFreeEver']} above free {d['free']}"
+            assert 0 < d["largestBlock"] <= d["free"], f"largestBlock {d['largestBlock']} not within free {d['free']}"
+            assert d["allocated"] > 0, "allocated is 0"
+            tasks = d.get("tasks")
+            assert isinstance(tasks, list), f"tasks is not a list: {tasks}"
+            names = [t.get("name") for t in tasks]
+            for must in ("loopTask", "wifi", "tiT"):
+                assert must in names, f"task {must} not reported: {names}"
+            for t in tasks:
+                assert t["name"] in ("loopTask", "wifi", "tiT", "btController", "nimble_host", "wx"), f"unknown task {t['name']}"
+                assert isinstance(t.get("stackFreeMin"), int) and t["stackFreeMin"] >= 0, f"bad stackFreeMin: {t}"
+            details = f"free {d['free']}, min {d['minFreeEver']}, largest {d['largestBlock']}, tasks {names}"
+            return TestResult(test_id, name, req, "PASS", latency, details)
+        except Exception as e:
+            return TestResult(test_id, name, req, "FAIL", (time.time() - start)*1000, str(e))
+
+    def test_tc32_5_diag_mem_is_read_only(self):
+        """SWE.5-TC32.5: /api/diag/mem Accepts No Write Method (FR-10.6)"""
+        test_id = "SWE.5-TC32.5"
+        name = "Memory Diagnostics Read Only"
+        req = "FR-10.6"
+        start = time.time()
+        try:
+            r = requests.post(f"{self.base_url}/api/diag/mem", data="{}", timeout=self.timeout)
+            latency = (time.time() - start) * 1000
+            assert r.status_code in (404, 405), f"POST /api/diag/mem answered {r.status_code}, read only expected"
+            return TestResult(test_id, name, req, "PASS", latency, f"POST refused with HTTP {r.status_code}")
+        except Exception as e:
+            return TestResult(test_id, name, req, "FAIL", (time.time() - start)*1000, str(e))
+
+    def test_tc32_6_page_shows_heap_line(self):
+        """SWE.5-TC32.6: The Debug Area of the Page Reads /api/diag/mem (FR-10.6, FR-8.1)"""
+        test_id = "SWE.5-TC32.6"
+        name = "Page Heap Line"
+        req = "FR-10.6, FR-8.1"
+        start = time.time()
+        try:
+            r = requests.get(f"{self.base_url}/", timeout=self.timeout)
+            latency = (time.time() - start) * 1000
+            assert r.status_code == 200, f"page answered {r.status_code}"
+            assert "api/diag/mem" in r.text, "the page never reads api/diag/mem"
+            return TestResult(test_id, name, req, "PASS", latency, "page reads /api/diag/mem")
+        except Exception as e:
+            return TestResult(test_id, name, req, "FAIL", (time.time() - start)*1000, str(e))

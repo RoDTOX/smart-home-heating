@@ -182,6 +182,9 @@ class SystemTestSuite(SuiteBase, HealthTests, HydraulicsTests, ControlTests, UiH
             self.test_tc32_1_event_history_format,
             self.test_tc32_2_dtc_raise_and_clear_recorded,
             self.test_tc32_3_only_defined_codes_exist,
+            self.test_tc32_4_diag_mem_shape,
+            self.test_tc32_5_diag_mem_is_read_only,
+            self.test_tc32_6_page_shows_heap_line,
             # Group 33: SafetySupervisor (step 4: FR-2, FR-3, FR-4)
             self.test_tc33_1_boiler_on_refused_without_valve,
             self.test_tc33_2_boiler_on_refused_inside_interlock_delay,
