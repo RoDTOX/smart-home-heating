@@ -30,7 +30,7 @@ Zone ids are 1-based unless noted.
 | POST | `/api/zones/hold/clear` | `id` | Back to schedule |
 | GET | `/api/schedule` | | Levels per zone, `weekday` / `weekend` slot strings, current/next level |
 | POST | `/api/schedule/enable` | `enabled`, `preheat`, `window`, `away` (each `1`/`0`, all optional) | Schedule, pre-heat, open-window guard, global away mode |
-| POST | `/api/schedule/level` | `zone`, `level` = `day`\|`night`\|`away`, `temp` (5–30) | Level temperature for a zone |
+| POST | `/api/schedule/level` | `zone`, `level` = `day`\|`night`\|`away`, `temp` (5–28, C-36; above 28 → HTTP 400) | Level temperature for a zone |
 | POST | `/api/schedule/slots` | `weekend` (`0`/`1`), `slots` = `HH:MM=level,...` (max 8) | Slot list, stored sorted |
 | POST | `/api/schedule/reset` | | Factory schedule (22 / 20 / 16 °C, 06:30 day, 22:30 night) |
 | POST | `/api/zones/window/clear` | `id` | End open-window pause |
@@ -148,7 +148,7 @@ sensor readings) are never in it (FR-65.2).
 | `zones[]` | `id` (1-based), `name`, `mac`, `sensorName`, `relayPin`, `enabled`, `offset` (°C); the current target is not in the file (the schedule sets it, the setpoints are in `schedule.levels`) | `POST /api/setup/map-zone`, as a whole, together (below) |
 | `schedule.enabled`, `.preheat`, `.window` | schedule, pre-heat, window detection on / off | `POST /api/schedule/enable` |
 | `schedule.weekday`, `.weekend` | slot list `HH:MM=level,...` | `POST /api/schedule/slots` (FR-31) |
-| `schedule.levels[]` | `id` and `day`, `night`, `away` °C per zone | `POST /api/schedule/level` (5–30 °C, FR-29) |
+| `schedule.levels[]` | `id` and `day`, `night`, `away` °C per zone | `POST /api/schedule/level` (5–28 °C, FR-29, C-36) |
 | `location` | `lat,lon`; absent while not set | `POST /api/setup/location` (FR-9.2) |
 | `learnedDuty[]` | `id` and learned base `duty` (%) per zone (one value per zone until migration step 7 adds the outdoor bands) | 0–60 % (FR-47) |
 

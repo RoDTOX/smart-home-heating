@@ -126,6 +126,7 @@ one example:
 - **FR-1.2 (Boost):** *[now]* {SW; test} A boost raises one zone's target above its current schedule level by 0.5–2.0 °C in
   0.5 °C steps; it never lowers the target (to cool use away, FR-44). Firmware enforces the limits for every
   source (page, API, console). The boost ends as defined in FR-39.
+  - No target of a zone, level or boost, may exceed 28 °C, boost included (C-36): a request above 28 °C is refused (HTTP 400), never cut to a lower value; a stored value above 28 °C is used as 28 °C and does not raise the target.
   - *Fallback:* request outside the limits → rejected, current target kept.
   - A zone is in boost only while its target is above the schedule level: the API reports `scheduleTarget` (the level the
     schedule asks now) and `isBoost` (true only while the target is more than 0.05 °C above `scheduleTarget` and the
@@ -318,7 +319,7 @@ one example:
 
 ### 3.6 Schedule, modes and season
 
-- **FR-29 (Levels & Moments):** *[now]* {SW; test} Each zone has comfort levels and multi-moment targets (up to 4 configurable daily moments P1..P4: Wake, Leave, Return, Sleep, with user-customizable moment names, plus configurable global Away temperature per zone; 5–30 °C; factory 23 / 21 / 18 °C).
+- **FR-29 (Levels & Moments):** *[now]* {SW; test} Each zone has comfort levels and multi-moment targets (up to 4 configurable daily moments P1..P4: Wake, Leave, Return, Sleep, with user-customizable moment names, plus configurable global Away temperature per zone; 5–28 °C (C-36); factory 23 / 21 / 18 °C).
 - **FR-30 (Level storage):** *[now]* {SW; test, inspection} Level and moment temperatures are stored in NVS, written only on change.
 - **FR-31 (Schedule):** *[now]* {SW; test} Multi-moment daily schedule supporting 4 selectable scheduling modes: Constant 24/7 (single setpoint all days), Weekly Unified (L–D identical moments), 5+2 (Weekday Mon–Fri / Weekend Sat–Sun), and 7-day Individual (Mon–Sun each customizable). Up to 8 slots per day HH:MM=level or direct moment targets, kept sorted. Time inputs use 24h format (HH:MM). Active moment indicator is day-group aware (active moment displayed exclusively for current day group; in Constant 24/7 mode, indicates Constant 24/7 rather than moment index). Bilingual display (English / Romanian, NFR-3.1).
 - **FR-44 (Away):** *[now]* {SW; test} Global away sets every zone's target to its away level and ends boosts; switching away off
@@ -764,7 +765,7 @@ Set via API and console, stored in NVS (written on change only). A value outside
 | `selfTestBurn` | 10 min | 5–20 min | FR-60 |
 | `minLoops` | 3 circuits | 1–7 | FR-63 |
 | `solarGain`, `solarLimit`, `solarReduction` | off / from data | per zone, bounded | FR-70 |
-| zone levels day / night / away | 23 / 21 / 18 °C | 5–30 °C | FR-29 |
+| zone levels day / night / away | 23 / 21 / 18 °C | 5–28 °C (C-36) | FR-29 |
 | sensor offset | 0.0 °C | −3.0…+3.0 °C | FR-49 |
 | `faultFrostOutdoor` | 5 °C | −10…+10 °C | FR-51, FR-64 |
 | `actuatorType` | NC | NC / NO | FR-15.1 |

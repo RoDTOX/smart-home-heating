@@ -634,3 +634,11 @@ restores them (a test proves it). An old file with `target` skips it as unknown 
 **Decided by**: owner (chat, 04.11.2026), relayed by the main chat.
 **Affects**: FR-8.5, FR-8.6, FR-10.6, NFR-2.8, `architecture.md` §14.1, `api_reference.md`, `tools/sh_build_web.py`, `tools/sh_ota_upload.py`, PB-115.
 **Consequences**: the image drops by about 35 KB; after the first flash of this change the page must be uploaded once (the stub offers it).
+
+## 2026-11-04 — Target ceiling 28 °C, boost included (D-56, C-36)
+
+**Context**: the first full run on 1.11.04.23 showed tests TC11.5 and TC19.2 asking boost values that FR-1.2 refuses; the owner decided what the rule is.
+**Decision**: boost stays 0.5 to 2.0 °C above the schedule level in 0.5 °C steps; no target, level or boost may exceed 28 °C; a request above is refused, not cut to 30 °C; levels 5 to 28 °C. Reason: EN 1264 floor surface 29 °C in occupied zones; 28 °C room air is the owner's choice derived from it. The tests are rewritten to ask allowed values. The unexplained TC33.3 failure of the first run is logged as PB-120 and resumed at step 7.
+**Decided by**: owner (chat, 04.11.2026, quiz answers relayed by the main chat).
+**Affects**: FR-1.2, FR-29, §6, `ThermalZoneManager`, `ConfigTransfer`, `WebApi`, `web/index.html`, TC11.5, TC19.2, TC39.1.
+**Consequences**: a stored level above 28 °C is used as 28 °C; nothing is rewritten in NVS.
