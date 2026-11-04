@@ -7,6 +7,12 @@ Entries before 29.10.2026 (the system before the lean clean-up):
 
 
 
+## [04.11.2026] - Ceiling 28 C for every target, level and boost (FR-1.2, FR-29; C-36, D-56)
+
+- **Who / when / why:** firmware session (Claude), ultra-light; owner decision relayed by the main chat: boost 0.5 to 2.0 C in 0.5 C steps, 99 C refused, never cut; 28 C maximum, boost included (EN 1264 floor 29 C; 28 C is the owner's choice). PB-120 opened (TC33.3, first run, unproven).
+- **Done:** `TARGET_MAX_C` in `ThermalZoneManager.h`; setpoint, level, away, moment, zone commissioning and import refuse above 28; a stored value above 28 is used as 28 (not rewritten in NVS); page limits 28; frost and the 5 C minimum unchanged. Tests first: TC11.5 and TC19.2 rewritten, TC39.1 new. Safety review light: no BLOCKER, two raw comparisons (season, pre-heat) capped after its note.
+- **Board 1.11.04.25:** TC39.1 and TC19.2 pass; TC11.5 still fails (zone 1 reads a 25 C error, PB-113); TC19.7, TC19.9 as before (PB-96); TC29 skipped by the guard (zones on).
+
 ## [04.11.2026] - Memory task PB-115: flash limit corrected, page on LittleFS, streamed JSON, `/api/diag/mem` (NFR-2.8, FR-8.5, FR-8.6, FR-10.6)
 
 - **Who / when / why:** firmware session (Claude), ultra-light; owner decisions D-53, D-54 (supersedes the limit of D-53), D-55; rows C-32 ... C-35.
