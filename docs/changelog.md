@@ -7,6 +7,15 @@ Entries before 29.10.2026 (the system before the lean clean-up):
 
 
 
+## [04.11.2026] - Telemetry chart accuracy, separate weather axis, and clean restart markers (FR-34, C-42)
+
+- **Who / when / why:** firmware session (Antigravity), light process, owner reported visual discrepancy and requested UI improvements. In the telemetry chart, activity bars (boiler ON and zone valves) were drawn with a 5-minute past-shift offset (`segX = x1 - (start + 1) * slotW`), causing hover at active bar segments to pick adjacent inactive sample points ("Cazan: Oprit" while hovering on "Cazan ON" bar). In addition, outdoor temperature was clamped to the indoor room scale and flatlined at the chart floor, and reboot markers drew full-height vertical dotted lines cluttering curves.
+- **Done:**
+  - `web/index.html`: aligned activity and window blocks symmetrically with slot boundaries (`[x1 - (start + 0.5) * slotW]` to `[x1 - (end - 0.5) * slotW]`), ensuring 100% exact alignment between hover tooltip and rendered activity bars.
+  - `web/index.html`: added dedicated right-side Y-axis for outdoor temperature (`#94a3b8`), plotting the full outdoor temperature dynamic range without scaling or compressing indoor room temperature curves.
+  - `web/index.html`: removed vertical dotted lines across the graph for reboot events, preserving clean top circular badges (⚡) and hover tooltip details.
+- **Verification:** compiled `.pio/build/index.html.gz` (36,010 bytes, gzip 30.1% < 61,440 B limit) and uploaded live to LittleFS via `python tools/sh_ota_upload.py assets` (HTTP 200 OK).
+
 ## [04.11.2026] - Adaptive window detection for underfloor heating (FR-40, C-41)
 
 - **Who / when / why:** firmware session (Antigravity), light process, owner approved feature. In underfloor heating installations, large thermal slab inertia slows air cooling during gradual window openings (e.g. 0.7 °C drop over 60 min, or ~0.4 °C over 15 min), which was swallowed by the 5 min fixed baseline without triggering. Added adaptive 15-minute sliding baseline for underfloor mode (`heatingType == 0`): detects gradual aeration trends (drop ≥ 0.40 °C within 15 min while room − outdoor ≥ 5 °C), in addition to the fast 5 min drop (≥ `windowThreshold`). Clears automatically on rebound (≥ +0.30 °C in floor mode, +0.60 °C in radiator mode), after 30 min, or via `/api/zones/window/clear`.

@@ -754,15 +754,17 @@ function renderHistoryChart() {
   });
 
   const W = 880;
-  const x0 = 105, x1 = 850, chartW = x1 - x0;
+  const x0 = 100, x1 = 835, chartW = x1 - x0;
   const slotW = chartW / totalWindowSlots;
 
   let validTemps = [];
+  let validOutTemps = [];
   ordered.forEach(item => {
     const p = item.p;
     for (let k = 1; k <= 3; k++) {
       if (p[k] !== null && p[k] !== undefined && p[k] > 5 && p[k] < 35) validTemps.push(p[k]);
     }
+    if (p[4] !== null && p[4] !== undefined && p[4] > -40 && p[4] < 55) validOutTemps.push(p[4]);
   });
   let minT = 18, maxT = 26;
   if (validTemps.length > 0) {
@@ -770,6 +772,13 @@ function renderHistoryChart() {
     maxT = Math.ceil(Math.max(...validTemps)) + 1;
   }
   if (maxT - minT < 4) maxT = minT + 4;
+
+  let minOutT = 0, maxOutT = 15;
+  if (validOutTemps.length > 0) {
+    minOutT = Math.floor(Math.min(...validOutTemps)) - 1;
+    maxOutT = Math.ceil(Math.max(...validOutTemps)) + 1;
+  }
+  if (maxOutT - minOutT < 4) maxOutT = minOutT + 4;
 
   const topActY = 20;
   const actRowH = 14;
@@ -782,6 +791,7 @@ function renderHistoryChart() {
   const totalH = tempBot + 35;
 
   const tempToY = t => tempBot - ((t - minT) / (maxT - minT)) * tempH;
+  const outTempToY = t => tempBot - ((t - minOutT) / (maxOutT - minOutT)) * tempH;
 
   const svgParts = [];
   svgParts.push(`<svg id="histSvg" viewBox="0 0 ${W} ${totalH}" style="width:100%;height:auto;display:block;font-family:system-ui,-apple-system,sans-serif">`);
@@ -832,10 +842,11 @@ function renderHistoryChart() {
 
     let curBlockStart = -1, curBlockEnd = -1;
     const emitBlock = (start, end) => {
-      const segX = x1 - (start + 1) * slotW;
-      const segW = (start + 1 - end) * slotW;
+      const segX = Math.max(x0, x1 - (start + 0.5) * slotW);
+      const segXEnd = Math.min(x1, x1 - (end - 0.5) * slotW);
+      const segW = Math.max(2, segXEnd - segX);
       const rx = Math.min(2, Math.max(1, Math.floor(segW / 2)));
-      svgParts.push(`<rect x="${segX.toFixed(1)}" y="${ry}" width="${Math.max(2, segW).toFixed(1)}" height="${actRowH}" rx="${rx}" fill="${r.color}" />`);
+      svgParts.push(`<rect x="${segX.toFixed(1)}" y="${ry}" width="${segW.toFixed(1)}" height="${actRowH}" rx="${rx}" fill="${r.color}" />`);
     };
 
     for (let k = 0; k < ordered.length; k++) {
@@ -866,9 +877,10 @@ function renderHistoryChart() {
       const zi = ri - 1;
       let winStart = -1, winEnd = -1;
       const emitWinBlock = (start, end) => {
-        const segX = x1 - (start + 1) * slotW;
-        const segW = (start + 1 - end) * slotW;
-        svgParts.push(`<rect x="${segX.toFixed(1)}" y="${ry}" width="${Math.max(3, segW).toFixed(1)}" height="${actRowH}" rx="2" fill="rgba(56,189,248,0.35)" stroke="#38bdf8" stroke-width="1" />`);
+        const segX = Math.max(x0, x1 - (start + 0.5) * slotW);
+        const segXEnd = Math.min(x1, x1 - (end - 0.5) * slotW);
+        const segW = Math.max(3, segXEnd - segX);
+        svgParts.push(`<rect x="${segX.toFixed(1)}" y="${ry}" width="${segW.toFixed(1)}" height="${actRowH}" rx="2" fill="rgba(56,189,248,0.35)" stroke="#38bdf8" stroke-width="1" />`);
         if (segW >= 14) {
           svgParts.push(`<text x="${(segX + segW / 2).toFixed(1)}" y="${(ry + 10).toFixed(1)}" font-size="8.5" text-anchor="middle" fill="#38bdf8">🪟</text>`);
         }
@@ -889,7 +901,7 @@ function renderHistoryChart() {
     }
   });
 
-  // Render restart / firmware flash markers across activity and curves
+  // Render restart / firmware flash markers across activity
   const reboots = data.reboots || [];
   const visibleReboots = [];
   reboots.forEach(rb => {
@@ -899,16 +911,15 @@ function renderHistoryChart() {
     if (slotsAgo < totalWindowSlots) {
       const rx = x1 - slotsAgo * slotW;
       visibleReboots.push({ rx: rx, slotsAgo: slotsAgo, rb: rb });
-      svgParts.push(`<line x1="${rx.toFixed(1)}" y1="${topActY}" x2="${rx.toFixed(1)}" y2="${tempBot}" stroke="#f59e0b" stroke-width="1" stroke-dasharray="2,3" opacity="0.65" />`);
       svgParts.push(`<circle cx="${rx.toFixed(1)}" cy="${(topActY - 6).toFixed(1)}" r="6" fill="#18181b" stroke="#f59e0b" stroke-width="1.2" />`);
       svgParts.push(`<text x="${rx.toFixed(1)}" y="${(topActY - 3).toFixed(1)}" font-size="8.5" text-anchor="middle" fill="#f59e0b" style="user-select:none">⚡</text>`);
     }
   });
 
   // Temperature chart header & legends
-  svgParts.push(`<text x="${x0}" y="${tempHeaderY - 2}" font-size="11" font-weight="600" fill="var(--fg)">Temperaturi înregistrate (°C)</text>`);
+  svgParts.push(`<text x="${x0}" y="${tempHeaderY - 2}" font-size="11" font-weight="600" fill="var(--fg)">Temperaturi Zone (°C)</text>`);
   let tempLegStr = zones.map((z, idx) => `<tspan fill="${zoneColors[idx % zoneColors.length]}">— ${esc(z.name)}</tspan>`).join("   ");
-  tempLegStr += `   <tspan fill="var(--mut)">-- Afară</tspan>`;
+  tempLegStr += `   <tspan fill="#94a3b8">-- Afară (axa dr., °C)</tspan>`;
   svgParts.push(`<text x="${x1}" y="${tempHeaderY - 2}" font-size="11" text-anchor="end">${tempLegStr}</text>`);
 
   // Temperature background & horizontal grid
@@ -918,6 +929,14 @@ function renderHistoryChart() {
     const gy = tempToY(t);
     svgParts.push(`<line x1="${x0}" y1="${gy.toFixed(1)}" x2="${x1}" y2="${gy.toFixed(1)}" stroke="var(--line)" stroke-width="1" />`);
     svgParts.push(`<text x="${x0 - 8}" y="${(gy + 4).toFixed(1)}" font-size="10" fill="var(--mut)" text-anchor="end">${t}°</text>`);
+  }
+
+  // Right-side Y-axis for outdoor temperature
+  const outStep = (maxOutT - minOutT > 10) ? 4 : ((maxOutT - minOutT > 6) ? 3 : 2);
+  for (let t = minOutT; t <= maxOutT; t += outStep) {
+    const gy = outTempToY(t);
+    svgParts.push(`<line x1="${(x1 - 3).toFixed(1)}" y1="${gy.toFixed(1)}" x2="${(x1 + 3).toFixed(1)}" y2="${gy.toFixed(1)}" stroke="#94a3b8" stroke-width="1" opacity="0.6" />`);
+    svgParts.push(`<text x="${(x1 + 8).toFixed(1)}" y="${(gy + 3.5).toFixed(1)}" font-size="10" fill="#94a3b8" text-anchor="start">${t}°</text>`);
   }
 
   // Helper to render temperature curves with gap detection (dotted across small gap, clean break across large gap)
@@ -965,19 +984,19 @@ function renderHistoryChart() {
     });
   };
 
-  // Outdoor temperature polyline
+  // Outdoor temperature polyline (plotted on separate right Y-axis)
   const outPoints = [];
   ordered.forEach(item => {
     const p = item.p;
-    if (p[4] !== null && p[4] !== undefined) {
+    if (p[4] !== null && p[4] !== undefined && p[4] > -40 && p[4] < 55) {
       outPoints.push({
         px: x1 - item.slotsAgo * slotW,
-        py: tempToY(Math.max(minT, Math.min(maxT, p[4]))),
+        py: outTempToY(p[4]),
         slotsAgo: item.slotsAgo
       });
     }
   });
-  renderCurve(outPoints, "var(--mut)", true);
+  renderCurve(outPoints, "#94a3b8", true);
 
   // Zone temperature polylines
   zones.forEach((z, idx) => {

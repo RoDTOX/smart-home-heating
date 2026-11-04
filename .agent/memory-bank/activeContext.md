@@ -5,6 +5,7 @@ Only what holds now and what comes next. A line that no longer holds is replaced
 [`docs/archive/active_context_until_2026-11-02.md`](../../docs/archive/active_context_until_2026-11-02.md).
 
 ## Now
+- Telemetry chart accuracy, separate weather axis, and clean reboot markers (FR-34, C-42): fixed activity bar alignment to slot intervals (1:1 tooltip match), added right Y-axis for outdoor weather, removed vertical dotted reboot lines. Live page updated on LittleFS via OTA assets.
 - Adaptive window detection for underfloor heating (15 min sliding baseline, gradual trend drop ≥ 0.40 °C with cold outdoor delta, rebound ≥ 0.30 °C, C-41, FR-40) implemented and verified on board: TC26 suite 7/7 PASS.
 - Heating type configuration (`heatingType`: 0 = floor, 1 = radiators, FR-40, C-40): in floor mode, window detection is visual-only without cutting heat demand or closing valves; in radiator mode, window detection pauses zone heating (closes valve).
 - Step 9 (Commands + authentication) accepted by owner ("ALL OK", row added in `docs/acceptance.md` citing `ee7c762`).
