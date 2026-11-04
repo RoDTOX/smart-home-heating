@@ -97,6 +97,8 @@ class TestResult:
         self.details = details
 
 class SuiteBase:
+    only = []   # --only: test groups to run (empty = all)
+
     def __init__(self, ip=DEFAULT_IP, port=DEFAULT_PORT, timeout=6.0):
         self.ip = ip
         self.port = port

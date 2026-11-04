@@ -28,9 +28,13 @@ from sh_tests.t_export_import import ExportImportTests
 from sh_tests.t_zones import ZoneTests
 from sh_tests.t_console import ConsoleTests
 from sh_tests.t_safety_supervisor import SafetySupervisorTests
+from sh_tests.t_sensorhub import SensorHubTests
+from sh_tests.t_weather import WeatherTests
+from sh_tests.t_modes import ModeTests
+from sh_tests.t_history_stream import HistoryStreamTests
 
 
-class SystemTestSuite(SuiteBase, HealthTests, HydraulicsTests, ControlTests, UiHistoryTests, SafetyFeatureTests, ExportImportTests, ZoneTests, ConsoleTests, SafetySupervisorTests):
+class SystemTestSuite(SuiteBase, HealthTests, HydraulicsTests, ControlTests, UiHistoryTests, SafetyFeatureTests, ExportImportTests, ZoneTests, ConsoleTests, SafetySupervisorTests, SensorHubTests, WeatherTests, ModeTests, HistoryStreamTests):
     # ---------------------------------------------------------
     # Test Runner & Traceability Matrix Evaluation
     # ---------------------------------------------------------
@@ -254,7 +258,25 @@ class SystemTestSuite(SuiteBase, HealthTests, HydraulicsTests, ControlTests, UiH
             self.test_tc30_10_only_assigned_sensors_kept,
             self.test_tc30_11_engineering_view_zones_and_search,
             self.test_tc30_12_one_save_for_all_zones,
+            # Groups 34-37: migration steps 6, 10, 8, 11
+            self.test_tc34_1_plausibility_parameters,
+            self.test_tc34_2_out_of_bounds_ignored,
+            self.test_tc34_3_spike_held_and_confirmed,
+            self.test_tc34_4_three_discards_raise_dtc_104,
+            self.test_tc34_5_single_timeout,
+            self.test_tc35_1_weather_values_and_previous_day_mean,
+            self.test_tc35_2_held_then_lost_after_6_h,
+            self.test_tc35_3_poll_does_not_block_the_page,
+            self.test_tc36_1_mode_and_season_parameters,
+            self.test_tc36_2_manual_timeout_remaining,
+            self.test_tc36_3_global_off_no_demand,
+            self.test_tc36_4_season_automatic,
+            self.test_tc36_5_boost_limits,
+            self.test_tc37_1_history_is_streamed,
+            self.test_tc37_2_history_request_keeps_heap,
         ]
+        if self.only:   # --only TC34,TC35: run just these groups (name part after test_)
+            tests = [t for t in tests if any(t.__name__.startswith("test_" + o.lower() + "_") for o in self.only)]
 
         self.results = []
         passed_count = 0
@@ -448,10 +470,14 @@ def main():
     parser = argparse.ArgumentParser(description="ASPICE SWE.5 Atomic Verification Test Suite")
     parser.add_argument("--ip", default=DEFAULT_IP, help=f"ESP32 IP address (default: {DEFAULT_IP})")
     parser.add_argument("--port", type=int, default=DEFAULT_PORT, help=f"HTTP Port (default: {DEFAULT_PORT})")
+    parser.add_argument("--only", default="", help="comma list of test groups, e.g. tc33,tc34 (no report is written)")
     parser.add_argument("--report", default="docs/system_test_report.md", help="Path to generate markdown report")
     args = parser.parse_args()
 
     suite = SystemTestSuite(ip=args.ip, port=args.port)
+    suite.only = [x.strip() for x in args.only.split(",") if x.strip()]
+    if suite.only:
+        args.report = None
     success = suite.run_all()
     if args.report:
         suite.generate_markdown_report(args.report)
