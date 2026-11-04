@@ -513,7 +513,11 @@ class ControlTests:
             target_zone_id = z["id"]
             orig_hold = z.get("isManualHold", False)
             cur = z.get("currentTemp", 22.0)
-            target = min(round(cur + 0.6, 1), 26.0)
+            # FR-1.2 / C-36: a boost is 0.5-2.0 C above the schedule level in 0.5 C steps, never above 28 C
+            target = min(round(z["scheduleTarget"] + 2.0, 1), 28.0)
+            if target - cur < 0.4:
+                return TestResult(test_id, name, req, "SKIP", (time.time() - start) * 1000,
+                                  f"room {cur} C is within 0.4 C of the highest allowed boost {target} C: no deficit can be made")
 
             # Set setpoint creating >= 0.4 C deficit
             r_set = requests.post(f"{self.base_url}/api/zones/setpoint?id={target_zone_id}&target={target}", timeout=self.timeout)
@@ -583,3 +587,26 @@ class ControlTests:
             return TestResult(test_id, name, req, "PASS", latency, "Schedule UI dirty protection and editable moment names verified")
         except Exception as e:
             return TestResult(test_id, name, req, "FAIL", (time.time() - start) * 1000, str(e))
+
+    def test_tc39_1_target_ceiling_28(self):
+        """SWE.5-TC39.1: No target, level or boost above 28 C: 28.5 is refused (HTTP 400) on the setpoint and on a level, 28.0 is accepted as a level (FR-1.2, FR-29, C-36)"""
+        test_id, name, req = "SWE.5-TC39.1", "Target Ceiling 28 C", "FR-1.2, FR-29"
+        start = time.time()
+        orig = None
+        zone_id = 1
+        try:
+            z = requests.get(f"{self.base_url}/api/schedule", timeout=self.timeout).json()["zones"][0]
+            orig = z["day"]
+            zone_id = z["id"]
+            r = requests.post(f"{self.base_url}/api/zones/setpoint?id={zone_id}&target=28.5", timeout=self.timeout)
+            assert r.status_code == 400, f"setpoint 28.5: expected HTTP 400, got {r.status_code}"
+            r = requests.post(f"{self.base_url}/api/schedule/level?zone={zone_id}&level=day&temp=28.5", timeout=self.timeout)
+            assert r.status_code == 400, f"level 28.5: expected HTTP 400, got {r.status_code}"
+            r = requests.post(f"{self.base_url}/api/schedule/level?zone={zone_id}&level=day&temp=28.0", timeout=self.timeout)
+            assert r.status_code == 200, f"level 28.0: expected HTTP 200, got {r.status_code}"
+            return TestResult(test_id, name, req, "PASS", (time.time() - start) * 1000, "28.5 refused twice, 28.0 accepted as a level")
+        except Exception as e:
+            return TestResult(test_id, name, req, "FAIL", (time.time() - start) * 1000, str(e))
+        finally:
+            if orig is not None:
+                requests.post(f"{self.base_url}/api/schedule/level?zone={zone_id}&level=day&temp={orig}", timeout=self.timeout)

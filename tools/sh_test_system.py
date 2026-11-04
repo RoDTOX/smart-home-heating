@@ -285,6 +285,7 @@ class SystemTestSuite(SuiteBase, HealthTests, HydraulicsTests, ControlTests, UiH
             self.test_tc38_3_upload_round_trip_and_floor,
             self.test_tc38_4_stub_when_page_missing,
             self.test_tc38_5_memory_reports_littlefs,
+            self.test_tc39_1_target_ceiling_28,
         ]
         if self.only:   # --only TC34,TC35: run just these groups (name part after test_)
             tests = [t for t in tests if any(t.__name__.startswith("test_" + o.lower() + "_") for o in self.only)]

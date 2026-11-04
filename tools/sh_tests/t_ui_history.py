@@ -20,12 +20,12 @@ class UiHistoryTests:
             requests.post(f"{self.base_url}/api/mode?mode=manual", timeout=self.timeout)
             requests.post(f"{self.base_url}/api/schedule/enable?enabled=false", timeout=self.timeout)
 
-            # Send absurdly high target temp (99.0°C) -> hard clamp to 30.0°C
+            # Send absurdly high target temp (99.0°C) -> refused (HTTP 400), the target stays (FR-1.2, C-36)
             r = requests.post(f"{self.base_url}/api/zones/setpoint?id=1&target=99.0", timeout=self.timeout)
-            assert r.status_code == 200, f"Request failed: {r.status_code}"
+            assert r.status_code == 400, f"99 C must be refused with HTTP 400, got {r.status_code}"
             r_z = requests.get(f"{self.base_url}/api/zones", timeout=self.timeout)
             z1 = r_z.json().get("zones", [])[0]
-            assert z1.get("targetTemp") == 30.0, f"Expected upper clamp 30.0°C, got {z1.get('targetTemp')}"
+            assert z1.get("targetTemp") == orig_target, f"Refused request changed the target: {orig_target} -> {z1.get('targetTemp')}"
 
             # Send absurdly low target temp (-10.0°C) -> hard clamp to 15.0°C
             requests.post(f"{self.base_url}/api/zones/setpoint?id=1&target=-10.0", timeout=self.timeout)
