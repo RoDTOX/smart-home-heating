@@ -1068,6 +1068,12 @@ bool ThermalZoneManager::evaluateTpi(size_t index, float target, uint32_t now) {
 float ThermalZoneManager::getEffectiveTargetTemp(size_t index) const {
     if (index >= MAX_THERMAL_ZONES) return DEFAULT_SETPOINT_TEMP;
     if (_statuses[index].isManualHold) return _configs[index].targetTemp;
+    return getScheduleTargetTemp(index);
+}
+
+// FR-1.2: the level the schedule (or away) asks now, ignoring a hold
+float ThermalZoneManager::getScheduleTargetTemp(size_t index) const {
+    if (index >= MAX_THERMAL_ZONES) return DEFAULT_SETPOINT_TEMP;
     if (_scheduleConfig.away) {
         if (_scheduleConfig.awayTemps[index] > 0) return decodeTempByte(_scheduleConfig.awayTemps[index]);
         return _scheduleConfig.levelTemps[LEVEL_AWAY][index];

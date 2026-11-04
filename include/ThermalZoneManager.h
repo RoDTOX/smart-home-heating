@@ -288,6 +288,12 @@ public:
 
     // Effective Target (considers hold, away, schedule & pre-heat)
     float getEffectiveTargetTemp(size_t index) const;
+    float getScheduleTargetTemp(size_t index) const;
+    // FR-1.2: boost only while the held target is above the schedule level
+    bool isBoost(size_t index) const {
+        return index < MAX_THERMAL_ZONES && _statuses[index].isManualHold &&
+               _configs[index].targetTemp > getScheduleTargetTemp(index) + 0.05f;
+    }
 
     // Schedule JSON Serialization
     String getScheduleJson() const;

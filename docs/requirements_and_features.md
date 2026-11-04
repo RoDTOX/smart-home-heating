@@ -127,6 +127,10 @@ one example:
   0.5 °C steps; it never lowers the target (to cool use away, FR-44). Firmware enforces the limits for every
   source (page, API, console). The boost ends as defined in FR-39.
   - *Fallback:* request outside the limits → rejected, current target kept.
+  - A zone is in boost only while its target is above the schedule level: the API reports `scheduleTarget` (the level the
+    schedule asks now) and `isBoost` (true only while the target is more than 0.05 °C above `scheduleTarget` and the
+    hold of FR-39 is active). A target set at or below the schedule level is not a boost (`isBoost` false); the page shows
+    the boost indicator only while `isBoost` is true.
 - **FR-39 (Boost end):** *[now]* {SW; test} A boost ends at the first of: `boostDuration` elapsed, next schedule slot change,
   `POST /api/zones/hold/clear`. The schedule level is never modified by a boost.
   - *Fallback:* no valid time → the boost ends after `boostDuration` measured on uptime.
@@ -357,6 +361,9 @@ one example:
 
 - **FR-10.2 (Diagnostic codes):** *[now]* {SW; test} The controller raises the codes listed in §5 and shows active codes in the
   page and `/api/status`. The web interface provides a dedicated active DTCs panel with code, severity, human-readable cause explanation, and duration, or confirms normal operation when no DTC is active.
+- **FR-10.5 (Pin states):** *[now]* {SW; test} `GET /api/diag/status` reports `pins`: for each pin the board uses (relay outputs
+  GPIO32, GPIO33, GPIO25, GPIO26, 433 MHz transmitter GPIO19, status LED GPIO23) its `name`, `gpio` and the live `level`
+  (0 or 1) read from the chip. Reading changes no pin state. The engineering view shows them as a table (FR-8.1).
 - **FR-10.4 (Basic self-test):** *[now]* {SW; test} `/api/diag/status`, `/api/diag/selftest`, console `DIAG` and the
   engineering view report a list of checks, each with its rule, its measured value and the result `OK` / `FAIL`, or
   `INFO` when the controller cannot verify it. The UI clarifies rules as operating acceptance criteria without ambiguous code prefixes, and supplements checks with operational status for actuators/relays and boiler state. No output is switched; no health score or percentage is reported.
@@ -427,6 +434,8 @@ one example:
     - the sensor search (FR-11.5): the button `Caută senzori`, a Stop button, the remaining time and the list of
       sensors heard, from which a sensor is chosen for a zone;
     - the checks of FR-10.4;
+    - a debug area in this order: the live console, the pin states (FR-10.5), the trace, the signals; the trace and
+      the signals are collapsed until the user opens them;
     - the configuration export, which saves the answer of GET /api/config/export as a .json file, and the
       import: upon selecting a file, the page parses the JSON, renders a diff preview comparing incoming settings
       against current configuration (GET /api/config/export), warns on invalid parameters against §6 ranges and

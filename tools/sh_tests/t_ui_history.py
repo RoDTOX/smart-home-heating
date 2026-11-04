@@ -961,3 +961,76 @@ class UiHistoryTests:
                     f"gasTodayM3 {gm['gasTodayM3']} above 24 h x gasFlowMeasured {24 * v:.3f}"
             return f"today {gm['gasTodayM3']}, yesterday {gm['gasYesterdayM3']}, flow {v}"
         return self._gas_result("SWE.5-TC21.17", "Gas Today Yesterday Consistent", run)
+
+    # ---------------------------------------------------------
+    # Page feedback after step 4: boost indicator, pin states, debug area layout
+    # ---------------------------------------------------------
+
+    def test_tc19_18_boost_only_above_schedule(self):
+        """SWE.5-TC19.18: isBoost is true only while the target is above scheduleTarget (FR-1.2)"""
+        test_id = "SWE.5-TC19.18"
+        name = "Boost Only Above Schedule"
+        req = "FR-1.2"
+        start = time.time()
+        zid = 0
+        try:
+            zid = requests.get(f"{self.base_url}/api/zones", timeout=self.timeout).json()["zones"][0]["id"]
+            def zone():
+                r = requests.get(f"{self.base_url}/api/zones", timeout=self.timeout)
+                return [x for x in r.json()["zones"] if x["id"] == zid][0]
+            z = zone()
+            assert "scheduleTarget" in z and "isBoost" in z, "Missing scheduleTarget / isBoost in /api/zones"
+            sched = z["scheduleTarget"]
+            assert 16.0 <= sched <= 28.0, f"scheduleTarget {sched} out of testable range"
+            requests.post(f"{self.base_url}/api/zones/setpoint?id={zid}&target={sched + 1.0:.1f}", timeout=self.timeout)
+            z = zone()
+            assert z["isBoost"] is True, f"target {sched + 1.0} above schedule {sched}: expected isBoost true, got {z['isBoost']}"
+            requests.post(f"{self.base_url}/api/zones/setpoint?id={zid}&target={sched - 1.0:.1f}", timeout=self.timeout)
+            z = zone()
+            assert z["isBoost"] is False, f"target {sched - 1.0} below schedule {sched}: expected isBoost false, got {z['isBoost']}"
+            return TestResult(test_id, name, req, "PASS", (time.time() - start) * 1000, f"schedule {sched}: +1.0 boost, -1.0 no boost")
+        except Exception as e:
+            return TestResult(test_id, name, req, "FAIL", (time.time() - start) * 1000, str(e))
+        finally:
+            requests.post(f"{self.base_url}/api/zones/hold/clear?id={zid}", timeout=self.timeout)
+
+    def test_tc19_19_pin_states(self):
+        """SWE.5-TC19.19: /api/diag/status reports pins GPIO32/33/25/26/19/23 with level 0 or 1 (FR-10.5)"""
+        test_id = "SWE.5-TC19.19"
+        name = "Pin States Reported"
+        req = "FR-10.5"
+        start = time.time()
+        try:
+            r = requests.get(f"{self.base_url}/api/diag/status", timeout=self.timeout)
+            assert r.status_code == 200, f"HTTP {r.status_code}"
+            pins = r.json().get("pins")
+            assert isinstance(pins, list), f"pins missing or not a list: {pins!r}"
+            by_gpio = {p.get("gpio"): p for p in pins}
+            for g in (32, 33, 25, 26, 19, 23):
+                assert g in by_gpio, f"GPIO{g} missing in pins"
+                p = by_gpio[g]
+                assert p.get("name"), f"GPIO{g} has no name"
+                assert p.get("level") in (0, 1), f"GPIO{g} level {p.get('level')!r} not 0 or 1"
+            return TestResult(test_id, name, req, "PASS", (time.time() - start) * 1000, f"{len(pins)} pins read")
+        except Exception as e:
+            return TestResult(test_id, name, req, "FAIL", (time.time() - start) * 1000, str(e))
+
+    def test_tc19_20_debug_area_layout(self):
+        """SWE.5-TC19.20: debug area order console, pins, trace, signals; trace and signals collapsed (FR-8.1)"""
+        test_id = "SWE.5-TC19.20"
+        name = "Debug Area Layout"
+        req = "FR-8.1"
+        start = time.time()
+        try:
+            html = requests.get(f"{self.base_url}/", timeout=self.timeout).text
+            order = ["consoleTerminal", 'id="pinsTable"', 'id="dbgTrace"', 'id="dbgWatch"']
+            pos = [html.find(k) for k in order]
+            assert all(p >= 0 for p in pos), f"Missing parts in the page: {[k for k, p in zip(order, pos) if p < 0]}"
+            assert pos == sorted(pos), f"Wrong order of the debug area parts: {dict(zip(order, pos))}"
+            for d in ("dbgTrace", "dbgWatch"):
+                m = re.search(r'<details[^>]*id="%s"[^>]*>' % d, html)
+                assert m, f"{d} is not a details element"
+                assert " open" not in m.group(0), f"{d} is open by default: {m.group(0)}"
+            return TestResult(test_id, name, req, "PASS", (time.time() - start) * 1000, "order and collapsed state verified")
+        except Exception as e:
+            return TestResult(test_id, name, req, "FAIL", (time.time() - start) * 1000, str(e))

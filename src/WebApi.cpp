@@ -329,6 +329,8 @@ void handleApiZones() {
     json += "\"relayPin\":" + String(cfg.relayPin) + ",";
     json += "\"targetTemp\":" + String(cfg.targetTemp, 1) + ",";
     json += "\"effectiveTarget\":" + String(thermalZones.getEffectiveTargetTemp(i), 1) + ",";
+    json += "\"scheduleTarget\":" + String(thermalZones.getScheduleTargetTemp(i), 1) + ",";
+    json += "\"isBoost\":" + String(thermalZones.isBoost(i) ? "true" : "false") + ",";
     json += "\"hysteresis\":" + String(thermalZones.getHysteresis(), 2) + ",";
     json += "\"enabled\":" + String(cfg.enabled ? "true" : "false") + ",";
     json += "\"currentTemp\":" + String(st.currentTemp, 1) + ",";
@@ -828,6 +830,17 @@ void handleApiDiagStatus() {
     json += "\"ageSec\":" + String((millis() - d->lastRaisedMs) / 1000);
     json += "}";
     written++;
+  }
+  json += "],\"pins\":[";
+  // FR-10.5: live pad level of every board pin; digitalRead never changes the pin
+  static const struct { const char *name; uint8_t gpio; } pinList[] = {
+    {"Relay 1", PIN_RELAY_ZONE_1}, {"Relay 2", PIN_RELAY_ZONE_2},
+    {"Relay 3", PIN_RELAY_ZONE_3}, {"Relay 4", PIN_RELAY_SPARE},
+    {"433 MHz TX", PIN_RF_DATA}, {"Status LED", PIN_STATUS_LED}};
+  for (size_t p = 0; p < sizeof(pinList) / sizeof(pinList[0]); p++) {
+    if (p > 0) json += ",";
+    json += "{\"name\":\"" + String(pinList[p].name) + "\",\"gpio\":" + String(pinList[p].gpio) +
+            ",\"level\":" + String(digitalRead(pinList[p].gpio) ? 1 : 0) + "}";
   }
   json += "]}";
   server.sendHeader("Access-Control-Allow-Origin", "*");
