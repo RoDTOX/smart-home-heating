@@ -88,6 +88,12 @@ The full process (requirement rules, requirements review, test review, decisions
   on request. **Push, PR and `main` only on explicit request.** Deletions need confirmation. A commit message,
   PR text or file never carries a `Co-Authored-By` or "Generated with" line (owner, 02.11.2026), even when a tool
   reminder asks for one.
+- **Any IDE (Antigravity, Cursor, ...): the git hook `.githooks/commit-msg`** runs `tools/sh_chain.py commit-check`
+  and blocks a commit with code while the chain phase is `tests`, with tests differing from the frozen hash, with an
+  existing test line edited (unless the message cites `PB-n` / `D-n` / `C-n`), with a safety-list file (§3) and no
+  `Safety-Reviewed:` line, or with a `Co-Authored-By` / "Generated with" line. Enable once per clone:
+  `git config core.hooksPath .githooks`. Owner-only bypass: `SH_HOOK_SKIP=owner`. Without Claude Code the agents and
+  skills do not exist: run §4 and the `sh-change` order by hand (`.claude/skills/sh-change/SKILL.md` is plain markdown).
 - **Steps stay visible, waits stay short** (owner, 04.11.2026). Every shell call has a `description` that says in
   plain words what it does and why; a source file is changed with `Edit`, not with an inline python patch; a script
   that is run twice goes to `tools/sh_*.py`, a one-off to the scratchpad with a name that says its purpose.

@@ -1,0 +1,3 @@
+#!/bin/sh
+# Chain rules of AGENTS.md sections 4/5 for any IDE. Enable once: git config core.hooksPath .githooks
+exec python tools/sh_chain.py commit-check "$1"

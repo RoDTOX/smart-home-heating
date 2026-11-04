@@ -893,3 +893,7 @@ efresh() guarded, ocusout debounced).
 ## [04.11.2026] - Page: refusals and errors as a toast fixed to the viewport (owner remark, group test)
 
 - **What:** the refusal line sat in the page footer, off-screen in a maximized window; refusals and the lost-connection message are now a toast (`position: fixed`, top centre, 8 s, tap to close) (FR-8.1, requirement bullet added). Test TC19.21 written first, red on 1.11.04.13, PASS on 1.11.04.14. TC19.18, TC19.20, TC36.5 PASS. The per-panel message lines of the admin view (`cfgMsg`, `zoneMsg`, `gasReadMsg`) sit next to their own buttons and are unchanged. TC19.7 still fails (PB-91, old).
+
+## [04.11.2026] - Chain rules for any IDE: git `commit-msg` hook (owner, Antigravity handover)
+
+- **What:** `tools/sh_chain.py commit-check` + `.githooks/commit-msg` enforce outside Claude Code: tests first (phase `tests` closes code, frozen hash), existing tests edited only with a `PB-n` / `D-n` / `C-n` in the message, no `Co-Authored-By` / "Generated with", `Safety-Reviewed:` line when a safety-list file changes. Owner bypass `SH_HOOK_SKIP=owner` (printed loudly). Enable: `git config core.hooksPath .githooks`. Pointers in AGENTS.md §5 and process.md §5.

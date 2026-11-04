@@ -186,6 +186,10 @@ Work happens on a branch; `main` only receives accepted builds.
 | 7. Merge + tag | Owner merges; tag `vAPP_VERSION` on main (`git tag v1.2.0 && git push --tags`). The next firmware change bumps `APP_VERSION` in `include/Version.h`. | Owner |
 | CI (every push) | `pio run`, then `sh_process_check.py --base … --require-firmware` (trace + reqs + arch + process). Fails only on new ERRORs: an ERROR matched by the `Checker` column of an open or rejected `PB-n` is `KNOWN` (§8) | `.github/workflows/build.yml` |
 
+Plain steps for any IDE (no Claude Code): `git config core.hooksPath .githooks` once; per change
+`python tools/sh_chain.py start "<label>"`, write the tests in `tools/sh_tests/`, run them (red), `sh_chain.py freeze`,
+code, AGENTS.md §4 commands, `sh_chain.py done`; the `commit-msg` hook refuses a commit that breaks this order.
+
 WARN lines do not block a commit, but each one is either fixed or named in the commit body.
 Nothing is pushed before the owner's acceptance (step 3), and only on the owner's explicit request.
 
