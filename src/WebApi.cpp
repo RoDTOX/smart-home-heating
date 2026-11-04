@@ -827,6 +827,11 @@ void handleApiDiagStatus() {
   server.send(200, "application/json", json);
 }
 
+void handleApiDiagEvents() {
+  server.sendHeader("Access-Control-Allow-Origin", "*");
+  server.send(200, "application/json", diagEngine.eventsJson());
+}
+
 void handleApiDiagSelfTest() {
   String report = diagEngine.runSelfTest();
   server.sendHeader("Access-Control-Allow-Origin", "*");
@@ -1403,6 +1408,7 @@ void registerWebRoutes() {
   server.on("/api/mode", HTTP_POST, handleApiMode);
   server.on("/api/ble/sensors", HTTP_GET, handleApiBleSensors);
   server.on("/api/diag/status", HTTP_GET, handleApiDiagStatus);
+  server.on("/api/diag/events", HTTP_GET, handleApiDiagEvents);
   server.on("/api/diag/selftest", HTTP_GET, handleApiDiagSelfTest);
   server.on("/api/diag/clear", HTTP_POST, handleApiDiagClear);
   server.on("/api/diag/exercise", HTTP_POST, handleApiDiagExercise);

@@ -580,3 +580,18 @@ restores them (a test proves it). An old file with `target` skips it as unknown 
 **Decided by**: owner (chat, 03.11.2026), relayed by the main chat.
 **Affects**: FR-35.1, `TelemetryHistoryManager`, `docs/gas_meter_readings_03_11.md`.
 **Consequences**: the readings 2265.304 (15:39) and 2265.996 (21:59) are enough to measure the flow; no manual correction function.
+
+## 2026-11-03 — Event history read path (step 2, FR-62)
+**Context**: FR-62 kept 50 events across reboots but named no way to read them; step 2 cannot be tested without one.
+**Decision**: `GET /api/diag/events` (record fields in FR-62), types limited to `dtc-raised`, `dtc-cleared`, `restart` in step 2. Made by the firmware session as the smallest addition; **pending the owner's confirmation** at the hands-on test of step 2.
+**Decided by**: firmware session (Claude), owner to confirm.
+**Affects**: FR-62, `docs/api_reference.md`, `Diagnostics`.
+**Consequences**: no value or safety behaviour changes; the owner may change the path or fields.
+
+## 2026-11-04 — Unfreeze of step 2 tests (D51)
+
+**Context**: the frozen-tests hash did not match after a `git stash` in the step 2 session; the diff against the frozen tests is only added lines (TC32.1…TC32.3).
+**Decision**: the owner approved the unfreeze in chat on 04.11.2026; no existing test changes.
+**Decided by**: owner.
+**Affects**: `tools/sh_tests/t_health.py`, `tools/sh_test_system.py`, step 2.
+**Consequences**: the session freezes the tests again at the new hash after committing.

@@ -269,7 +269,7 @@ void BoilerRadioTrigger::recordSpamAttempt() {
     _lastSpamAttemptMs = now;
 
     if (_spamAttemptCount >= 3) {
-        diagEngine.raiseDtc("DTC-201", "Rapid boiler toggling / spam detected", SEV_WARNING);
+        diagEngine.raiseDtc(Dtc::WARN_BOILER_SPAM_DETECTED, "Rapid boiler toggling / spam detected", SEV_WARNING);
         netConsole.printf("[RF 433MHz] WARN: Excessive boiler spam detected (%u attempts). Raised DTC-201.\n", _spamAttemptCount);
     }
 }

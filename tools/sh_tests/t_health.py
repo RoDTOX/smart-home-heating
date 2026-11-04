@@ -300,3 +300,100 @@ class HealthTests:
             return TestResult(test_id, name, req, "PASS", latency, details)
         except Exception as e:
             return TestResult(test_id, name, req, "FAIL", (time.time() - start)*1000, str(e))
+
+    # ---------------------------------------------------------
+    # Group 32: Diagnostics - DTC codes of requirements section 5, event history (step 2)
+    # ---------------------------------------------------------
+
+    DTC_CODES_S5 = ["DTC-101", "DTC-102", "DTC-103", "DTC-104", "DTC-105",
+                    "DTC-201", "DTC-202", "DTC-203", "DTC-204", "DTC-205", "DTC-206", "DTC-207", "DTC-208",
+                    "DTC-301", "DTC-302", "DTC-303", "DTC-304",
+                    "DTC-401", "DTC-402", "DTC-403"]
+    EVENT_TYPES_STEP2 = ["dtc-raised", "dtc-cleared", "restart"]
+
+    def _t32_events(self):
+        r = requests.get(f"{self.base_url}/api/diag/events", timeout=self.timeout)
+        assert r.status_code == 200, f"/api/diag/events answered {r.status_code}"
+        return r.json()
+
+    def test_tc32_1_event_history_format(self):
+        """SWE.5-TC32.1: Event History Record Fields, Newest First, At Most 50 (FR-62)"""
+        test_id = "SWE.5-TC32.1"
+        name = "Event History Format"
+        req = "FR-62"
+        start = time.time()
+        try:
+            data = self._t32_events()
+            latency = (time.time() - start) * 1000
+            events = data.get("events")
+            assert isinstance(events, list), f"events is not a list: {data}"
+            assert data.get("count") == len(events), f"count {data.get('count')} != {len(events)} events"
+            assert len(events) <= 50, f"{len(events)} events, FR-62 keeps the last 50"
+            for e in events:
+                for key in ("time", "timeValid", "type", "code", "zone", "value"):
+                    assert key in e, f"event without '{key}': {e}"
+                assert e["type"] in self.EVENT_TYPES_STEP2, f"unknown event type {e['type']}"
+                assert isinstance(e["timeValid"], bool), f"timeValid is not a boolean: {e}"
+            valid = [e for e in events if e["timeValid"]]
+            times = [e["time"] for e in valid]
+            assert times == sorted(times, reverse=True), f"events with a valid time are not newest first: {times}"
+            assert any(e["type"] == "restart" for e in events), "no restart event: the boot of the controller is recorded"
+            details = f"{len(events)} events, newest first, fields and types as in FR-62"
+            return TestResult(test_id, name, req, "PASS", latency, details)
+        except Exception as e:
+            return TestResult(test_id, name, req, "FAIL", (time.time() - start)*1000, str(e))
+
+    def test_tc32_2_dtc_raise_and_clear_recorded(self):
+        """SWE.5-TC32.2: Every DTC Raise and Clear Is Recorded in the Event History (FR-62, FR-17.5)"""
+        test_id = "SWE.5-TC32.2"
+        name = "DTC Raise and Clear Recorded"
+        req = "FR-62, FR-17.5"
+        start = time.time()
+        try:
+            requests.post(f"{self.base_url}/api/diag/clear", timeout=self.timeout)
+            before = self._t32_events().get("events", [])
+            n_raised = sum(1 for e in before if e["type"] == "dtc-raised" and e["code"] == "DTC-201")
+            n_cleared = sum(1 for e in before if e["type"] == "dtc-cleared" and e["code"] == "DTC-201")
+            # DTC-201: more than 3 rejected boiler requests within 10 s (requirements section 5)
+            for _ in range(5):
+                requests.post(f"{self.base_url}/api/boiler/on", timeout=self.timeout)
+                time.sleep(0.08)
+            requests.post(f"{self.base_url}/api/boiler/cancel", timeout=self.timeout)
+            requests.post(f"{self.base_url}/api/boiler/off?force=true", timeout=self.timeout)
+            time.sleep(1.5)  # the controller writes the queued events from its loop
+            dtcs = requests.get(f"{self.base_url}/api/diag/status", timeout=self.timeout).json().get("dtcs", [])
+            assert any(d.get("code") == "DTC-201" for d in dtcs), f"DTC-201 not raised by 5 rejected requests: {dtcs}"
+            mid = self._t32_events().get("events", [])
+            n_raised2 = sum(1 for e in mid if e["type"] == "dtc-raised" and e["code"] == "DTC-201")
+            assert n_raised2 > n_raised or n_raised2 >= 6, f"no dtc-raised DTC-201 event ({n_raised} -> {n_raised2})"
+            requests.post(f"{self.base_url}/api/diag/clear", timeout=self.timeout)
+            time.sleep(1.5)
+            after = self._t32_events().get("events", [])
+            n_cleared2 = sum(1 for e in after if e["type"] == "dtc-cleared" and e["code"] == "DTC-201")
+            latency = (time.time() - start) * 1000
+            assert n_cleared2 > n_cleared or n_cleared2 >= 6, f"no dtc-cleared DTC-201 event ({n_cleared} -> {n_cleared2})"
+            details = "DTC-201 raise and clear both appear in the event history"
+            return TestResult(test_id, name, req, "PASS", latency, details)
+        except Exception as e:
+            requests.post(f"{self.base_url}/api/boiler/cancel", timeout=self.timeout)
+            requests.post(f"{self.base_url}/api/boiler/off?force=true", timeout=self.timeout)
+            return TestResult(test_id, name, req, "FAIL", (time.time() - start)*1000, str(e))
+
+    def test_tc32_3_only_defined_codes_exist(self):
+        """SWE.5-TC32.3: Only the Codes of Requirements Section 5 Appear in Status and History (FR-10.2)"""
+        test_id = "SWE.5-TC32.3"
+        name = "Only Defined DTC Codes"
+        req = "FR-10.2"
+        start = time.time()
+        try:
+            dtcs = requests.get(f"{self.base_url}/api/diag/status", timeout=self.timeout).json().get("dtcs", [])
+            events = self._t32_events().get("events", [])
+            latency = (time.time() - start) * 1000
+            seen = [d.get("code") for d in dtcs] + [e["code"] for e in events if e["type"] != "restart"]
+            bad = [c for c in seen if c not in self.DTC_CODES_S5]
+            assert not bad, f"codes that are not in requirements section 5: {sorted(set(bad))}"
+            assert all(e["code"] == "" for e in events if e["type"] == "restart"), "a restart event carries a DTC code"
+            details = f"{len(seen)} codes seen, all in the list of requirements section 5"
+            return TestResult(test_id, name, req, "PASS", latency, details)
+        except Exception as e:
+            return TestResult(test_id, name, req, "FAIL", (time.time() - start)*1000, str(e))

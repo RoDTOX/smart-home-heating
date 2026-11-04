@@ -169,6 +169,10 @@ class SystemTestSuite(SuiteBase, HealthTests, HydraulicsTests, ControlTests, UiH
             self.test_tc31_12_events_hold_no_secret_field,
             self.test_tc31_13_profile_and_open_console,
             self.test_tc31_14_dev_open_command_event,
+            # Group 32: Diagnostics (step 2)
+            self.test_tc32_1_event_history_format,
+            self.test_tc32_2_dtc_raise_and_clear_recorded,
+            self.test_tc32_3_only_defined_codes_exist,
             # Group 23: FSM Relay Decoupling & Safety Invariant (FR-37)
             self.test_tc23_1_fsm_instant_warmup_abort_contract,
             self.test_tc23_2_orphaned_relay_safety_invariant,

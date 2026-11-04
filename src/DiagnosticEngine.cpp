@@ -4,84 +4,233 @@
 #include "NetworkConsole.h"
 #include "ThermalZoneManager.h"
 #include "TimeAndWeatherService.h"
+#include <LittleFS.h>
 #include <WiFi.h>
+#include <esp_system.h>
 
 DiagnosticEngine diagEngine;
 
+// Requirements section 5: code text and whether the code is per zone (zone mask), same order as enum Dtc
+static const struct {
+  const char *code;
+  bool perZone;
+} DTC_TABLE[DTC_COUNT] = {
+    {"DTC-101", true},  {"DTC-102", true},  {"DTC-103", true},  {"DTC-104", true},
+    {"DTC-105", true},  {"DTC-201", false}, {"DTC-202", true},  {"DTC-203", true},
+    {"DTC-204", false}, {"DTC-205", false}, {"DTC-206", false}, {"DTC-207", false},
+    {"DTC-208", false}, {"DTC-301", false}, {"DTC-302", false}, {"DTC-303", false},
+    {"DTC-304", false}, {"DTC-401", false}, {"DTC-402", false}, {"DTC-403", false}};
+
+static const char *EVENT_FILE = "/events.bin";
+static const uint16_t EVENT_MAGIC = 0x5645;  // "EV", format 1
+static const size_t EVENT_HEADER = 8;
+static const uint8_t EVENT_NO_CODE = 0xFF;
+static const uint8_t EVENT_REPEAT_LIMIT = 6;  // FR-62: same code and zone, per hour
+static const uint32_t EVENT_REPEAT_WINDOW_S = 3600;
+
 DiagnosticEngine::DiagnosticEngine()
-    : _dtcCount(0), _lastEvaluationMs(0) {
-  for (size_t i = 0; i < MAX_DTC_ENTRIES; i++) {
-    _dtcRecords[i].code[0] = '\0';
+    : _lastEvaluationMs(0), _evHead(0), _evCount(0), _evDirty(0), _fsMounted(false) {
+  for (size_t i = 0; i < DTC_COUNT; i++) {
+    strlcpy(_dtcRecords[i].code, DTC_TABLE[i].code, sizeof(_dtcRecords[i].code));
     _dtcRecords[i].message[0] = '\0';
     _dtcRecords[i].severity = SEV_INFO;
     _dtcRecords[i].firstRaisedMs = 0;
     _dtcRecords[i].lastRaisedMs = 0;
     _dtcRecords[i].occurrenceCount = 0;
     _dtcRecords[i].active = false;
+    _dtcRecords[i].zoneMask = 0;
   }
+  memset(_events, 0, sizeof(_events));
 }
 
 void DiagnosticEngine::begin() {
+  loadEvents();
+  recordRestart((uint32_t)esp_reset_reason());
   Serial.println(F("[DIAG] Diagnostic Engine initialized."));
 }
 
-void DiagnosticEngine::raiseDtc(const char *code, const char *message,
-                                DtcSeverity severity) {
-  if (!code || strlen(code) == 0)
+// FR-62: events survive a reboot; without LittleFS they stay in RAM until reboot
+void DiagnosticEngine::loadEvents() {
+  _fsMounted = LittleFS.begin(true);
+  if (!_fsMounted) {
+    netConsole.println(F("[DIAG][WARN] LittleFS not mounted, events stay in RAM until reboot"));
     return;
-
-  DtcRecord *target = nullptr;
-  for (size_t i = 0; i < _dtcCount; i++) {
-    if (strcasecmp(_dtcRecords[i].code, code) == 0) {
-      target = &_dtcRecords[i];
-      break;
-    }
   }
-
-  if (!target && _dtcCount < MAX_DTC_ENTRIES) {
-    target = &_dtcRecords[_dtcCount++];
-    strncpy(target->code, code, sizeof(target->code) - 1);
-    target->code[sizeof(target->code) - 1] = '\0';
-    target->firstRaisedMs = millis();
-    target->occurrenceCount = 0;
+  File f = LittleFS.open(EVENT_FILE, "r");
+  if (!f)
+    return;
+  uint8_t hdr[EVENT_HEADER];
+  if (f.read(hdr, EVENT_HEADER) == (int)EVENT_HEADER &&
+      (uint16_t)(hdr[0] | (hdr[1] << 8)) == EVENT_MAGIC && hdr[2] < EVENT_RING_SIZE &&
+      hdr[3] <= EVENT_RING_SIZE &&
+      f.read((uint8_t *)_events, sizeof(_events)) == (int)sizeof(_events)) {
+    _evHead = hdr[2];
+    _evCount = hdr[3];
+  } else {
+    memset(_events, 0, sizeof(_events));
   }
-
-  if (target) {
-    strncpy(target->message, message, sizeof(target->message) - 1);
-    target->message[sizeof(target->message) - 1] = '\0';
-    target->severity = severity;
-    target->lastRaisedMs = millis();
-    target->occurrenceCount++;
-
-    if (!target->active) {
-      target->active = true;
-      netConsole.printf("[DIAG-ALERT] %s [%s]: %s\n", target->code,
-                        getSeverityStr(target->severity), target->message);
-    }
-  }
+  f.close();
 }
 
-void DiagnosticEngine::clearDtc(const char *code) {
-  if (!code)
+// One record per event; the header (head, count) is written with it. Called from loop().
+void DiagnosticEngine::flushEvents() {
+  if (!_evDirty || !_fsMounted)
     return;
-  for (size_t i = 0; i < _dtcCount; i++) {
-    if (strcasecmp(_dtcRecords[i].code, code) == 0) {
-      _dtcRecords[i].active = false;
-      netConsole.printf("[DIAG] Cleared code %s\n", code);
-      break;
+  File f = LittleFS.open(EVENT_FILE, LittleFS.exists(EVENT_FILE) ? "r+" : "w");
+  if (!f) {
+    netConsole.println(F("[DIAG][WARN] event file not writable, events stay in RAM"));
+    _evDirty = 0;
+    return;
+  }
+  if (f.size() < EVENT_HEADER + sizeof(_events)) {
+    uint8_t zero[EVENT_HEADER + sizeof(_events)] = {0};
+    f.seek(0);
+    f.write(zero, sizeof(zero));
+  }
+  for (uint8_t slot = 0; slot < EVENT_RING_SIZE; slot++) {
+    if (_evDirty & ((uint64_t)1 << slot)) {
+      f.seek(EVENT_HEADER + slot * sizeof(EventRecord));
+      if (f.write((const uint8_t *)&_events[slot], sizeof(EventRecord)) != sizeof(EventRecord))
+        netConsole.println(F("[DIAG][WARN] event write failed, events stay in RAM"));
     }
   }
+  uint8_t hdr[EVENT_HEADER] = {(uint8_t)(EVENT_MAGIC & 0xFF), (uint8_t)(EVENT_MAGIC >> 8),
+                               _evHead, _evCount, 0, 0, 0, 0};
+  f.seek(0);
+  f.write(hdr, EVENT_HEADER);
+  f.close();
+  _evDirty = 0;
+}
+
+void DiagnosticEngine::addEvent(EventType type, uint8_t code, uint8_t zone, uint32_t value) {
+  time_t epoch = time(nullptr);
+  bool epochValid = epoch > 1700000000;
+  uint32_t now = epochValid ? (uint32_t)epoch : millis() / 1000;
+  uint8_t flags = epochValid ? 1 : 0;
+
+  // At most EVENT_REPEAT_LIMIT records per hour for one code and zone; repeats are counted in the last one
+  if (type != EVT_RESTART) {
+    uint8_t seen = 0;
+    int8_t lastSlot = -1;
+    for (uint8_t i = 0; i < _evCount; i++) {
+      uint8_t slot = (_evHead + EVENT_RING_SIZE - 1 - i) % EVENT_RING_SIZE;
+      const EventRecord &e = _events[slot];
+      if (e.type != type || e.code != code || e.zone != zone || e.flags != flags)
+        continue;
+      if (now - e.time > EVENT_REPEAT_WINDOW_S)
+        break;
+      if (lastSlot < 0)
+        lastSlot = slot;
+      seen++;
+    }
+    if (seen >= EVENT_REPEAT_LIMIT) {
+      _events[lastSlot].value++;  // RAM only: no flash write for a repeat (written with the next record)
+      return;
+    }
+  }
+
+  EventRecord &r = _events[_evHead];
+  memset(&r, 0, sizeof(r));
+  r.time = now;
+  r.value = value;
+  r.type = type;
+  r.code = code;
+  r.zone = zone;
+  r.flags = flags;
+  _evDirty |= (uint64_t)1 << _evHead;
+  _evHead = (_evHead + 1) % EVENT_RING_SIZE;
+  if (_evCount < EVENT_RING_SIZE)
+    _evCount++;
+}
+
+void DiagnosticEngine::recordRestart(uint32_t resetReason) {
+  addEvent(EVT_RESTART, EVENT_NO_CODE, 0, resetReason);
+}
+
+String DiagnosticEngine::eventsJson() const {
+  static const char *TYPES[] = {"dtc-raised", "dtc-cleared", "restart"};
+  String json;
+  json.reserve(96 + _evCount * 110);
+  json = "{\"count\":" + String(_evCount) + ",\"events\":[";
+  for (uint8_t i = 0; i < _evCount; i++) {
+    const EventRecord &e = _events[(_evHead + EVENT_RING_SIZE - 1 - i) % EVENT_RING_SIZE];
+    if (i > 0)
+      json += ",";
+    json += "{\"time\":" + String(e.time);
+    json += String(",\"timeValid\":") + ((e.flags & 1) ? "true" : "false");
+    json += String(",\"type\":\"") + TYPES[e.type < 3 ? e.type : 0] + "\"";
+    json += String(",\"code\":\"") + (e.code < DTC_COUNT ? DTC_TABLE[e.code].code : "") + "\"";
+    json += ",\"zone\":" + String(e.zone);
+    json += ",\"value\":" + String(e.value) + "}";
+  }
+  json += "]}";
+  return json;
+}
+
+void DiagnosticEngine::raiseDtc(Dtc dtc, const char *message, DtcSeverity severity,
+                                uint8_t zone) {
+  size_t idx = (size_t)dtc;
+  if (idx >= DTC_COUNT)
+    return;
+  DtcRecord &t = _dtcRecords[idx];
+  bool wasActive = t.active;
+  bool newZone = false;
+  if (DTC_TABLE[idx].perZone && zone >= 1 && zone <= 32) {
+    uint32_t bit = (uint32_t)1 << (zone - 1);
+    newZone = !(t.zoneMask & bit);
+    t.zoneMask |= bit;
+  } else {
+    zone = 0;
+  }
+
+  if (t.occurrenceCount == 0)
+    t.firstRaisedMs = millis();
+  strlcpy(t.message, message ? message : "", sizeof(t.message));
+  t.severity = severity;
+  t.lastRaisedMs = millis();
+  t.occurrenceCount++;
+  t.active = true;
+
+  if (!wasActive) {
+    netConsole.printf("[DIAG-ALERT] %s [%s]: %s\n", t.code, getSeverityStr(t.severity),
+                      t.message);
+  }
+  if (!wasActive || newZone)
+    addEvent(EVT_DTC_RAISED, (uint8_t)idx, zone, 0);
+}
+
+void DiagnosticEngine::clearDtc(Dtc dtc, uint8_t zone) {
+  size_t idx = (size_t)dtc;
+  if (idx >= DTC_COUNT || !_dtcRecords[idx].active)
+    return;
+  DtcRecord &t = _dtcRecords[idx];
+  if (!DTC_TABLE[idx].perZone || zone > 32)
+    zone = 0;
+  uint32_t bit = zone ? ((uint32_t)1 << (zone - 1)) : 0;
+  if (bit && (t.zoneMask & bit)) {
+    t.zoneMask &= ~bit;
+    addEvent(EVT_DTC_CLEARED, (uint8_t)idx, zone, 0);
+    if (t.zoneMask)
+      return;  // another zone still has the code
+  } else if (bit && t.zoneMask) {
+    return;  // this zone does not hold the code, others do
+  } else {
+    t.zoneMask = 0;
+    addEvent(EVT_DTC_CLEARED, (uint8_t)idx, zone, 0);
+  }
+  t.active = false;
+  netConsole.printf("[DIAG] Cleared code %s\n", t.code);
 }
 
 void DiagnosticEngine::clearAllDtcs() {
-  for (size_t i = 0; i < _dtcCount; i++) {
-    _dtcRecords[i].active = false;
+  for (size_t i = 0; i < DTC_COUNT; i++) {
+    clearDtc((Dtc)i);
   }
   netConsole.println(F("[DIAG] All active DTC codes cleared."));
 }
 
 const DtcRecord *DiagnosticEngine::getDtc(size_t index) const {
-  if (index < _dtcCount) {
+  if (index < DTC_COUNT) {
     return &_dtcRecords[index];
   }
   return nullptr;
@@ -103,6 +252,7 @@ const char *DiagnosticEngine::getSeverityStr(DtcSeverity sev) const {
 }
 
 void DiagnosticEngine::update() {
+  flushEvents();
   uint32_t now = millis();
   if (now - _lastEvaluationMs < 10000UL) {
     return;
@@ -127,14 +277,14 @@ void DiagnosticEngine::evaluateSensors() {
       char buf[48];
       snprintf(buf, sizeof(buf), "%s timeout (%u min)", s->name,
                (unsigned int)(ageSec / 60));
-      raiseDtc("DTC-101", buf, SEV_ERROR);
+      raiseDtc(Dtc::ERR_SENSOR_TIMEOUT, buf, SEV_ERROR);
     }
 
     // 2. Low battery (< 20%)
     if (s->battery > 0 && s->battery < 20) {
       char buf[48];
       snprintf(buf, sizeof(buf), "%s battery low (%u%%)", s->name, s->battery);
-      raiseDtc("DTC-102", buf, SEV_WARNING);
+      raiseDtc(Dtc::WARN_BATTERY_LOW, buf, SEV_WARNING);
     }
 
     // 3. Spurious out of range
@@ -142,7 +292,7 @@ void DiagnosticEngine::evaluateSensors() {
       char buf[48];
       snprintf(buf, sizeof(buf), "%s abnormal temp (%.1f C)", s->name,
                s->temperature);
-      raiseDtc("DTC-103", buf, SEV_ERROR);
+      raiseDtc(Dtc::ERR_TEMP_OUT_OF_BOUNDS, buf, SEV_ERROR);
     }
   }
 }
@@ -154,12 +304,12 @@ void DiagnosticEngine::evaluateSystem() {
     if (rssi < -82) {
       char buf[48];
       snprintf(buf, sizeof(buf), "Wi-Fi signal degraded (%d dBm)", rssi);
-      raiseDtc("DTC-401", buf, SEV_WARNING);
+      raiseDtc(Dtc::WARN_WIFI_SIGNAL_DEGRADED, buf, SEV_WARNING);
     } else if (rssi >= -78) {
-      clearDtc("DTC-401");
+      clearDtc(Dtc::WARN_WIFI_SIGNAL_DEGRADED);
     }
   } else {
-    raiseDtc("DTC-401", "Wi-Fi link disconnected", SEV_WARNING);
+    raiseDtc(Dtc::WARN_WIFI_SIGNAL_DEGRADED, "Wi-Fi link disconnected", SEV_WARNING);
   }
 
   // Free heap memory check (hysteresis: raise at <60 KB, clear at >75 KB)
@@ -168,16 +318,16 @@ void DiagnosticEngine::evaluateSystem() {
     char buf[48];
     snprintf(buf, sizeof(buf), "Free heap memory low (%u KB)",
              (unsigned int)(heap / 1024));
-    raiseDtc("DTC-402", buf, SEV_WARNING);
+    raiseDtc(Dtc::WARN_HEAP_FRAGMENTATION, buf, SEV_WARNING);
   } else if (heap > 75000) {
-    clearDtc("DTC-402");
+    clearDtc(Dtc::WARN_HEAP_FRAGMENTATION);
   }
 
   // Learned value discarded at load (NFR-5.3); cleared only manually (DIAG CLEAR)
   static bool learningResetRaised = false;
   if (paramStore.learnedResets() > 0 && !learningResetRaised) {
     learningResetRaised = true;
-    raiseDtc("DTC-301", "Learned duty out of bounds, reset", SEV_WARNING);
+    raiseDtc(Dtc::WARN_LEARNING_RESET, "Learned duty out of bounds, reset", SEV_WARNING);
   }
 }
 
@@ -274,7 +424,7 @@ String DiagnosticEngine::checksJson() const {
 
 size_t DiagnosticEngine::getActiveDtcCount() const {
   size_t n = 0;
-  for (size_t i = 0; i < _dtcCount; i++) {
+  for (size_t i = 0; i < DTC_COUNT; i++) {
     if (_dtcRecords[i].active)
       n++;
   }
@@ -302,7 +452,7 @@ String DiagnosticEngine::runSelfTest() {
   size_t activeCount = getActiveDtcCount();
   out += "--------------------------------------------------\n";
   out += "Active Diagnostic DTCs:   " + String(activeCount) + "\n";
-  for (size_t i = 0; i < _dtcCount; i++) {
+  for (size_t i = 0; i < DTC_COUNT; i++) {
     if (_dtcRecords[i].active) {
       out += "  * [" + String(_dtcRecords[i].code) + "] " +
              String(getSeverityStr(_dtcRecords[i].severity)) + ": " +

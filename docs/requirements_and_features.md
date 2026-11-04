@@ -375,6 +375,7 @@ one example:
 - **FR-62 (Event history and alarms):** *[now]* {SW; test} The last 50 safety events (DTC raised / cleared, frost, FAULT,
   watchdog reset, controlled restart) are kept across reboots with time stamp (uptime if time is not set), written
   only when an event occurs. Alarms are shown in the page and `/api/status`; there is no push channel.
+  - *Read:* `GET /api/diag/events` returns `{"count":n,"events":[{"time":n,"timeValid":bool,"type":"dtc-raised|dtc-cleared|restart","code":"DTC-nnn"|"","zone":n,"value":n}]}`, newest first, at most 50 (`time` is epoch seconds when `timeValid`, else uptime seconds). `restart` carries the reset reason in `value` (`esp_reset_reason_t`). The same code and zone is recorded at most 6 times per hour; further repeats are counted in `value` of the last record. Other event types (frost, FAULT, season change, OTA) are added by the steps that build them.
   - *Fallback:* event store cannot be written → events are kept in RAM until reboot, with a log line.
 - **FR-21 (Firmware identity):** *[now]* {SW; test} Version, build date and time, git commit and reset reason are reported in
   status, console `STATUS` and the boot message.

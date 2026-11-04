@@ -139,7 +139,7 @@ void updateWifiWatchdog() {
       digitalWrite(PIN_STATUS_LED, LOW);
       netConsole.printf("[WiFi][RECOVERED] Reconnected successfully! Local IP: %s (RSSI: %d dBm)\n",
                         WiFi.localIP().toString().c_str(), WiFi.RSSI());
-      diagEngine.clearDtc("DTC-401");
+      diagEngine.clearDtc(Dtc::WARN_WIFI_SIGNAL_DEGRADED);
     }
   } else {
     if (_wifiWasConnected) {
@@ -147,7 +147,7 @@ void updateWifiWatchdog() {
       _wifiDisconnectMs = now;
       digitalWrite(PIN_STATUS_LED, HIGH); // Status LED ON indicates connection lost
       netConsole.println(F("[WiFi][WARN] Wi-Fi connection lost! Initiating auto-recovery..."));
-      diagEngine.raiseDtc("DTC-401", "Wi-Fi link disconnected", SEV_WARNING);
+      diagEngine.raiseDtc(Dtc::WARN_WIFI_SIGNAL_DEGRADED, "Wi-Fi link disconnected", SEV_WARNING);
     }
 
     uint32_t disconnectedDurationSec = (now - _wifiDisconnectMs) / 1000;

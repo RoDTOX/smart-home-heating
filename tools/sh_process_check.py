@@ -600,6 +600,7 @@ def format_value(kind, m):
 def check_dtcs(rep, text):
     """One meaning per DTC: defined once in the doc, one symbolic name, raised by the firmware."""
     names, defined, mentioned, unnamed = {}, {}, {}, {}
+    name2code = {}
     for n, line in enumerate(text.splitlines(), 1):
         if "~~" in line:
             continue
@@ -611,6 +612,7 @@ def check_dtcs(rep, text):
                 unnamed.setdefault(code, []).append(n)
         for m in re.finditer(r"`?(DTC-\d+)`?\s*:\s*`((?:ERR|WARN|INFO)_\w+)`", line):
             defined.setdefault(m.group(1), []).append(n)
+            name2code[m.group(2)] = m.group(1)
         if len(set(codes)) == 1:
             for name in line_names:
                 names.setdefault(codes[0], {}).setdefault(name, n)
@@ -623,6 +625,10 @@ def check_dtcs(rep, text):
                     for n, line in enumerate(f, 1):
                         for code in DTC_RAISE_RE.findall(line):
                             raised.setdefault(code, f"{rel}:{n}")
+                        # step 2: the firmware raises a code by its enum name, `raiseDtc(Dtc::ERR_...`
+                        for name in re.findall(r"raiseDtc\(\s*Dtc::(\w+)", line):
+                            if name in name2code:
+                                raised.setdefault(name2code[name], f"{rel}:{n}")
 
     for code in sorted(set(mentioned) | set(raised)):
         if len(defined.get(code, [])) > 1:

@@ -562,7 +562,7 @@ ThermalZoneManager::ZoneResult ThermalZoneManager::deleteZone(size_t index) {
     for (uint8_t l = 0; l < LEVEL_COUNT; l++) _scheduleConfig.levelTemps[l][last] = f.levelTemps[l][last];
     paramStore.saveLearned(last, 0);
     _zoneCount--;
-    diagEngine.clearDtc("DTC-101");  // a DTC of the deleted zone (FR-74); a zone still without a reading raises it again
+    diagEngine.clearDtc(Dtc::ERR_SENSOR_TIMEOUT);  // a DTC of the deleted zone (FR-74); a zone still without a reading raises it again
     persistConfig();
     saveSchedule();
     netConsole.printf("[Thermal] Zone %u deleted\n", (unsigned)(index + 1));
@@ -1516,7 +1516,7 @@ void ThermalZoneManager::update(BoilerRadioTrigger& boiler) {
                     _statuses[i].relayEngaged = false;
                     char dtcMsg[64];
                     snprintf(dtcMsg, sizeof(dtcMsg), "Zone %u sensor timeout >%us - zone shutdown", _configs[i].id, _sensorTimeoutSec);
-                    diagEngine.raiseDtc("DTC-101", dtcMsg, SEV_ERROR);
+                    diagEngine.raiseDtc(Dtc::ERR_SENSOR_TIMEOUT, dtcMsg, SEV_ERROR, _configs[i].id);
                 }
             }
         }
@@ -1540,7 +1540,7 @@ void ThermalZoneManager::update(BoilerRadioTrigger& boiler) {
                     _statuses[i].sensorFault = true;
                     char dtcMsg[64];
                     snprintf(dtcMsg, sizeof(dtcMsg), "Zone %u sensor missing at boot warmup cutoff", _configs[i].id);
-                    diagEngine.raiseDtc("DTC-101", dtcMsg, SEV_ERROR);
+                    diagEngine.raiseDtc(Dtc::ERR_SENSOR_TIMEOUT, dtcMsg, SEV_ERROR, _configs[i].id);
                 }
             }
         }

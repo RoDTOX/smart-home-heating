@@ -7,6 +7,12 @@ Entries before 29.10.2026 (the system before the lean clean-up):
 
 
 
+## [04.11.2026] - Step 2 Diagnostics: DTC enum of requirements §5, event history in LittleFS (FR-62, FR-10.2)
+
+- **Who / when / why:** firmware session (Claude), light mode; migration step 2 (G22).
+- **Where:** `DiagnosticEngine` (enum `Dtc` of the 20 codes, zone masks, ring of 50 records x 16 B in `/events.bin`, repeat limit 6 per hour kept in RAM, `GET /api/diag/events`), callers in `ThermalZoneManager`, `BoilerRadioTrigger`, `main`, `WebApi`; FR-62 read path (decision pending owner, `decisions.md` 2026-11-03); tests SWE.5-TC32.1 ... TC32.3 (red first); `sh_process_check.py` knows `raiseDtc(Dtc::NAME`. Safety review: no BLOCKER; its findings fixed, except PB-116.
+- **Verified:** `pio run`, checker PASS. Board results below once flashed.
+
 ## [03.11.2026] - Records: findings of the C-30 final review and the system test on 1.11.03.37 logged (PB-107 ... PB-115)
 
 - **Who / when / why:** firmware session (Claude), 03.11.2026; the owner: nothing implemented stays undocumented before step 2
