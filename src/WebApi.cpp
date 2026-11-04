@@ -1351,8 +1351,8 @@ void handleApiConfigSystemGet() {
         pi(Param::BoilerFlowObserved), pf(Param::GasFlameRate), pi(Param::BoilerPowerKw));
   o.put("\"gasPrice\":%.2f,\"validMin\":%.1f,\"validMax\":%.1f,\"maxJump\":%.1f,\"manualTimeoutSec\":%ld,\"boostDurationSec\":%ld,",
         pf(Param::GasPrice), pf(Param::ValidMin), pf(Param::ValidMax), pf(Param::MaxJump), pi(Param::ManualTimeout), pi(Param::BoostDuration));
-  o.put("\"heatLimit\":%ld,\"seasonOnDays\":%ld,\"seasonOffDays\":%ld,\"heatingType\":%ld,\"adaptiveWindow\":%s,\"zones\":[", pi(Param::HeatLimit), pi(Param::SeasonOnDays),
-        pi(Param::SeasonOffDays), pi(Param::HeatingType), tf(thermalZones.getHeatingType() == HEATING_TYPE_FLOOR));
+  o.put("\"heatLimit\":%ld,\"seasonOnDays\":%ld,\"seasonOffDays\":%ld,\"heatingType\":%ld,\"boilerLinkType\":%ld,\"adaptiveWindow\":%s,\"zones\":[", pi(Param::HeatLimit), pi(Param::SeasonOnDays),
+        pi(Param::SeasonOffDays), pi(Param::HeatingType), pi(Param::BoilerLinkType), tf(thermalZones.getHeatingType() == HEATING_TYPE_FLOOR));
   for (size_t i = 0; i < thermalZones.getZoneCount(); i++) {
     const auto& z = thermalZones.getConfig(i);
     o.put("%s{\"id\":%d,\"name\":\"%s\",\"mac\":\"%s\",\"relayPin\":%d,\"enabled\":%s}", i > 0 ? "," : "", (int)z.id, z.name,
@@ -1389,9 +1389,12 @@ static const ConfigArg CONFIG_ARGS[] = {
     {"seasonOnDays", Param::SeasonOnDays},
     {"seasonOffDays", Param::SeasonOffDays},
     {"heatingType", Param::HeatingType},
+    {"boilerLinkType", Param::BoilerLinkType},
+    {"hbInterval", Param::HbInterval},
+    {"boilerLinkHeartbeat", Param::BoilerLinkHeartbeat},
 };
 static const char* CONFIG_FLAGS[] = {"openLoopBypass", "rfSafetyHeartbeatEnabled", "pumpControlEnabled",
-                                     "actuatorNormallyClosed"};
+                                     "actuatorNormallyClosed", "boilerLinkHeartbeat"};
 
 static bool isNumber(const String& v) {
   if (v.length() == 0) return false;
@@ -1477,6 +1480,10 @@ void handleApiConfigSystemPost() {
       paramStore.setf(CONFIG_ARGS[k].param, server.arg(CONFIG_ARGS[k].arg).toFloat());
   if (server.hasArg("openLoopBypass")) thermalZones.setOpenLoopBypass(flagOn(server.arg("openLoopBypass")));
   if (server.hasArg("rfSafetyHeartbeatEnabled")) boilerRadio.setSafetyHeartbeatEnabled(flagOn(server.arg("rfSafetyHeartbeatEnabled")));
+  if (server.hasArg("boilerLinkHeartbeat")) boilerRadio.setSafetyHeartbeatEnabled(flagOn(server.arg("boilerLinkHeartbeat")));
+  if (server.hasArg("rfSafetyHeartbeatSec")) boilerRadio.setHeartbeatSec(server.arg("rfSafetyHeartbeatSec").toInt());
+  if (server.hasArg("hbInterval")) boilerRadio.setHeartbeatSec(server.arg("hbInterval").toInt());
+  if (server.hasArg("boilerLinkType")) boilerRadio.setLinkType((BoilerLinkType)server.arg("boilerLinkType").toInt());
   if (server.hasArg("pumpControlEnabled")) thermalZones.setPumpControlEnabled(flagOn(server.arg("pumpControlEnabled")));
   if (server.hasArg("actuatorNormallyClosed")) thermalZones.setActuatorNormallyClosed(flagOn(server.arg("actuatorNormallyClosed")));
   if (server.hasArg("heatingType")) thermalZones.setHeatingType(server.arg("heatingType").toInt());

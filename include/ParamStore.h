@@ -41,6 +41,7 @@ enum class Param : uint8_t {
     SeasonOffDays,       // days    FR-12.2
     SeasonMode,          // 0 = AUTO, 1 = ON, 2 = OFF   FR-12.2
     HeatingType,         // 0 = floor, 1 = radiators   FR-40
+    BoilerLinkType,      // 0 = rf433, 1 = wired, 2 = receiver   FR-55, FR-69
     Count
 };
 

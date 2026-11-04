@@ -35,9 +35,10 @@ from sh_tests.t_history_stream import HistoryStreamTests
 from sh_tests.t_webassets import WebAssetTests
 from sh_tests.t_eventlog import EventLogTests
 from sh_tests.t_commands_auth import CommandsAuthTests
+from sh_tests.t_boiler_link import BoilerLinkTests
 
 
-class SystemTestSuite(SuiteBase, HealthTests, HydraulicsTests, ControlTests, UiHistoryTests, SafetyFeatureTests, ExportImportTests, ZoneTests, ConsoleTests, SafetySupervisorTests, SensorHubTests, WeatherTests, ModeTests, HistoryStreamTests, WebAssetTests, EventLogTests, CommandsAuthTests):
+class SystemTestSuite(SuiteBase, HealthTests, HydraulicsTests, ControlTests, UiHistoryTests, SafetyFeatureTests, ExportImportTests, ZoneTests, ConsoleTests, SafetySupervisorTests, SensorHubTests, WeatherTests, ModeTests, HistoryStreamTests, WebAssetTests, EventLogTests, CommandsAuthTests, BoilerLinkTests):
     # ---------------------------------------------------------
     # Test Runner & Traceability Matrix Evaluation
     # ---------------------------------------------------------
@@ -304,6 +305,11 @@ class SystemTestSuite(SuiteBase, HealthTests, HydraulicsTests, ControlTests, UiH
             self.test_tc41_6_weather_task_stack_budget,
             self.test_tc41_7_dtc402_low_ram_evaluation,
             self.test_tc41_8_admin_credentials_contract,
+            # Group 42: BoilerLink, heartbeat, fail-safe DTC-207 (step 5)
+            self.test_tc42_1_hbinterval_parameter_bounds,
+            self.test_tc42_2_boiler_link_heartbeat_toggle_and_dtc207,
+            self.test_tc42_3_boiler_link_idempotency_and_cooldown,
+            self.test_tc42_4_boiler_link_type_contract,
         ]
         if self.only:   # --only TC34,TC35: run just these groups (name part after test_)
             tests = [t for t in tests if any(t.__name__.startswith("test_" + o.lower() + "_") for o in self.only)]

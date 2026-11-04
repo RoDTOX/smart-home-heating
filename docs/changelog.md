@@ -7,6 +7,19 @@ Entries before 29.10.2026 (the system before the lean clean-up):
 
 
 
+## [05.11.2026] - Step 5: BoilerLink transport abstraction, Rf433Link, ContactLink, hbInterval, and DTC-207 (FR-5.1, FR-17.1..7, FR-55, FR-57, FR-69; C-44, G16, G17)
+
+- **Who / when / why:** firmware session (Antigravity), light process, owner approved Step 5. Decoupled physical boiler transport from control logic into L2 I/O `BoilerLink` interface (P1, P2, AR-9). Encapsulated 433.92 MHz OOK pulse trains into `Rf433Link` and implemented wired dry contact relay `ContactLink` (inherently fail-safe). Addressed G16 (heartbeat runs at configurable `hbInterval`, default 60s, range 30–900s) and G17 (burner guard decoupling). When boiler link heartbeat is disabled or link is not fail-safe, DTC-207 (`WARN_BOILER_LINK_NOT_FAILSAFE`) is raised (FR-55).
+- **Done:**
+  - `include/BoilerLink.h` & `src/BoilerLink.cpp`: created abstract `BoilerLink` base class and concrete `Rf433Link` and `ContactLink` backends.
+  - `include/ParamStore.h` & `src/ParamStore.cpp`: added `Param::BoilerLinkType` (`bltype`, default 0 = rf433, range 0–2, `P_AUTH`).
+  - `include/BoilerRadioTrigger.h` & `src/BoilerRadioTrigger.cpp`: delegated boiler transport to `_activeLink->send()`, heartbeat to `_activeLink->tick()`, and removed redundant PROGMEM RF tables (saving 1.6 KB flash).
+  - `src/DiagnosticEngine.cpp`: evaluates `!boilerRadio.isFailSafe()` and raises `DTC-207 (WARN_BOILER_LINK_NOT_FAILSAFE)` when heartbeat is disabled; auto-clears when enabled.
+  - `src/WebApi.cpp`: exposed `boilerLinkType` in `/api/config/system` (GET and POST), registered `boilerLinkType`, `hbInterval`, `boilerLinkHeartbeat`.
+  - `tools/sh_tests/t_boiler_link.py`: added `SWE.5-TC42.1`..`TC42.4` testing `hbInterval` bounds, DTC-207 toggle on heartbeat disable/enable, idempotency, and link type contract.
+- **Numbers:** firmware binary 1,264,385 B (flash margin 42.2 KB > 40 KB limit), free heap steady >93 KB.
+- **Tests:** `SWE.5-TC42.1`..`TC42.4` written first, red run on old firmware, frozen, now 100% PASS on board (Group 42: 4/4 PASS).
+
 ## [05.11.2026] - Admin credentials management via API, console, and web UI (FR-59, C-43)
 
 - **Who / when / why:** firmware session (Antigravity), light process, owner approved feature. Setting custom credentials via `PASSWD` was only updating `ConsoleAuth` (`console` user), leaving the administrative API credentials (`Commands` / `apicred`) in default state (`admin` / `OTA_PASS`), which kept `DTC-403 (Default credentials active)` permanently raised and blocked index submission with custom credentials.

@@ -5,12 +5,13 @@ Only what holds now and what comes next. A line that no longer holds is replaced
 [`docs/archive/active_context_until_2026-11-02.md`](../../docs/archive/active_context_until_2026-11-02.md).
 
 ## Now
+- Step 5 (BoilerLink, FR-5.1, FR-17.1..7, FR-55, FR-57, FR-69; C-44, G16, G17): L2 I/O transport abstraction built with `Rf433Link` and `ContactLink`. Configurable `boilerLinkType`, `hbInterval` (30–900 s), and fail-safe `DTC-207` raised when heartbeat is disabled and cleared when enabled. Group 42 tests (SWE.5-TC42.1..TC42.4) 100% PASS on board.
 - Admin credentials management via API, console, and web UI (FR-59, C-43): allows changing API administrator username & password via `POST /api/config/credentials`, `ADMINPASS <user> <pass>`, and Web UI (`Sistem & Mentenanță`). Clears DTC-403 when custom credentials with username != 'admin' are set. SWE.5-TC41.8 passes.
 - Telemetry chart accuracy, separate weather axis, and clean reboot markers (FR-34, C-42): fixed activity bar alignment to slot intervals (1:1 tooltip match), added right Y-axis for outdoor weather, removed vertical dotted reboot lines. Live page updated on LittleFS via OTA assets.
 - Adaptive window detection for underfloor heating (15 min sliding baseline, gradual trend drop ≥ 0.40 °C with cold outdoor delta, rebound ≥ 0.30 °C, C-41, FR-40) implemented and verified on board: TC26 suite 7/7 PASS.
 - Heating type configuration (`heatingType`: 0 = floor, 1 = radiators, FR-40, C-40): in floor mode, window detection is visual-only without cutting heat demand or closing valves; in radiator mode, window detection pauses zone heating (closes valve).
 - Step 9 (Commands + authentication) accepted by owner ("ALL OK", row added in `docs/acceptance.md` citing `ee7c762`).
-- Next: Step 5 (`BoilerLink`) of the architecture migration plan (docs/plan.md §18); light process (AGENTS.md section 5).
+- Next: owner hands-on test of Step 5 on board, then Step 7 (`ZoneController`); light process (AGENTS.md section 5).
 - PB-122 fixed in Step 9: `_minHeapSinceCheck` evaluates transient heap dips < 60 KB for DTC-402, auto-clears when heap > 75 KB.
 - PB-115: weather task stack reduced from 6144 B to 4096 B (done). Free heap steady >100 KB (101-102 KB), flash margin 47 KB (limit 1 306 624 B).
 - PB-1: single command path and authentication implemented in `Commands` and `WebApi`.

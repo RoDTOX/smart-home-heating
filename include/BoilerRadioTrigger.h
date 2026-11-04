@@ -3,6 +3,7 @@
 
 #include <Arduino.h>
 #include "EventLog.h"
+#include "BoilerLink.h"
 
 // FR-17 Timing Thresholds & Safety Limits (Defaults)
 #define RF_MIN_COOLDOWN_MS       3000UL   // FR-17.2: fixed minimum silence between two radio frames
@@ -73,6 +74,13 @@ public:
     bool isSafetyHeartbeatEnabled() const { return _safetyHeartbeatEnabled; }
     void setSafetyHeartbeatEnabled(bool en);
 
+    // L2 BoilerLink interface (Step 5, FR-55)
+    BoilerLink* getActiveLink() { return _activeLink; }
+    const BoilerLink* getActiveLink() const { return _activeLink; }
+    bool isFailSafe() const { return _activeLink ? _activeLink->isFailSafe() : false; }
+    BoilerLinkType getLinkType() const { return _activeLink ? _activeLink->type() : BoilerLinkType::Rf433; }
+    void setLinkType(BoilerLinkType type);
+
 private:
     void setPending(PendingBoilerAction action, uint8_t why);
     uint8_t _dataPin;
@@ -105,6 +113,10 @@ private:
     uint32_t _lastNvsSaveMs;
 
     void transmitBurst(const uint16_t* durationsTable);
+
+    Rf433Link   _rfLink;
+    ContactLink _contactLink;
+    BoilerLink* _activeLink = nullptr;
 };
 
 extern BoilerRadioTrigger boilerRadio;

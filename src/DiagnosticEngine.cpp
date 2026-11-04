@@ -346,6 +346,13 @@ void DiagnosticEngine::evaluateSystem() {
   } else {
     clearDtc(Dtc::WARN_DEFAULT_CREDENTIALS);
   }
+
+  // FR-55: DTC-207 while boiler link is not fail-safe (e.g. heartbeat disabled)
+  if (!boilerRadio.isFailSafe()) {
+    raiseDtc(Dtc::WARN_BOILER_LINK_NOT_FAILSAFE, "Boiler link heartbeat disabled or not fail-safe", SEV_WARNING);
+  } else {
+    clearDtc(Dtc::WARN_BOILER_LINK_NOT_FAILSAFE);
+  }
 }
 
 static void setCheck(DiagCheck &c, const char *id, const char *rule,
@@ -358,6 +365,11 @@ static void setCheck(DiagCheck &c, const char *id, const char *rule,
 
 // FR-10.4: each check states its rule; nothing is reported as OK that was not measured
 void DiagnosticEngine::runChecks(DiagCheck (&out)[DIAG_CHECK_COUNT]) const {
+  if (!boilerRadio.isFailSafe()) {
+    const_cast<DiagnosticEngine*>(this)->raiseDtc(Dtc::WARN_BOILER_LINK_NOT_FAILSAFE, "Boiler link heartbeat disabled or not fail-safe", SEV_WARNING);
+  } else {
+    const_cast<DiagnosticEngine*>(this)->clearDtc(Dtc::WARN_BOILER_LINK_NOT_FAILSAFE);
+  }
   bool wifiUp = (WiFi.status() == WL_CONNECTED);
   int rssi = wifiUp ? WiFi.RSSI() : 0;
   setCheck(out[0], "wifi", "Wi-Fi up and RSSI >= -82 dBm (DTC-401)",

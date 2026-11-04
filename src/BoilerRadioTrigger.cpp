@@ -3,98 +3,7 @@
 #include "DiagnosticEngine.h"
 #include <pgmspace.h>
 
-#define RF_NUM_STEPS 409
-
-// Nivelurile logice (0 sau 1) pentru fiecare din cele 409 tranzitii
-static const uint8_t rf_states[RF_NUM_STEPS] PROGMEM = {
-    0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1,
-    0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1,
-    0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1,
-    0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1,
-    0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1,
-    0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1,
-    0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1,
-    0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1,
-    0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1,
-    0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1,
-    0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1,
-    0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1,
-    0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1,
-    0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1,
-    0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1,
-    0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1,
-    0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1,
-    0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1,
-    0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1,
-    0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1,
-    0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1,
-    0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1,
-    0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1,
-    0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1,
-    0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1,
-    0, 1, 0, 1, 0, 1, 0, 1, 0,
-};
-
-// Duratele in microsecunde pentru comanda de PORNIRE (ON)
-static const uint16_t rf_on_durations[RF_NUM_STEPS] PROGMEM = {
-    65000, 200, 250, 200, 250, 200, 200, 250, 200, 200, 250, 200, 250, 200, 200, 250,
-    200, 250, 200, 200, 250, 200, 250, 200, 200, 250, 200, 250, 200, 200, 250, 200,
-    200, 250, 200, 250, 200, 200, 250, 200, 250, 200, 200, 250, 200, 250, 200, 200,
-    250, 200, 250, 200, 200, 250, 200, 200, 250, 200, 250, 200, 250, 650, 700, 650,
-    450, 200, 500, 150, 500, 200, 450, 200, 200, 450, 200, 450, 200, 450, 500, 150,
-    250, 450, 450, 200, 200, 450, 200, 450, 500, 200, 200, 450, 200, 450, 450, 200,
-    450, 200, 200, 450, 200, 500, 200, 450, 450, 200, 450, 200, 450, 200, 450, 200,
-    500, 200, 450, 200, 450, 200, 450, 200, 500, 200, 450, 200, 450, 200, 450, 200,
-    200, 450, 200, 450, 250, 450, 450, 200, 200, 450, 450, 200, 200, 450, 200, 450,
-    500, 200, 200, 450, 200, 450, 450, 200, 500, 200, 200, 450, 200, 450, 200, 450,
-    450, 200, 450, 200, 500, 200, 450, 200, 450, 200, 450, 200, 450, 200, 450, 200,
-    450, 700, 650, 700, 450, 200, 450, 200, 450, 200, 450, 200, 250, 450, 200, 450,
-    200, 450, 450, 200, 200, 500, 450, 200, 200, 449, 201, 450, 450, 200, 199, 451,
-    199, 500, 451, 200, 450, 200, 200, 450, 200, 450, 200, 450, 500, 200, 450, 200,
-    450, 200, 450, 200, 500, 200, 450, 200, 450, 200, 450, 200, 450, 200, 500, 150,
-    500, 200, 450, 200, 200, 450, 200, 450, 200, 450, 450, 200, 250, 450, 450, 200,
-    200, 450, 200, 450, 500, 200, 200, 450, 200, 450, 450, 200, 450, 200, 200, 450,
-    200, 500, 200, 450, 450, 200, 450, 200, 450, 200, 450, 200, 500, 200, 450, 200,
-    450, 200, 450, 200, 450, 650, 700, 650, 500, 200, 450, 200, 450, 200, 450, 200,
-    200, 500, 200, 450, 200, 450, 450, 200, 200, 450, 450, 200, 200, 500, 200, 450,
-    450, 200, 200, 450, 200, 450, 450, 200, 500, 200, 200, 450, 200, 450, 200, 450,
-    500, 200, 450, 200, 450, 200, 450, 200, 450, 200, 450, 200, 500, 150, 500, 200,
-    450, 200, 450, 200, 450, 200, 450, 200, 250, 450, 200, 450, 200, 450, 450, 200,
-    200, 500, 450, 200, 200, 450, 200, 450, 450, 200, 200, 450, 200, 500, 450, 200,
-    450, 200, 200, 450, 200, 450, 199, 451, 500, 200, 450, 200, 449, 201, 450, 200,
-    500, 199, 451, 200, 450, 200, 450, 200, 65000,
-};
-
-// Duratele in microsecunde pentru comanda de OPRIRE (OFF)
-static const uint16_t rf_off_durations[RF_NUM_STEPS] PROGMEM = {
-    65000, 218, 221, 219, 221, 219, 221, 219, 221, 219, 220, 219, 221, 219, 221, 218,
-    221, 218, 221, 219, 221, 219, 221, 219, 221, 219, 221, 219, 221, 219, 221, 218,
-    221, 219, 221, 219, 221, 219, 221, 219, 221, 219, 221, 219, 221, 218, 221, 219,
-    221, 219, 221, 219, 221, 219, 221, 219, 221, 219, 221, 218, 227, 674, 675, 675,
-    470, 198, 458, 198, 458, 198, 458, 198, 216, 454, 203, 454, 203, 454, 458, 198,
-    216, 454, 458, 198, 203, 454, 203, 454, 471, 198, 203, 454, 203, 454, 458, 198,
-    471, 198, 203, 454, 203, 454, 203, 454, 216, 454, 203, 454, 203, 454, 202, 454,
-    471, 198, 458, 198, 458, 198, 458, 199, 475, 198, 458, 198, 459, 198, 458, 198,
-    216, 454, 203, 454, 203, 454, 458, 198, 216, 453, 459, 198, 203, 454, 203, 454,
-    471, 198, 203, 454, 203, 454, 458, 198, 471, 198, 203, 454, 203, 454, 203, 454,
-    215, 454, 203, 454, 203, 454, 203, 454, 471, 198, 459, 198, 458, 198, 458, 198,
-    442, 675, 675, 675, 469, 198, 459, 198, 458, 198, 458, 198, 216, 454, 203, 454,
-    203, 454, 458, 198, 216, 454, 458, 198, 203, 454, 202, 454, 471, 198, 203, 454,
-    203, 454, 458, 198, 471, 198, 203, 454, 203, 454, 203, 454, 216, 454, 203, 453,
-    203, 454, 203, 454, 471, 198, 459, 198, 458, 198, 458, 198, 476, 198, 458, 198,
-    458, 198, 459, 198, 215, 454, 203, 454, 203, 454, 459, 198, 215, 454, 459, 198,
-    203, 453, 203, 454, 471, 198, 203, 454, 203, 454, 459, 198, 471, 198, 203, 454,
-    203, 453, 203, 454, 216, 454, 203, 454, 203, 454, 203, 454, 471, 198, 458, 198,
-    458, 198, 458, 198, 442, 675, 675, 675, 469, 198, 458, 198, 458, 198, 459, 198,
-    215, 454, 203, 454, 203, 454, 458, 198, 216, 454, 458, 198, 203, 454, 203, 454,
-    471, 198, 203, 454, 203, 453, 459, 198, 471, 198, 203, 453, 203, 454, 203, 454,
-    216, 454, 203, 454, 203, 454, 203, 453, 471, 198, 458, 198, 459, 198, 458, 198,
-    475, 198, 459, 198, 458, 198, 458, 198, 216, 454, 203, 453, 203, 454, 459, 198,
-    215, 454, 458, 198, 203, 454, 203, 454, 471, 198, 203, 454, 203, 454, 458, 198,
-    471, 198, 203, 454, 203, 454, 203, 453, 215, 454, 203, 454, 202, 454, 203, 454,
-    471, 198, 458, 198, 459, 198, 458, 198, 65000,
-};
-
+// RF 409-step timings and pulse trains encapsulated in Rf433Link (BoilerLink.cpp)
 #include "ParamStore.h"
 
 BoilerRadioTrigger boilerRadio;
@@ -104,6 +13,7 @@ BoilerRadioTrigger::BoilerRadioTrigger()
       _lastTxTime(0), _lastStateChangeTime(0), _pendingAction(PENDING_NONE),
       _minRunTimeMs(180000UL), _minPauseTimeMs(180000UL),  // placeholders until loadState()
       _safetyHeartbeatMs(60000UL), _safetyHeartbeatEnabled(true),
+      _activeLink(&_rfLink),
       _spamAttemptCount(0), _lastSpamAttemptMs(0),
       _runtimeTotalSec(0), _runtimeTodaySec(0), _runtimeYesterdaySec(0),
       _runtimeThisMonthSec(0), _runtimeLastMonthSec(0),
@@ -115,6 +25,8 @@ void BoilerRadioTrigger::loadState() {
     _minPauseTimeMs = (uint32_t)paramStore.get(Param::BurnerMinPause) * 1000UL;
     _safetyHeartbeatMs = (uint32_t)paramStore.get(Param::HbInterval) * 1000UL;
     _safetyHeartbeatEnabled = paramStore.get(Param::BoilerLinkHeartbeat) != 0;
+    _rfLink.setHeartbeatIntervalMs(_safetyHeartbeatMs);
+    _rfLink.setHeartbeatEnabled(_safetyHeartbeatEnabled);
     _lastCommandOn = paramStore.state(StateKey::BoilerLastOn) != 0;
     _runtimeTotalSec = paramStore.state(StateKey::RuntimeTotal);
     _runtimeTodaySec = paramStore.state(StateKey::RuntimeToday);
@@ -141,10 +53,12 @@ void BoilerRadioTrigger::saveState() {
 
 void BoilerRadioTrigger::begin(uint8_t dataPin) {
     _dataPin = dataPin;
-    pinMode(_dataPin, OUTPUT);
-    digitalWrite(_dataPin, LOW);
+    _rfLink.begin(_dataPin);
+    _contactLink.begin(0);
+    _activeLink = &_rfLink;
 
     loadState();
+    setLinkType((BoilerLinkType)paramStore.get(Param::BoilerLinkType));
 
     // Safety & Power-Loss Recovery:
     // The physical 433MHz boiler receiver retains whatever state it held before power cut.
@@ -203,18 +117,10 @@ void BoilerRadioTrigger::update() {
         }
     }
 
-    // 2. Periodic safety heartbeat burst (FR-17.7 redundancy)
-    if (_safetyHeartbeatEnabled && _hasTransmittedOnce && _pendingAction == PENDING_NONE && (now - _lastTxTime >= _safetyHeartbeatMs)) {
-        if (_lastCommandOn) {
-            transmitBurst(rf_on_durations);
-        } else {
-            transmitBurst(rf_off_durations);
-        }
-        _lastTxTime = now;
-        eventLog.add(EV_RF, _dataPin, RS_HEARTBEAT, 0, _lastCommandOn ? 1 : 0, _lastCommandOn ? 1 : 0);
-        netConsole.printf("[RF 433MHz][HEARTBEAT] %u s safety refresh burst emitted (%s).\n",
-                          (unsigned int)(_safetyHeartbeatMs / 1000),
-                          _lastCommandOn ? "ON" : "OFF");
+    // 2. Periodic safety heartbeat burst via BoilerLink (FR-17.7, FR-55)
+    if (_activeLink && _pendingAction == PENDING_NONE) {
+        _activeLink->tick(now);
+        _lastTxTime = _activeLink->lastTxMs();
     }
 
     // 3. Periodic runtime accumulation & NVS checkpointing while flame is ON
@@ -319,9 +225,9 @@ bool BoilerRadioTrigger::sendBoilerOn(bool force, uint8_t why) {
         return false;
     }
 
-    netConsole.printf("[RF 433MHz] Transmitting boiler START [ON] command on GPIO%d%s...\n",
+    netConsole.printf("[BoilerLink] Transmitting boiler START [ON] command on GPIO%d%s...\n",
                       _dataPin, force ? " [FORCED]" : "");
-    transmitBurst(rf_on_durations);
+    if (_activeLink) _activeLink->send(true, force);
     bool wasOn = _lastCommandOn;
     _lastCommandOn = true;
     _flameStartTimeMs = millis();
@@ -355,9 +261,9 @@ bool BoilerRadioTrigger::sendBoilerOff(bool force, uint8_t why) {
         }
     }
 
-    netConsole.printf("[RF 433MHz] Transmitting boiler STOP [OFF] command on GPIO%d%s...\n",
+    netConsole.printf("[BoilerLink] Transmitting boiler STOP [OFF] command on GPIO%d%s...\n",
                       _dataPin, force ? " [FORCED]" : "");
-    transmitBurst(rf_off_durations);
+    if (_activeLink) _activeLink->send(false, force);
 
     if (_lastCommandOn && _flameStartTimeMs > 0) {
         uint32_t now = millis();
@@ -389,24 +295,7 @@ bool BoilerRadioTrigger::sendBoilerOff(bool force, uint8_t why) {
 }
 
 void BoilerRadioTrigger::transmitBurst(const uint16_t* durationsTable) {
-    // 1. Preamble silence (step 0 is 65ms LOW)
-    digitalWrite(_dataPin, LOW);
-    delay(65);
-
-    // 2. Active OOK modulated pulse train (~131ms with interrupts disabled for microsecond precision)
-    noInterrupts();
-    for (uint16_t i = 1; i < RF_NUM_STEPS - 1; i++) {
-        uint8_t state = pgm_read_byte_near(rf_states + i);
-        uint16_t duration = pgm_read_word_near(durationsTable + i);
-
-        digitalWrite(_dataPin, state ? HIGH : LOW);
-        delayMicroseconds(duration);
-    }
-    digitalWrite(_dataPin, LOW);
-    interrupts();
-
-    // 3. Postamble silence (final step is 65ms LOW)
-    delay(65);
+    if (_activeLink) _activeLink->resend();
 }
 
 uint32_t BoilerRadioTrigger::getCurrentFlameDurationSec() const {
@@ -483,10 +372,26 @@ bool BoilerRadioTrigger::setMinPauseSec(uint32_t sec) {
 bool BoilerRadioTrigger::setHeartbeatSec(uint32_t sec) {
     if (!paramStore.set(Param::HbInterval, (int32_t)sec)) return false;
     _safetyHeartbeatMs = sec * 1000UL;
+    _rfLink.setHeartbeatIntervalMs(_safetyHeartbeatMs);
     return true;
 }
 
 void BoilerRadioTrigger::setSafetyHeartbeatEnabled(bool en) {
     _safetyHeartbeatEnabled = en;
     paramStore.set(Param::BoilerLinkHeartbeat, en ? 1 : 0);
+    _rfLink.setHeartbeatEnabled(en);
+    if (!isFailSafe()) {
+        diagEngine.raiseDtc(Dtc::WARN_BOILER_LINK_NOT_FAILSAFE, "Boiler link heartbeat disabled or not fail-safe", SEV_WARNING);
+    } else {
+        diagEngine.clearDtc(Dtc::WARN_BOILER_LINK_NOT_FAILSAFE);
+    }
+}
+
+void BoilerRadioTrigger::setLinkType(BoilerLinkType type) {
+    if (type == BoilerLinkType::Wired) {
+        _activeLink = &_contactLink;
+    } else {
+        _activeLink = &_rfLink;
+    }
+    paramStore.set(Param::BoilerLinkType, (int32_t)type);
 }

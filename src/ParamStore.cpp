@@ -53,6 +53,7 @@ static const ParamDef PARAMS[(uint8_t)Param::Count] = {
     P("seasonOffDays", "soff", 5, 1, 10, 1, P_NONE),
     P("seasonMode", "smode", 0, 0, 2, 1, P_NONE),
     P("heatingType", "htype", 0, 0, 1, 1, P_AUTH),
+    P("boilerLinkType", "bltype", 0, 0, 2, 1, P_AUTH),
 };
 
 static const char* STATE_KEYS[(uint8_t)StateKey::Count] = {
@@ -300,6 +301,7 @@ void ParamStore::migrateLegacy() {
             take(Param::BurnerMinPause, (int32_t)(prefs.getUInt("min_pause", 180000UL) / 1000UL), "boiler/min_pause");
             take(Param::HbInterval, (int32_t)(prefs.getUInt("hb_ms", 60000UL) / 1000UL), "boiler/hb_ms");
             take(Param::BoilerLinkHeartbeat, prefs.getBool("hb_en", true) ? 1 : 0, "boiler/hb_en");
+            take(Param::BoilerLinkType, (int32_t)prefs.getUChar("bltype", 0), "boiler/bltype");
             _state[(uint8_t)StateKey::BoilerLastOn] = prefs.getBool("last_cmd", false) ? 1 : 0;
             _state[(uint8_t)StateKey::RuntimeTotal] = prefs.getUInt("rt_tot", 0);
             _state[(uint8_t)StateKey::RuntimeToday] = prefs.getUInt("rt_today", 0);
