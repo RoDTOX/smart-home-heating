@@ -903,6 +903,8 @@ void handleApiDiagEvents() {
   server.send(200, "application/json", diagEngine.eventsJson());
 }
 
+extern volatile uint32_t g_wxStackFreeMin;  // TimeAndWeatherService.cpp
+
 // FR-10.6: read-only memory probe, one fixed buffer, no String
 void handleApiDiagMem() {
   multi_heap_info_t i8;
@@ -922,9 +924,11 @@ void handleApiDiagMem() {
   bool first = true;
   for (size_t k = 0; k < sizeof(names) / sizeof(names[0]) && n > 0 && n < (int)sizeof(b) - 64; k++) {
     TaskHandle_t h = xTaskGetHandle(names[k]);
-    if (!h) continue;
-    n += snprintf(b + n, sizeof(b) - n, "%s{\"name\":\"%s\",\"stackFreeMin\":%u}", first ? "" : ",", names[k],
-                  (unsigned)uxTaskGetStackHighWaterMark(h));
+    unsigned hw;
+    if (h) hw = (unsigned)uxTaskGetStackHighWaterMark(h);
+    else if (k == 5 && g_wxStackFreeMin) hw = g_wxStackFreeMin;  // "wx" lives only while it fetches: report the last figure
+    else continue;
+    n += snprintf(b + n, sizeof(b) - n, "%s{\"name\":\"%s\",\"stackFreeMin\":%u}", first ? "" : ",", names[k], hw);
     first = false;
   }
   snprintf(b + n, sizeof(b) - n, "]}");

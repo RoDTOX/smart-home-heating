@@ -167,7 +167,7 @@ void updateWifiWatchdog() {
 
 // Returns visible display character count, properly ignoring UTF-8 continuation bytes (0x80..0xBF)
 void setup() {
-  Serial.setTxBufferSize(4096);
+  Serial.setTxBufferSize(1024);  // NFR-2.2: 3 KB of heap back; the log goes to the network console
   Serial.begin(115200);
   delay(200);
 

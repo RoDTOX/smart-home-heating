@@ -181,8 +181,12 @@ void TimeAndWeatherService::forceWeatherUpdate() {
 
 // The blocking Open-Meteo call runs in its own short-lived task on core 0 (architecture 5.1 network worker), so a slow
 // server never stalls loop(). The task exists only while it polls: no stack is held between polls.
+volatile uint32_t g_wxStackFreeMin = 0;  // FR-10.6: lowest free stack of the fetch task seen so far (0 = no fetch yet)
+
 void TimeAndWeatherService::fetchTask(void* arg) {
     static_cast<TimeAndWeatherService*>(arg)->fetchWeather();
+    uint32_t hw = uxTaskGetStackHighWaterMark(nullptr);
+    if (g_wxStackFreeMin == 0 || hw < g_wxStackFreeMin) g_wxStackFreeMin = hw;
     static_cast<TimeAndWeatherService*>(arg)->_fetching = false;
     vTaskDelete(nullptr);
 }
