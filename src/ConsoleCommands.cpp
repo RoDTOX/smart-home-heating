@@ -125,6 +125,7 @@ void handleSerialCommand(String cmd) {
     if (boilerRadio.hasTransmittedOnce() && boilerRadio.isLastCommandOn()) {
       netConsole.println(F("[BOILER] Boiler is already ON (idempotent no-op)."));
     } else if (!thermalZones.boilerOnPermitted()) {
+      boilerRadio.recordSpamAttempt();
       netConsole.println(F("[BOILER] ON rejected: no zone valve has been open for interlockDelay (FR-2)."));
     } else if (!boilerRadio.canTransmit(true, &waitSec, &isIdempotent)) {
       boilerRadio.recordSpamAttempt();

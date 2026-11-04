@@ -44,6 +44,7 @@ void handleApiOn() {
 
   // 2. Interlock (FR-2): no boiler ON, queued or not, before a zone valve has been energised for interlockDelay
   if (!thermalZones.boilerOnPermitted()) {
+    boilerRadio.recordSpamAttempt();  // a rejected manual request counts for DTC-201 (FR-17.5)
     server.send(409, "application/json", F("{\"status\":\"interlock\",\"error\":\"No zone valve has been open for interlockDelay\",\"boiler\":\"OFF\"}"));
     return;
   }
