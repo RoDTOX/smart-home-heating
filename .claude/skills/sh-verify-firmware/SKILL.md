@@ -68,6 +68,7 @@ python tools/sh_ota_upload.py
 
 Run it in the background and wait for the board to come back (`GET http://192.168.1.20/api/status`)
 before step 6. If the board does not return within ~90 s, stop and report - do not retry the flash.
+The script takes no arguments and flashes at once; do not call it with `--help` or any other probe.
 
 ## 6. System test on the board
 
@@ -77,7 +78,8 @@ Skip if `no-board`.
 python tools/sh_test_system.py
 ```
 
-Writes `docs/system_test_report.md`. Report PASS/FAIL count and every failing test id with its requirement.
+It includes real boiler burns and takes 10 minutes or more: tell the owner so, run it in the background and wait
+for its end (one `Monitor`, or end the turn); never poll in a sleep loop. Writes `docs/system_test_report.md`. Report PASS/FAIL count and every failing test id with its requirement.
 A failing test is a finding about the code or the requirement - never edit the test to make it pass.
 
 ## 7. Board config check

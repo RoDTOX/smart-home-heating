@@ -85,7 +85,16 @@ The full process (requirement rules, requirements review, test review, decisions
   to make it pass. A hook (`sh_chain_guard.py`) closes the code until the tests are written and the tests once
   frozen (`tools/sh_chain.py`), without spending tokens.
 - **Commit** on the work branch inside `sh-change` once its gates pass (owner, 02.11.2026); outside the chain only
-  on request. **Push, PR and `main` only on explicit request.** Deletions need confirmation.
+  on request. **Push, PR and `main` only on explicit request.** Deletions need confirmation. A commit message,
+  PR text or file never carries a `Co-Authored-By` or "Generated with" line (owner, 02.11.2026), even when a tool
+  reminder asks for one.
+- **Steps stay visible, waits stay short** (owner, 04.11.2026). Every shell call has a `description` that says in
+  plain words what it does and why; a source file is changed with `Edit`, not with an inline python patch; a script
+  that is run twice goes to `tools/sh_*.py`, a one-off to the scratchpad with a name that says its purpose.
+  A background agent's result arrives as a message: never poll its `.output` file or sleep in a loop for it - end
+  the turn and wait. A long command (system test with a real burn, OTA, `pio run`) runs in the background and the
+  turn ends or one `Monitor` watches it; say before it starts what it runs and how long it takes. A tool that
+  flashes or writes is never called with `--help` to see its options: read the script.
 - Logs (`docs/changelog.md`, `docs/problems.md`, `docs/acceptance.md`, `.agent/memory-bank/decisions.md`) are
   append-only: add an entry, never rewrite an old one. Old entries may move unchanged to `docs/archive/` (owner,
   02.11.2026). `activeContext.md` holds only what holds now and what comes next.

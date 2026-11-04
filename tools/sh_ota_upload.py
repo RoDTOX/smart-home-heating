@@ -15,6 +15,11 @@ HOST = "192.168.1.20"
 PORT = 80
 BIN_PATH = ".pio/build/esp32dev/firmware.bin"
 
+# The script takes no arguments and flashes at once: "--help" must never start a flash
+if len(sys.argv) > 1:
+    print("usage: python tools/sh_ota_upload.py   (no arguments; flashes .pio/build/esp32dev/firmware.bin to the board)")
+    sys.exit(0 if sys.argv[1] in ("-h", "--help") else 2)
+
 SECRETS_PATH = "include/secrets.h"
 
 if not os.path.exists(BIN_PATH):

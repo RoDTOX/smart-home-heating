@@ -839,3 +839,16 @@ efresh() guarded, ocusout debounced).
   PASS (0 errors); guard and clean-room hook exit codes for the folder in both phases; a changed test file after
   `freeze` gives the ERROR, restored gives PASS. **Not verified:** a run against the board (the suite itself was not
   started; the firmware session owns the board).
+
+## [04.11.2026] - Process: visible steps, no polling, OTA script safe against --help
+
+- **Who / when / why:** process chat (Claude), 04.11.2026; the owner saw the step 2 and step 4 sessions wait ~20 min
+  in sleep loops on an empty file and run steps nobody could follow.
+- **Found:** step 4 waited for the safety reviewer by looping on the agent's `.output` file (always empty: the result
+  comes as a message), 18 min after the reviewer had finished in 5; both sessions edit source with inline python
+  patch scripts; step 2 ran `sh_ota_upload.py --help`, which flashed the board; step 4 again wrote the Co-Authored-By
+  line (removed before any push). Nothing in the skills asked for the polling.
+- **Where:** AGENTS.md §5 (commit text rule, "Steps stay visible, waits stay short"), `sh-verify-firmware` (OTA takes no
+  probe, system test runs 10+ min in the background), `tools/sh_ota_upload.py` (any argument prints usage, no flash).
+- **Verified:** `--help` prints usage and exits 0 without connecting; checker PASS. **Not verified:** that running
+  sessions follow the rule (AGENTS.md is read at session start).
