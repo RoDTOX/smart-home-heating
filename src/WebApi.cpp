@@ -276,86 +276,60 @@ void handleApiGasReadings() {
   server.sendContent("");
 }
 
+// NFR-2.2: a JSON answer is written in chunks from one fixed buffer, never built as a growing String
+struct JsonOut {
+  char b[384];
+  size_t n = 0;
+  JsonOut() {
+    server.sendHeader("Access-Control-Allow-Origin", "*");
+    server.setContentLength(CONTENT_LENGTH_UNKNOWN);
+    server.send(200, "application/json", "");
+  }
+  void flush() {
+    if (n) { server.sendContent(b, n); n = 0; }
+  }
+  void put(const char *fmt, ...) __attribute__((format(printf, 2, 3))) {
+    va_list ap;
+    va_start(ap, fmt);
+    int w = vsnprintf(b + n, sizeof(b) - n, fmt, ap);
+    va_end(ap);
+    if (w >= (int)(sizeof(b) - n)) {  // did not fit: send what is there, write again into the empty buffer
+      flush();
+      va_start(ap, fmt);
+      w = vsnprintf(b, sizeof(b), fmt, ap);
+      va_end(ap);
+    }
+    if (w > 0) n += ((size_t)w < sizeof(b) ? (size_t)w : sizeof(b) - 1);
+  }
+  void text(const String &t) { flush(); server.sendContent(t); }
+  void end() { flush(); server.sendContent(""); }
+};
+static const char *tf(bool v) { return v ? "true" : "false"; }
+
 void handleApiZones() {
-  String json;
-  json.reserve(2560);
-  json = "{";
-  json +=
-      "\"autoMode\":" + String(thermalZones.isAutoMode() ? "true" : "false") +
-      ",";
-  json += "\"boiler\":\"" +
-          String(boilerRadio.isLastCommandOn() ? "ON" : "OFF") + "\",";
+  JsonOut o;
   uint32_t boilerWaitSec = 0;
   boilerRadio.canTransmit(!boilerRadio.isLastCommandOn(), &boilerWaitSec);
-  json += "\"boilerCooldownSec\":" + String(boilerWaitSec) + ",";
-  json += "\"pendingAction\":\"" + String(boilerRadio.getPendingActionStr()) + "\",";
-  json += "\"pendingWaitSec\":" + String(boilerWaitSec) + ",";
-  json += "\"boilerDemand\":" +
-          String(thermalZones.isBoilerDemanded() ? "true" : "false") + ",";
-  json += "\"actuatorType\":\"" +
-          String(thermalZones.isActuatorNormallyClosed() ? "NC" : "NO") + "\",";
-  json += "\"pumpEnabled\":" +
-          String(thermalZones.isPumpControlEnabled() ? "true" : "false") + ",";
-  json += "\"pumpActive\":" +
-          String(thermalZones.isPumpActive() ? "true" : "false") + ",";
-  json += "\"frostGuardActive\":" +
-          String(thermalZones.isFrostProtectionActive() ? "true" : "false") +
-          ",";
-  json += "\"sensorTimeoutSec\":" + String(thermalZones.getSensorTimeoutSec()) + ",";
-  json += "\"lastAntiSeizeEpoch\":" + String(thermalZones.getLastAntiSeizeEpoch()) + ",";
-  json += "\"scheduleEnabled\":" + String(thermalZones.isScheduleEnabled() ? "true" : "false") + ",";
-  json += "\"away\":" + String(thermalZones.isAway() ? "true" : "false") + ",";
-  json += "\"activeLevel\":\"" + String(ThermalZoneManager::getLevelName(thermalZones.getActiveLevel())) + "\",";
-  json += "\"nextLevel\":\"" + String(ThermalZoneManager::getLevelName(thermalZones.getNextLevel())) + "\",";
-  json += "\"minsToNextSlot\":" + String(thermalZones.getMinutesToNextSlot()) + ",";
-  json += "\"preHeatActive\":" + String(thermalZones.isPreHeatActive() ? "true" : "false") + ",";
-  json += "\"boilerRuntime\":{";
-  json += "\"totalSec\":" + String(boilerRadio.getRuntimeTotalSec()) + ",";
-  json += "\"todaySec\":" + String(boilerRadio.getRuntimeTodaySec()) + ",";
-  json += "\"yesterdaySec\":" + String(boilerRadio.getRuntimeYesterdaySec()) + ",";
-  json += "\"thisMonthSec\":" + String(boilerRadio.getRuntimeThisMonthSec()) + ",";
-  json += "\"lastMonthSec\":" + String(boilerRadio.getRuntimeLastMonthSec()) + ",";
-  json += "\"currentBurnSec\":" + String(boilerRadio.getCurrentFlameDurationSec());
-  json += "},";
-  json += "\"zones\":[";
+  o.put("{\"autoMode\":%s,\"boiler\":\"%s\",\"boilerCooldownSec\":%lu,\"pendingAction\":\"%s\",\"pendingWaitSec\":%lu,",
+        tf(thermalZones.isAutoMode()), boilerRadio.isLastCommandOn() ? "ON" : "OFF", (unsigned long)boilerWaitSec,
+        boilerRadio.getPendingActionStr(), (unsigned long)boilerWaitSec);
+  o.put("\"boilerDemand\":%s,\"actuatorType\":\"%s\",\"pumpEnabled\":%s,\"pumpActive\":%s,\"frostGuardActive\":%s,",
+        tf(thermalZones.isBoilerDemanded()), thermalZones.isActuatorNormallyClosed() ? "NC" : "NO",
+        tf(thermalZones.isPumpControlEnabled()), tf(thermalZones.isPumpActive()), tf(thermalZones.isFrostProtectionActive()));
+  o.put("\"sensorTimeoutSec\":%lu,\"lastAntiSeizeEpoch\":%lu,\"scheduleEnabled\":%s,\"away\":%s,",
+        (unsigned long)thermalZones.getSensorTimeoutSec(), (unsigned long)thermalZones.getLastAntiSeizeEpoch(),
+        tf(thermalZones.isScheduleEnabled()), tf(thermalZones.isAway()));
+  o.put("\"activeLevel\":\"%s\",\"nextLevel\":\"%s\",\"minsToNextSlot\":%ld,\"preHeatActive\":%s,",
+        ThermalZoneManager::getLevelName(thermalZones.getActiveLevel()), ThermalZoneManager::getLevelName(thermalZones.getNextLevel()),
+        (long)thermalZones.getMinutesToNextSlot(), tf(thermalZones.isPreHeatActive()));
+  o.put("\"boilerRuntime\":{\"totalSec\":%lu,\"todaySec\":%lu,\"yesterdaySec\":%lu,\"thisMonthSec\":%lu,\"lastMonthSec\":%lu,\"currentBurnSec\":%lu},\"zones\":[",
+        (unsigned long)boilerRadio.getRuntimeTotalSec(), (unsigned long)boilerRadio.getRuntimeTodaySec(),
+        (unsigned long)boilerRadio.getRuntimeYesterdaySec(), (unsigned long)boilerRadio.getRuntimeThisMonthSec(),
+        (unsigned long)boilerRadio.getRuntimeLastMonthSec(), (unsigned long)boilerRadio.getCurrentFlameDurationSec());
 
   for (size_t i = 0; i < thermalZones.getZoneCount(); i++) {
     const ThermalZoneConfig &cfg = thermalZones.getConfig(i);
     const ThermalZoneStatus &st = thermalZones.getStatus(i);
-    if (i > 0)
-      json += ",";
-    json += "{";
-    json += "\"id\":" + String(cfg.id) + ",";
-    json += "\"name\":\"" + String(cfg.name) + "\",";
-    json += "\"sensor\":\"" + String(cfg.sensorName) + "\",";
-    json += "\"sensorMac\":\"" + String(cfg.sensorMac) + "\",";
-    json += "\"relayPin\":" + String(cfg.relayPin) + ",";
-    json += "\"targetTemp\":" + String(cfg.targetTemp, 1) + ",";
-    json += "\"effectiveTarget\":" + String(thermalZones.getEffectiveTargetTemp(i), 1) + ",";
-    json += "\"scheduleTarget\":" + String(thermalZones.getScheduleTargetTemp(i), 1) + ",";
-    json += "\"isBoost\":" + String(thermalZones.isBoost(i) ? "true" : "false") + ",";
-    json += "\"hysteresis\":" + String(thermalZones.getHysteresis(), 2) + ",";
-    json += "\"enabled\":" + String(cfg.enabled ? "true" : "false") + ",";
-    json += "\"currentTemp\":" + String(st.currentTemp, 1) + ",";
-    json +=
-        "\"sensorValid\":" + String(st.sensorValid ? "true" : "false") + ",";
-    json +=
-        "\"sensorFault\":" + String(st.sensorFault ? "true" : "false") + ",";
-    json +=
-        "\"frostActive\":" + String(st.frostActive ? "true" : "false") + ",";
-    json +=
-        "\"windowPauseActive\":" + String(thermalZones.isWindowPauseActive(i) ? "true" : "false") + ",";
-    json +=
-        "\"windowPauseRemainingSec\":" + String(thermalZones.getWindowPauseRemainingSec(i)) + ",";
-    json +=
-        "\"windowDropThreshold\":" + String(thermalZones.getWindowThreshold(), 1) + ",";
-    json +=
-        "\"lastWindowEpoch\":" + String(thermalZones.getWindowLastDetectionEpoch(i)) + ",";
-    json +=
-        "\"lastWindowDurationSec\":" + String(thermalZones.getWindowLastDetectionDurationSec(i)) + ",";
-    json += "\"demand\":" + String(st.demand ? "true" : "false") + ",";
-    json +=
-        "\"relayEngaged\":" + String(st.relayEngaged ? "true" : "false") + ",";
     uint32_t openSec = 0;
     if (st.relayEngaged) {
       if (st.stateChangedMs > 0 && millis() >= st.stateChangedMs) {
@@ -368,29 +342,28 @@ void handleApiZones() {
       // Linear cooling contraction: 120s -> 0s
       if (st.stateChangedMs > 0 && millis() >= st.stateChangedMs) {
         uint32_t offElapsed = (millis() - st.stateChangedMs) / 1000;
-        if (offElapsed < 120) {
-          openSec = 120 - offElapsed;
-        } else {
-          openSec = 0;
-        }
-      } else {
-        openSec = 0;
+        openSec = offElapsed < 120 ? 120 - offElapsed : 0;
       }
     }
-    json += "\"openSec\":" + String(openSec) + ",";
-    json += "\"isManualHold\":" + String(st.isManualHold ? "true" : "false") + ",";
-    json += "\"duty\":" + String((int)(thermalZones.getDuty(i) * 100)) + ",";
-    json += "\"learnedDuty\":" + String(thermalZones.getLearnedDutyPct(i), 1) + ",";
-    json += "\"tempOffset\":" + String(cfg.tempOffset, 1) + ",";
-    json += "\"runtimeTodaySec\":" + String(thermalZones.getZoneRuntimeTodaySec(i)) + ",";
-    json += "\"runtimeYesterdaySec\":" + String(thermalZones.getZoneRuntimeYesterdaySec(i)) + ",";
-    json += "\"state\":\"" + String(thermalZones.getStateCode(i)) + "\"";
-    json += "}";
+    o.put("%s{\"id\":%d,\"name\":\"%s\",\"sensor\":\"%s\",\"sensorMac\":\"%s\",\"relayPin\":%d,",
+          i > 0 ? "," : "", (int)cfg.id, cfg.name, cfg.sensorName, cfg.sensorMac, (int)cfg.relayPin);
+    o.put("\"targetTemp\":%.1f,\"effectiveTarget\":%.1f,\"scheduleTarget\":%.1f,\"isBoost\":%s,\"hysteresis\":%.2f,\"enabled\":%s,",
+          (double)cfg.targetTemp, (double)thermalZones.getEffectiveTargetTemp(i), (double)thermalZones.getScheduleTargetTemp(i),
+          tf(thermalZones.isBoost(i)), (double)thermalZones.getHysteresis(), tf(cfg.enabled));
+    o.put("\"currentTemp\":%.1f,\"sensorValid\":%s,\"sensorFault\":%s,\"frostActive\":%s,\"windowPauseActive\":%s,",
+          (double)st.currentTemp, tf(st.sensorValid), tf(st.sensorFault), tf(st.frostActive), tf(thermalZones.isWindowPauseActive(i)));
+    o.put("\"windowPauseRemainingSec\":%lu,\"windowDropThreshold\":%.1f,\"lastWindowEpoch\":%lu,\"lastWindowDurationSec\":%lu,",
+          (unsigned long)thermalZones.getWindowPauseRemainingSec(i), (double)thermalZones.getWindowThreshold(),
+          (unsigned long)thermalZones.getWindowLastDetectionEpoch(i), (unsigned long)thermalZones.getWindowLastDetectionDurationSec(i));
+    o.put("\"demand\":%s,\"relayEngaged\":%s,\"openSec\":%lu,\"isManualHold\":%s,\"duty\":%d,\"learnedDuty\":%.1f,\"tempOffset\":%.1f,",
+          tf(st.demand), tf(st.relayEngaged), (unsigned long)openSec, tf(st.isManualHold), (int)(thermalZones.getDuty(i) * 100),
+          (double)thermalZones.getLearnedDutyPct(i), (double)cfg.tempOffset);
+    o.put("\"runtimeTodaySec\":%lu,\"runtimeYesterdaySec\":%lu,\"state\":\"%s\"}",
+          (unsigned long)thermalZones.getZoneRuntimeTodaySec(i), (unsigned long)thermalZones.getZoneRuntimeYesterdaySec(i),
+          thermalZones.getStateCode(i));
   }
-  json += "]}";
-
-  server.sendHeader("Access-Control-Allow-Origin", "*");
-  server.send(200, "application/json", json);
+  o.put("]}");
+  o.end();
 }
 
 void handleApiZoneSetpoint() {
@@ -561,35 +534,18 @@ void handleApiZoneSensor() {
 
 void handleApiBleSensors() {
   if (!bleScanner.isSearching()) bleScanner.prune();
-  String json;
-  json.reserve(1536);
-  json = "{";
-  json += "\"scanning\":" + String(bleScanner.isScanning() ? "true" : "false") +
-          ",";
-  json += "\"count\":" + String(bleScanner.getSensorCount()) + ",";
-  json += "\"sensors\":[";
+  JsonOut o;
+  o.put("{\"scanning\":%s,\"count\":%u,\"sensors\":[", tf(bleScanner.isScanning()), (unsigned)bleScanner.getSensorCount());
   for (size_t i = 0; i < bleScanner.getSensorCount(); i++) {
     const BleSensorData *s = bleScanner.getSensor(i);
     if (!s)
       continue;
-    if (i > 0)
-      json += ",";
-    json += "{";
-    json += "\"name\":\"" + String(s->name) + "\",";
-    json += "\"mac\":\"" + String(s->mac) + "\",";
-    json += "\"temp\":" + String(s->temperature, 2) + ",";
-    json += "\"hum\":" + String(s->humidity, 1) + ",";
-    json += "\"bat\":" + String(s->battery) + ",";
-    json += "\"rssi\":" + String(s->rssi) + ",";
-    json += "\"packets\":" + String(s->packetCount) + ",";
-    json +=
-        "\"source\":\"" + String(bleScanner.getSourceStr(s->source)) + "\",";
-    json += "\"ageSec\":" + String((millis() - s->lastSeenMs) / 1000);
-    json += "}";
+    o.put("%s{\"name\":\"%s\",\"mac\":\"%s\",\"temp\":%.2f,\"hum\":%.1f,\"bat\":%d,\"rssi\":%d,\"packets\":%lu,\"source\":\"%s\",\"ageSec\":%lu}",
+          i > 0 ? "," : "", s->name, s->mac, (double)s->temperature, (double)s->humidity, (int)s->battery, (int)s->rssi,
+          (unsigned long)s->packetCount, bleScanner.getSourceStr(s->source), (unsigned long)((millis() - s->lastSeenMs) / 1000));
   }
-  json += "]}";
-  server.sendHeader("Access-Control-Allow-Origin", "*");
-  server.send(200, "application/json", json);
+  o.put("]}");
+  o.end();
 }
 
 void handleApiSetupLocation() {
@@ -824,45 +780,31 @@ void handleApiSetupTime() {
 }
 
 void handleApiDiagStatus() {
-  String json;
-  json.reserve(2048);
-  json = "{";
-  json += "\"checks\":";
-  json += diagEngine.checksJson();
-  json += ",";
-  json += "\"dtcCount\":" + String(diagEngine.getActiveDtcCount()) + ",";
-  json += "\"dtcs\":[";
+  JsonOut o;
+  o.put("{\"checks\":");
+  o.text(diagEngine.checksJson());
+  o.put(",\"dtcCount\":%u,\"dtcs\":[", (unsigned)diagEngine.getActiveDtcCount());
   size_t written = 0;
   for (size_t i = 0; i < diagEngine.getDtcCount(); i++) {
     const DtcRecord *d = diagEngine.getDtc(i);
     if (!d || !d->active)
       continue;
-    if (written > 0)
-      json += ",";
-    json += "{";
-    json += "\"code\":\"" + String(d->code) + "\",";
-    json += "\"severity\":\"" + String(diagEngine.getSeverityStr(d->severity)) +
-            "\",";
-    json += "\"message\":\"" + String(d->message) + "\",";
-    json += "\"count\":" + String(d->occurrenceCount) + ",";
-    json += "\"ageSec\":" + String((millis() - d->lastRaisedMs) / 1000);
-    json += "}";
+    o.put("%s{\"code\":\"%s\",\"severity\":\"%s\",\"message\":\"%s\",\"count\":%lu,\"ageSec\":%lu}", written > 0 ? "," : "",
+          d->code, diagEngine.getSeverityStr(d->severity), d->message, (unsigned long)d->occurrenceCount,
+          (unsigned long)((millis() - d->lastRaisedMs) / 1000));
     written++;
   }
-  json += "],\"pins\":[";
+  o.put("],\"pins\":[");
   // FR-10.5: live pad level of every board pin; digitalRead never changes the pin
   static const struct { const char *name; uint8_t gpio; } pinList[] = {
     {"Relay 1", PIN_RELAY_ZONE_1}, {"Relay 2", PIN_RELAY_ZONE_2},
     {"Relay 3", PIN_RELAY_ZONE_3}, {"Relay 4", PIN_RELAY_SPARE},
     {"433 MHz TX", PIN_RF_DATA}, {"Status LED", PIN_STATUS_LED}};
-  for (size_t p = 0; p < sizeof(pinList) / sizeof(pinList[0]); p++) {
-    if (p > 0) json += ",";
-    json += "{\"name\":\"" + String(pinList[p].name) + "\",\"gpio\":" + String(pinList[p].gpio) +
-            ",\"level\":" + String(digitalRead(pinList[p].gpio) ? 1 : 0) + "}";
-  }
-  json += "]}";
-  server.sendHeader("Access-Control-Allow-Origin", "*");
-  server.send(200, "application/json", json);
+  for (size_t p = 0; p < sizeof(pinList) / sizeof(pinList[0]); p++)
+    o.put("%s{\"name\":\"%s\",\"gpio\":%d,\"level\":%d}", p > 0 ? "," : "", pinList[p].name, (int)pinList[p].gpio,
+          digitalRead(pinList[p].gpio) ? 1 : 0);
+  o.put("]}");
+  o.end();
 }
 
 void handleApiDiagEvents() {
@@ -974,108 +916,59 @@ void handleApiSetupSensorTimeout() {
 }
 
 void handleApiStatus() {
-  String json;
-  json.reserve(2048);
-  json = "{";
-#ifdef SH_DEV_OPEN
-  json += "\"profile\":\"dev-open\",";
-#else
-  json += "\"profile\":\"release\",";
-#endif
-  json += "\"firmwareVersion\":\"" + String(APP_VERSION) + "\",";
-  json += "\"buildDate\":\"" + String(APP_BUILD_DATE " " APP_BUILD_TIME) + "\",";
-  json += "\"gitCommit\":\"" + String(APP_GIT_COMMIT) + "\",";
-  json += "\"resetReason\":\"" + String(getResetReasonStr(esp_reset_reason())) + "\",";
-  json += "\"boiler\":\"" +
-          String(boilerRadio.isLastCommandOn() ? "ON" : "OFF") + "\",";
+  JsonOut o;
   uint32_t bWaitSec = 0;
   boilerRadio.canTransmit(!boilerRadio.isLastCommandOn(), &bWaitSec);
-  json += "\"boilerCooldownSec\":" + String(bWaitSec) + ",";
-  json += "\"pendingAction\":\"" + String(boilerRadio.getPendingActionStr()) + "\",";
-  json += "\"pendingWaitSec\":" + String(bWaitSec) + ",";
-  json += "\"lastTxMs\":" + String(boilerRadio.getLastTransmissionTime()) + ",";
-  json += "\"freeHeap\":" + String(ESP.getFreeHeap()) + ",";
-  json += "\"loopStackFree\":" + String((unsigned)uxTaskGetStackHighWaterMark(nullptr)) + ",";  // FR-23, bytes never used
-  json += "\"rssi\":" + String(WiFi.RSSI()) + ",";
-  json += "\"uptimeSec\":" + String(millis() / 1000) + ",";
-  json += "\"wifiWatchdog\":\"active\",";
-  json += "\"time\":\"" + timeAndWeather.getFormattedTime() + "\",";
-  json += "\"date\":\"" + timeAndWeather.getFormattedDate() + "\",";
-  json += "\"season\":\"" + timeAndWeather.getSeason() + "\",";
-  json += "\"isHeatingSeason\":" +
-          String(thermalZones.isSeasonHeating() ? "true" : "false") + ",";
-  json += "\"seasonMode\":\"" + String(paramStore.get(Param::SeasonMode) == 1 ? "ON" : paramStore.get(Param::SeasonMode) == 2 ? "OFF" : "AUTO") + "\",";
-  json += "\"seasonState\":\"" + String(thermalZones.isSeasonHeating() ? "HEATING" : "SUMMER") + "\",";
-  {
-    ThermalZoneManager::EffMode em = thermalZones.effectiveMode();
-    json += "\"effectiveMode\":\"" + String(em == ThermalZoneManager::EffMode::Manual ? "MANUAL" : em == ThermalZoneManager::EffMode::Off ? "OFF" : "AUTO") + "\",";
-  }
-  json += "\"manualRemainingSec\":" + String(thermalZones.manualRemainingSec()) + ",";
-  json +=
-      "\"outdoorTemp\":" + String(timeAndWeather.getOutdoorTemperature(), 1) +
-      ",";
-  json +=
-      "\"bleScanning\":" + String(bleScanner.isScanning() ? "true" : "false") +
-      ",";
-  json +=
-      "\"autoMode\":" + String(thermalZones.isAutoMode() ? "true" : "false") +
-      ",";
-  json += "\"boilerDemand\":" +
-          String(thermalZones.isBoilerDemanded() ? "true" : "false") + ",";
-  json += "\"actuatorType\":\"" +
-          String(thermalZones.isActuatorNormallyClosed() ? "NC" : "NO") + "\",";
-  json += "\"pumpEnabled\":" +
-          String(thermalZones.isPumpControlEnabled() ? "true" : "false") + ",";
-  json += "\"pumpActive\":" +
-          String(thermalZones.isPumpActive() ? "true" : "false") + ",";
-  json += "\"frostGuardActive\":" +
-          String(thermalZones.isFrostProtectionActive() ? "true" : "false") +
-          ",";
-  json += "\"sensorTimeoutSec\":" +
-          String(thermalZones.getSensorTimeoutSec()) + ",";
-  json += "\"lastAntiSeizeEpoch\":" +
-          String(thermalZones.getLastAntiSeizeEpoch()) + ",";
-  json += "\"scheduleEnabled\":" +
-          String(thermalZones.isScheduleEnabled() ? "true" : "false") + ",";
-  json += "\"away\":" + String(thermalZones.isAway() ? "true" : "false") + ",";
-  json += "\"activeLevel\":\"" +
-          String(ThermalZoneManager::getLevelName(thermalZones.getActiveLevel())) + "\",";
-  json += "\"minsToNextSlot\":" +
-          String(thermalZones.getMinutesToNextSlot()) + ",";
-  json += "\"preHeatActive\":" +
-          String(thermalZones.isPreHeatActive() ? "true" : "false") + ",";
-  json += "\"boilerRuntime\":{";
-  json += "\"totalSec\":" + String(boilerRadio.getRuntimeTotalSec()) + ",";
-  json += "\"todaySec\":" + String(boilerRadio.getRuntimeTodaySec()) + ",";
-  json += "\"yesterdaySec\":" + String(boilerRadio.getRuntimeYesterdaySec()) + ",";
-  json += "\"thisMonthSec\":" + String(boilerRadio.getRuntimeThisMonthSec()) + ",";
-  json += "\"lastMonthSec\":" + String(boilerRadio.getRuntimeLastMonthSec()) + ",";
-  json += "\"currentBurnSec\":" + String(boilerRadio.getCurrentFlameDurationSec());
-  json += "},";
-  json += getGasMeterJson();
-  json += "\"sensors\":[";
+  ThermalZoneManager::EffMode em = thermalZones.effectiveMode();
+  uint32_t sm = paramStore.get(Param::SeasonMode);
+  o.put("{\"profile\":\"%s\",\"firmwareVersion\":\"%s\",\"buildDate\":\"%s\",\"gitCommit\":\"%s\",\"resetReason\":\"%s\",",
+#ifdef SH_DEV_OPEN
+        "dev-open",
+#else
+        "release",
+#endif
+        APP_VERSION, APP_BUILD_DATE " " APP_BUILD_TIME, APP_GIT_COMMIT, getResetReasonStr(esp_reset_reason()));
+  o.put("\"boiler\":\"%s\",\"boilerCooldownSec\":%lu,\"pendingAction\":\"%s\",\"pendingWaitSec\":%lu,\"lastTxMs\":%lu,",
+        boilerRadio.isLastCommandOn() ? "ON" : "OFF", (unsigned long)bWaitSec, boilerRadio.getPendingActionStr(),
+        (unsigned long)bWaitSec, (unsigned long)boilerRadio.getLastTransmissionTime());
+  o.put("\"freeHeap\":%lu,\"loopStackFree\":%u,\"rssi\":%d,\"uptimeSec\":%lu,\"wifiWatchdog\":\"active\",",  // FR-23: loopStackFree = bytes never used
+        (unsigned long)ESP.getFreeHeap(), (unsigned)uxTaskGetStackHighWaterMark(nullptr), (int)WiFi.RSSI(), (unsigned long)(millis() / 1000));
+  o.put("\"time\":\"%s\",\"date\":\"%s\",\"season\":\"%s\",", timeAndWeather.getFormattedTime().c_str(),
+        timeAndWeather.getFormattedDate().c_str(), timeAndWeather.getSeason().c_str());
+  o.put("\"isHeatingSeason\":%s,\"seasonMode\":\"%s\",\"seasonState\":\"%s\",\"effectiveMode\":\"%s\",\"manualRemainingSec\":%lu,",
+        tf(thermalZones.isSeasonHeating()), sm == 1 ? "ON" : sm == 2 ? "OFF" : "AUTO",
+        thermalZones.isSeasonHeating() ? "HEATING" : "SUMMER",
+        em == ThermalZoneManager::EffMode::Manual ? "MANUAL" : em == ThermalZoneManager::EffMode::Off ? "OFF" : "AUTO",
+        (unsigned long)thermalZones.manualRemainingSec());
+  o.put("\"outdoorTemp\":%.1f,\"bleScanning\":%s,\"autoMode\":%s,\"boilerDemand\":%s,\"actuatorType\":\"%s\",",
+        (double)timeAndWeather.getOutdoorTemperature(), tf(bleScanner.isScanning()), tf(thermalZones.isAutoMode()),
+        tf(thermalZones.isBoilerDemanded()), thermalZones.isActuatorNormallyClosed() ? "NC" : "NO");
+  o.put("\"pumpEnabled\":%s,\"pumpActive\":%s,\"frostGuardActive\":%s,\"sensorTimeoutSec\":%lu,\"lastAntiSeizeEpoch\":%lu,",
+        tf(thermalZones.isPumpControlEnabled()), tf(thermalZones.isPumpActive()), tf(thermalZones.isFrostProtectionActive()),
+        (unsigned long)thermalZones.getSensorTimeoutSec(), (unsigned long)thermalZones.getLastAntiSeizeEpoch());
+  o.put("\"scheduleEnabled\":%s,\"away\":%s,\"activeLevel\":\"%s\",\"minsToNextSlot\":%ld,\"preHeatActive\":%s,",
+        tf(thermalZones.isScheduleEnabled()), tf(thermalZones.isAway()),
+        ThermalZoneManager::getLevelName(thermalZones.getActiveLevel()), (long)thermalZones.getMinutesToNextSlot(),
+        tf(thermalZones.isPreHeatActive()));
+  o.put("\"boilerRuntime\":{\"totalSec\":%lu,\"todaySec\":%lu,\"yesterdaySec\":%lu,\"thisMonthSec\":%lu,\"lastMonthSec\":%lu,\"currentBurnSec\":%lu},",
+        (unsigned long)boilerRadio.getRuntimeTotalSec(), (unsigned long)boilerRadio.getRuntimeTodaySec(),
+        (unsigned long)boilerRadio.getRuntimeYesterdaySec(), (unsigned long)boilerRadio.getRuntimeThisMonthSec(),
+        (unsigned long)boilerRadio.getRuntimeLastMonthSec(), (unsigned long)boilerRadio.getCurrentFlameDurationSec());
+  o.text(getGasMeterJson());
+  o.put("\"sensors\":[");
   size_t count = bleScanner.getSensorCount();
   size_t written = 0;
   for (size_t i = 0; i < count; i++) {
-    const BleSensorData *s = bleScanner.getSensor(i);
-    if (!s || !s->valid)
+    const BleSensorData *sd = bleScanner.getSensor(i);
+    if (!sd || !sd->valid)
       continue;
-    if (written > 0)
-      json += ",";
-    json += "{";
-    json += "\"name\":\"" + String(s->name) + "\",";
-    json += "\"mac\":\"" + String(s->mac) + "\",";
-    json += "\"temp\":" + String(s->temperature, 2) + ",";
-    json += "\"hum\":" + String(s->humidity, 1) + ",";
-    json += "\"bat\":" + String(s->battery) + ",";
-    json += "\"rssi\":" + String(s->rssi) + ",";
-    json += "\"ageSec\":" + String((millis() - s->lastSeenMs) / 1000);
-    json += "}";
+    o.put("%s{\"name\":\"%s\",\"mac\":\"%s\",\"temp\":%.2f,\"hum\":%.1f,\"bat\":%d,\"rssi\":%d,\"ageSec\":%lu}",
+          written > 0 ? "," : "", sd->name, sd->mac, (double)sd->temperature, (double)sd->humidity, (int)sd->battery, (int)sd->rssi,
+          (unsigned long)((millis() - sd->lastSeenMs) / 1000));
     written++;
   }
-  json += "]}";
-  server.sendHeader("Access-Control-Allow-Origin", "*");
-  server.send(200, "application/json", json);
+  o.put("]}");
+  o.end();
 }
 
 void handleApiScheduleGet() {
@@ -1256,54 +1149,33 @@ void handleApiHistoryClear() {
 }
 
 void handleApiConfigSystemGet() {
-  server.sendHeader("Access-Control-Allow-Origin", "*");
-  String json;
-  json.reserve(1024);
-  json = "{";
-  json += "\"status\":\"ok\",";
-  json += "\"zonesCount\":" + String(thermalZones.getZoneCount()) + ",";
-  json += "\"openLoopBypass\":" + String(thermalZones.isOpenLoopBypass() ? "true" : "false") + ",";
-  json += "\"actuatorDelaySec\":" + String(thermalZones.getInterlockDelayMs() / 1000) + ",";
-  json += "\"pumpOverrunSec\":" + String(thermalZones.getPumpOverrunMs() / 1000) + ",";
-  json += "\"burnerMinRunSec\":" + String(boilerRadio.getMinRunTimeMs() / 1000) + ",";
-  json += "\"burnerMinPauseSec\":" + String(boilerRadio.getMinPauseTimeMs() / 1000) + ",";
-  json += "\"rfMinCooldownSec\":" + String(boilerRadio.getRfMinCooldownMs() / 1000) + ",";
-  json += "\"rfSafetyHeartbeatSec\":" + String(boilerRadio.getSafetyHeartbeatMs() / 1000) + ",";
-  json += "\"rfSafetyHeartbeatEnabled\":" + String(boilerRadio.isSafetyHeartbeatEnabled() ? "true" : "false") + ",";
-  json += "\"pumpControlEnabled\":" + String(thermalZones.isPumpControlEnabled() ? "true" : "false") + ",";
-  json += "\"pumpRelayPin\":" + String(thermalZones.getPumpRelayPin()) + ",";
-  json += "\"actuatorNormallyClosed\":" + String(thermalZones.isActuatorNormallyClosed() ? "true" : "false") + ",";
-  json += "\"freezeProtectionTemp\":" + String(thermalZones.getFreezeProtectionTemp(), 1) + ",";
-  json += "\"sensorTimeoutSec\":" + String(thermalZones.getSensorTimeoutSec()) + ",";
-  json += "\"hysteresis\":" + String(thermalZones.getHysteresis(), 2) + ",";
-  json += "\"windowThreshold\":" + String(thermalZones.getWindowThreshold(), 1) + ",";
-  json += "\"boilerSetTemp\":" + String(paramStore.get(Param::BoilerSetTemp)) + ",";
-  json += "\"boilerFlowObserved\":" + String(paramStore.get(Param::BoilerFlowObserved)) + ",";
-  json += "\"gasFlameRate\":" + String(paramStore.getf(Param::GasFlameRate), 2) + ",";
-  json += "\"boilerPowerKw\":" + String(paramStore.get(Param::BoilerPowerKw)) + ",";
-  json += "\"gasPrice\":" + String(paramStore.getf(Param::GasPrice), 2) + ",";
-  json += "\"validMin\":" + String(paramStore.getf(Param::ValidMin), 1) + ",";
-  json += "\"validMax\":" + String(paramStore.getf(Param::ValidMax), 1) + ",";
-  json += "\"maxJump\":" + String(paramStore.getf(Param::MaxJump), 1) + ",";
-  json += "\"manualTimeoutSec\":" + String(paramStore.get(Param::ManualTimeout)) + ",";
-  json += "\"boostDurationSec\":" + String(paramStore.get(Param::BoostDuration)) + ",";
-  json += "\"heatLimit\":" + String(paramStore.get(Param::HeatLimit)) + ",";
-  json += "\"seasonOnDays\":" + String(paramStore.get(Param::SeasonOnDays)) + ",";
-  json += "\"seasonOffDays\":" + String(paramStore.get(Param::SeasonOffDays)) + ",";
-  json += "\"zones\":[";
+  JsonOut o;
+  auto pi = [](Param q) { return (long)paramStore.get(q); };
+  auto pf = [](Param q) { return (double)paramStore.getf(q); };
+  o.put("{\"status\":\"ok\",\"zonesCount\":%u,\"openLoopBypass\":%s,\"actuatorDelaySec\":%lu,\"pumpOverrunSec\":%lu,",
+        (unsigned)thermalZones.getZoneCount(), tf(thermalZones.isOpenLoopBypass()),
+        (unsigned long)(thermalZones.getInterlockDelayMs() / 1000), (unsigned long)(thermalZones.getPumpOverrunMs() / 1000));
+  o.put("\"burnerMinRunSec\":%lu,\"burnerMinPauseSec\":%lu,\"rfMinCooldownSec\":%lu,\"rfSafetyHeartbeatSec\":%lu,\"rfSafetyHeartbeatEnabled\":%s,",
+        (unsigned long)(boilerRadio.getMinRunTimeMs() / 1000), (unsigned long)(boilerRadio.getMinPauseTimeMs() / 1000),
+        (unsigned long)(boilerRadio.getRfMinCooldownMs() / 1000), (unsigned long)(boilerRadio.getSafetyHeartbeatMs() / 1000),
+        tf(boilerRadio.isSafetyHeartbeatEnabled()));
+  o.put("\"pumpControlEnabled\":%s,\"pumpRelayPin\":%d,\"actuatorNormallyClosed\":%s,\"freezeProtectionTemp\":%.1f,\"sensorTimeoutSec\":%lu,",
+        tf(thermalZones.isPumpControlEnabled()), (int)thermalZones.getPumpRelayPin(), tf(thermalZones.isActuatorNormallyClosed()),
+        (double)thermalZones.getFreezeProtectionTemp(), (unsigned long)thermalZones.getSensorTimeoutSec());
+  o.put("\"hysteresis\":%.2f,\"windowThreshold\":%.1f,\"boilerSetTemp\":%ld,\"boilerFlowObserved\":%ld,\"gasFlameRate\":%.2f,\"boilerPowerKw\":%ld,",
+        (double)thermalZones.getHysteresis(), (double)thermalZones.getWindowThreshold(), pi(Param::BoilerSetTemp),
+        pi(Param::BoilerFlowObserved), pf(Param::GasFlameRate), pi(Param::BoilerPowerKw));
+  o.put("\"gasPrice\":%.2f,\"validMin\":%.1f,\"validMax\":%.1f,\"maxJump\":%.1f,\"manualTimeoutSec\":%ld,\"boostDurationSec\":%ld,",
+        pf(Param::GasPrice), pf(Param::ValidMin), pf(Param::ValidMax), pf(Param::MaxJump), pi(Param::ManualTimeout), pi(Param::BoostDuration));
+  o.put("\"heatLimit\":%ld,\"seasonOnDays\":%ld,\"seasonOffDays\":%ld,\"zones\":[", pi(Param::HeatLimit), pi(Param::SeasonOnDays),
+        pi(Param::SeasonOffDays));
   for (size_t i = 0; i < thermalZones.getZoneCount(); i++) {
-    if (i > 0) json += ",";
     const auto& z = thermalZones.getConfig(i);
-    json += "{";
-    json += "\"id\":" + String(z.id) + ",";
-    json += "\"name\":\"" + String(z.name) + "\",";
-    json += "\"mac\":\"" + String(z.sensorMac) + "\",";
-    json += "\"relayPin\":" + String(z.relayPin) + ",";
-    json += "\"enabled\":" + String(z.enabled ? "true" : "false");
-    json += "}";
+    o.put("%s{\"id\":%d,\"name\":\"%s\",\"mac\":\"%s\",\"relayPin\":%d,\"enabled\":%s}", i > 0 ? "," : "", (int)z.id, z.name,
+          z.sensorMac, (int)z.relayPin, tf(z.enabled));
   }
-  json += "]}";
-  server.send(200, "application/json", json);
+  o.put("]}");
+  o.end();
 }
 
 // FR-42: numeric settings of requirements §6, by their API name.
