@@ -918,9 +918,19 @@ struct LogOut {
 static void logEntryOut(const EventEntry &e, void *arg) {
   LogOut *o = (LogOut *)arg;
   JsonOut &j = *o->j;
-  j.put("%s{\"time\":%lu,\"timeValid\":%s,\"type\":\"%s\",\"subject\":%u,\"zone\":%u,\"reason\":\"%s\",\"old\":%u,\"new\":%u,"
+  // FR-62.1: local time as yymmddhhmmss, uptime seconds until the clock is set
+  char when[16];
+  if (e.flags & 1) {
+    time_t t = (time_t)e.time;
+    struct tm ti;
+    localtime_r(&t, &ti);
+    strftime(when, sizeof(when), "%y%m%d%H%M%S", &ti);
+  } else {
+    snprintf(when, sizeof(when), "%lu", (unsigned long)e.time);
+  }
+  j.put("%s{\"time\":\"%s\",\"timeValid\":%s,\"type\":\"%s\",\"subject\":%u,\"zone\":%u,\"reason\":\"%s\",\"old\":%u,\"new\":%u,"
         "\"boiler\":%s,\"overrun\":%s,\"pending\":\"%s\"",
-        o->first ? "" : ",", (unsigned long)e.time, tf(e.flags & 1), EventLog::typeName(e.type), e.subject, e.zone,
+        o->first ? "" : ",", when, tf(e.flags & 1), EventLog::typeName(e.type), e.subject, e.zone,
         EventLog::reasonName(e.reason), e.oldV, e.newV, tf(e.ctx & EVCTX_BOILER_ON), tf(e.ctx & EVCTX_OVERRUN),
         (e.ctx & EVCTX_PENDING_OFF) ? "off" : ((e.ctx & EVCTX_PENDING_ON) ? "on" : "none"));
   if (e.type == EV_DTC) {
