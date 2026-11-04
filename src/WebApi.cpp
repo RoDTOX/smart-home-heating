@@ -1229,6 +1229,14 @@ void handleApiConfigSystemGet() {
   json += "\"gasFlameRate\":" + String(paramStore.getf(Param::GasFlameRate), 2) + ",";
   json += "\"boilerPowerKw\":" + String(paramStore.get(Param::BoilerPowerKw)) + ",";
   json += "\"gasPrice\":" + String(paramStore.getf(Param::GasPrice), 2) + ",";
+  json += "\"validMin\":" + String(paramStore.getf(Param::ValidMin), 1) + ",";
+  json += "\"validMax\":" + String(paramStore.getf(Param::ValidMax), 1) + ",";
+  json += "\"maxJump\":" + String(paramStore.getf(Param::MaxJump), 1) + ",";
+  json += "\"manualTimeoutSec\":" + String(paramStore.get(Param::ManualTimeout)) + ",";
+  json += "\"boostDurationSec\":" + String(paramStore.get(Param::BoostDuration)) + ",";
+  json += "\"heatLimit\":" + String(paramStore.get(Param::HeatLimit)) + ",";
+  json += "\"seasonOnDays\":" + String(paramStore.get(Param::SeasonOnDays)) + ",";
+  json += "\"seasonOffDays\":" + String(paramStore.get(Param::SeasonOffDays)) + ",";
   json += "\"zones\":[";
   for (size_t i = 0; i < thermalZones.getZoneCount(); i++) {
     if (i > 0) json += ",";
@@ -1263,6 +1271,14 @@ static const ConfigArg CONFIG_ARGS[] = {
     {"boilerSetTemp", Param::BoilerSetTemp},
     {"boilerFlowObserved", Param::BoilerFlowObserved},
     {"gasPrice", Param::GasPrice},
+    {"validMin", Param::ValidMin},
+    {"validMax", Param::ValidMax},
+    {"maxJump", Param::MaxJump},
+    {"manualTimeoutSec", Param::ManualTimeout},
+    {"boostDurationSec", Param::BoostDuration},
+    {"heatLimit", Param::HeatLimit},
+    {"seasonOnDays", Param::SeasonOnDays},
+    {"seasonOffDays", Param::SeasonOffDays},
 };
 static const char* CONFIG_FLAGS[] = {"openLoopBypass", "rfSafetyHeartbeatEnabled", "pumpControlEnabled",
                                      "actuatorNormallyClosed"};
@@ -1338,6 +1354,9 @@ void handleApiConfigSystemPost() {
   if (server.hasArg("boilerSetTemp")) paramStore.set(Param::BoilerSetTemp, server.arg("boilerSetTemp").toInt());
   if (server.hasArg("boilerFlowObserved")) paramStore.set(Param::BoilerFlowObserved, server.arg("boilerFlowObserved").toInt());
   if (server.hasArg("gasPrice")) paramStore.setf(Param::GasPrice, server.arg("gasPrice").toFloat());
+  for (size_t k = 0; k < sizeof(CONFIG_ARGS) / sizeof(CONFIG_ARGS[0]); k++)  // plain parameters (steps 6, 8): the store checks the range
+    if (CONFIG_ARGS[k].param >= Param::ValidMin && server.hasArg(CONFIG_ARGS[k].arg))
+      paramStore.setf(CONFIG_ARGS[k].param, server.arg(CONFIG_ARGS[k].arg).toFloat());
   if (server.hasArg("openLoopBypass")) thermalZones.setOpenLoopBypass(flagOn(server.arg("openLoopBypass")));
   if (server.hasArg("rfSafetyHeartbeatEnabled")) boilerRadio.setSafetyHeartbeatEnabled(flagOn(server.arg("rfSafetyHeartbeatEnabled")));
   if (server.hasArg("pumpControlEnabled")) thermalZones.setPumpControlEnabled(flagOn(server.arg("pumpControlEnabled")));
@@ -1397,10 +1416,30 @@ void handleApiRelayTest() {
   server.send(200, "application/json", F("{\"status\":\"ok\"}"));
 }
 
+#ifdef SH_DEV_OPEN
+// Development build only (FR-75.6): readings and weather states for the system tests, which cannot reach the board's
+// sensors or the Internet otherwise. Not compiled into the release profile.
+void handleApiDevSensor() {
+  if (!server.hasArg("mac") || !server.hasArg("temp")) {
+    server.send(400, "application/json", F("{\"error\":\"mac and temp needed\"}"));
+    return;
+  }
+  String mac = server.arg("mac");
+  mac.toUpperCase();
+  bleScanner.ingestExternalReading(mac.c_str(), "", server.arg("temp").toFloat(),
+                                   server.hasArg("hum") ? server.arg("hum").toFloat() : 50.0f,
+                                   (uint8_t)server.arg("bat").toInt(), (int8_t)server.arg("rssi").toInt());
+  server.send(200, "application/json", F("{\"status\":\"ok\"}"));
+}
+#endif
+
 void registerWebRoutes() {
   static const char* headerKeys[] = {"Content-Type", "Authorization"};  // FR-65.7, FR-75.1
   server.collectHeaders(headerKeys, 2);
   // Web Server routes
+#ifdef SH_DEV_OPEN
+  server.on("/api/dev/sensor", HTTP_POST, handleApiDevSensor);
+#endif
   server.on("/", HTTP_GET, handleRoot);
   server.on("/api/setup/location", handleApiSetupLocation);
   server.on("/api/setup/discovered-sensors", HTTP_GET,

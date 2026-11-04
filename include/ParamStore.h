@@ -31,6 +31,15 @@ enum class Param : uint8_t {
     LoginAttempts,       // failed console logins in a row before the lockout   FR-75.4
     LoginLockout,        // s       FR-75.4
     TelnetLoginTimeout,  // s       FR-75.4
+    ValidMin,            // 0.1 C   FR-53
+    ValidMax,            // 0.1 C   FR-53
+    MaxJump,             // 0.1 C   FR-53
+    ManualTimeout,       // s       FR-52
+    BoostDuration,       // s       FR-39
+    HeatLimit,           // C       FR-12.2
+    SeasonOnDays,        // days    FR-12.2
+    SeasonOffDays,       // days    FR-12.2
+    SeasonMode,          // 0 = AUTO, 1 = ON, 2 = OFF   FR-12.2
     Count
 };
 
@@ -52,6 +61,9 @@ enum class StateKey : uint8_t {
     GasMeterBaseEpoch,  // time of the last typed reading, 0 = none (FR-35.1)
     GasLogMigrated,     // 1 = the old calibration ring was dropped and the reading log started (FR-35.1)
     GasCompacted,       // oldest readings replaced because the log was full (FR-35.1)
+    SeasonHeating,      // 1 = season state HEATING, 0 = SUMMER (FR-12.2)
+    SeasonDaysOn,       // days in a row below heatLimit (FR-12.2)
+    SeasonDaysOff,      // days in a row above heatLimit + 2 C (FR-12.2)
     Count
 };
 

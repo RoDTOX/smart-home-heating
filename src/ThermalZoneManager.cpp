@@ -1601,6 +1601,7 @@ void ThermalZoneManager::update(BoilerRadioTrigger& boiler) {
                                   _configs[i].name, currentTemp, elapsed);
             } else if (_statuses[i].state == ZONE_FAULT_TIMEOUT) {
                 _statuses[i].state = _statuses[i].demand ? ZONE_HEATING : ZONE_IDLE;
+                diagEngine.clearDtc(Dtc::ERR_SENSOR_TIMEOUT, _configs[i].id);  // first accepted reading (FR-16.2)
                 netConsole.printf("[Thermal] Zone %u (%s) sensor recovered: %.1f \xC2\xB0""C\n",
                                   _configs[i].id, _configs[i].name, currentTemp);
             }

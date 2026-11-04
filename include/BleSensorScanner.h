@@ -31,6 +31,14 @@ struct BleSensorData {
     uint32_t packetCount;
     SensorSource source;
     bool valid;
+    // SensorHub plausibility state (FR-53)
+    float pending;            // jump held until the next reading confirms it
+    uint32_t discardWindowMs; // start of the 1 h window of discarded readings
+    uint32_t lastDiscardMs;
+    uint8_t discardCount;
+    bool pendValid;
+    bool suspect;             // DTC-104 raised for this sensor
+    bool outOfBounds;         // last reading outside validMin..validMax (DTC-103)
 };
 
 class BleSensorScanner : public NimBLEScanCallbacks {
@@ -48,6 +56,7 @@ public:
     const BleSensorData* findSensorByMac(const char* mac) const;
     float getTemperatureByName(const char* name, float fallback = -999.0f) const;
 
+    // Reading hook of the development build and the system tests (POST /api/dev/sensor)
     void ingestExternalReading(const char* mac, const char* name, float temp, float hum, uint8_t bat, int8_t rssi);
 
     // Sensor search (FR-11.5): outside a search only the sensors assigned to zones are kept (FR-11.6)
@@ -74,6 +83,8 @@ private:
     bool _searching = false;
     uint32_t _searchStartMs = 0;
     uint32_t _lastPruneMs = 0;
+    uint32_t _lastSuspectCheckMs = 0;
+    bool noteDiscard(BleSensorData* s);
     bool isAssigned(const char* mac, const char* name) const { return _assigned && _assigned(mac, name); }
 
     void updateOrAddSensor(const char* mac, const char* name, float temp, float hum, uint8_t bat, int8_t rssi, SensorSource src);

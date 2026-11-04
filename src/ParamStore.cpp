@@ -43,11 +43,20 @@ static const ParamDef PARAMS[(uint8_t)Param::Count] = {
     P("loginAttempts", "lgtry", 5, 3, 10, 1, P_NONE),
     P("loginLockout", "lglock", 300, 60, 3600, 1, P_NONE),
     P("telnetLoginTimeout", "tntout", 60, 30, 300, 1, P_NONE),
+    P("validMin", "vmin", 5, 0, 10, 10, P_AUTH),
+    P("validMax", "vmax", 45, 35, 50, 10, P_AUTH),
+    P("maxJump", "mjump", 2.0, 0.5, 5.0, 10, P_AUTH),
+    P("manualTimeout", "mtout", 10800, 3600, 21600, 1, P_NONE),
+    P("boostDuration", "bdur", 10800, 3600, 21600, 1, P_NONE),
+    P("heatLimit", "hlim", 15, 10, 18, 1, P_NONE),
+    P("seasonOnDays", "son", 2, 1, 7, 1, P_NONE),
+    P("seasonOffDays", "soff", 5, 1, 10, 1, P_NONE),
+    P("seasonMode", "smode", 0, 0, 2, 1, P_NONE),
 };
 
 static const char* STATE_KEYS[(uint8_t)StateKey::Count] = {
     "auto", "as_epoch", "b_on", "rt_tot", "rt_today", "rt_yest", "rt_mon", "rt_lmon", "rt_day", "rt_month", "zcount",
-    "mindex", "msec", "mepoch", "gmig", "gcomp",
+    "mindex", "msec", "mepoch", "gmig", "gcomp", "s_heat", "s_don", "s_doff",
 };
 
 static const uint8_t DEFAULT_PINS[3] = {PIN_RELAY_ZONE_1, PIN_RELAY_ZONE_2, PIN_RELAY_ZONE_3};
@@ -128,6 +137,7 @@ void ParamStore::begin() {
     for (size_t i = 0; i < PARAM_ZONES; i++) _learned[i] = 0;
     memset(_state, 0, sizeof(_state));
     _state[(uint8_t)StateKey::AutoMode] = 1;
+    _state[(uint8_t)StateKey::SeasonHeating] = 1;  // a new controller heats until the weather says otherwise (FR-12.2)
     _state[(uint8_t)StateKey::GasMeterBaseIndex] = 0; // not calibrated: the user sets the meter reading (FR-35.1)
     _location[0] = '\0';
 

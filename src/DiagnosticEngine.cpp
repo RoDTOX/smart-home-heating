@@ -270,29 +270,14 @@ void DiagnosticEngine::evaluateSensors() {
     if (!s || !s->valid)
       continue;
 
-    uint32_t ageSec = (millis() - s->lastSeenMs) / 1000;
+    // The sensor timeout (DTC-101) is raised by the zone (one `sensorTimeout`, FR-16.2, FR-18); readings outside the
+    // limits and spikes (DTC-103, DTC-104) are judged when they arrive (BleSensorScanner, FR-53).
 
-    // 1. Timeout (> 20 min), only for the sensors a zone uses (a neighbour's sensor in a search list is no fault)
-    if (ageSec > 1200 && bleScanner.isAssignedSensor(s)) {
-      char buf[48];
-      snprintf(buf, sizeof(buf), "%s timeout (%u min)", s->name,
-               (unsigned int)(ageSec / 60));
-      raiseDtc(Dtc::ERR_SENSOR_TIMEOUT, buf, SEV_ERROR);
-    }
-
-    // 2. Low battery (< 20%)
+    // Low battery (< 20%)
     if (s->battery > 0 && s->battery < 20) {
       char buf[48];
       snprintf(buf, sizeof(buf), "%s battery low (%u%%)", s->name, s->battery);
       raiseDtc(Dtc::WARN_BATTERY_LOW, buf, SEV_WARNING);
-    }
-
-    // 3. Spurious out of range
-    if (s->temperature < 5.0f || s->temperature > 45.0f) {
-      char buf[48];
-      snprintf(buf, sizeof(buf), "%s abnormal temp (%.1f C)", s->name,
-               s->temperature);
-      raiseDtc(Dtc::ERR_TEMP_OUT_OF_BOUNDS, buf, SEV_ERROR);
     }
   }
 }
