@@ -22,7 +22,9 @@ ThermalZoneManager::ThermalZoneManager()
       _boilerDemand(false),
       _pumpControlEnabled(false),
       _pumpActive(false),
-      _pumpStopScheduledMs(0),
+      _boilerWasOn(false),
+      _overrunActive(false),
+      _overrunUntilMs(0),
       _overrunKeeperZone(-1),
       _freezeProtectionTemp(12.0f),
       _frostProtectionActive(false),
@@ -234,6 +236,7 @@ void ThermalZoneManager::applyRelay(uint8_t pin, bool active) {
 }
 
 void ThermalZoneManager::begin() {
+    boilerRadio.setOnPermit([]() { return thermalZones.boilerOnPermitted(); });  // FR-2, every ON source
     loadConfig();
     loadSchedule();
     evaluateSchedule(millis());
@@ -299,9 +302,7 @@ void ThermalZoneManager::setActuatorNormallyClosed(bool nc) {
     paramStore.set(Param::ActuatorType, nc ? 0 : 1);
     // Refresh all zone relays with new logic polarity
     for (size_t i = 0; i < MAX_THERMAL_ZONES; i++) {
-        if (_configs[i].enabled) {
-            applyRelay(_configs[i].relayPin, _statuses[i].relayEngaged);
-        }
+        applyRelay(_configs[i].relayPin, _statuses[i].relayEngaged);  // a disabled zone may be energised (frost, FR-3 hold)
     }
     netConsole.printf("[Thermal] Actuator type set to: %s\n", nc ? "NC (Normally Closed)" : "NO (Normally Open)");
 }
@@ -409,10 +410,7 @@ void ThermalZoneManager::setZoneEnabled(size_t index, bool enabled) {
         if (!enabled) {
             _statuses[index].demand = false;
             _statuses[index].state = ZONE_DISABLED;
-            if (_statuses[index].relayEngaged) {
-                applyRelay(_configs[index].relayPin, false);
-                _statuses[index].relayEngaged = false;
-            }
+            arbitrateNow();  // the valve closes unless FR-3 holds it (frost FR-16.1 keeps a disabled zone protected)
         } else {
             if (_statuses[index].state == ZONE_DISABLED) {
                 _statuses[index].state = ZONE_IDLE;
@@ -576,22 +574,44 @@ void ThermalZoneManager::setOpenLoopBypass(bool en) {
 
 void ThermalZoneManager::setAutoMode(bool autoMode) {
     _autoMode = autoMode;
+    if (!autoMode) _boilerDemand = false;  // MANUAL: a running boiler is the user's, only frost (FR-16.1) starts or stops it
     persistConfig();
     netConsole.printf("[Thermal] Operation mode switched to: %s\n", _autoMode ? "AUTO" : "MANUAL");
 }
 
 void ThermalZoneManager::setRelayManual(size_t index, bool on) {
-    if (index < MAX_THERMAL_ZONES && !_autoMode) {
-        _statuses[index].relayEngaged = on;
-        applyRelay(_configs[index].relayPin, on);
-        _statuses[index].state = on ? ZONE_HEATING : ZONE_IDLE;
-        netConsole.printf("[Thermal][MANUAL] Relay Zone %u switched to %s\n", _configs[index].id, on ? "ON" : "OFF");
+    if (index >= MAX_THERMAL_ZONES || _autoMode) return;
+    uint32_t now = millis();
+    ThermalZoneStatus& st = _statuses[index];
+    if (on) {
+        if (!st.relayEngaged) {
+            applyRelay(_configs[index].relayPin, true);
+            st.relayEngaged = true;
+            st.energisedMs = now;
+            st.stateChangedMs = now;
+        }
+        st.demand = true;
+        if (st.state != ZONE_FROST_GUARD && st.state != ZONE_HEATING) st.state = ZONE_WARMING_UP;
+    } else {
+        bool otherOpen = false;
+        for (size_t j = 0; j < MAX_THERMAL_ZONES; j++) {
+            if (j != index && _statuses[j].demand && valveOpen(j, now)) otherOpen = true;
+        }
+        if (!otherOpen && st.demand && valveOpen(index, now)) _overrunKeeperZone = (int8_t)index;  // FR-3: the last valve
+        st.demand = false;
+        arbitrateNow();  // closes the valve unless the boiler burns or the overrun runs (FR-3)
+        if (st.relayEngaged) netConsole.printf("[Thermal][MANUAL] Zone %u valve held open: boiler ON or overrun (FR-3)\n", _configs[index].id);
     }
+    netConsole.printf("[Thermal][MANUAL] Relay Zone %u switched to %s\n", _configs[index].id, on ? "ON" : "OFF");
 }
 
 void ThermalZoneManager::setPumpManual(bool on) {
     // Relay 4 is the pump only with pump control on; otherwise it may be a zone output (FR-11.3)
     if (!_autoMode && _pumpControlEnabled) {
+        if (on && !anyValveOpen(millis())) {  // FR-14.2, FR-14.5: not before a valve has been open for interlockDelay
+            netConsole.println(F("[Thermal][MANUAL] Pump ON refused: no valve open for interlockDelay (FR-14.5)"));
+            return;
+        }
         _pumpActive = on;
         applyRelay(PIN_RELAY_SPARE, on);
         netConsole.printf("[Thermal][MANUAL] Circulation Pump Relay 4 switched to %s\n", on ? "ON" : "OFF");
@@ -1365,6 +1385,114 @@ void ThermalZoneManager::checkAntiSeizeSchedule(uint32_t now) {
     }
 }
 
+// FR-2: a valve counts for the interlock once it has been energised for interlockDelay (wrap-safe)
+bool ThermalZoneManager::valveOpen(size_t index, uint32_t now) const {
+    return index < MAX_THERMAL_ZONES && _statuses[index].relayEngaged &&
+           (uint32_t)(now - _statuses[index].energisedMs) >= _interlockDelayMs;
+}
+
+bool ThermalZoneManager::anyValveOpen(uint32_t now) const {
+    for (size_t i = 0; i < MAX_THERMAL_ZONES; i++) {
+        if (valveOpen(i, now)) return true;
+    }
+    return false;
+}
+
+bool ThermalZoneManager::boilerOnPermitted() const {
+    if (!_autoMode && _openLoopBypass) return true;  // FR-1.3: MANUAL with openLoopBypass needs no valve
+    return anyValveOpen(millis());
+}
+
+// FR-3: the overrun starts with the OFF of a lit flame (a start cancelled before the ON never lit it, FR-3.2) and
+// lasts `overrun`; the compare is wrap-safe (PB-7)
+void ThermalZoneManager::trackBoilerState(uint32_t now) {
+    bool lit = boilerRadio.isLastCommandOn();
+    if (_boilerWasOn && !lit) {
+        _overrunActive = true;
+        _overrunUntilMs = now + _pumpOverrunMs;
+        netConsole.printf("[Thermal] Overrun started: the last valve stays open for %u s (FR-3).\n", _pumpOverrunMs / 1000);
+    } else if (lit) {
+        _overrunActive = false;
+    } else if (_overrunActive && (int32_t)(now - _overrunUntilMs) >= 0) {
+        _overrunActive = false;
+        netConsole.println(F("[Thermal] Overrun finished (FR-3)."));
+    }
+    _boilerWasOn = lit;
+}
+
+// FR-37, FR-3: every valve follows its zone's demand. The last valve that was open stays open while the boiler is
+// ON or PENDING_OFF and during the overrun; it closes at the next tick after that. A valve counts for the boiler
+// once it has been energised for interlockDelay (FR-2), frost zones included (FR-16.1).
+void ThermalZoneManager::arbitrateValves(uint32_t now, bool& anyReady, bool& anyReadyFrost) {
+    anyReady = false;
+    anyReadyFrost = false;
+    for (size_t i = 0; i < MAX_THERMAL_ZONES; i++) {
+        if (_statuses[i].demand && valveOpen(i, now)) {
+            anyReady = true;
+            if (_statuses[i].frostActive) anyReadyFrost = true;
+            _overrunKeeperZone = (int8_t)i;
+        }
+    }
+    bool holdWanted = !anyReady && _overrunKeeperZone >= 0 && (boilerRadio.isLastCommandOn() || _overrunActive);
+    for (size_t i = 0; i < MAX_THERMAL_ZONES; i++) {
+        ThermalZoneStatus& st = _statuses[i];
+        if (st.demand) {
+            if (!st.relayEngaged) {
+                applyRelay(_configs[i].relayPin, true);
+                st.relayEngaged = true;
+                st.energisedMs = now;
+                st.stateChangedMs = now;
+                if (st.state != ZONE_FROST_GUARD) st.state = ZONE_WARMING_UP;
+                netConsole.printf("[Thermal] Actuator Zone %u (%s) opening on pin %u. Waiting %u s...\n",
+                    _configs[i].id, _configs[i].name, _configs[i].relayPin, _interlockDelayMs / 1000);
+            } else if ((st.state == ZONE_WARMING_UP || st.state == ZONE_IDLE) && valveOpen(i, now)) {
+                st.state = ZONE_HEATING;
+                st.stateChangedMs = now;
+                netConsole.printf("[Thermal] Actuator Zone %u (%s) fully OPEN. Circuit ready!\n", _configs[i].id, _configs[i].name);
+            }
+        } else if (st.relayEngaged) {
+            if (holdWanted && (int8_t)i == _overrunKeeperZone) continue;  // FR-3
+            applyRelay(_configs[i].relayPin, false);
+            st.relayEngaged = false;
+            st.stateChangedMs = now;
+            if (st.state == ZONE_HEATING || st.state == ZONE_WARMING_UP || st.state == ZONE_FROST_GUARD) st.state = ZONE_IDLE;
+            if ((int8_t)i == _overrunKeeperZone) _overrunKeeperZone = -1;
+            netConsole.printf("[Thermal] Zone %u (%s) closed relay on pin %u.\n", _configs[i].id, _configs[i].name, _configs[i].relayPin);
+        }
+    }
+}
+
+void ThermalZoneManager::arbitrateNow() {
+    uint32_t now = millis();
+    bool ready, readyFrost;
+    trackBoilerState(now);
+    arbitrateValves(now, ready, readyFrost);
+}
+
+// FR-16.1: any zone, enabled or disabled, with an accepted reading below frostTemp heats in every mode until
+// frostTemp + 1.5 C; the interlock (FR-2) and the burner guard (FR-4) still apply, because it is only a demand
+void ThermalZoneManager::evaluateFrost(size_t index, bool found, float currentTemp) {
+    ThermalZoneStatus& st = _statuses[index];
+    bool wasActive = st.frostActive;
+    if (found && currentTemp < _freezeProtectionTemp) {
+        st.frostActive = true;
+    } else if (st.frostActive && (!found || currentTemp >= _freezeProtectionTemp + 1.5f)) {
+        st.frostActive = false;
+    }
+    if (st.frostActive) {
+        _frostProtectionActive = true;
+        st.demand = true;
+        st.state = ZONE_FROST_GUARD;
+        if (!wasActive) {
+            netConsole.printf("[Thermal][FROST GUARD] Heating triggered on Zone %u (%s): %.1f C < %.1f C\n",
+                _configs[index].id, _configs[index].name, currentTemp, _freezeProtectionTemp);
+        }
+    } else if (wasActive) {
+        st.demand = false;  // AUTO recomputes it right after; MANUAL returns to the user's request (closed)
+        if (st.state == ZONE_FROST_GUARD) st.state = st.relayEngaged ? ZONE_HEATING : ZONE_IDLE;
+    }
+}
+
 void ThermalZoneManager::update(BoilerRadioTrigger& boiler) {
     uint32_t now = millis();
     if (now - _lastEvaluationMs < 1000) {
@@ -1395,7 +1523,7 @@ void ThermalZoneManager::update(BoilerRadioTrigger& boiler) {
             }
             // Restore every relay to its zone's valve state; a zone switched off during the exercise closes
             for (size_t i = 0; i < MAX_THERMAL_ZONES; i++) {
-                applyRelay(_configs[i].relayPin, _configs[i].enabled && _statuses[i].relayEngaged);
+                applyRelay(_configs[i].relayPin, _statuses[i].relayEngaged);
             }
             netConsole.println(F("[Thermal] Anti-seize exercise completed successfully."));
         }
@@ -1448,12 +1576,8 @@ void ThermalZoneManager::update(BoilerRadioTrigger& boiler) {
             _statuses[i].state = ZONE_DISABLED;
             _statuses[i].demand = false;
             _statuses[i].sensorFault = false;
-            _statuses[i].frostActive = false;
-            if (_statuses[i].relayEngaged) {
-                applyRelay(_configs[i].relayPin, false);
-                _statuses[i].relayEngaged = false;
-            }
-            continue;
+            evaluateFrost(i, found, currentTemp);  // FR-16.1: a disabled zone is protected too
+            continue;                              // its valve follows demand in arbitrateValves
         }
 
         if (found) {
@@ -1475,17 +1599,7 @@ void ThermalZoneManager::update(BoilerRadioTrigger& boiler) {
                                   _configs[i].id, _configs[i].name, currentTemp);
             }
 
-            // Failsafe: Emergency Frost Protection Guard (< 12C)
-            if (currentTemp < _freezeProtectionTemp) {
-                _statuses[i].frostActive = true;
-                _frostProtectionActive = true;
-                _statuses[i].demand = true;
-                _statuses[i].state = ZONE_FROST_GUARD;
-                netConsole.printf("[Thermal][FROST GUARD] Emergency heating triggered on Zone %u (%s): %.1f C < %.1f C!\n",
-                    _configs[i].id, _configs[i].name, currentTemp, _freezeProtectionTemp);
-            } else if (_statuses[i].frostActive && currentTemp >= (_freezeProtectionTemp + 1.5f)) {
-                _statuses[i].frostActive = false;
-            }
+            evaluateFrost(i, found, currentTemp);  // FR-16.1
 
             // Time-proportional control (only if autoMode and not forced by frost guard)
             if (_autoMode && !_statuses[i].frostActive) {
@@ -1498,22 +1612,22 @@ void ThermalZoneManager::update(BoilerRadioTrigger& boiler) {
                 }
             }
         } else {
+            evaluateFrost(i, false, 0.0f);  // no accepted reading: no frost duty (FR-16.1), FR-51 covers the loss
             if (_bootWarmupActive) {
                 _statuses[i].sensorValid = false;
                 _statuses[i].sensorFault = false;
                 _statuses[i].state = ZONE_WARMUP;
             } else {
                 // Sensor missing > timeout: CRITICAL FAILSAFE
+                bool newFault = _statuses[i].state != ZONE_FAULT_TIMEOUT;
                 _statuses[i].sensorValid = false;
                 _statuses[i].sensorFault = true;
                 _statuses[i].state = ZONE_FAULT_TIMEOUT;
 
-                if (_statuses[i].demand) {
+                if (newFault || (_autoMode && _statuses[i].demand)) {
                     netConsole.printf("[Thermal] CRITICAL FAILSAFE: Zone %u (%s) sensor timeout >%u s! Shutting down actuator.\n",
                         _configs[i].id, _configs[i].name, _sensorTimeoutSec);
-                    _statuses[i].demand = false;
-                    applyRelay(_configs[i].relayPin, false);
-                    _statuses[i].relayEngaged = false;
+                    if (_autoMode) _statuses[i].demand = false;  // the valve closes in arbitrateValves (FR-37, FR-3)
                     char dtcMsg[64];
                     snprintf(dtcMsg, sizeof(dtcMsg), "Zone %u sensor timeout >%us - zone shutdown", _configs[i].id, _sensorTimeoutSec);
                     diagEngine.raiseDtc(Dtc::ERR_SENSOR_TIMEOUT, dtcMsg, SEV_ERROR, _configs[i].id);
@@ -1548,85 +1662,37 @@ void ThermalZoneManager::update(BoilerRadioTrigger& boiler) {
         // zones still waiting for BLE sensors stay safe in ZONE_WARMUP (valves closed).
     }
 
-    if (!_autoMode && !_frostProtectionActive) {
-        return; // In manual mode without frost emergency, skip automatic actuator & boiler sequencing
-    }
-
-    // 2. Actuator Relay State Machine with Warm-up Delay & Instant Abort
-    bool anyZoneDemanding = false;
+    // 2. Valves (FR-37, FR-3, FR-16.1): the overrun window first, then every valve follows its demand
+    trackBoilerState(now);
     bool anyZoneReadyForBoiler = false;
+    bool anyFrostZoneReady = false;
+    arbitrateValves(now, anyZoneReadyForBoiler, anyFrostZoneReady);
 
-    for (size_t i = 0; i < MAX_THERMAL_ZONES; i++) {
-        if (!_configs[i].enabled || _statuses[i].sensorFault) continue;
-
-        if (_statuses[i].demand) {
-            anyZoneDemanding = true;
-            if (_statuses[i].state == ZONE_IDLE || _statuses[i].state == ZONE_FAULT_TIMEOUT) {
-                // Begin actuator warm-up
-                _statuses[i].state = ZONE_WARMING_UP;
-                _statuses[i].stateChangedMs = now;
-                applyRelay(_configs[i].relayPin, true);
-                _statuses[i].relayEngaged = true;
-                netConsole.printf("[Thermal] Actuator Zone %u (%s) opening on pin %u. Waiting %u s...\n",
-                    _configs[i].id, _configs[i].name, _configs[i].relayPin, _interlockDelayMs / 1000);
-            } else if (_statuses[i].state == ZONE_WARMING_UP) {
-                if (now - _statuses[i].stateChangedMs >= _interlockDelayMs) {
-                    _statuses[i].state = ZONE_HEATING;
-                    _statuses[i].stateChangedMs = now;
-                    netConsole.printf("[Thermal] Actuator Zone %u (%s) fully OPEN. Circuit ready!\n",
-                        _configs[i].id, _configs[i].name);
-                }
-            }
-
-            if (_statuses[i].state == ZONE_HEATING || _statuses[i].state == ZONE_FROST_GUARD) {
-                anyZoneReadyForBoiler = true;
-                _overrunKeeperZone = (int8_t)i; // Track last active zone for hydraulic overrun heat dissipation
-            }
-        } else {
-            // Demand is false
-            if (_statuses[i].state == ZONE_WARMING_UP) {
-                // Instant Abort: Demand dropped during 120s warmup before boiler ever fired!
-                _statuses[i].state = ZONE_IDLE;
-                _statuses[i].stateChangedMs = now;
-                applyRelay(_configs[i].relayPin, false);
-                _statuses[i].relayEngaged = false;
-                netConsole.printf("[Thermal] Actuator Zone %u (%s) warmup aborted: closed relay on pin %u.\n",
-                    _configs[i].id, _configs[i].name, _configs[i].relayPin);
-            } else if (_statuses[i].state == ZONE_HEATING) {
-                // If pump overrun is actively in progress with scheduled stop, keeper zone stays open
-                if (_pumpActive && _pumpStopScheduledMs > 0 && (int8_t)i == _overrunKeeperZone) {
-                    // Keeper zone stays engaged for residual heat dissipation
-                } else {
-                    _statuses[i].state = ZONE_IDLE;
-                    _statuses[i].stateChangedMs = now;
-                    applyRelay(_configs[i].relayPin, false);
-                    _statuses[i].relayEngaged = false;
-                    netConsole.printf("[Thermal] Zone %u (%s) closed relay on pin %u.\n",
-                        _configs[i].id, _configs[i].name, _configs[i].relayPin);
-                }
-            } else if (_statuses[i].state == ZONE_WINDOW_PAUSE && _statuses[i].relayEngaged) {
-                applyRelay(_configs[i].relayPin, false);
-                _statuses[i].relayEngaged = false;
-                netConsole.printf("[Thermal] Zone %u (%s) closed relay due to window pause.\n",
-                    _configs[i].id, _configs[i].name);
-            } else if (_statuses[i].relayEngaged) {
-                // HARDWARE SAFETY INVARIANT: Demand is false, not warming or heating, but relay is engaged!
-                if (!(_pumpActive && _pumpStopScheduledMs > 0 && (int8_t)i == _overrunKeeperZone)) {
-                    applyRelay(_configs[i].relayPin, false);
-                    _statuses[i].relayEngaged = false;
-                    _statuses[i].state = ZONE_IDLE;
-                    netConsole.printf("[Thermal] Safety invariant: Zone %u (%s) closed orphaned relay on pin %u.\n",
-                        _configs[i].id, _configs[i].name, _configs[i].relayPin);
-                }
-            }
+    // Self-check (FR-3, FR-4): the boiler never burns with every valve closed; a violation ends the run at once
+    if (boiler.isLastCommandOn() && !(!_autoMode && _openLoopBypass)) {
+        bool anyEnergised = false;
+        for (size_t i = 0; i < MAX_THERMAL_ZONES; i++) anyEnergised = anyEnergised || _statuses[i].relayEngaged;
+        if (!anyEnergised) {
+            netConsole.println(F("[Thermal] SAFETY SELF-CHECK: boiler ON with every valve closed (FR-3), forced OFF."));
+            boiler.sendBoilerOff(true);
         }
     }
 
-    // 3. Boiler Flame & Secondary Circulation Pump Control
-    if (anyZoneReadyForBoiler) {
-        _boilerDemand = true;
+    // 3. Pump guard (FR-14.2, FR-14.3, FR-14.5): ON only while a valve is open, the held overrun valve included
+    if (_pumpControlEnabled) {
+        bool pumpWanted = anyValveOpen(now);
+        if (pumpWanted != _pumpActive && (_autoMode || !pumpWanted || anyFrostZoneReady || _overrunActive)) {
+            applyRelay(PIN_RELAY_SPARE, pumpWanted);
+            _pumpActive = pumpWanted;
+            netConsole.printf("[Thermal] Circulation Pump (Relay 4) %s.\n", pumpWanted ? "STARTED" : "STOPPED");
+        }
+    }
 
-        // If boiler is not running, command ignition as soon as safety timers permit
+    // 4. Boiler (FR-2, FR-4): AUTO follows the zones; MANUAL only frost (FR-16.1) starts or stops it
+    bool wantOn = _autoMode ? anyZoneReadyForBoiler : anyFrostZoneReady;
+    if (wantOn) {
+        _boilerDemand = true;
+        if (boiler.getPendingAction() == PENDING_OFF) boiler.cancelPendingAction();  // desired ON again (FR-32)
         if (!boiler.isLastCommandOn()) {
             if (boiler.canTransmit(true)) {
                 if (boiler.sendBoilerOn()) {
@@ -1638,76 +1704,23 @@ void ThermalZoneManager::update(BoilerRadioTrigger& boiler) {
                 netConsole.println(F("[Thermal] BOILER START queued (Anti-short-cycling guard active)..."));
             }
         }
-
-        // Start circulation pump if enabled (Interlock satisfied: at least 1 actuator is open!)
-        if (_pumpControlEnabled && !_pumpActive) {
-            applyRelay(PIN_RELAY_SPARE, true);
-            _pumpActive = true;
-            netConsole.println(F("[Thermal] Circulation Pump (Relay 4) STARTED."));
-        }
-    } else {
-        // No zones ready for boiler
-        if (_boilerDemand || boiler.isLastCommandOn()) {
-            bool flameWasActive = boiler.isLastCommandOn();
-            _boilerDemand = false;
-            _lastBoilerOffTime = now;
-
-            if (flameWasActive) {
-                if (boiler.canTransmit(false)) {
-                    if (boiler.sendBoilerOff()) {
-                        netConsole.println(F("[Thermal] BOILER STOP commanded via RF 433MHz!"));
-                    }
-                } else if (boiler.getPendingAction() != PENDING_OFF) {
-                    boiler.setPendingAction(PENDING_OFF);
-                    netConsole.println(F("[Thermal] BOILER STOP queued (Anti-short-cycling guard active)..."));
+    } else if (_autoMode ? (_boilerDemand || boiler.isLastCommandOn()) : _boilerDemand) {
+        bool flameWasActive = boiler.isLastCommandOn();
+        _boilerDemand = false;
+        _lastBoilerOffTime = now;
+        if (flameWasActive) {
+            // the valve of the last zone stays open while the OFF waits (PENDING_OFF) and for the overrun (FR-3)
+            if (boiler.canTransmit(false)) {
+                if (boiler.sendBoilerOff()) {
+                    netConsole.println(F("[Thermal] BOILER STOP commanded via RF 433MHz!"));
                 }
-            } else if (boiler.getPendingAction() == PENDING_ON) {
-                boiler.cancelPendingAction();
-                netConsole.println(F("[Thermal] Pending boiler start CANCELLED (demand dropped before ignition)."));
+            } else if (boiler.getPendingAction() != PENDING_OFF) {
+                boiler.setPendingAction(PENDING_OFF);
+                netConsole.println(F("[Thermal] BOILER STOP queued (Anti-short-cycling guard active)..."));
             }
-
-            // Intelligent Pump Overrun: ONLY run post-circulation if flame was actually active!
-            if (flameWasActive && _pumpControlEnabled && _pumpActive) {
-                _pumpStopScheduledMs = now + _pumpOverrunMs;
-                netConsole.printf("[Thermal] Intelligent Overrun: pump will run for %u s to dissipate boiler residual heat.\n", _pumpOverrunMs / 1000);
-            } else {
-                // Flame never lit: 0s overrun! Stop pump and close keeper zone immediately.
-                if (_pumpControlEnabled && _pumpActive) {
-                    applyRelay(PIN_RELAY_SPARE, false);
-                    _pumpActive = false;
-                    _pumpStopScheduledMs = 0;
-                    netConsole.println(F("[Thermal] 0s Overrun: Flame was not active, pump stopped immediately."));
-                }
-                if (_overrunKeeperZone >= 0 && _overrunKeeperZone < MAX_THERMAL_ZONES) {
-                    if (!_statuses[_overrunKeeperZone].demand) {
-                        applyRelay(_configs[_overrunKeeperZone].relayPin, false);
-                        _statuses[_overrunKeeperZone].relayEngaged = false;
-                        _statuses[_overrunKeeperZone].state = ZONE_IDLE;
-                    }
-                    _overrunKeeperZone = -1;
-                }
-            }
-        }
-
-        // Handle pump overrun termination
-        if (_pumpActive && _pumpControlEnabled) {
-            if (_pumpStopScheduledMs > 0 && now >= _pumpStopScheduledMs) {
-                applyRelay(PIN_RELAY_SPARE, false);
-                _pumpActive = false;
-                _pumpStopScheduledMs = 0;
-                netConsole.println(F("[Thermal] Pump Overrun completed. Circulation pump stopped."));
-
-                // Now close the keeper zone that was kept open for dissipation
-                if (_overrunKeeperZone >= 0 && _overrunKeeperZone < MAX_THERMAL_ZONES) {
-                    if (!_statuses[_overrunKeeperZone].demand) {
-                        applyRelay(_configs[_overrunKeeperZone].relayPin, false);
-                        _statuses[_overrunKeeperZone].relayEngaged = false;
-                        _statuses[_overrunKeeperZone].state = ZONE_IDLE;
-                        netConsole.printf("[Thermal] Overrun keeper Zone %u closed.\n", _configs[_overrunKeeperZone].id);
-                    }
-                    _overrunKeeperZone = -1;
-                }
-            }
+        } else if (boiler.getPendingAction() == PENDING_ON) {
+            boiler.cancelPendingAction();
+            netConsole.println(F("[Thermal] Pending boiler start CANCELLED (demand dropped before ignition, FR-3.2)."));
         }
     }
 

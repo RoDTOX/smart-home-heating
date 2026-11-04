@@ -27,9 +27,10 @@ from sh_tests.t_safety_features import SafetyFeatureTests
 from sh_tests.t_export_import import ExportImportTests
 from sh_tests.t_zones import ZoneTests
 from sh_tests.t_console import ConsoleTests
+from sh_tests.t_safety_supervisor import SafetySupervisorTests
 
 
-class SystemTestSuite(SuiteBase, HealthTests, HydraulicsTests, ControlTests, UiHistoryTests, SafetyFeatureTests, ExportImportTests, ZoneTests, ConsoleTests):
+class SystemTestSuite(SuiteBase, HealthTests, HydraulicsTests, ControlTests, UiHistoryTests, SafetyFeatureTests, ExportImportTests, ZoneTests, ConsoleTests, SafetySupervisorTests):
     # ---------------------------------------------------------
     # Test Runner & Traceability Matrix Evaluation
     # ---------------------------------------------------------
@@ -173,6 +174,10 @@ class SystemTestSuite(SuiteBase, HealthTests, HydraulicsTests, ControlTests, UiH
             self.test_tc32_1_event_history_format,
             self.test_tc32_2_dtc_raise_and_clear_recorded,
             self.test_tc32_3_only_defined_codes_exist,
+            # Group 33: SafetySupervisor (step 4: FR-2, FR-3, FR-4)
+            self.test_tc33_1_boiler_on_refused_without_valve,
+            self.test_tc33_2_boiler_on_refused_inside_interlock_delay,
+            self.test_tc33_3_full_burn_interlock_overrun_burner_guard,
             # Group 23: FSM Relay Decoupling & Safety Invariant (FR-37)
             self.test_tc23_1_fsm_instant_warmup_abort_contract,
             self.test_tc23_2_orphaned_relay_safety_invariant,

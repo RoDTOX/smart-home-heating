@@ -13,6 +13,8 @@ enum PendingBoilerAction {
     PENDING_ON   = 2
 };
 
+typedef bool (*BoilerOnPermitFn)();
+
 class BoilerRadioTrigger {
 public:
     BoilerRadioTrigger();
@@ -32,6 +34,8 @@ public:
     void cancelPendingAction() { _pendingAction = PENDING_NONE; }
     const char* getPendingActionStr() const;
 
+    // FR-2: every ON, from any source, passes this check (the interlock of the zone valves)
+    void setOnPermit(BoilerOnPermitFn fn) { _onPermit = fn; }
     bool isLastCommandOn() const { return _lastCommandOn; }
     bool hasTransmittedOnce() const { return _hasTransmittedOnce; }
     uint32_t getLastTransmissionTime() const { return _lastTxTime; }
@@ -71,6 +75,7 @@ private:
     uint32_t _lastTxTime;
     uint32_t _lastStateChangeTime;
     PendingBoilerAction _pendingAction;
+    BoilerOnPermitFn _onPermit = nullptr;
 
     // Configurable Timers & Safety
     uint32_t _minRunTimeMs;

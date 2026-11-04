@@ -181,7 +181,10 @@ void BoilerRadioTrigger::update() {
             sendBoilerOff(false);
         }
     } else if (_pendingAction == PENDING_ON) {
-        if (canTransmit(true)) {
+        if (_onPermit && !_onPermit()) {  // FR-2: interlock lost, the start is cancelled, nothing is sent
+            _pendingAction = PENDING_NONE;
+            netConsole.println(F("[RF 433MHz][QUEUE] Deferred boiler START cancelled: no valve open for interlockDelay (FR-2)."));
+        } else if (canTransmit(true)) {
             netConsole.println(F("[RF 433MHz][QUEUE] Minimum pause expired. Executing deferred boiler START [ON]!"));
             sendBoilerOn(false);
         }
@@ -289,6 +292,11 @@ bool BoilerRadioTrigger::sendBoilerOn(bool force) {
             netConsole.println(F("[RF 433MHz] Boiler already ON. Command skipped (idempotent no-op)."));
             return true;
         }
+    }
+    // FR-2: no ON without an open valve, from any source
+    if (_onPermit && !_onPermit()) {
+        netConsole.println(F("[RF 433MHz] REJECTED: Boiler ON needs a valve energised for interlockDelay (FR-2)."));
+        return false;
     }
 
     netConsole.printf("[RF 433MHz] Transmitting boiler START [ON] command on GPIO%d%s...\n",

@@ -42,7 +42,13 @@ void handleApiOn() {
     return;
   }
 
-  // 2. Pre-validate against anti-short-cycling guard & RF cooldown (FR-17.2, FR-17.3, FR-17.4)
+  // 2. Interlock (FR-2): no boiler ON, queued or not, before a zone valve has been energised for interlockDelay
+  if (!thermalZones.boilerOnPermitted()) {
+    server.send(409, "application/json", F("{\"status\":\"interlock\",\"error\":\"No zone valve has been open for interlockDelay\",\"boiler\":\"OFF\"}"));
+    return;
+  }
+
+  // 3. Pre-validate against anti-short-cycling guard & RF cooldown (FR-17.2, FR-17.3, FR-17.4)
   if (!boilerRadio.canTransmit(true, &waitSec, &isIdempotent)) {
     boilerRadio.recordSpamAttempt();
     // Schedule deferred startup if not already running

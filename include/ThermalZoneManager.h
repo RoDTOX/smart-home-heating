@@ -128,6 +128,7 @@ struct ThermalZoneStatus {
     bool demand;
     bool relayEngaged;
     uint32_t stateChangedMs;
+    uint32_t energisedMs;  // millis() when the valve was energised: interlockDelay counts from here (FR-2)
     bool isManualHold;
 };
 
@@ -153,6 +154,8 @@ public:
     const ThermalZoneConfig& getConfig(size_t index) const;
     const ThermalZoneStatus& getStatus(size_t index) const;
     bool isBoilerDemanded() const { return _boilerDemand; }
+    // FR-2: Boiler ON only after a valve has been energised for interlockDelay (MANUAL with openLoopBypass: always)
+    bool boilerOnPermitted() const;
     bool isAutoMode() const { return _autoMode; }
     uint32_t getInterlockDelayMs() const { return _interlockDelayMs; }
     uint32_t getPumpOverrunMs() const { return _pumpOverrunMs; }
@@ -325,7 +328,9 @@ private:
     bool _boilerDemand;
     bool _pumpControlEnabled;
     bool _pumpActive;
-    uint32_t _pumpStopScheduledMs;
+    bool _boilerWasOn;          // boiler state seen at the last tick: its fall starts the overrun (FR-3)
+    bool _overrunActive;        // FR-3: the flame was lit and the OFF is sent, the keeper valve is held
+    uint32_t _overrunUntilMs;
     int8_t _overrunKeeperZone;
     float _freezeProtectionTemp;
     bool _frostProtectionActive;
@@ -350,7 +355,12 @@ private:
     uint32_t _nvsSavePendingMs;
 
     void applyRelay(uint8_t pin, bool active);
-    void updatePumpState(bool anyZoneReadyForBoiler, uint32_t now);
+    bool valveOpen(size_t index, uint32_t now) const;  // energised for at least interlockDelay (FR-2)
+    bool anyValveOpen(uint32_t now) const;
+    void trackBoilerState(uint32_t now);                // starts and ends the overrun window (FR-3)
+    void arbitrateValves(uint32_t now, bool& anyReady, bool& anyReadyFrost);  // FR-37, FR-3, FR-3.2
+    void arbitrateNow();
+    void evaluateFrost(size_t index, bool found, float currentTemp);  // FR-16.1, every zone, every mode
     void checkAntiSeizeSchedule(uint32_t now);
     void evaluateSchedule(uint32_t now);
     void evaluateWindowDetection(size_t index, float currentTemp, uint32_t now);
