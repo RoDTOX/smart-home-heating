@@ -32,9 +32,10 @@ from sh_tests.t_sensorhub import SensorHubTests
 from sh_tests.t_weather import WeatherTests
 from sh_tests.t_modes import ModeTests
 from sh_tests.t_history_stream import HistoryStreamTests
+from sh_tests.t_webassets import WebAssetTests
 
 
-class SystemTestSuite(SuiteBase, HealthTests, HydraulicsTests, ControlTests, UiHistoryTests, SafetyFeatureTests, ExportImportTests, ZoneTests, ConsoleTests, SafetySupervisorTests, SensorHubTests, WeatherTests, ModeTests, HistoryStreamTests):
+class SystemTestSuite(SuiteBase, HealthTests, HydraulicsTests, ControlTests, UiHistoryTests, SafetyFeatureTests, ExportImportTests, ZoneTests, ConsoleTests, SafetySupervisorTests, SensorHubTests, WeatherTests, ModeTests, HistoryStreamTests, WebAssetTests):
     # ---------------------------------------------------------
     # Test Runner & Traceability Matrix Evaluation
     # ---------------------------------------------------------
@@ -279,6 +280,11 @@ class SystemTestSuite(SuiteBase, HealthTests, HydraulicsTests, ControlTests, UiH
             self.test_tc36_5_boost_limits,
             self.test_tc37_1_history_is_streamed,
             self.test_tc37_2_history_request_keeps_heap,
+            self.test_tc38_1_page_from_littlefs,
+            self.test_tc38_2_refused_uploads_keep_page,
+            self.test_tc38_3_upload_round_trip_and_floor,
+            self.test_tc38_4_stub_when_page_missing,
+            self.test_tc38_5_memory_reports_littlefs,
         ]
         if self.only:   # --only TC34,TC35: run just these groups (name part after test_)
             tests = [t for t in tests if any(t.__name__.startswith("test_" + o.lower() + "_") for o in self.only)]
