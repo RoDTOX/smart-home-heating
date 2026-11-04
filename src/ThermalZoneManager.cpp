@@ -381,7 +381,7 @@ void ThermalZoneManager::triggerAntiSeizeExercise() {
 void ThermalZoneManager::setTargetTemperature(size_t index, float target) {
     if (index < MAX_THERMAL_ZONES) {
         if (target < 15.0f) target = 15.0f;
-        if (target > 30.0f) target = 30.0f;
+        if (target > TARGET_MAX_C) target = TARGET_MAX_C;
         if (fabsf(_configs[index].targetTemp - target) > 0.05f) {
             _configs[index].targetTemp = target;
             // Debounce NVS flash write by 3000ms to protect flash and smooth slider changes
@@ -404,7 +404,7 @@ void ThermalZoneManager::setTargetTemperature(size_t index, float target) {
 
 // FR-1.2: a boost is 0.5 - 2.0 C above the schedule level in 0.5 C steps; a target at or below it is a plain hold
 bool ThermalZoneManager::setTargetTemperatureChecked(size_t index, float target) {
-    if (index >= MAX_THERMAL_ZONES) return false;
+    if (index >= MAX_THERMAL_ZONES || target > TARGET_MAX_C + 0.05f) return false;  // C-36: refused, never cut
     float up = target - getScheduleTargetTemp(index);
     if (up > 0.05f) {
         float steps = up / 0.5f;
@@ -504,7 +504,7 @@ void ThermalZoneManager::mapZone(size_t index, const char* name, const char* sen
             applyRelay(relayPin, false);
             applyRelay(oldPin, false);
         }
-        if (targetTemp >= 15.0f && targetTemp <= 30.0f) _configs[index].targetTemp = targetTemp;
+        if (targetTemp >= 15.0f && targetTemp <= TARGET_MAX_C) _configs[index].targetTemp = targetTemp;
         _configs[index].enabled = enabled;
         persistConfig();
         netConsole.printf("[Thermal] Zone %u mapped: '%s' | MAC: %s | Pin: %u | Target: %.1f C\n",
@@ -661,7 +661,7 @@ void ThermalZoneManager::modeTick(uint32_t now) {
     if (!_seasonHeating && paramStore.get(Param::SeasonMode) == 0) {
         bool cold = false;
         for (size_t i = 0; i < MAX_THERMAL_ZONES; i++)
-            if (_configs[i].enabled && _statuses[i].sensorValid && _statuses[i].currentTemp < _scheduleConfig.levelTemps[LEVEL_NIGHT][i]) cold = true;
+            if (_configs[i].enabled && _statuses[i].sensorValid && _statuses[i].currentTemp < fminf(_scheduleConfig.levelTemps[LEVEL_NIGHT][i], TARGET_MAX_C)) cold = true;
         if (!cold) _coldSinceMs = 0;
         else if (_coldSinceMs == 0) _coldSinceMs = now ? now : 1;
         else if (now - _coldSinceMs >= 12UL * 3600UL * 1000UL) seasonSet(true, "zone below night level for 12 h");
@@ -842,7 +842,7 @@ bool ThermalZoneManager::setMoment(uint8_t dayIndex, uint8_t momentIndex, uint8_
     _scheduleConfig.days[dayIndex][momentIndex].minute = minute;
     if (temps) {
         for (size_t z = 0; z < _zoneCount && z < MAX_THERMAL_ZONES; z++) {
-            if (temps[z] >= 5.0f && temps[z] <= 30.0f) {
+            if (temps[z] >= 5.0f && temps[z] <= TARGET_MAX_C) {
                 _scheduleConfig.days[dayIndex][momentIndex].temps[z] = encodeTempByte(temps[z]);
             }
         }
@@ -890,7 +890,7 @@ bool ThermalZoneManager::setMomentForGroup(const char* group, uint8_t momentInde
 }
 
 bool ThermalZoneManager::setAwayTemp(size_t index, float temp) {
-    if (index >= _zoneCount || temp < 5.0f || temp > 30.0f) return false;
+    if (index >= _zoneCount || temp < 5.0f || temp > TARGET_MAX_C) return false;
     _scheduleConfig.awayTemps[index] = encodeTempByte(temp);
     _scheduleConfig.levelTemps[LEVEL_AWAY][index] = temp;
     saveSchedule();
@@ -925,7 +925,7 @@ bool ThermalZoneManager::setMomentName(uint8_t index, const char* name) {
 }
 
 bool ThermalZoneManager::setLevelTemp(size_t index, ComfortLevel level, float temp) {
-    if (index >= _zoneCount || level >= LEVEL_COUNT || temp < 5.0f || temp > 30.0f) return false;
+    if (index >= _zoneCount || level >= LEVEL_COUNT || temp < 5.0f || temp > TARGET_MAX_C) return false;
     _scheduleConfig.levelTemps[level][index] = temp;
     if (level == LEVEL_AWAY) {
         _scheduleConfig.awayTemps[index] = encodeTempByte(temp);
@@ -1060,7 +1060,7 @@ void ThermalZoneManager::evaluateSchedule(uint32_t now) {
     _preHeatActive = false;
     if (_scheduleConfig.preHeatEnabled && _minsToNextSlot <= getPreHeatLeadMinutes()) {
         for (size_t i = 0; i < MAX_THERMAL_ZONES; i++) {
-            if (_scheduleConfig.levelTemps[_nextLevel][i] > _scheduleConfig.levelTemps[_activeLevel][i] + 0.2f) {
+            if (fminf(_scheduleConfig.levelTemps[_nextLevel][i], TARGET_MAX_C) > fminf(_scheduleConfig.levelTemps[_activeLevel][i], TARGET_MAX_C) + 0.2f) {
                 _preHeatActive = true;
                 break;
             }
@@ -1163,12 +1163,16 @@ bool ThermalZoneManager::evaluateTpi(size_t index, float target, uint32_t now) {
 
 float ThermalZoneManager::getEffectiveTargetTemp(size_t index) const {
     if (index >= MAX_THERMAL_ZONES) return DEFAULT_SETPOINT_TEMP;
-    if (_statuses[index].isManualHold) return _configs[index].targetTemp;
+    if (_statuses[index].isManualHold) return fminf(_configs[index].targetTemp, TARGET_MAX_C);  // a stored value above the ceiling is used as the ceiling (C-36)
     return getScheduleTargetTemp(index);
 }
 
 // FR-1.2: the level the schedule (or away) asks now, ignoring a hold
 float ThermalZoneManager::getScheduleTargetTemp(size_t index) const {
+    return fminf(scheduleTargetRaw(index), TARGET_MAX_C);  // a stored level above the ceiling is used as the ceiling (C-36)
+}
+
+float ThermalZoneManager::scheduleTargetRaw(size_t index) const {
     if (index >= MAX_THERMAL_ZONES) return DEFAULT_SETPOINT_TEMP;
     if (_scheduleConfig.away) {
         if (_scheduleConfig.awayTemps[index] > 0) return decodeTempByte(_scheduleConfig.awayTemps[index]);

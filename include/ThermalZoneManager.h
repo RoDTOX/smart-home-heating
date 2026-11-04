@@ -55,6 +55,9 @@ enum ScheduleMode : uint8_t {
     SCHED_MODE_7DAY = 3
 };
 
+// FR-1.2, FR-29 (C-36): no target, level or boost above this, boost included
+constexpr float TARGET_MAX_C = 28.0f;
+
 // Encodes 5.0..30.0 C with 0.1 C resolution into 0..250
 inline uint8_t encodeTempByte(float t) {
     if (t < 5.0f) t = 5.0f;
@@ -317,6 +320,7 @@ public:
     const char* getStateCode(size_t index) const;
 
 private:
+    float scheduleTargetRaw(size_t index) const;  // schedule level before the ceiling of C-36
     ThermalZoneConfig _configs[MAX_THERMAL_ZONES];
     ThermalZoneStatus _statuses[MAX_THERMAL_ZONES];
 

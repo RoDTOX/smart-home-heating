@@ -837,8 +837,8 @@ void handleApiSetupMapZone() {
     sendSetupError("A zone is switched on only with a sensor");
     return;
   }
-  if (server.hasArg("target") && (target < 15.0f || target > 30.0f)) {
-    sendSetupError("Target out of range (15 to 30 C)");
+  if (server.hasArg("target") && (target < 15.0f || target > TARGET_MAX_C)) {
+    sendSetupError("Target out of range (15 to 28 C)");
     return;
   }
   if (offset < -3.0f || offset > 3.0f) {
@@ -1097,7 +1097,7 @@ void handleApiScheduleLevel() {
   int level = ThermalZoneManager::parseLevel(server.arg("level").c_str());
   if (zone < 1 || level < 0 ||
       !thermalZones.setLevelTemp(zone - 1, (ComfortLevel)level, server.arg("temp").toFloat())) {
-    server.send(400, "application/json", F("{\"status\":\"error\",\"error\":\"Use zone=1..3, level=day|night|away, temp=5..30\"}"));
+    server.send(400, "application/json", F("{\"status\":\"error\",\"error\":\"Use zone=1..3, level=day|night|away, temp=5..28\"}"));
     return;
   }
   server.send(200, "application/json", thermalZones.getScheduleJson());

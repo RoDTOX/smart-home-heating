@@ -401,7 +401,7 @@ void importSchedule(JsonVariantConst sv, Report& rep) {
             if (count[i] == 0 || (count[i] == 1 && !entry[i].containsKey(LEVELS[l]))) { rep.keep(name); continue; }
             if (count[i] > 1) { rep.skip(name, "duplicate"); continue; }
             JsonVariantConst v = entry[i][LEVELS[l]];
-            if (!inRange(v, 5.0, 30.0)) { rep.skip(name, "invalid"); continue; }
+            if (!inRange(v, 5.0, TARGET_MAX_C)) { rep.skip(name, "invalid"); continue; }
             float t = (float)round1(v.as<double>());
             if (!thermalZones.setLevelTemp(i, (ComfortLevel)l, t)) { rep.skip(name, "invalid"); continue; }
             rep.ok(name, String(t, 1));
