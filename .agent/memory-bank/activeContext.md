@@ -5,7 +5,7 @@ Only what holds now and what comes next. A line that no longer holds is replaced
 [`docs/archive/active_context_until_2026-11-02.md`](../../docs/archive/active_context_until_2026-11-02.md).
 
 ## Now
-- Step 4 (04.11.2026): `SafetySupervisor` logic built in place (commits 53cf72d, 14e8197), board runs 1.11.04.04. Waiting: owner hands-on test (a full burn), decision on TC09.1 (old test, ON without valve now refused). Next: step 5.
+- Step 4 (04.11.2026): accepted by the owner ("in rest totul ok"). Page feedback done in 0efa023 (board runs it): boost label only above the schedule (FR-1.2, PB-118), pin states (FR-10.5), debug area console / pins / trace / signals with trace and signals collapsed. Waiting: owner look at the page. Next: step 5 (`BoilerLink`).
 - Live gas meter index tracking, calibration history, generic boiler model, and refined telemetry & debug tools:
   - Base index calibrated: `2265.304 m³` (NVS key `mindex`).
   - Boiler dial setpoint: `40°C` (NVS `btset`), observed delivery: `43°C` (NVS `btflow`), calibrated flame rate: `0.60 m³/h` (NVS `grate`).

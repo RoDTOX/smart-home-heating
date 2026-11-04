@@ -859,3 +859,14 @@ efresh() guarded, ocusout debounced).
   probe, system test runs 10+ min in the background), `tools/sh_ota_upload.py` (any argument prints usage, no flash).
 - **Verified:** `--help` prints usage and exits 0 without connecting; checker PASS. **Not verified:** that running
   sessions follow the rule (AGENTS.md is read at session start).
+
+## [04.11.2026] - Page feedback after step 4: boost label, pin states, debug area (FR-1.2, FR-10.5, FR-8.1, PB-118)
+
+- **Who / when / why:** firmware session (Claude), ultra-light mode; the owner accepted step 4 and asked four page changes.
+- **What:** `/api/zones` reports `scheduleTarget` and `isBoost`; the page shows "Boost manual" only while `isBoost`
+  (target above the schedule level). `/api/diag/status` reports `pins` (GPIO32, 33, 25, 26, 19, 23, live `digitalRead`);
+  the debug area is ordered console, pin states, trace, signals, with trace and signals collapsed.
+- **Where:** `ThermalZoneManager` (`getScheduleTargetTemp`, `isBoost`), `WebApi.cpp`, `web/index.html`; tests
+  TC19.18, TC19.19, TC19.20; commit 0efa023.
+- **Verified:** build clean, checker PASS, board flashed over OTA, the three new tests PASS, `board` check PASS.
+  Not verified: the full system test (not run, by design); owner test of the page pending.
