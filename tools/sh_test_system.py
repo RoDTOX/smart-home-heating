@@ -206,6 +206,7 @@ class SystemTestSuite(SuiteBase, HealthTests, HydraulicsTests, ControlTests, UiH
             self.test_tc26_3_open_window_clear_api,
             self.test_tc26_4_open_window_safety_cutoff_contract,
             self.test_tc26_5_window_state_matches_pause,
+            self.test_tc26_6_heating_type_and_window_action,
             # Group 27: System Configuration, Multi-Relay & Presets 2.0 (FR-42, FR-43, FR-44, FR-45)
             self.test_tc27_1_system_config_schema,
             self.test_tc27_2_system_config_mutation_persistence,

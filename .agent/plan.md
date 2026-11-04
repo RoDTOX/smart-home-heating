@@ -3,22 +3,21 @@
 Authoritative plan: [`docs/plan.md`](../docs/plan.md) (named by AGENTS.md §2). Current phase status is tracked there.
 
 ## Original request (verbatim)
-"Da-i drumul"
-Context: Pachet Extins: Stabilitate (PB-115 + PB-122) + Pasul 9 complet (Commands + autentificare WebApi FR-58/59, CORS, DTC-403) - totul într-un singur flash OTA mare.
+"Pt raspunsul anterior: ALL OK
+Pt ultimul tau raspuns: da, implementam ajustarea cu geamul deschis vizual, dar trebuie sa fie o optiune. adica e pentru incalzire in pardoseala. pentru calorifere, trebuie oprita si caldura pe acea zona."
 
 ## Stage tracker
-- [ ] Stage 1: Chain start & Tests First (`tools/sh_chain.py start`, write tests for PB-115, PB-122, Step 9 auth/CORS/DTC-403, run red tests on current board, freeze)
-- [ ] Stage 2: Memory & Stability fixes (PB-115 weather stack 6144 -> 4096 B, PB-122 DTC-402 dip tracking with auto-reset > 75 KB)
-- [ ] Stage 3: Step 9 Implementation (`include/Commands.h`, `src/Commands.cpp`, WebApi route protection with HTTP 401, CORS restriction to own origin, DTC-403 for default credentials)
-- [ ] Stage 4: Tooling & Test Suite updates (`tools/sh_esp_cli.py`, `tools/sh_tests/` updated with auth credentials)
-- [ ] Stage 5: Verification & Safety review (`pio run`, `tools/sh_process_check.py`, `sh-safety-reviewer` check for safety impacts)
-- [ ] Stage 6: OTA Flash & Live board testing (`tools/sh_ota_upload.py`, run system tests against board 192.168.1.20)
-- [ ] Stage 7: Documentation, commit and handoff (`docs/changelog.md`, `docs/problems.md`, `docs/plan.md`, activeContext, `git commit`, `sh_chain.py done`)
+- [ ] Stage 1: Requirements update (`docs/requirements_and_features.md` FR-40, §6 table for `heatingType`)
+- [ ] Stage 2: Chain start & Tests First (`tools/sh_chain.py start`, write tests for `heatingType` in `tools/sh_tests/`, verify red run on board, `sh_chain.py freeze`)
+- [ ] Stage 3: Implementation (`ParamStore`, `ThermalZoneManager`, `WebApi`, `web/index.html`)
+- [ ] Stage 4: Local verification (`pio run`, `python tools/sh_process_check.py`)
+- [ ] Stage 5: Flash OTA & Board tests (`tools/sh_ota_upload.py`, test affected against `192.168.1.20`)
+- [ ] Stage 6: Documentation, commit and chain completion (`docs/changelog.md`, activeContext, `sh_chain.py done`)
 
 ## Verification steps
-1. `tools/sh_chain.py` starts and freezes cleanly.
-2. New tests fail against current board (red run) and pass after implementation.
-3. Firmware builds clean with `pio run` and respects OTA flash margin (< 1 306 624 B).
-4. `tools/sh_process_check.py` reports 0 errors.
-5. Flash via OTA (`tools/sh_ota_upload.py`) succeeds without touching LittleFS or gas data.
+1. Requirements §6 and FR-40 updated.
+2. `tools/sh_chain.py` starts and freezes tests.
+3. Tests fail against current board (red run) and pass after flash.
+4. Firmware builds clean with `pio run` and respects OTA flash margin (< 1 306 624 B).
+5. `tools/sh_process_check.py` reports 0 errors.
 6. Board system tests pass against `192.168.1.20`.

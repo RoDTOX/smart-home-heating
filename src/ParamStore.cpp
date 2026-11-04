@@ -52,6 +52,7 @@ static const ParamDef PARAMS[(uint8_t)Param::Count] = {
     P("seasonOnDays", "son", 2, 1, 7, 1, P_NONE),
     P("seasonOffDays", "soff", 5, 1, 10, 1, P_NONE),
     P("seasonMode", "smode", 0, 0, 2, 1, P_NONE),
+    P("heatingType", "htype", 0, 0, 1, 1, P_AUTH),
 };
 
 static const char* STATE_KEYS[(uint8_t)StateKey::Count] = {

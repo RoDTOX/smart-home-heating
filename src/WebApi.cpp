@@ -476,8 +476,8 @@ void handleApiZones() {
     o.put("\"targetTemp\":%.1f,\"effectiveTarget\":%.1f,\"scheduleTarget\":%.1f,\"isBoost\":%s,\"hysteresis\":%.2f,\"enabled\":%s,",
           (double)cfg.targetTemp, (double)thermalZones.getEffectiveTargetTemp(i), (double)thermalZones.getScheduleTargetTemp(i),
           tf(thermalZones.isBoost(i)), (double)thermalZones.getHysteresis(), tf(cfg.enabled));
-    o.put("\"currentTemp\":%.1f,\"sensorValid\":%s,\"sensorFault\":%s,\"frostActive\":%s,\"windowPauseActive\":%s,",
-          (double)st.currentTemp, tf(st.sensorValid), tf(st.sensorFault), tf(st.frostActive), tf(thermalZones.isWindowPauseActive(i)));
+    o.put("\"currentTemp\":%.1f,\"sensorValid\":%s,\"sensorFault\":%s,\"frostActive\":%s,\"windowPauseActive\":%s,\"windowDetected\":%s,",
+          (double)st.currentTemp, tf(st.sensorValid), tf(st.sensorFault), tf(st.frostActive), tf(thermalZones.isWindowPauseActive(i)), tf(thermalZones.isWindowDetected(i)));
     o.put("\"windowPauseRemainingSec\":%lu,\"windowDropThreshold\":%.1f,\"lastWindowEpoch\":%lu,\"lastWindowDurationSec\":%lu,",
           (unsigned long)thermalZones.getWindowPauseRemainingSec(i), (double)thermalZones.getWindowThreshold(),
           (unsigned long)thermalZones.getWindowLastDetectionEpoch(i), (unsigned long)thermalZones.getWindowLastDetectionDurationSec(i));
@@ -1351,8 +1351,8 @@ void handleApiConfigSystemGet() {
         pi(Param::BoilerFlowObserved), pf(Param::GasFlameRate), pi(Param::BoilerPowerKw));
   o.put("\"gasPrice\":%.2f,\"validMin\":%.1f,\"validMax\":%.1f,\"maxJump\":%.1f,\"manualTimeoutSec\":%ld,\"boostDurationSec\":%ld,",
         pf(Param::GasPrice), pf(Param::ValidMin), pf(Param::ValidMax), pf(Param::MaxJump), pi(Param::ManualTimeout), pi(Param::BoostDuration));
-  o.put("\"heatLimit\":%ld,\"seasonOnDays\":%ld,\"seasonOffDays\":%ld,\"zones\":[", pi(Param::HeatLimit), pi(Param::SeasonOnDays),
-        pi(Param::SeasonOffDays));
+  o.put("\"heatLimit\":%ld,\"seasonOnDays\":%ld,\"seasonOffDays\":%ld,\"heatingType\":%ld,\"zones\":[", pi(Param::HeatLimit), pi(Param::SeasonOnDays),
+        pi(Param::SeasonOffDays), pi(Param::HeatingType));
   for (size_t i = 0; i < thermalZones.getZoneCount(); i++) {
     const auto& z = thermalZones.getConfig(i);
     o.put("%s{\"id\":%d,\"name\":\"%s\",\"mac\":\"%s\",\"relayPin\":%d,\"enabled\":%s}", i > 0 ? "," : "", (int)z.id, z.name,
@@ -1388,6 +1388,7 @@ static const ConfigArg CONFIG_ARGS[] = {
     {"heatLimit", Param::HeatLimit},
     {"seasonOnDays", Param::SeasonOnDays},
     {"seasonOffDays", Param::SeasonOffDays},
+    {"heatingType", Param::HeatingType},
 };
 static const char* CONFIG_FLAGS[] = {"openLoopBypass", "rfSafetyHeartbeatEnabled", "pumpControlEnabled",
                                      "actuatorNormallyClosed"};
@@ -1478,6 +1479,7 @@ void handleApiConfigSystemPost() {
   if (server.hasArg("rfSafetyHeartbeatEnabled")) boilerRadio.setSafetyHeartbeatEnabled(flagOn(server.arg("rfSafetyHeartbeatEnabled")));
   if (server.hasArg("pumpControlEnabled")) thermalZones.setPumpControlEnabled(flagOn(server.arg("pumpControlEnabled")));
   if (server.hasArg("actuatorNormallyClosed")) thermalZones.setActuatorNormallyClosed(flagOn(server.arg("actuatorNormallyClosed")));
+  if (server.hasArg("heatingType")) thermalZones.setHeatingType(server.arg("heatingType").toInt());
   handleApiConfigSystemGet();
 }
 

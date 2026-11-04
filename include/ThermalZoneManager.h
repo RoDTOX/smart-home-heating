@@ -37,6 +37,11 @@ enum ZoneState {
     ZONE_WINDOW_PAUSE   // Smart pause: open window detected (>1.2C drop in <5 min)
 };
 
+enum HeatingType : uint8_t {
+    HEATING_TYPE_FLOOR = 0,
+    HEATING_TYPE_RADIATORS = 1
+};
+
 // Comfort levels: each zone has one temperature per level
 enum ComfortLevel : uint8_t {
     LEVEL_DAY = 0,
@@ -296,10 +301,13 @@ public:
 
     // Open Window Detection State
     bool isWindowPauseActive(size_t index) const;
+    bool isWindowDetected(size_t index) const;
     uint32_t getWindowPauseRemainingSec(size_t index) const;
     bool clearWindowPause(size_t index);
     uint32_t getWindowLastDetectionEpoch(size_t index) const;
     uint32_t getWindowLastDetectionDurationSec(size_t index) const;
+    uint8_t getHeatingType() const { return _heatingType; }
+    void setHeatingType(uint8_t type);
 
     // Effective Target (considers hold, away, schedule & pre-heat)
     float getEffectiveTargetTemp(size_t index) const;
@@ -370,6 +378,7 @@ private:
     uint32_t _sensorTimeoutSec;
     float _hysteresis;
     float _windowThreshold;
+    uint8_t _heatingType = 0;
     bool _bootWarmupActive;
     uint32_t _bootWarmupStartMs;
 

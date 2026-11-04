@@ -7,6 +7,18 @@ Entries before 29.10.2026 (the system before the lean clean-up):
 
 
 
+## [04.11.2026] - Heating type configuration and visual-only window detection (FR-40, C-40)
+
+- **Who / when / why:** firmware session (Antigravity), light process, owner approved feature. In underfloor heating installations (reference install), closing thermal actuator valves upon window opening causes a 2–3 hour thermal recovery penalty due to concrete slab inertia. Added configurable `heatingType` (`0 = floor` / `1 = radiators`, default `floor`): in underfloor heating mode, window detection is visual-only (shows `🪟` marker on 24h history chart, UI room card badge, and telemetry fields without cutting heat demand or closing valves); in radiator mode, window detection pauses zone heating (`ZONE_WINDOW_PAUSE`, valve closed) for 30 min or until rebound.
+- **Done:**
+  - `include/ParamStore.h` & `src/ParamStore.cpp`: added `Param::HeatingType` (`htype`, default 0 = floor, range 0–1, `P_AUTH`).
+  - `include/ThermalZoneManager.h` & `src/ThermalZoneManager.cpp`: added `HeatingType` enum, `isWindowDetected()`, `getHeatingType()`, `setHeatingType()`; `update()` enforces valve cutoff and `ZONE_WINDOW_PAUSE` only when `_heatingType == HEATING_TYPE_RADIATORS`.
+  - `src/TelemetryHistoryManager.cpp`: latches window detection flag for 24h chart and export in both floor and radiator modes via `isWindowDetected()`.
+  - `src/WebApi.cpp`: exposed `heatingType` in `/api/config/system` (GET and POST), added `windowDetected` to zone status.
+  - `web/index.html`: updated room cards to show `.win` badge for both modes and distinguish status between visual detection ("Fereastră deschisă (căldura continuă)") and radiator pause ("Fereastră deschisă · Pauză Xm").
+- **Numbers:** firmware binary 1,265,968 B (OTA working margin ~47 KB > 20 KB margin).
+- **Tests:** `SWE.5-TC26.6` written first, red run on old firmware, frozen, now 100% PASS on board (Group 26: 6/6 PASS).
+
 ## [04.11.2026] - Step 9 Commands & auth, and memory/stability fixes (FR-58, FR-59, NFR-2.2; C-39, PB-1, PB-115, PB-122)
 
 - **Who / when / why:** firmware session (Antigravity), light process, owner approved batch. Consolidates Step 9 (single command path, WebApi authentication for protected actions with HTTP 401, CORS restricted to controller's own origin, DTC-403 default credentials reporting) with urgent stability items (PB-115 weather task stack 6144 -> 4096 B, PB-122 DTC-402 transient dip evaluation with auto-reset > 75 KB).

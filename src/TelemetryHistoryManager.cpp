@@ -240,7 +240,7 @@ void TelemetryHistoryManager::updateLiveSample(bool forceNewSlot) {
     // Bit 5-6: Zone in window pause (0: none, 1: Z1, 2: Z2, 3: Z3)
     uint8_t winCode = 0;
     for (size_t i = 0; i < thermalZones.getZoneCount() && i < 3; i++) {
-        if (thermalZones.isWindowPauseActive(i)) {
+        if (thermalZones.isWindowDetected(i)) {
             winCode = (uint8_t)(i + 1);
             break;
         }
@@ -353,7 +353,7 @@ void TelemetryHistoryManager::streamHistoryJson(WebServer& server, const String&
     c.put("],\"windows\":[");
     size_t wWritten = 0;
     for (size_t i = 0; i < thermalZones.getZoneCount() && i < 3; i++) {
-        if (thermalZones.isWindowPauseActive(i)) {
+        if (thermalZones.isWindowDetected(i)) {
             c.put("%s{\"id\":%u,\"name\":\"%s\",\"remainingSec\":%u,\"lastEpoch\":%u}", wWritten ? "," : "",
                   (unsigned)(i + 1), thermalZones.getConfig(i).name, (unsigned)thermalZones.getWindowPauseRemainingSec(i),
                   (unsigned)thermalZones.getWindowLastDetectionEpoch(i));

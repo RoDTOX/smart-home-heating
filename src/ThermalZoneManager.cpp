@@ -110,6 +110,8 @@ void ThermalZoneManager::loadConfig() {
     _sensorTimeoutSec = (uint32_t)paramStore.get(Param::SensorTimeout);
     _freezeProtectionTemp = paramStore.getf(Param::FrostTemp);
     _windowThreshold = paramStore.getf(Param::WindowThreshold);
+
+    _heatingType = (uint8_t)paramStore.get(Param::HeatingType);
     _openLoopBypass = paramStore.get(Param::OpenLoopBypass) != 0;
     outputBank.setNormallyClosed(paramStore.get(Param::ActuatorType) == 0);
     _pumpControlEnabled = paramStore.get(Param::PumpOutput) != 0;
@@ -356,6 +358,7 @@ bool ThermalZoneManager::setHysteresis(float hyst) {
 bool ThermalZoneManager::setWindowThreshold(float threshold) {
     if (!paramStore.setf(Param::WindowThreshold, threshold)) return false;
     _windowThreshold = paramStore.getf(Param::WindowThreshold);
+
     netConsole.printf("[Thermal] Window drop threshold (all zones): %.1f C\n", _windowThreshold);
     return true;
 }
@@ -1299,7 +1302,19 @@ void ThermalZoneManager::evaluateWindowDetection(size_t index, float currentTemp
 
 bool ThermalZoneManager::isWindowPauseActive(size_t index) const {
     if (index >= MAX_THERMAL_ZONES) return false;
+    return _windowStates[index].pauseActive && (_heatingType == HEATING_TYPE_RADIATORS);
+}
+
+bool ThermalZoneManager::isWindowDetected(size_t index) const {
+    if (index >= MAX_THERMAL_ZONES) return false;
     return _windowStates[index].pauseActive;
+}
+
+void ThermalZoneManager::setHeatingType(uint8_t type) {
+    if (type <= 1) {
+        _heatingType = type;
+        paramStore.set(Param::HeatingType, type);
+    }
 }
 
 uint32_t ThermalZoneManager::getWindowPauseRemainingSec(size_t index) const {
@@ -1447,6 +1462,7 @@ String ThermalZoneManager::getScheduleJson() const {
         }
         json += "\"effectiveTarget\":" + String(getEffectiveTargetTemp(i), 1) + ",";
         json += "\"isManualHold\":" + String(_statuses[i].isManualHold ? "true" : "false") + ",";
+        json += "\"windowDetected\":" + String(isWindowDetected(i) ? "true" : "false") + ",";
         json += "\"windowPauseActive\":" + String(isWindowPauseActive(i) ? "true" : "false") + ",";
         json += "\"windowPauseRemainingSec\":" + String(getWindowPauseRemainingSec(i));
         json += "}";
@@ -1756,7 +1772,7 @@ void ThermalZoneManager::update(BoilerRadioTrigger& boiler) {
 
             // Time-proportional control (only if autoMode and not forced by frost guard)
             if (_autoMode && !_statuses[i].frostActive) {
-                if (_windowStates[i].pauseActive) {
+                if (_windowStates[i].pauseActive && _heatingType == HEATING_TYPE_RADIATORS) {
                     _statuses[i].demand = false;
                     _statuses[i].state = ZONE_WINDOW_PAUSE;
                 } else {

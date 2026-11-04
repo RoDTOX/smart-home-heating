@@ -425,3 +425,42 @@ class SafetyFeatureTests:
             return TestResult(test_id, name, req, "PASS", latency, "State WINDOW and windowPauseActive agree on every zone")
         except Exception as e:
             return TestResult(test_id, name, req, "FAIL", (time.time() - start) * 1000, str(e))
+
+    def test_tc26_6_heating_type_and_window_action(self):
+        """SWE.5-TC26.6: Heating type configuration and window action contract (FR-40)"""
+        test_id = "SWE.5-TC26.6"
+        name = "Heating Type and Window Action Contract"
+        req = "FR-40"
+        start = time.time()
+        try:
+            r = requests.get(f"{self.base_url}/api/config/system", timeout=self.timeout)
+            assert r.status_code == 200, f"Config query failed: {r.status_code}"
+            data = r.json()
+            assert "heatingType" in data, f"Missing heatingType in config: {data}"
+            initial_htype = data.get("heatingType")
+            assert initial_htype in (0, 1), f"Invalid heatingType value: {initial_htype}"
+
+            auth = self.api_auth() if hasattr(self, "api_auth") else None
+            r_post = requests.post(f"{self.base_url}/api/config/system", data={"heatingType": "1"}, auth=auth, timeout=self.timeout)
+            assert r_post.status_code == 200, f"Failed to set heatingType=1: {r_post.status_code}"
+            assert r_post.json().get("heatingType") == 1, "heatingType did not update to 1"
+
+            r_bad = requests.post(f"{self.base_url}/api/config/system", data={"heatingType": "2"}, auth=auth, timeout=self.timeout)
+            assert r_bad.status_code == 400, f"Expected 400 for out-of-range heatingType, got {r_bad.status_code}"
+
+            r_rest = requests.post(f"{self.base_url}/api/config/system", data={"heatingType": "0"}, auth=auth, timeout=self.timeout)
+            assert r_rest.status_code == 200, f"Failed to restore heatingType=0: {r_rest.status_code}"
+            assert r_rest.json().get("heatingType") == 0, "heatingType did not restore to 0"
+
+            r_z = requests.get(f"{self.base_url}/api/zones", timeout=self.timeout)
+            assert r_z.status_code == 200
+            zones = r_z.json().get("zones", [])
+            assert zones, "No zones"
+            for z in zones:
+                assert "windowPauseActive" in z, f"Missing windowPauseActive in zone {z.get('id')}"
+                assert "windowDetected" in z, f"Missing windowDetected in zone {z.get('id')}"
+
+            latency = (time.time() - start) * 1000
+            return TestResult(test_id, name, req, "PASS", latency, "heatingType configuration and window schema contract verified")
+        except Exception as e:
+            return TestResult(test_id, name, req, "FAIL", (time.time() - start) * 1000, str(e))

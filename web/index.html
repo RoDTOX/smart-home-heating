@@ -466,7 +466,7 @@ async function api(path, params, isJson = false) {
 }
 
 function roomClass(z) {
-  if (z.state === "WINDOW" || z.windowPauseActive) return "win";
+  if (z.state === "WINDOW" || z.windowPauseActive || z.windowDetected) return "win";
   if (z.state === "FAULT" || z.state === "DISABLED") return "bad";
   if (Z.away) return "away";
   return z.relayEngaged ? "heat" : "";
@@ -495,10 +495,12 @@ function renderRooms() {
 
     const onMin = Math.round((z.duty || 0) * 0.6);
     let statusText = STATE_RO[z.state] || z.state;
-    const isWin = (z.state === "WINDOW" || z.windowPauseActive);
+    const isWin = (z.state === "WINDOW" || z.windowPauseActive || z.windowDetected);
     if (isWin) {
       const mLeft = Math.ceil((z.windowPauseRemainingSec || 1800) / 60);
-      statusText = `🪟 Fereastră deschisă · Pauză ${mLeft}m`;
+      statusText = (z.windowPauseActive || z.state === "WINDOW")
+        ? `🪟 Fereastră deschisă · Pauză ${mLeft}m`
+        : "🪟 Fereastră deschisă (căldura continuă)";
     } else if (z.state === "IDLE") {
       statusText = (z.sensorValid && z.currentTemp < (z.effectiveTarget - 0.15))
         ? "Pauză ciclu (menține din șapă)"
@@ -1063,7 +1065,7 @@ function renderHistoryChart() {
         const vOn = (p[5] & bit) !== 0;
         const winActive = (((p[5] >> 5) & 0x03) === (idx + 1));
         const temp = (p[idx + 1] !== null && p[idx + 1] !== undefined) ? p[idx + 1] + '°C' : '--';
-        const vState = winActive ? '<span style="color:#38bdf8">🪟 pauză geam</span>' : (vOn ? '<span style="color:var(--ok)">vană deschisă</span>' : 'închis');
+        const vState = winActive ? (vOn ? '<span style="color:var(--ok)">vană deschisă</span> <span style="color:#38bdf8">🪟 geam</span>' : '<span style="color:#38bdf8">🪟 pauză geam</span>') : (vOn ? '<span style="color:var(--ok)">vană deschisă</span>' : 'închis');
         tip += ` · <b>${esc(z.name)}</b>: ${temp} (${vState})`;
       });
       if (p[4] !== null && p[4] !== undefined) tip += ` · Afară: ${p[4]}°C`;

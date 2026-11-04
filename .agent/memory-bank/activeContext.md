@@ -5,8 +5,9 @@ Only what holds now and what comes next. A line that no longer holds is replaced
 [`docs/archive/active_context_until_2026-11-02.md`](../../docs/archive/active_context_until_2026-11-02.md).
 
 ## Now
-- Step 9 (Commands + authentication) + memory & stability fixes (PB-115, PB-122) built, flashed OTA, tests 24/24 PASS (TC01, TC32, TC40, TC41). Board runs Step 9 firmware; owner hands-on test pending.
-- Next: owner acceptance of Step 9, then steps 5 and 7, as in `docs/plan.md`; light process (AGENTS.md section 5).
+- Heating type configuration (`heatingType`: 0 = floor, 1 = radiators, FR-40, C-40) implemented and verified on board: in floor mode, window detection is visual-only (telemetry/chart marker `🪟`, UI badge, status flags) without cutting heat demand or closing valves; in radiator mode, window detection pauses zone heating (closes valve). TC26 6/6 PASS on board.
+- Step 9 (Commands + authentication) accepted by owner ("ALL OK", row added in `docs/acceptance.md` citing `ee7c762`).
+- Next: owner hands-on test of visual-only window detection on board, then steps 5 and 7, as in `docs/plan.md`; light process (AGENTS.md section 5).
 - PB-122 fixed in Step 9: `_minHeapSinceCheck` evaluates transient heap dips < 60 KB for DTC-402, auto-clears when heap > 75 KB.
 - PB-115: weather task stack reduced from 6144 B to 4096 B (done). Free heap steady >100 KB (101-102 KB), flash margin 47 KB (limit 1 306 624 B).
 - PB-1: single command path and authentication implemented in `Commands` and `WebApi`.

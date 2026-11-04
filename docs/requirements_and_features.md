@@ -283,8 +283,13 @@ one example:
 - **FR-18 (Sensor timeout setting):** *[now]* {SW; test} `sensorTimeout` is set via API and console, stored in NVS; one value
   is used for control and for DTC-101 `ERR_SENSOR_TIMEOUT`.
 - **FR-40 (Window detection, simple rule):** *[now]* {SW; test} One global `windowThreshold` for all zones: a drop of at least
-  the threshold within 5 min closes that zone's valve for 30 min, or until the temperature rebounds by 0.6 °C from
-  the minimum, or until `POST /api/zones/window/clear`. Per-zone thresholds are removed.
+  the threshold within 5 min declares open window detection for that zone.
+  Configurable `heatingType` (`0 = floor` / `1 = radiators`, default `floor`):
+  - `floor` (underfloor heating / încălzire în pardoseală): window detection is visual/telemetry only (shows `🪟` on chart,
+    status `windowPauseActive: true`, UI room badge), without closing that zone's valve or pausing heating (avoids thermal
+    inertia recovery penalty of the slab).
+  - `radiators` (calorifere): window detection closes that zone's valve for 30 min, or until the temperature rebounds
+    by 0.6 °C from the minimum, or until `POST /api/zones/window/clear` (traditional energy-saving pause for fast-response emitters).
   - Used whenever FR-40.2 lacks outdoor or humidity data.
   - *Fallback:* a false detection ends after 30 min at most; frost protection overrides the pause.
 - **FR-40.2 (Smart window detection):** *[phase 4]* {SW; board, analysis} Each zone evaluates a sliding window of ≥ 3 accepted readings
@@ -814,6 +819,7 @@ Set via API and console, stored in NVS (written on change only). A value outside
 | sensor offset | 0.0 °C | −3.0…+3.0 °C | FR-49 |
 | `faultFrostOutdoor` | 5 °C | −10…+10 °C | FR-51, FR-64 |
 | `actuatorType` | NC | NC / NO | FR-15.1 |
+| `heatingType` | floor | floor / radiators | FR-40 |
 | `pumpOutput` | none | none / one relay output | FR-14.1 |
 | `boilerSetTemp` | 40 °C | 25–60 °C | FR-35.1 |
 | `boilerFlowObserved` | 43 °C | 25–65 °C | FR-35.1 |
