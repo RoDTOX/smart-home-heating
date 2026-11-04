@@ -8,7 +8,7 @@
 #include "ConsoleAuth.h"
 
 #define TELNET_PORT 23
-#define LOG_BUFFER_SIZE 8192
+#define LOG_BUFFER_SIZE 4096  // halved from 8192 to win heap (architecture 14.2, owner 01.11.2026)
 
 typedef std::function<void(String)> CommandCallback;
 

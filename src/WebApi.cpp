@@ -964,6 +964,7 @@ void handleApiStatus() {
   json += "\"pendingWaitSec\":" + String(bWaitSec) + ",";
   json += "\"lastTxMs\":" + String(boilerRadio.getLastTransmissionTime()) + ",";
   json += "\"freeHeap\":" + String(ESP.getFreeHeap()) + ",";
+  json += "\"loopStackFree\":" + String((unsigned)uxTaskGetStackHighWaterMark(nullptr)) + ",";  // FR-23, bytes never used
   json += "\"rssi\":" + String(WiFi.RSSI()) + ",";
   json += "\"uptimeSec\":" + String(millis() / 1000) + ",";
   json += "\"wifiWatchdog\":\"active\",";
@@ -1356,6 +1357,11 @@ void handleApiConfigSystemPost() {
       ok = false;
     if (!known || !ok) bad += (bad.length() ? ",\"" : "\"") + name + "\"";
   }
+  if (!bad.length() && (server.hasArg("validMin") || server.hasArg("freezeProtectionTemp"))) {  // FR-53: validMin < frostTemp
+    float vmin = server.hasArg("validMin") ? server.arg("validMin").toFloat() : paramStore.getf(Param::ValidMin);
+    float frost = server.hasArg("freezeProtectionTemp") ? server.arg("freezeProtectionTemp").toFloat() : thermalZones.getFreezeProtectionTemp();
+    if (vmin > frost - 0.05f) bad = server.hasArg("validMin") ? "\"validMin\"" : "\"freezeProtectionTemp\"";
+  }
   if (bad.length()) {
     server.send(400, "application/json",
                 "{\"status\":\"error\",\"message\":\"Unknown, read-only or out of range (requirements \u00a76); "
@@ -1368,6 +1374,8 @@ void handleApiConfigSystemPost() {
   if (server.hasArg("burnerMinRunSec")) boilerRadio.setMinRunSec(server.arg("burnerMinRunSec").toInt());
   if (server.hasArg("burnerMinPauseSec")) boilerRadio.setMinPauseSec(server.arg("burnerMinPauseSec").toInt());
   if (server.hasArg("rfSafetyHeartbeatSec")) boilerRadio.setHeartbeatSec(server.arg("rfSafetyHeartbeatSec").toInt());
+  if (server.hasArg("validMin") && server.arg("validMin").toFloat() < paramStore.getf(Param::ValidMin))
+    paramStore.setf(Param::ValidMin, server.arg("validMin").toFloat());  // lowered first, so a lower frostTemp fits
   if (server.hasArg("freezeProtectionTemp")) thermalZones.setFreezeProtectionTemp(server.arg("freezeProtectionTemp").toFloat());
   if (server.hasArg("sensorTimeoutSec")) thermalZones.setSensorTimeoutSec(server.arg("sensorTimeoutSec").toInt());
   if (server.hasArg("hysteresis")) thermalZones.setHysteresis(server.arg("hysteresis").toFloat());

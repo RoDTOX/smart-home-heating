@@ -317,6 +317,7 @@ void ThermalZoneManager::setActuatorNormallyClosed(bool nc) {
 }
 
 bool ThermalZoneManager::setFreezeProtectionTemp(float temp) {
+    if (temp < paramStore.getf(Param::ValidMin) + 0.05f) return false;  // validMin stays below frostTemp (FR-53)
     if (!paramStore.setf(Param::FrostTemp, temp)) return false;
     _freezeProtectionTemp = paramStore.getf(Param::FrostTemp);
     netConsole.printf("[Thermal] Frost protection threshold: %.1f C\n", _freezeProtectionTemp);
