@@ -1224,6 +1224,7 @@ void ThermalZoneManager::evaluateWindowDetection(size_t index, float currentTemp
     if (!_scheduleConfig.windowDetectionEnabled) {
         _windowStates[index].pauseActive = false;
         _windowStates[index].bucketStartMs = 0;
+        for (uint8_t k = 0; k < 15; k++) _windowStates[index].bucketMax[k] = -999.0f;
         if (_statuses[index].state == ZONE_WINDOW_PAUSE) {
             _statuses[index].state = ZONE_IDLE;
             _statuses[index].stateChangedMs = now;
@@ -1235,53 +1236,81 @@ void ThermalZoneManager::evaluateWindowDetection(size_t index, float currentTemp
 
     if (!_windowStates[index].pauseActive) {
         WindowDetectionState &w = _windowStates[index];
-        // Baseline = highest reading of the last 5 min (FR-40: a drop within 5 min), kept in five 60 s buckets.
-        if (w.bucketStartMs == 0 || now - w.bucketStartMs >= 300000UL) {
-            for (uint8_t k = 0; k < 5; k++) w.bucketMax[k] = -999.0f;
+        // Baseline = highest reading of the last 15 min (adaptive) in fifteen 60 s buckets.
+        if (w.bucketStartMs == 0 || now - w.bucketStartMs >= 900000UL) {
+            for (uint8_t k = 0; k < 15; k++) w.bucketMax[k] = -999.0f;
             w.bucketHead = 0;
             w.bucketStartMs = now;
             w.dropInsightLogged = false;
         } else {
             while (now - w.bucketStartMs >= 60000UL) {
-                w.bucketHead = (w.bucketHead + 1) % 5;
+                w.bucketHead = (w.bucketHead + 1) % 15;
                 w.bucketMax[w.bucketHead] = -999.0f;
                 w.bucketStartMs += 60000UL;
             }
         }
         if (currentTemp > w.bucketMax[w.bucketHead]) w.bucketMax[w.bucketHead] = currentTemp;
-        float peak = -999.0f;
-        uint8_t peakAge = 0;
+
+        // 1. Fast 5-minute peak (last 5 buckets)
+        float peak5m = -999.0f;
+        uint8_t peakAge5m = 0;
         for (uint8_t k = 0; k < 5; k++) {
-            if (w.bucketMax[k] > peak) {
-                peak = w.bucketMax[k];
-                peakAge = (uint8_t)((w.bucketHead + 5 - k) % 5);
+            uint8_t idx = (w.bucketHead + 15 - k) % 15;
+            if (w.bucketMax[idx] > peak5m) {
+                peak5m = w.bucketMax[idx];
+                peakAge5m = k;
             }
         }
-        if (peak > w.baselineTemp || w.baselineMs == 0) w.dropInsightLogged = false;
-        w.baselineTemp = peak;
-        w.baselineMs = now - (uint32_t)peakAge * 60000UL;
-        float drop = w.baselineTemp - currentTemp;
-        if (drop >= dropThreshold) {
+
+        // 2. Adaptive 15-minute peak (all 15 buckets)
+        float peak15m = -999.0f;
+        uint8_t peakAge15m = 0;
+        for (uint8_t k = 0; k < 15; k++) {
+            uint8_t idx = (w.bucketHead + 15 - k) % 15;
+            if (w.bucketMax[idx] > peak15m) {
+                peak15m = w.bucketMax[idx];
+                peakAge15m = k;
+            }
+        }
+
+        if (peak15m > w.baselineTemp || w.baselineMs == 0) w.dropInsightLogged = false;
+        w.baselineTemp = peak15m;
+        w.baselineMs = now - (uint32_t)peakAge15m * 60000UL;
+
+        float drop5m = peak5m - currentTemp;
+        float drop15m = peak15m - currentTemp;
+
+        float outdoor = timeAndWeather.getOutdoorTemperature();
+        bool outdoorCold = (outdoor > -50.0f) ? (currentTemp - outdoor >= 5.0f) : true;
+
+        bool fastDrop = (drop5m >= dropThreshold);
+        bool adaptiveDrop = (_heatingType == HEATING_TYPE_FLOOR && drop15m >= 0.40f && outdoorCold);
+
+        if (fastDrop || adaptiveDrop) {
             w.pauseActive = true;
             w.pauseStartMs = now;
             w.pauseMinTemp = currentTemp;
             time_t nowEpoch = time(nullptr);
             w.lastDetectionEpoch = (nowEpoch >= 1700000000) ? (uint32_t)nowEpoch : (now / 1000);
-            netConsole.printf("[Thermal][WINDOW] Open window detected on Zone %u (%s): temp dropped %.2f \xC2\xB0""C within %us! (threshold: %.1f C). Suspending heating for 30m.\n",
+            netConsole.printf("[Thermal][WINDOW] Open window detected on Zone %u (%s): %s (%.2f C -> %.2f C, drop %.2f C in %us)...\n",
                               _configs[index].id, _configs[index].name,
-                              drop, (now - w.baselineMs) / 1000, dropThreshold);
-        } else if (drop >= 0.35f && !w.dropInsightLogged) {
+                              adaptiveDrop ? "adaptive 15m trend" : "fast 5m drop",
+                              fastDrop ? peak5m : peak15m, currentTemp,
+                              fastDrop ? drop5m : drop15m,
+                              fastDrop ? (peakAge5m * 60) : (peakAge15m * 60));
+        } else if (drop15m >= 0.30f && !w.dropInsightLogged) {
             w.dropInsightLogged = true;
             netConsole.printf("[Thermal][INSIGHT] Rapid cooling detected on Zone %u (%s): %.2f C -> %.2f C (-%.2f C in %us, possible aeration)\n",
                               _configs[index].id, _configs[index].name,
-                              w.baselineTemp, currentTemp, drop, (now - w.baselineMs) / 1000);
+                              peak15m, currentTemp, drop15m, (now - w.baselineMs) / 1000);
         }
     } else {
         if (currentTemp < _windowStates[index].pauseMinTemp) {
             _windowStates[index].pauseMinTemp = currentTemp;
         }
         bool timeoutExpired = (now - _windowStates[index].pauseStartMs >= 1800000UL); // 30 min
-        bool rebounded = (currentTemp >= _windowStates[index].pauseMinTemp + 0.6f);
+        float reboundTarget = (_heatingType == HEATING_TYPE_FLOOR) ? 0.30f : 0.60f;
+        bool rebounded = (currentTemp >= _windowStates[index].pauseMinTemp + reboundTarget);
         if (timeoutExpired || rebounded) {
             _windowStates[index].lastDetectionDurationSec = (now - _windowStates[index].pauseStartMs) / 1000;
             _windowStates[index].pauseActive = false;

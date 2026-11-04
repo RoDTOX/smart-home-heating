@@ -1351,8 +1351,8 @@ void handleApiConfigSystemGet() {
         pi(Param::BoilerFlowObserved), pf(Param::GasFlameRate), pi(Param::BoilerPowerKw));
   o.put("\"gasPrice\":%.2f,\"validMin\":%.1f,\"validMax\":%.1f,\"maxJump\":%.1f,\"manualTimeoutSec\":%ld,\"boostDurationSec\":%ld,",
         pf(Param::GasPrice), pf(Param::ValidMin), pf(Param::ValidMax), pf(Param::MaxJump), pi(Param::ManualTimeout), pi(Param::BoostDuration));
-  o.put("\"heatLimit\":%ld,\"seasonOnDays\":%ld,\"seasonOffDays\":%ld,\"heatingType\":%ld,\"zones\":[", pi(Param::HeatLimit), pi(Param::SeasonOnDays),
-        pi(Param::SeasonOffDays), pi(Param::HeatingType));
+  o.put("\"heatLimit\":%ld,\"seasonOnDays\":%ld,\"seasonOffDays\":%ld,\"heatingType\":%ld,\"adaptiveWindow\":%s,\"zones\":[", pi(Param::HeatLimit), pi(Param::SeasonOnDays),
+        pi(Param::SeasonOffDays), pi(Param::HeatingType), tf(thermalZones.getHeatingType() == HEATING_TYPE_FLOOR));
   for (size_t i = 0; i < thermalZones.getZoneCount(); i++) {
     const auto& z = thermalZones.getConfig(i);
     o.put("%s{\"id\":%d,\"name\":\"%s\",\"mac\":\"%s\",\"relayPin\":%d,\"enabled\":%s}", i > 0 ? "," : "", (int)z.id, z.name,

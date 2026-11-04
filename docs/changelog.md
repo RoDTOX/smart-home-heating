@@ -7,6 +7,17 @@ Entries before 29.10.2026 (the system before the lean clean-up):
 
 
 
+## [04.11.2026] - Adaptive window detection for underfloor heating (FR-40, C-41)
+
+- **Who / when / why:** firmware session (Antigravity), light process, owner approved feature. In underfloor heating installations, large thermal slab inertia slows air cooling during gradual window openings (e.g. 0.7 °C drop over 60 min, or ~0.4 °C over 15 min), which was swallowed by the 5 min fixed baseline without triggering. Added adaptive 15-minute sliding baseline for underfloor mode (`heatingType == 0`): detects gradual aeration trends (drop ≥ 0.40 °C within 15 min while room − outdoor ≥ 5 °C), in addition to the fast 5 min drop (≥ `windowThreshold`). Clears automatically on rebound (≥ +0.30 °C in floor mode, +0.60 °C in radiator mode), after 30 min, or via `/api/zones/window/clear`.
+- **Done:**
+  - `include/ThermalZoneManager.h`: expanded `WindowDetectionState.bucketMax` from 5 to 15 buckets (15 min sliding baseline).
+  - `src/ThermalZoneManager.cpp`: `evaluateWindowDetection()` evaluates both fast 5 min peak and adaptive 15 min trend; triggers visual window detection on gradual cooling under cold outdoor delta; rebound threshold adapted to 0.30 °C for floor mode.
+  - `src/WebApi.cpp`: exposed `adaptiveWindow: true` in `/api/config/system`.
+  - `tools/sh_tests/t_safety_features.py`: added `SWE.5-TC26.7` verifying adaptive window detection contract.
+- **Numbers:** firmware binary 1,260,161 B (flash margin 46.5 KB), free heap steady >100 KB.
+- **Tests:** Group 26 (TC26.1 - TC26.7) 100% PASS on board (7/7 PASS).
+
 ## [04.11.2026] - Heating type configuration and visual-only window detection (FR-40, C-40)
 
 - **Who / when / why:** firmware session (Antigravity), light process, owner approved feature. In underfloor heating installations (reference install), closing thermal actuator valves upon window opening causes a 2–3 hour thermal recovery penalty due to concrete slab inertia. Added configurable `heatingType` (`0 = floor` / `1 = radiators`, default `floor`): in underfloor heating mode, window detection is visual-only (shows `🪟` marker on 24h history chart, UI room card badge, and telemetry fields without cutting heat demand or closing valves); in radiator mode, window detection pauses zone heating (`ZONE_WINDOW_PAUSE`, valve closed) for 30 min or until rebound.

@@ -282,14 +282,17 @@ one example:
   accepted reading.
 - **FR-18 (Sensor timeout setting):** *[now]* {SW; test} `sensorTimeout` is set via API and console, stored in NVS; one value
   is used for control and for DTC-101 `ERR_SENSOR_TIMEOUT`.
-- **FR-40 (Window detection, simple rule):** *[now]* {SW; test} One global `windowThreshold` for all zones: a drop of at least
-  the threshold within 5 min declares open window detection for that zone.
+- **FR-40 (Window detection, simple & adaptive rules):** *[now]* {SW; test} Window detection monitors room cooling to declare aeration on each zone.
   Configurable `heatingType` (`0 = floor` / `1 = radiators`, default `floor`):
   - `floor` (underfloor heating / încălzire în pardoseală): window detection is visual/telemetry only (shows `🪟` on chart,
-    status `windowPauseActive: true`, UI room badge), without closing that zone's valve or pausing heating (avoids thermal
+    status `windowDetected: true`, UI room badge), without closing that zone's valve or pausing heating (avoids thermal
     inertia recovery penalty of the slab).
+    Adaptive detection: evaluates both fast drops (≥ `windowThreshold` within 5 min) and gradual aeration trends
+    (temperature drop ≥ 0.40 °C within 15 min while room − outdoor ≥ 5 °C).
+    Clears when temperature rebounds by ≥ 0.3 °C from the minimum, after 30 min timeout, or via `POST /api/zones/window/clear`.
   - `radiators` (calorifere): window detection closes that zone's valve for 30 min, or until the temperature rebounds
-    by 0.6 °C from the minimum, or until `POST /api/zones/window/clear` (traditional energy-saving pause for fast-response emitters).
+    by 0.6 °C from the minimum, or until `POST /api/zones/window/clear` (traditional energy-saving pause for fast-response emitters,
+    using strict 5 min drop ≥ `windowThreshold` to prevent false valve pauses).
   - Used whenever FR-40.2 lacks outdoor or humidity data.
   - *Fallback:* a false detection ends after 30 min at most; frost protection overrides the pause.
 - **FR-40.2 (Smart window detection):** *[phase 4]* {SW; board, analysis} Each zone evaluates a sliding window of ≥ 3 accepted readings

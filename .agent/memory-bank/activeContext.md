@@ -5,9 +5,10 @@ Only what holds now and what comes next. A line that no longer holds is replaced
 [`docs/archive/active_context_until_2026-11-02.md`](../../docs/archive/active_context_until_2026-11-02.md).
 
 ## Now
-- Heating type configuration (`heatingType`: 0 = floor, 1 = radiators, FR-40, C-40) implemented and verified on board: in floor mode, window detection is visual-only (telemetry/chart marker `🪟`, UI badge, status flags) without cutting heat demand or closing valves; in radiator mode, window detection pauses zone heating (closes valve). TC26 6/6 PASS on board.
+- Adaptive window detection for underfloor heating (15 min sliding baseline, gradual trend drop ≥ 0.40 °C with cold outdoor delta, rebound ≥ 0.30 °C, C-41, FR-40) implemented and verified on board: TC26 suite 7/7 PASS.
+- Heating type configuration (`heatingType`: 0 = floor, 1 = radiators, FR-40, C-40): in floor mode, window detection is visual-only without cutting heat demand or closing valves; in radiator mode, window detection pauses zone heating (closes valve).
 - Step 9 (Commands + authentication) accepted by owner ("ALL OK", row added in `docs/acceptance.md` citing `ee7c762`).
-- Next: owner hands-on test of visual-only window detection on board, then steps 5 and 7, as in `docs/plan.md`; light process (AGENTS.md section 5).
+- Next: owner hands-on test on board, then steps 5 and 7, as in `docs/plan.md`; light process (AGENTS.md section 5).
 - PB-122 fixed in Step 9: `_minHeapSinceCheck` evaluates transient heap dips < 60 KB for DTC-402, auto-clears when heap > 75 KB.
 - PB-115: weather task stack reduced from 6144 B to 4096 B (done). Free heap steady >100 KB (101-102 KB), flash margin 47 KB (limit 1 306 624 B).
 - PB-1: single command path and authentication implemented in `Commands` and `WebApi`.

@@ -464,3 +464,34 @@ class SafetyFeatureTests:
             return TestResult(test_id, name, req, "PASS", latency, "heatingType configuration and window schema contract verified")
         except Exception as e:
             return TestResult(test_id, name, req, "FAIL", (time.time() - start) * 1000, str(e))
+
+    def test_tc26_7_adaptive_window_detection(self):
+        """SWE.5-TC26.7: Adaptive window detection contract for underfloor heating (FR-40)"""
+        test_id = "SWE.5-TC26.7"
+        name = "Adaptive Window Detection Contract"
+        req = "FR-40"
+        start = time.time()
+        try:
+            r = requests.get(f"{self.base_url}/api/zones", timeout=self.timeout)
+            assert r.status_code == 200, f"Failed fetching zones: {r.status_code}"
+            zones = r.json().get("zones", [])
+            assert zones, "No zones configured"
+            for z in zones:
+                assert "windowDetected" in z, f"Zone {z.get('id')} missing windowDetected"
+                assert "windowPauseActive" in z, f"Zone {z.get('id')} missing windowPauseActive"
+                assert "windowPauseRemainingSec" in z, f"Zone {z.get('id')} missing windowPauseRemainingSec"
+                assert "windowDropThreshold" in z, f"Zone {z.get('id')} missing windowDropThreshold"
+
+            cfg = requests.get(f"{self.base_url}/api/config/system", timeout=self.timeout).json()
+            assert "heatingType" in cfg, "Missing heatingType in config"
+            assert cfg.get("heatingType") == 0, f"Expected heatingType=0 (floor), got {cfg.get('heatingType')}"
+            assert "adaptiveWindow" in cfg, f"Missing adaptiveWindow in config: {cfg}"
+
+            r_clr = requests.post(f"{self.base_url}/api/zones/window/clear?id=all", timeout=self.timeout)
+            assert r_clr.status_code == 200, f"Clear failed: {r_clr.status_code}"
+
+            latency = (time.time() - start) * 1000
+            details = "Adaptive window detection schema and underfloor contract verified (FR-40)"
+            return TestResult(test_id, name, req, "PASS", latency, details)
+        except Exception as e:
+            return TestResult(test_id, name, req, "FAIL", (time.time() - start) * 1000, str(e))

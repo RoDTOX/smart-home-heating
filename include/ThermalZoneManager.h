@@ -106,7 +106,7 @@ struct ScheduleConfig {
 struct WindowDetectionState {
     float baselineTemp;
     uint32_t baselineMs;
-    float bucketMax[5];      // peak per 60 s bucket: the baseline is the peak of the last 5 min (FR-40)
+    float bucketMax[15];     // peak per 60 s bucket: 15 min sliding baseline for adaptive detection (FR-40)
     uint8_t bucketHead;
     uint32_t bucketStartMs;
     bool pauseActive;
