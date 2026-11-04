@@ -406,8 +406,11 @@ void handleApiZoneSetpoint() {
     return;
   }
   float target = server.arg("target").toFloat();
-  thermalZones.setTargetTemperature(idx, target);
   server.sendHeader("Access-Control-Allow-Origin", "*");
+  if (!thermalZones.setTargetTemperatureChecked(idx, target)) {  // FR-1.2: boost limits for every source
+    server.send(400, "application/json", F("{\"error\":\"A boost is 0.5 to 2.0 C above the schedule level in 0.5 C steps\"}"));
+    return;
+  }
   server.send(200, "application/json", F("{\"status\":\"ok\"}"));
 }
 
@@ -505,6 +508,18 @@ void handleApiZoneToggle() {
   } else {
     server.send(404, "application/json", F("{\"error\":\"Zone not found\"}"));
   }
+}
+
+void handleApiSeason() {
+  String m = server.arg("mode");
+  m.toLowerCase();
+  server.sendHeader("Access-Control-Allow-Origin", "*");
+  if (m != "auto" && m != "on" && m != "off") {
+    server.send(400, "application/json", F("{\"error\":\"mode must be auto, on or off\"}"));
+    return;
+  }
+  thermalZones.setSeasonMode(m == "auto" ? 0 : m == "on" ? 1 : 2);
+  server.send(200, "application/json", F("{\"status\":\"ok\"}"));
 }
 
 void handleApiMode() {
@@ -956,7 +971,14 @@ void handleApiStatus() {
   json += "\"date\":\"" + timeAndWeather.getFormattedDate() + "\",";
   json += "\"season\":\"" + timeAndWeather.getSeason() + "\",";
   json += "\"isHeatingSeason\":" +
-          String(timeAndWeather.isHeatingSeason() ? "true" : "false") + ",";
+          String(thermalZones.isSeasonHeating() ? "true" : "false") + ",";
+  json += "\"seasonMode\":\"" + String(paramStore.get(Param::SeasonMode) == 1 ? "ON" : paramStore.get(Param::SeasonMode) == 2 ? "OFF" : "AUTO") + "\",";
+  json += "\"seasonState\":\"" + String(thermalZones.isSeasonHeating() ? "HEATING" : "SUMMER") + "\",";
+  {
+    ThermalZoneManager::EffMode em = thermalZones.effectiveMode();
+    json += "\"effectiveMode\":\"" + String(em == ThermalZoneManager::EffMode::Manual ? "MANUAL" : em == ThermalZoneManager::EffMode::Off ? "OFF" : "AUTO") + "\",";
+  }
+  json += "\"manualRemainingSec\":" + String(thermalZones.manualRemainingSec()) + ",";
   json +=
       "\"outdoorTemp\":" + String(timeAndWeather.getOutdoorTemperature(), 1) +
       ",";
@@ -1431,6 +1453,17 @@ void handleApiDevSensor() {
                                    (uint8_t)server.arg("bat").toInt(), (int8_t)server.arg("rssi").toInt());
   server.send(200, "application/json", F("{\"status\":\"ok\"}"));
 }
+
+void handleApiDevSeasonDay() {
+  if (server.arg("mean") != "none") thermalZones.seasonNewDay(server.arg("mean").toFloat());  // no data: no change
+  server.send(200, "application/json", F("{\"status\":\"ok\"}"));
+}
+
+void handleApiDevWeather() {
+  if (server.hasArg("failed")) timeAndWeather.devSetPollFailed((uint32_t)server.arg("ageSec").toInt());
+  if (server.hasArg("refresh")) timeAndWeather.forceWeatherUpdate();
+  server.send(200, "application/json", F("{\"status\":\"ok\"}"));
+}
 #endif
 
 void registerWebRoutes() {
@@ -1439,6 +1472,8 @@ void registerWebRoutes() {
   // Web Server routes
 #ifdef SH_DEV_OPEN
   server.on("/api/dev/sensor", HTTP_POST, handleApiDevSensor);
+  server.on("/api/dev/weather", HTTP_POST, handleApiDevWeather);
+  server.on("/api/dev/season-day", HTTP_POST, handleApiDevSeasonDay);
 #endif
   server.on("/", HTTP_GET, handleRoot);
   server.on("/api/setup/location", handleApiSetupLocation);
@@ -1465,6 +1500,7 @@ void registerWebRoutes() {
   server.on("/api/zones/window/threshold", HTTP_POST, handleApiZoneWindowThreshold);
   server.on("/api/zones/sensor", HTTP_POST, handleApiZoneSensor);
   server.on("/api/mode", HTTP_POST, handleApiMode);
+  server.on("/api/season", HTTP_POST, handleApiSeason);
   server.on("/api/ble/sensors", HTTP_GET, handleApiBleSensors);
   server.on("/api/diag/status", HTTP_GET, handleApiDiagStatus);
   server.on("/api/diag/events", HTTP_GET, handleApiDiagEvents);

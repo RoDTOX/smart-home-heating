@@ -283,6 +283,13 @@ void DiagnosticEngine::evaluateSensors() {
 }
 
 void DiagnosticEngine::evaluateSystem() {
+  // FR-61: without valid time the zones keep their last schedule level
+  if (timeAndWeather.isTimeSynced()) {
+    clearDtc(Dtc::WARN_TIME_NOT_SET);
+  } else if (millis() > 120000UL) {
+    raiseDtc(Dtc::WARN_TIME_NOT_SET, "Time not set (NTP)", SEV_WARNING);
+  }
+
   // Wi-Fi signal check
   if (WiFi.status() == WL_CONNECTED) {
     int rssi = WiFi.RSSI();

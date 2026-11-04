@@ -130,6 +130,7 @@ struct ThermalZoneStatus {
     uint32_t stateChangedMs;
     uint32_t energisedMs;  // millis() when the valve was energised: interlockDelay counts from here (FR-2)
     bool isManualHold;
+    uint32_t holdStartMs;  // boostDuration counts from here (FR-39)
 };
 
 class ThermalZoneManager {
@@ -157,6 +158,15 @@ public:
     // FR-2: Boiler ON only after a valve has been energised for interlockDelay (MANUAL with openLoopBypass: always)
     bool boilerOnPermitted() const;
     bool isAutoMode() const { return _autoMode; }
+    // Operating mode and season (architecture 7.5, 7.6): MANUAL while a manual session runs, else AUTO in season
+    // HEATING and OFF (global OFF, FR-64) in season SUMMER
+    enum class EffMode : uint8_t { Auto, Manual, Off };
+    EffMode effectiveMode() const { return !_autoMode ? EffMode::Manual : (_seasonHeating ? EffMode::Auto : EffMode::Off); }
+    uint32_t manualRemainingSec() const;   // FR-52, 0 when not in MANUAL
+    bool isSeasonHeating() const { return _seasonHeating; }
+    void setSeasonMode(uint8_t mode);      // 0 AUTO, 1 ON, 2 OFF (FR-12.2)
+    void seasonNewDay(float prevDayMean);  // a new previous-day mean arrived (FR-12.2)
+    bool setTargetTemperatureChecked(size_t index, float target);  // false: not a valid boost step (FR-1.2)
     uint32_t getInterlockDelayMs() const { return _interlockDelayMs; }
     uint32_t getPumpOverrunMs() const { return _pumpOverrunMs; }
     // Requirements §6 ranges are enforced by ParamStore: a setter returns false and changes nothing when out of range
@@ -331,6 +341,12 @@ private:
     uint32_t _lastScheduleEvalMs;
 
     bool _autoMode;
+    bool _seasonHeating = true;
+    uint8_t _daysOn = 0, _daysOff = 0;
+    uint32_t _manualStartMs = 0;
+    uint32_t _coldSinceMs = 0;       // season safety net: some zone below its night level since then (FR-12.2)
+    void seasonSet(bool heating, const char* why);
+    void modeTick(uint32_t now);
     bool _boilerDemand;
     bool _pumpControlEnabled;
     bool _pumpActive;

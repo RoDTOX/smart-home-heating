@@ -505,7 +505,7 @@ void handleSerialCommand(String cmd) {
                       timeAndWeather.getDay());
     netConsole.printf("  Season:         %s | Heating Season: %s\n",
                       timeAndWeather.getSeason().c_str(),
-                      timeAndWeather.isHeatingSeason()
+                      thermalZones.isSeasonHeating()
                           ? "ACTIVE (Heating Mode)"
                           : "OFF-SEASON (Summer Standby)");
   } else if (upperCmd == "WEATHER") {

@@ -112,6 +112,15 @@ void ThermalZoneManager::loadConfig() {
     outputBank.setNormallyClosed(paramStore.get(Param::ActuatorType) == 0);
     _pumpControlEnabled = paramStore.get(Param::PumpOutput) != 0;
     _autoMode = paramStore.state(StateKey::AutoMode) != 0;
+    _manualStartMs = millis();
+    _seasonHeating = paramStore.state(StateKey::SeasonHeating) != 0;
+    _daysOn = (uint8_t)paramStore.state(StateKey::SeasonDaysOn);
+    _daysOff = (uint8_t)paramStore.state(StateKey::SeasonDaysOff);
+    {
+        uint8_t sm = (uint8_t)paramStore.get(Param::SeasonMode);
+        if (sm == 1) _seasonHeating = true;
+        if (sm == 2) _seasonHeating = false;
+    }
     _lastAntiSeizeEpoch = paramStore.state(StateKey::AntiSeizeEpoch);
 
     uint32_t stored = paramStore.state(StateKey::ZoneCount);
@@ -382,6 +391,7 @@ void ThermalZoneManager::setTargetTemperature(size_t index, float target) {
         // If the schedule is active, mark as Temporary Hold (holds until next slot)
         if (_scheduleConfig.enabled && timeAndWeather.isTimeSynced()) {
             _statuses[index].isManualHold = true;
+            _statuses[index].holdStartMs = millis();
             netConsole.printf("[Thermal] Zone %u (%s) TEMPORARY HOLD set to %.1f C (holds until next slot: %s in %u min)\n",
                 _configs[index].id, _configs[index].name, target, getLevelName(_nextLevel), _minsToNextSlot);
         } else {
@@ -390,6 +400,18 @@ void ThermalZoneManager::setTargetTemperature(size_t index, float target) {
                 _configs[index].id, _configs[index].name, target);
         }
     }
+}
+
+// FR-1.2: a boost is 0.5 - 2.0 C above the schedule level in 0.5 C steps; a target at or below it is a plain hold
+bool ThermalZoneManager::setTargetTemperatureChecked(size_t index, float target) {
+    if (index >= MAX_THERMAL_ZONES) return false;
+    float up = target - getScheduleTargetTemp(index);
+    if (up > 0.05f) {
+        float steps = up / 0.5f;
+        if (up > 2.05f || fabsf(steps - roundf(steps)) > 0.1f) return false;
+    }
+    setTargetTemperature(index, target);
+    return true;
 }
 
 void ThermalZoneManager::clearManualHold(size_t index) {
@@ -573,10 +595,72 @@ void ThermalZoneManager::setOpenLoopBypass(bool en) {
 }
 
 void ThermalZoneManager::setAutoMode(bool autoMode) {
+    if (!autoMode && _autoMode) _manualStartMs = millis();  // FR-52: the session starts here (uptime based)
     _autoMode = autoMode;
     if (!autoMode) _boilerDemand = false;  // MANUAL: a running boiler is the user's, only frost (FR-16.1) starts or stops it
     persistConfig();
     netConsole.printf("[Thermal] Operation mode switched to: %s\n", _autoMode ? "AUTO" : "MANUAL");
+}
+
+uint32_t ThermalZoneManager::manualRemainingSec() const {
+    if (_autoMode) return 0;
+    uint32_t total = (uint32_t)paramStore.get(Param::ManualTimeout);
+    uint32_t used = (millis() - _manualStartMs) / 1000UL;
+    return used >= total ? 0 : total - used;
+}
+
+void ThermalZoneManager::seasonSet(bool heating, const char* why) {
+    if (heating == _seasonHeating) return;
+    _seasonHeating = heating;
+    _daysOn = _daysOff = 0;
+    paramStore.saveState(StateKey::SeasonHeating, heating ? 1 : 0);
+    paramStore.saveState(StateKey::SeasonDaysOn, 0);
+    paramStore.saveState(StateKey::SeasonDaysOff, 0);
+    netConsole.printf("[Season] %s (%s)\n", heating ? "HEATING" : "SUMMER (global OFF)", why);
+}
+
+void ThermalZoneManager::setSeasonMode(uint8_t mode) {
+    paramStore.set(Param::SeasonMode, mode);
+    if (mode == 1) seasonSet(true, "season mode ON");
+    else if (mode == 2) seasonSet(false, "season mode OFF");
+    else { _daysOn = _daysOff = 0; }
+    _coldSinceMs = 0;
+}
+
+// FR-12.2: ON after seasonOnDays days in a row below heatLimit, OFF after seasonOffDays days in a row above
+// heatLimit + 2 C; season mode ON / OFF ignore the weather
+void ThermalZoneManager::seasonNewDay(float mean) {
+    if (paramStore.get(Param::SeasonMode) != 0) return;
+    float limit = paramStore.getf(Param::HeatLimit);
+    if (!_seasonHeating) {
+        _daysOn = (mean < limit) ? _daysOn + 1 : 0;
+        if (_daysOn >= paramStore.get(Param::SeasonOnDays)) seasonSet(true, "cold days");
+    } else {
+        _daysOff = (mean > limit + 2.0f) ? _daysOff + 1 : 0;
+        if (_daysOff >= paramStore.get(Param::SeasonOffDays)) seasonSet(false, "warm days");
+    }
+    paramStore.saveState(StateKey::SeasonDaysOn, _daysOn);
+    paramStore.saveState(StateKey::SeasonDaysOff, _daysOff);
+}
+
+// Once per tick: MANUAL timeout (FR-52), a new previous-day mean, the season safety net (FR-12.2)
+void ThermalZoneManager::modeTick(uint32_t now) {
+    if (!_autoMode && manualRemainingSec() == 0) {
+        netConsole.println(F("[Thermal] MANUAL timeout (manualTimeout), back to AUTO."));
+        setAutoMode(true);
+    }
+    float mean;
+    if (timeAndWeather.takeNewDayMean(mean)) seasonNewDay(mean);
+    if (!_seasonHeating && paramStore.get(Param::SeasonMode) == 0) {
+        bool cold = false;
+        for (size_t i = 0; i < MAX_THERMAL_ZONES; i++)
+            if (_configs[i].enabled && _statuses[i].sensorValid && _statuses[i].currentTemp < _scheduleConfig.levelTemps[LEVEL_NIGHT][i]) cold = true;
+        if (!cold) _coldSinceMs = 0;
+        else if (_coldSinceMs == 0) _coldSinceMs = now ? now : 1;
+        else if (now - _coldSinceMs >= 12UL * 3600UL * 1000UL) seasonSet(true, "zone below night level for 12 h");
+    } else {
+        _coldSinceMs = 0;
+    }
 }
 
 void ThermalZoneManager::setRelayManual(size_t index, bool on) {
@@ -993,11 +1077,25 @@ void ThermalZoneManager::evaluateSchedule(uint32_t now) {
         }
     }
 
+    // FR-39: a boost also ends after boostDuration
+    for (size_t i = 0; i < MAX_THERMAL_ZONES; i++) {
+        if (_statuses[i].isManualHold && millis() - _statuses[i].holdStartMs >= (uint32_t)paramStore.get(Param::BoostDuration) * 1000UL) {
+            _statuses[i].isManualHold = false;
+            netConsole.printf("[Thermal] Zone %u (%s) boost ended after boostDuration.\n",
+                (unsigned int)_configs[i].id, _configs[i].name);
+        }
+    }
+
     // Keep static targets in sync (shown in status, used if the schedule is turned off)
     if (_scheduleConfig.enabled || _scheduleConfig.away) {
         for (size_t i = 0; i < MAX_THERMAL_ZONES; i++) {
             if (!_statuses[i].isManualHold) {
-                _configs[i].targetTemp = getEffectiveTargetTemp(i);
+                float t = getEffectiveTargetTemp(i);
+                if (fabsf(_configs[i].targetTemp - t) > 0.05f) {  // FR-61: the last schedule level survives a restart without time
+                    _configs[i].targetTemp = t;
+                    _nvsSavePending = true;
+                    _nvsSavePendingMs = millis() + 3000;
+                }
             }
         }
     }
@@ -1545,6 +1643,8 @@ void ThermalZoneManager::update(BoilerRadioTrigger& boiler) {
     // Periodic check for anti-seize
     checkAntiSeizeSchedule(now);
 
+    modeTick(now);
+
     // 1. Evaluate heat demand per zone
     _frostProtectionActive = false;
 
@@ -1615,7 +1715,7 @@ void ThermalZoneManager::update(BoilerRadioTrigger& boiler) {
                     _statuses[i].state = ZONE_WINDOW_PAUSE;
                 } else {
                     if (_statuses[i].state == ZONE_WINDOW_PAUSE) { _statuses[i].state = ZONE_IDLE; _statuses[i].stateChangedMs = now; } // pause over: leave the stale state (FR-8.4)
-                    _statuses[i].demand = evaluateTpi(i, getEffectiveTargetTemp(i), now);
+                    _statuses[i].demand = _seasonHeating && evaluateTpi(i, getEffectiveTargetTemp(i), now);  // global OFF: no heat (FR-64)
                 }
             }
         } else {
