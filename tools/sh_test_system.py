@@ -33,9 +33,10 @@ from sh_tests.t_weather import WeatherTests
 from sh_tests.t_modes import ModeTests
 from sh_tests.t_history_stream import HistoryStreamTests
 from sh_tests.t_webassets import WebAssetTests
+from sh_tests.t_eventlog import EventLogTests
 
 
-class SystemTestSuite(SuiteBase, HealthTests, HydraulicsTests, ControlTests, UiHistoryTests, SafetyFeatureTests, ExportImportTests, ZoneTests, ConsoleTests, SafetySupervisorTests, SensorHubTests, WeatherTests, ModeTests, HistoryStreamTests, WebAssetTests):
+class SystemTestSuite(SuiteBase, HealthTests, HydraulicsTests, ControlTests, UiHistoryTests, SafetyFeatureTests, ExportImportTests, ZoneTests, ConsoleTests, SafetySupervisorTests, SensorHubTests, WeatherTests, ModeTests, HistoryStreamTests, WebAssetTests, EventLogTests):
     # ---------------------------------------------------------
     # Test Runner & Traceability Matrix Evaluation
     # ---------------------------------------------------------
@@ -286,6 +287,12 @@ class SystemTestSuite(SuiteBase, HealthTests, HydraulicsTests, ControlTests, UiH
             self.test_tc38_4_stub_when_page_missing,
             self.test_tc38_5_memory_reports_littlefs,
             self.test_tc39_1_target_ceiling_28,
+            self.test_tc40_1_log_format,
+            self.test_tc40_2_relay_changes_logged,
+            self.test_tc40_3_mode_change_logged,
+            self.test_tc40_4_refusals_dtc_and_batching,
+            self.test_tc40_5_full_burn_logged,
+            self.test_tc40_6_boot_and_time_sync_logged,
         ]
         if self.only:   # --only TC34,TC35: run just these groups (name part after test_)
             tests = [t for t in tests if any(t.__name__.startswith("test_" + o.lower() + "_") for o in self.only)]
