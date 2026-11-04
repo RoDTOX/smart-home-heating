@@ -610,3 +610,11 @@ restores them (a test proves it). An old file with `target` skips it as unknown 
 **Decided by**: owner.
 **Affects**: `tools/sh_tests` TC34.5, FR-51 / FR-16.1 parameter ranges (requirements section 6), `ParamStore`.
 **Consequences**: the group session writes the requirement change and its test first; memory work follows before any new step (owner, 04.11.2026).
+
+## 2026-11-04 — Flash limit is the real OTA slot; permanent memory endpoint (D-53, C-32, C-33)
+
+**Context**: memory review (PB-115): the limit 1.25 MiB was the old default slot; the real OTA slot is 1 966 080 B. Heap dips under 100 KB (min 90.7 KB, 47 of 180 samples under 100 KB) and nothing shows who uses it.
+**Decision**: (a) the firmware limit is the OTA slot minus 100 KiB = 1 863 680 B (NFR-2.8). (b) `GET /api/diag/mem` stays permanently (FR-10.6), with a heap line in the debug area. (c) the first heap batch runs in one session: `WebApi` streaming instead of `String`, weather task stack, serial TX buffer; stop at heap typically >= 105 KB with minimum >= 100 KB.
+**Decided by**: owner (chat, 04.11.2026), relayed by the main chat.
+**Affects**: NFR-2.8, FR-10.6, AGENTS.md §3, `architecture.md` §14.1 / AR-18, `plan.md` R-1 / R-2, `tools/sh_process_check.py`, PB-115.
+**Consequences**: more room for steps 12 to 14; the safety list code is not touched by the batch.

@@ -367,6 +367,7 @@ one example:
 - **FR-10.5 (Pin states):** *[now]* {SW; test} `GET /api/diag/status` reports `pins`: for each pin the board uses (relay outputs
   GPIO32, GPIO33, GPIO25, GPIO26, 433 MHz transmitter GPIO19, status LED GPIO23) its `name`, `gpio` and the live `level`
   (0 or 1) read from the chip. Reading changes no pin state. The engineering view shows them as a table (FR-8.1).
+- **FR-10.6 (Memory diagnostics):** *[now]* {SW; test} `GET /api/diag/mem` (read only, changes nothing) reports `free` (free heap, B), `minFreeEver` (lowest free heap since boot), `largestBlock` (largest free block), `allocated`, `internalFree`, `internalMin`, `uptime`, and `tasks`: for each of the tasks `loopTask`, `wifi`, `tiT`, `btController`, `nimble_host` and `wx` (weather fetch) that exists, its `name` and `stackFreeMin` (lowest free stack since the task started, B). The debug area of the engineering view shows `free`, `minFreeEver` and `largestBlock` (FR-8.1). Used to hold NFR-2.2 and NFR-2.6 (C-33).
 - **FR-10.4 (Basic self-test):** *[now]* {SW; test} `/api/diag/status`, `/api/diag/selftest`, console `DIAG` and the
   engineering view report a list of checks, each with its rule, its measured value and the result `OK` / `FAIL`, or
   `INFO` when the controller cannot verify it. The UI clarifies rules as operating acceptance criteria without ambiguous code prefixes, and supplements checks with operational status for actuators/relays and boiler state. No output is switched; no health score or percentage is reported.
@@ -660,7 +661,7 @@ one example:
 - **NFR-2.4 (Log time stamps):** {SW; test} Every console line carries a `[HH:MM:SS]` time stamp.
 - **NFR-2.6 (No heap drift):** {SW; board} No heap decrease > 5 KB over 24 h of operation; buffers are bounded and reserved
   statically.
-- **NFR-2.8 (Firmware size):** {SW; analysis} Firmware image < 1.25 MiB (the OTA partition size, C-22), so OTA fits.
+- **NFR-2.8 (Firmware size):** {SW; analysis} Firmware image ≤ 1 863 680 B: the OTA slot (0x1E0000 = 1 966 080 B) minus a reserve of 100 KiB, so OTA fits (C-32; replaces the 1.25 MiB of C-22, which was the old default partition).
 - **NFR-2.9 (Flash wear):** {SW; inspection} NVS is written only when a value changes.
 - ~~**NFR-2.1 (Power < 1.2 W):** retired.~~
 - ~~**NFR-2.5 (Paced OTA upload):** retired, merged into FR-8.3.~~

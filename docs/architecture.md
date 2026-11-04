@@ -59,7 +59,7 @@ from this architecture and §18 the order in which to close the gaps.
 | Controller | ESP32-WROOM-32E, 4 MB flash, partitions `min_spiffs.csv`: NVS 20 KB, 2 × 1.875 MB app (OTA), LittleFS 128 KB | `platformio.ini` |
 | Framework | Arduino-ESP32 2.0.14 (`espressif32@6.5.0`) on FreeRTOS; bootloader rollback is enabled in this core | `platformio.ini`, core `sdkconfig` |
 | Libraries | vendored `ArduinoJson`, `NimBLE-Arduino`; core libraries (WiFi, WebServer, HTTPClient, Preferences, LittleFS, Update, Wire) may be used; any other library needs owner approval | AGENTS.md §3 |
-| Firmware size | < 1.25 MB = 1 310 720 B (`FIRMWARE_MAX_BYTES` in `tools/sh_process_check.py`) | NFR-2.8 |
+| Firmware size | ≤ 1 863 680 B = OTA slot 1 966 080 B minus 100 KiB (`FIRMWARE_MAX_BYTES` in `tools/sh_process_check.py`) | NFR-2.8 |
 | Heap | ≥ 100 KB free in normal operation | NFR-2.2 |
 | Timing | every safety reaction has changed the outputs within 10 s of its trigger (NFR-1.8); the only exception is a firmware update with the boiler OFF. The control tick runs every 1 s in its own task (AR-21) and never waits for `loop()`, which serves page, API and console with the core's normal waits (§5.1) | AGENTS.md §3, NFR-1.8 |
 | Zones | 1–32 zones, memory reserved statically | FR-69, NFR-2.6 |
@@ -803,14 +803,14 @@ Contract for every advisor:
 
 | Item | Bytes |
 |---|---|
-| Limit (`FIRMWARE_MAX_BYTES`) | 1 310 720 |
+| Limit (`FIRMWARE_MAX_BYTES`) = OTA slot 1 966 080 minus 100 KiB (C-32) | 1 863 680 |
 | Build of 31.10.2026 (`.pio/build/esp32dev/firmware.bin`) | 1 196 192 |
 | **Margin today** | **114 528 (≈ 112 KB)** |
 | Estimated additions, baseline v2 (parameter table, commands and auth, events, fault injection, OTA verify, season) | ≈ 15–25 KB |
 | Estimated additions, phase 4 advisors and plant monitor | ≈ 10–20 KB |
 | Expected savings (streamed JSON instead of `String`, one DTC path, shorter log texts) | ≈ 10–20 KB |
 
-Rule (AR-18): keep at least **40 KB** margin; a change that would go below needs a removal first. CI already fails above
+Rule (AR-18): the limit is the OTA slot minus a reserve of 100 KiB (C-32); keep at least **40 KB** margin below it; a change that would go below needs a removal first. CI already fails above
 the limit (`sh_process_check.py`).
 
 ### 14.2 RAM (NFR-2.2, NFR-2.6)

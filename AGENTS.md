@@ -42,7 +42,7 @@ software is in [`docs/compliance.md`](docs/compliance.md) and becomes a requirem
   - sensor loss: after `sensorTimeout` the zone keeps heating at its fallback duty and raises DTC-101 (FR-51)
   - safe boot: all valves closed, one boiler OFF, warm-up before any heating command (NFR-1.4)
 - **Resources:** NVS writes only on value change, no blocking calls that starve `loop()`,
-  bounded buffers, no heap growth, firmware < 1.25 MB (OTA).
+  bounded buffers, no heap growth, firmware ≤ 1 863 680 B (OTA slot minus 100 KiB, NFR-2.8).
 - **Tool naming:** every new project tool or script (in `tools/`, agents, skills, MCP servers) starts with
   `sh_` (smart home), e.g. `tools/sh_process_check.py`, so it is never confused with external MCPs or
   temporary scripts. Agents and skills use `sh-` (their names allow only hyphens), e.g. `sh-verify-firmware`.

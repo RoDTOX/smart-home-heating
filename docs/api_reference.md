@@ -17,6 +17,7 @@ Zone ids are 1-based unless noted.
 | GET | `/api/diag/status` | `checks[]` of FR-10.4 (`id`, `result` OK / FAIL / INFO, `value`, `rule`), `dtcCount` (active), active `dtcs[]` (each with `code` = `DTC-nnn` of requirements §5, `severity`, `message`, `count`, `ageSec`); no health score |
 | GET | `/api/diag/selftest` | Subsystem self-test report |
 | GET | `/api/diag/events` | FR-62: event history kept in LittleFS across reboots: `{"count","events":[{"time","timeValid","type" (`dtc-raised`, `dtc-cleared`, `restart`),"code" (`DTC-nnn` of requirements §5 or empty),"zone","value"}]}`, newest first, at most 50 |
+| GET | `/api/diag/mem` | FR-10.6, read only: `{"free","minFreeEver","largestBlock","allocated","allocBlocks","freeBlocks","internalFree","internalMin","internalLargest","heapSize","freeIram32","uptime","tasks":[{"name","stackFreeMin"}]}` (bytes); tasks `loopTask`, `wifi`, `tiT`, `btController`, `nimble_host`, `wx` when they exist |
 | POST | `/api/diag/clear` | Clear DTCs |
 
 ## Comfort control

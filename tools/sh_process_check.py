@@ -75,7 +75,7 @@ LEVELS = ("SW", "HW", "install")
 METHODS = ("test", "board", "inspection", "analysis")
 TESTED_METHODS = ("test", "board")
 CODE_PATHS = ("src/", "include/", "web/", "tools/", "platformio.ini")
-FIRMWARE_MAX_BYTES = int(1.25 * 1024 * 1024)
+FIRMWARE_MAX_BYTES = 0x1E0000 - 100 * 1024  # OTA slot minus 100 KiB (NFR-2.8, C-32)
 
 REQ_ID = r"N?FR-\d+(?:\.\d+)?"
 COMMIT_TYPES = "feat|fix|refactor|perf|test|docs|chore|ci|build|style|revert"
