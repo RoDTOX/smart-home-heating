@@ -264,6 +264,7 @@ class SystemTestSuite(SuiteBase, HealthTests, HydraulicsTests, ControlTests, UiH
             self.test_tc34_3_spike_held_and_confirmed,
             self.test_tc34_4_three_discards_raise_dtc_104,
             self.test_tc34_5_single_timeout,
+            self.test_tc34_6_valid_min_stays_below_frost_temp,
             self.test_tc35_1_weather_values_and_previous_day_mean,
             self.test_tc35_2_held_then_lost_after_6_h,
             self.test_tc35_3_poll_does_not_block_the_page,

@@ -35,7 +35,18 @@ class SensorHubTests:
         assert r.status_code == 200, f"map-zone: HTTP {r.status_code} {r.text[:100]}"
         return n
 
+    def _hub_dtc101(self, n):
+        """DTC-101 of zone n only (the real zones are not the test's business): the newest event of that code and zone."""
+        ev = requests.get(f"{self.base_url}/api/diag/events", timeout=self.timeout).json()["events"]
+        for e in ev:   # newest first
+            if e["code"] == "DTC-101" and e["zone"] == n:
+                return e["type"] == "dtc-raised"
+        return False
+
     def _hub_enable(self, n):
+        # target 15 C as a hold: the test zone must never ask for heat (its output has no valve behind it)
+        r = requests.post(f"{self.base_url}/api/zones/setpoint?id={n}&target=15", timeout=self.timeout)
+        assert r.status_code == 200, f"setpoint 15: HTTP {r.status_code}"
         r = requests.post(f"{self.base_url}/api/setup/map-zone", data={"zone": n - 1, "enabled": 1}, timeout=self.timeout)
         assert r.status_code == 200, f"map-zone enable: HTTP {r.status_code}"
 
@@ -148,17 +159,42 @@ class SensorHubTests:
                 time.sleep(3)
                 z = self._hub_zone(n)
                 assert z["sensorValid"] and not z["sensorFault"], f"fresh reading but sensorValid {z['sensorValid']}, sensorFault {z['sensorFault']}"
-                assert not self._hub_dtc_active("DTC-101"), "DTC-101 active with a fresh reading"
+                assert not self._hub_dtc101(n), "DTC-101 of the test zone active with a fresh reading"
                 time.sleep(66)
                 z = self._hub_zone(n)
                 assert z["sensorFault"] and z["state"] == "FAULT", f"after 66 s without a reading (sensorTimeout 60 s): state {z['state']}, sensorFault {z['sensorFault']}"
-                assert self._hub_dtc_active("DTC-101"), "DTC-101 not raised after sensorTimeout"
+                assert self._hub_dtc101(n), "DTC-101 not raised for the test zone after sensorTimeout"
                 self._hub_inject(20.0)
                 time.sleep(4)
                 z = self._hub_zone(n)
                 assert z["sensorValid"] and not z["sensorFault"], "first accepted reading did not end the FAULT"
-                assert not self._hub_dtc_active("DTC-101"), "DTC-101 not cleared by the first accepted reading"
+                assert not self._hub_dtc101(n), "DTC-101 of the test zone not cleared by the first accepted reading"
                 return "60 s timeout: FAULT + DTC-101 after 66 s; next reading clears both"
             finally:
                 self._hub_cfg_post(sensorTimeoutSec=old)
         return self._hub_run("SWE.5-TC34.5", "Single Sensor Timeout", "FR-16.2", body)
+
+    def test_tc34_6_valid_min_stays_below_frost_temp(self):
+        """SWE.5-TC34.6: validMin must stay below frostTemp; a setting that breaks it is refused with HTTP 400 and nothing changes (FR-53)"""
+        test_id, name, req = "SWE.5-TC34.6", "validMin Below frostTemp", "FR-53"
+        start = time.time()
+        c0 = self._t30_cfg()
+        old = (c0["validMin"], c0["freezeProtectionTemp"])
+        try:
+            assert self._hub_cfg_post(freezeProtectionTemp=10).status_code == 200, "frostTemp 10 refused"
+            r = self._hub_cfg_post(validMin=10)
+            assert r.status_code == 400, f"validMin 10 with frostTemp 10: HTTP {r.status_code}, expected 400"
+            assert self._t30_cfg()["validMin"] == old[0], "a refused validMin changed the setting"
+            r = self._hub_cfg_post(validMin=9.9)
+            assert r.status_code == 200 and self._t30_cfg()["validMin"] == 9.9, "validMin 9.9 below frostTemp 10 refused"
+            r = self._hub_cfg_post(freezeProtectionTemp=9.9)
+            assert r.status_code == 400, f"frostTemp 9.9 with validMin 9.9: HTTP {r.status_code}, expected 400"
+            assert self._t30_cfg()["freezeProtectionTemp"] == 10.0, "a refused frostTemp changed the setting"
+            r = self._hub_cfg_post(validMin=10, freezeProtectionTemp=16)   # one request: judged with both new values
+            assert r.status_code == 200, f"validMin 10 with frostTemp 16 in one request: HTTP {r.status_code}"
+            return TestResult(test_id, name, req, "PASS", (time.time() - start) * 1000,
+                              "validMin >= frostTemp refused both ways, 9.9 < 10 accepted, one request judged together")
+        except Exception as e:
+            return TestResult(test_id, name, req, "FAIL", (time.time() - start) * 1000, str(e))
+        finally:
+            self._hub_cfg_post(validMin=old[0], freezeProtectionTemp=old[1])

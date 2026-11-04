@@ -223,6 +223,9 @@ one example:
   - 3 discarded readings within 1 h raise DTC-104 `WARN_SENSOR_SUSPECT`.
   - A real temperature drop (open window) repeats in consecutive readings and therefore passes.
   - *Fallback:* the last accepted reading is used until the sensor timeout (FR-16.2).
+  - `validMin` must stay below `frostTemp`, so a reading that needs frost protection (FR-16.1) is never ignored as out of
+    bounds. A setting (`validMin` or `frostTemp`) that would make `validMin` equal to or above `frostTemp` is refused
+    (HTTP 400 / console error), for every source including import, and nothing is changed.
   - Optional later: per-sensor BTHome encryption key; unencrypted adverts ignored when a key is set.
 - **FR-20 (Link quality):** *[now]* {SW; test} Each sensor is classed by RSSI: EXCELLENT ≥ −72 dBm, GOOD −73…−82 dBm,
   MARGINAL −83…−88 dBm, POOR < −88 dBm; shown via API and console.
