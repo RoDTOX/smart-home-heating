@@ -44,7 +44,7 @@ Only what holds now and what comes next. A line that no longer holds is replaced
   (all agents) on the owner's request and before a release - AGENTS.md §5.
 
 ## Next
-- Step 2 (`Diagnostics`) built 04.11.2026, board test and owner OK pending; PB-116 open. Owner confirms `GET /api/diag/events` (FR-62).
+- Step 2 (`Diagnostics`) accepted by the owner 04.11.2026 (3035116); `GET /api/diag/events` confirmed; PB-116 open. Next: step 4 or as the owner decides.
 - Findings of the C-30 final review and the test run on 1.11.03.37 are logged as PB-107 ... PB-115 (03.11.2026); PB-110 needs an owner decision. Board has rotated sensor MACs (PB-114): the owner fixes them. Firmware 1.23 MB of 1.25 MB: tight for the next steps (PB-115).
 - Step 3 accepted by the owner 03.11.2026 (zones, sensors, `OutputBank`); the gas meter and the open window are accepted too. Step 2 (`Diagnostics`) starts in a new session from the main chat.
 - C-29 flashed 1.11.03.35: measured flow 0.177 m3/h from the history, gas today 2.41 m3. Owner: look at the gas card, OK / NOK. Open: PB-103.

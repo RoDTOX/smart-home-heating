@@ -595,3 +595,10 @@ restores them (a test proves it). An old file with `target` skips it as unknown 
 **Decided by**: owner.
 **Affects**: `tools/sh_tests/t_health.py`, `tools/sh_test_system.py`, step 2.
 **Consequences**: the session freezes the tests again at the new hash after committing.
+
+## 2026-11-04 — Event history read path confirmed
+**Context**: decision of 2026-11-03 (step 2, FR-62) was pending the owner.
+**Decision**: `GET /api/diag/events` accepted as built.
+**Decided by**: owner (chat, 04.11.2026), relayed by the main chat.
+**Affects**: FR-62, `docs/api_reference.md`.
+**Consequences**: none.
