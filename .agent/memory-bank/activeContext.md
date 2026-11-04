@@ -5,7 +5,7 @@ Only what holds now and what comes next. A line that no longer holds is replaced
 [`docs/archive/active_context_until_2026-11-02.md`](../../docs/archive/active_context_until_2026-11-02.md).
 
 ## Now
-- Group of steps 6, 10, 8, 11 (04.11.2026): built, committed on the branch, board runs 1.11.04.09 (3bd8342); tests TC33, TC35 - TC37, TC34.1 - TC34.4 PASS. Open: TC34.5 fixture (frozen test, owner decides), owner hands-on test, step 10 control task (AR-21) and step 11 ring move / `StatusModel` buffer (flash margin 5.9 KB, heap 87 - 91 KB), `validMin` vs `frostTemp` range overlap.
+- Group of steps 6, 10, 8, 11 (04.11.2026): built, committed, board runs 1.11.04.12; TC33, TC34 (incl. TC34.5 fixed, TC34.6 validMin < frostTemp, C-31), TC35 - TC37 PASS; owner hands-on test pending. Memory (PB-115, separate task): firmware 1,305,968 of 1,310,720 B, free heap 91 - 102 KB against NFR-2.2 (TC01.2 fails at test time), step 11 half done (streamed history), AR-21 control task not built.
 - Step 4 (04.11.2026): accepted by the owner ("in rest totul ok"). Page feedback done in 0efa023 (board runs it): boost label only above the schedule (FR-1.2, PB-118), pin states (FR-10.5), debug area console / pins / trace / signals with trace and signals collapsed. Waiting: owner look at the page. Next: step 5 (`BoilerLink`).
 - Live gas meter index tracking, calibration history, generic boiler model, and refined telemetry & debug tools:
   - Base index calibrated: `2265.304 m³` (NVS key `mindex`).

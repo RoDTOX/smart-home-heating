@@ -602,3 +602,11 @@ restores them (a test proves it). An old file with `target` skips it as unknown 
 **Decided by**: owner (chat, 04.11.2026), relayed by the main chat.
 **Affects**: FR-62, `docs/api_reference.md`.
 **Consequences**: none.
+
+## 2026-11-04 — Fixture fix of TC34.5 and validMin below frostTemp (D52)
+
+**Context**: TC34.5 (sensor timeout) fails because of its own fixture (the test zone heated at the program level and DTC-101 was read globally, hit by the real Kids sensor); the safety review found `validMin` may be set at or above `frostTemp`, which blinds frost protection.
+**Decision**: the owner approved in chat on 04.11.2026: (1) the TC34.5 fixture is repaired (test zone target 15 C, DTC-101 read for the test zone only), the asserted value does not change, no other test changes; (2) `validMin` must stay below `frostTemp`, a setting that breaks this is refused.
+**Decided by**: owner.
+**Affects**: `tools/sh_tests` TC34.5, FR-51 / FR-16.1 parameter ranges (requirements section 6), `ParamStore`.
+**Consequences**: the group session writes the requirement change and its test first; memory work follows before any new step (owner, 04.11.2026).
