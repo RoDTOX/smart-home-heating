@@ -195,6 +195,7 @@ code,.mono{font:13px/1.35 ui-monospace,SFMono-Regular,Consolas,monospace}
       <div style="font-weight:600;margin:18px 0 4px">Stare pini (FR-10.5)</div>
       <div class="s">Nivelul real citit de pe cip: 1 = HIGH, 0 = LOW. Releele sunt active pe HIGH.</div>
       <table class="mono" id="pinsTable"></table>
+      <div class="s" id="memLine" style="margin-top:8px"></div>
       <details id="dbgTrace" style="margin-top:18px">
         <summary style="font-weight:600;cursor:pointer">Trace – schimbări cât timp pagina e deschisă</summary>
             <div class="row"><button id="csv">Export CSV</button><button id="clearTrace">Golește</button>
@@ -218,8 +219,11 @@ code,.mono{font:13px/1.35 ui-monospace,SFMono-Regular,Consolas,monospace}
 </main>
 <!-- FR-8.1: API names watched by the engineering view and their explanation [text, requirement, "v" = changes continuously] -->
 <script type="application/json" id="doc">
-{"endpoints": ["api/zones", "api/boiler/status", "api/ble/sensors", "api/diag/status", "api/config/system", "api/config/export", "api/setup/discovered-sensors", "api/schedule", "api/setup/time", "api/setup/location"],
+{"endpoints": ["api/zones", "api/boiler/status", "api/ble/sensors", "api/diag/status", "api/config/system", "api/config/export", "api/setup/discovered-sensors", "api/schedule", "api/setup/time", "api/setup/location", "api/diag/mem"],
 "doc": {
+"minFreeEver": ["Cea mai mică memorie liberă (heap) de la pornire, octeți", "FR-10.6"],
+"largestBlock": ["Cel mai mare bloc liber de memorie, octeți", "FR-10.6"],
+"tasks[].stackFreeMin": ["Stiva liberă minimă a task-ului, octeți", "FR-10.6"],
 "status": ["Răspunsul API: ok", "FR-42"],
 "autoMode": ["true = automat (program și reglaj), false = manual", "FR-1.3"],
 "boiler": ["Ultima comandă trimisă centralei: ON / OFF", "FR-17.1"],
@@ -1688,6 +1692,14 @@ function renderPins() {
     pins.map(p => `<tr><td>${p.name}</td><td>GPIO${p.gpio}</td><td>${p.level ? "● 1 (HIGH)" : "○ 0 (LOW)"}</td></tr>`).join("");
 }
 
+// FR-10.6: heap line of the debug area
+function renderMem() {
+  const m = RAW["api/diag/mem"];
+  if (!m) return;
+  const kb = v => (v / 1024).toFixed(1) + " KB";
+  $("memLine").textContent = "Memorie: liberă " + kb(m.free) + ", minim de la pornire " + kb(m.minFreeEver) + ", bloc maxim " + kb(m.largestBlock);
+}
+
 let inFlight = false;
 async function refresh() {
   // One refresh at a time, endpoints one after another: the board serves one client request per loop pass
@@ -1713,7 +1725,7 @@ async function refresh() {
         renderGasMeter();
         if (!histData24h || (Date.now() - lastHistFetch > 60000)) loadHistoryChart();
       }
-      if (debugOpen) { renderPins(); updateWatch(); }
+      if (debugOpen) { renderPins(); renderMem(); updateWatch(); }
       if (!busy("loc") && RAW["api/setup/location"]) $("loc").value = RAW["api/setup/location"].coords;
     }
     if (Date.now() >= errUntil) $("toast").textContent = "";

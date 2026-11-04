@@ -14,6 +14,9 @@
 #include <ArduinoJson.h>
 #include <WebServer.h>
 #include <WiFi.h>
+#include <esp_heap_caps.h>
+#include <freertos/FreeRTOS.h>
+#include <freertos/task.h>
 #include <LittleFS.h>
 
 void handleRoot() {
@@ -867,6 +870,34 @@ void handleApiDiagEvents() {
   server.send(200, "application/json", diagEngine.eventsJson());
 }
 
+// FR-10.6: read-only memory probe, one fixed buffer, no String
+void handleApiDiagMem() {
+  multi_heap_info_t i8;
+  heap_caps_get_info(&i8, MALLOC_CAP_8BIT);
+  char b[640];
+  int n = snprintf(b, sizeof(b),
+    "{\"free\":%u,\"minFreeEver\":%u,\"largestBlock\":%u,\"allocated\":%u,\"allocBlocks\":%u,\"freeBlocks\":%u,"
+    "\"internalFree\":%u,\"internalMin\":%u,\"internalLargest\":%u,\"heapSize\":%u,\"freeIram32\":%u,\"uptime\":%lu,\"tasks\":[",
+    (unsigned)heap_caps_get_free_size(MALLOC_CAP_8BIT), (unsigned)heap_caps_get_minimum_free_size(MALLOC_CAP_8BIT),
+    (unsigned)heap_caps_get_largest_free_block(MALLOC_CAP_8BIT), (unsigned)i8.total_allocated_bytes,
+    (unsigned)i8.allocated_blocks, (unsigned)i8.free_blocks,
+    (unsigned)heap_caps_get_free_size(MALLOC_CAP_INTERNAL), (unsigned)heap_caps_get_minimum_free_size(MALLOC_CAP_INTERNAL),
+    (unsigned)heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL), (unsigned)ESP.getHeapSize(),
+    (unsigned)heap_caps_get_free_size(MALLOC_CAP_IRAM_8BIT), (unsigned long)(millis() / 1000));
+  static const char *const names[] = {"loopTask", "wifi", "tiT", "btController", "nimble_host", "wx"};
+  bool first = true;
+  for (size_t k = 0; k < sizeof(names) / sizeof(names[0]) && n > 0 && n < (int)sizeof(b) - 64; k++) {
+    TaskHandle_t h = xTaskGetHandle(names[k]);
+    if (!h) continue;
+    n += snprintf(b + n, sizeof(b) - n, "%s{\"name\":\"%s\",\"stackFreeMin\":%u}", first ? "" : ",", names[k],
+                  (unsigned)uxTaskGetStackHighWaterMark(h));
+    first = false;
+  }
+  snprintf(b + n, sizeof(b) - n, "]}");
+  server.sendHeader("Access-Control-Allow-Origin", "*");
+  server.send(200, "application/json", b);
+}
+
 void handleApiDiagSelfTest() {
   String report = diagEngine.runSelfTest();
   server.sendHeader("Access-Control-Allow-Origin", "*");
@@ -1511,6 +1542,7 @@ void registerWebRoutes() {
   server.on("/api/ble/sensors", HTTP_GET, handleApiBleSensors);
   server.on("/api/diag/status", HTTP_GET, handleApiDiagStatus);
   server.on("/api/diag/events", HTTP_GET, handleApiDiagEvents);
+  server.on("/api/diag/mem", HTTP_GET, handleApiDiagMem);
   server.on("/api/diag/selftest", HTTP_GET, handleApiDiagSelfTest);
   server.on("/api/diag/clear", HTTP_POST, handleApiDiagClear);
   server.on("/api/diag/exercise", HTTP_POST, handleApiDiagExercise);
