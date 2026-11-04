@@ -72,12 +72,12 @@ zones and sensors the user sets up (C-10, C-11), then step 2; the rest in the or
 | 3 | `OutputBank`: logical channels, polarity in one place, static tables for 32 zones; zones added / deleted by the user and sensor search (C-10, C-11) | accepted: zones, sensors (C-10, C-11, owner OK 02.11.2026) and `OutputBank` (pin level and NC / NO polarity in one module, R-A1, FR-15.1; owner OK 03.11.2026) | 31b8496 | owner OK 03.11.2026 |
 | 4 | `SafetySupervisor`: valve states, interlock, overrun without pump, burner guard, frost on all zones, pump guard | accepted: built in place in `ThermalZoneManager` (R-A3), owner OK 04.11.2026 | 14e8197 | — |
 | 5 | `BoilerLink`: `Rf433Link`, heartbeat `hbInterval`, DTC-207, `ContactLink` | open | — | — |
-| 6 | `SensorHub`: mailbox, plausibility filter, validity, one sensor timeout | built, flashed 1.11.04.09; TC34.5 open (test fixture, owner decides); owner test pending | 3bd8342 | — |
+| 6 | `SensorHub`: mailbox, plausibility filter, validity, one sensor timeout | built, flashed; owner test OK 04.11.2026 (accepted) | bcedf8a | — |
 | 7 | `ZoneController`: TPI, learned duty per outdoor band, FR-51 fault duty, window state; `FaultInjector` | open | — | — |
-| 8 | `ModeManager` + `Schedule`: MANUAL timeout, automatic season, global OFF, boost limits, last level without time | built, flashed 1.11.04.09, tests PASS; owner test pending | 3bd8342 | — |
+| 8 | `ModeManager` + `Schedule`: MANUAL timeout, automatic season, global OFF, boost limits, last level without time | built, flashed, tests PASS; owner test OK 04.11.2026 (accepted) | bcedf8a | — |
 | 9 | `Commands` + authentication: one command path, FR-58 (also `/api/config/import`, FR-65.3), FR-59, CORS, English messages | open | — | — |
-| 10 | `Weather` in the network worker | `Weather` worker built, flashed; control task of AR-21 not built (step 10 part 2); owner test pending | 3bd8342 | — |
-| 11 | `History` in LittleFS, `StatusModel` static buffer | streamed history built, flashed; ring move to LittleFS and `StatusModel` buffer not built (flash / heap margin) | 3bd8342 | — |
+| 10 | `Weather` in the network worker | `Weather` worker built, flashed; control task of AR-21 not built (step 10 part 2); owner test OK 04.11.2026 (accepted; AR-21 part open, memory task) | bcedf8a | — |
+| 11 | `History` in LittleFS, `StatusModel` static buffer | streamed history built, flashed; ring move to LittleFS and `StatusModel` buffer not built (flash / heap margin); partly accepted 04.11.2026, rest in the memory task (PB-115) | bcedf8a | — |
 | 12 | `Maintenance`: OTA quiet gate and rollback, full self-test, valve exercise | open | — | — |
 | 13 | `FlowInput` + `FlowLimit` — waits for the probe decision (risk R-4) | open | — | — |
 | 14 | Phase 4, one advisor per step: `PlantMonitor`, `HeatUpModel`, `SmartWindow` (risk R-5), `CycleAligner`, `SolarThrottle`, `HumidityComp`; later `RemoteGateway`, factory reset (export / import moved before step 3, C-9) | open | — | — |
