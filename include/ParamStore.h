@@ -64,6 +64,7 @@ enum class StateKey : uint8_t {
     SeasonHeating,      // 1 = season state HEATING, 0 = SUMMER (FR-12.2)
     SeasonDaysOn,       // days in a row below heatLimit (FR-12.2)
     SeasonDaysOff,      // days in a row above heatLimit + 2 C (FR-12.2)
+    SeasonDayKey,       // last day whose mean was counted (FR-12.2)
     Count
 };
 

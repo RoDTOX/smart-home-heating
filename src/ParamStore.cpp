@@ -56,7 +56,7 @@ static const ParamDef PARAMS[(uint8_t)Param::Count] = {
 
 static const char* STATE_KEYS[(uint8_t)StateKey::Count] = {
     "auto", "as_epoch", "b_on", "rt_tot", "rt_today", "rt_yest", "rt_mon", "rt_lmon", "rt_day", "rt_month", "zcount",
-    "mindex", "msec", "mepoch", "gmig", "gcomp", "s_heat", "s_don", "s_doff",
+    "mindex", "msec", "mepoch", "gmig", "gcomp", "s_heat", "s_don", "s_doff", "s_dkey",
 };
 
 static const uint8_t DEFAULT_PINS[3] = {PIN_RELAY_ZONE_1, PIN_RELAY_ZONE_2, PIN_RELAY_ZONE_3};
@@ -137,6 +137,7 @@ void ParamStore::begin() {
     for (size_t i = 0; i < PARAM_ZONES; i++) _learned[i] = 0;
     memset(_state, 0, sizeof(_state));
     _state[(uint8_t)StateKey::AutoMode] = 1;
+    _state[(uint8_t)StateKey::SeasonDayKey] = 0xFFFFFFFFu;
     _state[(uint8_t)StateKey::SeasonHeating] = 1;  // a new controller heats until the weather says otherwise (FR-12.2)
     _state[(uint8_t)StateKey::GasMeterBaseIndex] = 0; // not calibrated: the user sets the meter reading (FR-35.1)
     _location[0] = '\0';

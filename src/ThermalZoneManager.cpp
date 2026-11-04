@@ -388,14 +388,13 @@ void ThermalZoneManager::setTargetTemperature(size_t index, float target) {
             _nvsSavePendingMs = millis() + 3000;
         }
 
-        // If the schedule is active, mark as Temporary Hold (holds until next slot)
+        // A set target is a hold: it ends after boostDuration, or at the next slot while the schedule runs (FR-39)
+        _statuses[index].isManualHold = true;
+        _statuses[index].holdStartMs = millis();
         if (_scheduleConfig.enabled && timeAndWeather.isTimeSynced()) {
-            _statuses[index].isManualHold = true;
-            _statuses[index].holdStartMs = millis();
             netConsole.printf("[Thermal] Zone %u (%s) TEMPORARY HOLD set to %.1f C (holds until next slot: %s in %u min)\n",
                 _configs[index].id, _configs[index].name, target, getLevelName(_nextLevel), _minsToNextSlot);
         } else {
-            _statuses[index].isManualHold = false;
             netConsole.printf("[Thermal] Zone %u (%s) new target temp: %.1f C\n",
                 _configs[index].id, _configs[index].name, target);
         }
@@ -648,6 +647,13 @@ void ThermalZoneManager::modeTick(uint32_t now) {
     if (!_autoMode && manualRemainingSec() == 0) {
         netConsole.println(F("[Thermal] MANUAL timeout (manualTimeout), back to AUTO."));
         setAutoMode(true);
+    }
+    for (size_t i = 0; i < MAX_THERMAL_ZONES; i++) {  // FR-39: a boost also ends after boostDuration, with or without time
+        if (_statuses[i].isManualHold && now - _statuses[i].holdStartMs >= (uint32_t)paramStore.get(Param::BoostDuration) * 1000UL) {
+            _statuses[i].isManualHold = false;
+            netConsole.printf("[Thermal] Zone %u (%s) boost ended after boostDuration.\n",
+                (unsigned int)_configs[i].id, _configs[i].name);
+        }
     }
     float mean;
     if (timeAndWeather.takeNewDayMean(mean)) seasonNewDay(mean);
@@ -1074,15 +1080,6 @@ void ThermalZoneManager::evaluateSchedule(uint32_t now) {
                 netConsole.printf("[Thermal] Zone %u (%s) Temporary Hold expired at slot change.\n",
                     (unsigned int)_configs[i].id, _configs[i].name);
             }
-        }
-    }
-
-    // FR-39: a boost also ends after boostDuration
-    for (size_t i = 0; i < MAX_THERMAL_ZONES; i++) {
-        if (_statuses[i].isManualHold && millis() - _statuses[i].holdStartMs >= (uint32_t)paramStore.get(Param::BoostDuration) * 1000UL) {
-            _statuses[i].isManualHold = false;
-            netConsole.printf("[Thermal] Zone %u (%s) boost ended after boostDuration.\n",
-                (unsigned int)_configs[i].id, _configs[i].name);
         }
     }
 
@@ -1682,6 +1679,7 @@ void ThermalZoneManager::update(BoilerRadioTrigger& boiler) {
             _statuses[i].state = ZONE_DISABLED;
             _statuses[i].demand = false;
             _statuses[i].sensorFault = false;
+            diagEngine.clearDtc(Dtc::ERR_SENSOR_TIMEOUT, _configs[i].id);  // a disabled zone has no sensor fault
             evaluateFrost(i, found, currentTemp);  // FR-16.1: a disabled zone is protected too
             continue;                              // its valve follows demand in arbitrateValves
         }

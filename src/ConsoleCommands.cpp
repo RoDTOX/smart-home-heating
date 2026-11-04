@@ -158,7 +158,8 @@ void handleSerialCommand(String cmd) {
       int zoneArg = upperCmd.substring(firstSpace + 1, secondSpace).toInt();
       float t = upperCmd.substring(secondSpace + 1).toFloat();
       size_t idx = (zoneArg >= 1) ? (zoneArg - 1) : 0;
-      thermalZones.setTargetTemperature(idx, t);
+      if (!thermalZones.setTargetTemperatureChecked(idx, t))
+        netConsole.println(F("[ERROR] A boost is 0.5 to 2.0 C above the schedule level in 0.5 C steps"));
     } else {
       netConsole.println(
           F("[ZONE] Syntax: SET <zone 1..3> <temp> (e.g. SET 1 22.5)"));

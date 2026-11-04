@@ -29,6 +29,7 @@ void TimeAndWeatherService::begin() {
 
     // Location lives in ParamStore (FR-9.2); the old "location" / "passport" keys are migrated there
     strlcpy(_location, paramStore.location(), sizeof(_location));
+    _countedKey = (int32_t)paramStore.state(StateKey::SeasonDayKey);
 }
 
 bool TimeAndWeatherService::setLocation(const char* coords) {
@@ -160,6 +161,7 @@ bool TimeAndWeatherService::takeNewDayMean(float& mean) {
     if (!_dayMeanNew) return false;
     _dayMeanNew = false;
     mean = _prevDayMean;
+    paramStore.saveState(StateKey::SeasonDayKey, (uint32_t)_countedKey);
     return true;
 }
 
@@ -181,7 +183,6 @@ void TimeAndWeatherService::forceWeatherUpdate() {
 // server never stalls loop(). The task exists only while it polls: no stack is held between polls.
 void TimeAndWeatherService::fetchTask(void* arg) {
     static_cast<TimeAndWeatherService*>(arg)->fetchWeather();
-    Serial.printf("[Weather] worker stack never below %u B free\n", (unsigned)uxTaskGetStackHighWaterMark(nullptr));
     static_cast<TimeAndWeatherService*>(arg)->_fetching = false;
     vTaskDelete(nullptr);
 }
@@ -231,6 +232,8 @@ void TimeAndWeatherService::fetchWeather() {
                 h = current["relative_humidity_2m"].as<float>();
             }
             JsonVariant mean = doc["daily"]["temperature_2m_mean"][0];  // past_days=1: the first day is yesterday
+            int32_t key = dayKey();  // localtime_r takes a lock: never inside the critical section
+            bool synced = isTimeSynced();
             portENTER_CRITICAL(&wxMux);
             _outdoorTemp = t;
             _outdoorHumidity = h;
@@ -238,8 +241,8 @@ void TimeAndWeatherService::fetchWeather() {
             _lastPollOk = true;
             _lastWeatherSuccessMs = millis();
             if (mean.is<float>()) {
-                int32_t key = dayKey();
-                if (key != _prevDayKey) _dayMeanNew = true;  // the first mean of a new day (FR-12.2)
+                // a day counts once, only with a valid clock, and not again after a restart (FR-12.2)
+                if (synced && key != _prevDayKey && key != _countedKey) { _dayMeanNew = true; _countedKey = key; }
                 _prevDayMean = mean.as<float>();
                 _prevDayKey = key;
             }

@@ -104,15 +104,30 @@ void BleSensorScanner::update() {
     uint32_t now = millis();
     if (now - _lastSuspectCheckMs >= 60000UL) {  // DTC-104 clears after 24 h without a discarded reading (FR-53)
         _lastSuspectCheckMs = now;
-        bool anySuspect = false, cleared = false;
+        for (size_t i = 0; i < _sensorCount; i++)
+            if (_sensors[i].suspect && now - _sensors[i].lastDiscardMs > 24UL * 3600UL * 1000UL) _sensors[i].suspect = false;
+    }
+    char msg[48];
+    if (_raise103) {
+        _raise103 = false;
+        snprintf(msg, sizeof(msg), "%s reading %.1f C outside limits", _evtName, _evtTemp);
+        diagEngine.raiseDtc(Dtc::ERR_TEMP_OUT_OF_BOUNDS, msg, SEV_ERROR);
+        _dtc103Active = true;
+    }
+    if (_raise104) {
+        _raise104 = false;
+        snprintf(msg, sizeof(msg), "%s: 3 discarded readings in 1 h", _evtName);
+        diagEngine.raiseDtc(Dtc::WARN_SENSOR_SUSPECT, msg, SEV_WARNING);
+        _dtc104Active = true;
+    }
+    if (_dtc103Active || _dtc104Active) {  // clear when no sensor is left in that state (also after a prune)
+        bool anyOob = false, anySus = false;
         for (size_t i = 0; i < _sensorCount; i++) {
-            if (_sensors[i].suspect && now - _sensors[i].lastDiscardMs > 24UL * 3600UL * 1000UL) {
-                _sensors[i].suspect = false;
-                cleared = true;
-            }
-            anySuspect = anySuspect || _sensors[i].suspect;
+            anyOob = anyOob || _sensors[i].outOfBounds;
+            anySus = anySus || _sensors[i].suspect;
         }
-        if (cleared && !anySuspect) diagEngine.clearDtc(Dtc::WARN_SENSOR_SUSPECT);
+        if (_dtc103Active && !anyOob) { diagEngine.clearDtc(Dtc::ERR_TEMP_OUT_OF_BOUNDS); _dtc103Active = false; }
+        if (_dtc104Active && !anySus) { diagEngine.clearDtc(Dtc::WARN_SENSOR_SUSPECT); _dtc104Active = false; }
     }
     if (_searching && now - _searchStartMs >= BLE_SEARCH_MAX_MS) stopSearch();
     if (!_searching && now - _lastPruneMs >= 1000UL) {  // a zone may have been deleted or given another sensor
@@ -316,7 +331,7 @@ void BleSensorScanner::updateOrAddSensor(const char* mac, const char* name, floa
     BleSensorData* target = nullptr;
     const float vMin = paramStore.getf(Param::ValidMin), vMax = paramStore.getf(Param::ValidMax);
     const float maxJump = paramStore.getf(Param::MaxJump);
-    bool accepted = true, raise103 = false, clear103 = false, raise104 = false;
+    bool accepted = true, raise103 = false, raise104 = false;
     char dtcName[32] = "";
     portENTER_CRITICAL(&tableMux);  // prune() in loop() compacts the table; lookup and update must not interleave
 
@@ -362,26 +377,22 @@ void BleSensorScanner::updateOrAddSensor(const char* mac, const char* name, floa
         // Plausibility (FR-53): only accepted readings reach control, window detection and the timeout
         if (temp < vMin || temp > vMax) {
             accepted = false;
-            raise103 = !target->outOfBounds;
+            raise103 = !target->outOfBounds && isAssigned(target->mac, target->name);
             target->outOfBounds = true;
         } else {
-            if (target->outOfBounds) {
-                target->outOfBounds = false;
-                clear103 = true;
-                for (size_t i = 0; i < _sensorCount; i++) clear103 = clear103 && !_sensors[i].outOfBounds;
-            }
+            target->outOfBounds = false;
             if (target->valid && fabsf(temp - target->temperature) > maxJump) {
                 if (target->pendValid && fabsf(temp - target->pending) <= 0.5f) {
                     target->pendValid = false;  // confirmed by the next reading
                 } else {
-                    if (target->pendValid) raise104 = noteDiscard(target);  // the held value was not confirmed
+                    if (target->pendValid) raise104 = noteDiscard(target) && isAssigned(target->mac, target->name);  // the held value was not confirmed
                     target->pending = temp;
                     target->pendValid = true;
                     accepted = false;
                 }
             } else if (target->pendValid) {
                 target->pendValid = false;
-                raise104 = noteDiscard(target);
+                raise104 = noteDiscard(target) && isAssigned(target->mac, target->name);
             }
         }
         if (accepted) {
@@ -392,18 +403,13 @@ void BleSensorScanner::updateOrAddSensor(const char* mac, const char* name, floa
         }
         strlcpy(dtcName, target->name, sizeof(dtcName));
     }
+    if (raise103 || raise104) {
+        strlcpy(_evtName, dtcName, sizeof(_evtName));
+        _evtTemp = temp;
+        if (raise103) _raise103 = true;
+        if (raise104) _raise104 = true;
+    }
     portEXIT_CRITICAL(&tableMux);
-
-    char msg[48];
-    if (raise103) {
-        snprintf(msg, sizeof(msg), "%s reading %.1f C outside limits", dtcName, temp);
-        diagEngine.raiseDtc(Dtc::ERR_TEMP_OUT_OF_BOUNDS, msg, SEV_ERROR);
-    }
-    if (clear103) diagEngine.clearDtc(Dtc::ERR_TEMP_OUT_OF_BOUNDS);
-    if (raise104) {
-        snprintf(msg, sizeof(msg), "%s: 3 discarded readings in 1 h", dtcName);
-        diagEngine.raiseDtc(Dtc::WARN_SENSOR_SUSPECT, msg, SEV_WARNING);
-    }
 }
 
 // A held jump was discarded (FR-53). Returns true when this is the third one within 1 h (DTC-104).

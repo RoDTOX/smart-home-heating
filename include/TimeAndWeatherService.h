@@ -62,6 +62,7 @@ private:
     float _prevDayMean = 0;
     int32_t _prevDayKey = -1;    // year and day of the year of the fetch of the mean
     bool _dayMeanNew = false;
+    int32_t _countedKey = -1;    // last day whose mean was counted for the season, kept in NVS
     static void fetchTask(void* arg);
     int32_t dayKey() const;
     bool _ntpAnnounced;

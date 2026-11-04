@@ -85,6 +85,11 @@ private:
     uint32_t _lastPruneMs = 0;
     uint32_t _lastSuspectCheckMs = 0;
     bool noteDiscard(BleSensorData* s);
+    // DTC work is handed from the BLE task to update() in loop() (the DTC and log rings are not thread-safe)
+    volatile bool _raise103 = false, _raise104 = false;
+    bool _dtc103Active = false, _dtc104Active = false;
+    char _evtName[32] = "";
+    float _evtTemp = 0;
     bool isAssigned(const char* mac, const char* name) const { return _assigned && _assigned(mac, name); }
 
     void updateOrAddSensor(const char* mac, const char* name, float temp, float hum, uint8_t bat, int8_t rssi, SensorSource src);
