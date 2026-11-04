@@ -58,6 +58,7 @@ Invalid schedule input returns `400`.
 | GET/POST | `/api/config/system` | see below | Safety timings and settings of requirements §6 (FR-42) |
 | GET | `/api/config/export` | | Settings file (FR-65.1), see below |
 | POST | `/api/config/import` | the settings file | Applies the valid settings, reports the rest (FR-65.3), see below |
+| POST | `/api/config/credentials` | `user`, `pass` | Admin credentials (FR-59): `user` (1..31 chars), `pass` (8..63 chars); saves to NVS (`apicred`), clears DTC-403 |
 | POST | `/api/relay/test` | `pin`, `state` | Relay test (FR-43): `pin` = GPIO of a relay output (32, 33, 25, 26), `state` = `1` opens the valve of that output, `0` closes it, respecting NC / NO (FR-15.1); HTTP 409 unless the mode is MANUAL and the output belongs to a zone or is the pump; 400 for a pin that is no relay output |
 | POST | `/api/diag/exercise` | | Anti-seize valve exercise |
 

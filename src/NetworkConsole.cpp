@@ -225,6 +225,7 @@ void NetworkConsole::executeCommand(const String& cmd, SecSource src, const uint
     // The coordinates of the house are not echoed into the log (FR-76)
     String shown = cleanCmd;
     if (upper.startsWith("LOCATION ")) shown = "LOCATION <hidden>";
+    else if (upper.startsWith("ADMINPASS ") || upper.startsWith("CREDENTIALS ")) shown = "ADMINPASS <hidden>";
 
     this->println();
     this->println(CMD_SEP);

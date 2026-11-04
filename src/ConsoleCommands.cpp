@@ -2,6 +2,7 @@
 #include "BleSensorScanner.h"
 #include "BoilerRadioTrigger.h"
 #include "Config.h"
+#include "Commands.h"
 #include "DiagnosticEngine.h"
 #include "NetworkConsole.h"
 #include "ThermalZoneManager.h"
@@ -51,6 +52,7 @@ void printHelp() {
       "[Heating & Hydraulic Control]\r\n"
       "  PASSWD <new>          -> Serial only: set the first console password (8 to 63 characters)\r\n"
       "  PASSWD <old> <new>    -> change the console password (network: login first)\r\n"
+      "  ADMINPASS <user> <new> -> set admin/API credentials in NVS (FR-59, clears DTC-403)\r\n"
       "  ON / OFF              -> Start / Stop gas boiler burner flame via 433.92 MHz RF\r\n"
       "  BOILER RESET RUNTIME  -> Reset flame runtime statistics counter to 0 in NVS\r\n"
       "  AUTO / MANUAL         -> Thermostat automatic control vs manual override\r\n"
@@ -150,6 +152,26 @@ void handleSerialCommand(String cmd) {
     } else {
       blinkLed(2, 40);
       boilerRadio.sendBoilerOff();
+    }
+  } else if (upperCmd.startsWith("ADMINPASS ") || upperCmd.startsWith("CREDENTIALS ")) {
+    int firstSpace = cmd.indexOf(' ');
+    int secondSpace = cmd.indexOf(' ', firstSpace + 1);
+    if (firstSpace > 0 && secondSpace > firstSpace) {
+      String user = cmd.substring(firstSpace + 1, secondSpace);
+      String pass = cmd.substring(secondSpace + 1);
+      user.trim();
+      pass.trim();
+      if (user.length() > 0 && user.length() <= 31 && pass.length() >= 8 && pass.length() <= 63) {
+        if (commands.setCredentials(user.c_str(), pass.c_str(), true)) {
+          netConsole.printf("[ADMINPASS] Admin credentials updated in NVS (FR-59). User: %s (DTC-403 cleared).\r\n", user.c_str());
+        } else {
+          netConsole.println(F("[ADMINPASS] Failed saving credentials to NVS."));
+        }
+      } else {
+        netConsole.println(F("[ADMINPASS] Refused: user must be 1-31 chars and pass 8-63 chars (FR-59)."));
+      }
+    } else {
+      netConsole.println(F("[ADMINPASS] Usage: ADMINPASS <user> <new_password>"));
     }
   } else if (upperCmd == "AUTO") {
     thermalZones.setAutoMode(true);

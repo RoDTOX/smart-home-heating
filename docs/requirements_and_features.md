@@ -558,8 +558,8 @@ one example:
   - CORS is limited to the controller's own origin.
   - *Fallback:* unauthenticated request → HTTP 401, no change.
 - **FR-59 (Credentials):** *[now]* {SW; test} The first flash may use universal default credentials (OTA, access point, Wi-Fi); the console has none (FR-75.2).
-  Credentials are changed via API or console without re-flashing and stored in NVS.
-  - *Reports:* while any default is active, DTC-403 `WARN_DEFAULT_CREDENTIALS`; everything else works.
+  Credentials are changed via API (`POST /api/config/credentials` with `user` and `pass`) or console (`ADMINPASS <user> <pass>`) without re-flashing and stored in NVS (`apicred`).
+  - *Reports:* while any default is active (username `admin` or default password), DTC-403 `WARN_DEFAULT_CREDENTIALS`; clears when custom credentials are saved; everything else works.
 
 ### 3.10 Maintenance and commissioning
 

@@ -303,6 +303,7 @@ class SystemTestSuite(SuiteBase, HealthTests, HydraulicsTests, ControlTests, UiH
             self.test_tc41_5_default_credentials_dtc403,
             self.test_tc41_6_weather_task_stack_budget,
             self.test_tc41_7_dtc402_low_ram_evaluation,
+            self.test_tc41_8_admin_credentials_contract,
         ]
         if self.only:   # --only TC34,TC35: run just these groups (name part after test_)
             tests = [t for t in tests if any(t.__name__.startswith("test_" + o.lower() + "_") for o in self.only)]

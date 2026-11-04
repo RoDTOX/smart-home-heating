@@ -7,6 +7,18 @@ Entries before 29.10.2026 (the system before the lean clean-up):
 
 
 
+## [05.11.2026] - Admin credentials management via API, console, and web UI (FR-59, C-43)
+
+- **Who / when / why:** firmware session (Antigravity), light process, owner approved feature. Setting custom credentials via `PASSWD` was only updating `ConsoleAuth` (`console` user), leaving the administrative API credentials (`Commands` / `apicred`) in default state (`admin` / `OTA_PASS`), which kept `DTC-403 (Default credentials active)` permanently raised and blocked index submission with custom credentials.
+- **Done:**
+  - `src/WebApi.cpp`: added `POST /api/config/credentials` endpoint allowing authenticated update of API administrator username (1–31 chars) and password (8–63 chars), persisting to NVS namespace `apicred` via `Commands::setCredentials()`.
+  - `src/ConsoleCommands.cpp`: added `ADMINPASS <user> <pass>` (and alias `CREDENTIALS`) to update administrative credentials directly from serial/telnet console.
+  - `src/NetworkConsole.cpp`: sanitized `ADMINPASS` and `CREDENTIALS` commands in console history/logs to protect plaintext passwords in memory and logs (FR-76).
+  - `web/index.html`: added "Schimbare Credențiale Administrator" card in `Configurare Instalație -> Sistem & Mentenanță` with form for user & password; fixed gas meter input decimal handling and refreshed UI on save.
+  - `tools/sh_tests/t_commands_auth.py`: added `SWE.5-TC41.8` testing API credentials contract, length boundaries, and DTC-403 auto-clear upon setting non-default credentials.
+- **Numbers:** firmware binary 1,262,189 B (flash margin > 44 KB under 1,306,624 B limit), free heap steady >93 KB.
+- **Tests:** `SWE.5-TC41.8` written first, red run on old firmware, frozen, now 100% PASS on board (Group 41: 8/8 PASS).
+
 ## [04.11.2026] - Telemetry chart accuracy, separate weather axis, and clean restart markers (FR-34, C-42)
 
 - **Who / when / why:** firmware session (Antigravity), light process, owner reported visual discrepancy and requested UI improvements. In the telemetry chart, activity bars (boiler ON and zone valves) were drawn with a 5-minute past-shift offset (`segX = x1 - (start + 1) * slotW`), causing hover at active bar segments to pick adjacent inactive sample points ("Cazan: Oprit" while hovering on "Cazan ON" bar). In addition, outdoor temperature was clamped to the indoor room scale and flatlined at the chart floor, and reboot markers drew full-height vertical dotted lines cluttering curves.

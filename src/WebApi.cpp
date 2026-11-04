@@ -1510,6 +1510,29 @@ void handleApiConfigImport() {
   server.send(code, "application/json", answer);
 }
 
+// FR-59: change credentials via API without re-flashing
+void handleApiConfigCredentials() {
+  if (!requireAuth()) return;
+  sendCorsHeaders();
+  if (!server.hasArg("user") || !server.hasArg("pass")) {
+    server.send(400, "application/json", F("{\"status\":\"error\",\"error\":\"missing user or pass (FR-59)\"}"));
+    return;
+  }
+  String user = server.arg("user");
+  String pass = server.arg("pass");
+  user.trim();
+  pass.trim();
+  if (user.length() == 0 || user.length() > 31 || pass.length() < 8 || pass.length() > 63) {
+    server.send(400, "application/json", F("{\"status\":\"error\",\"error\":\"user must be 1-31 chars and pass 8-63 chars (FR-59)\"}"));
+    return;
+  }
+  if (commands.setCredentials(user.c_str(), pass.c_str(), true)) {
+    server.send(200, "application/json", String("{\"status\":\"ok\",\"user\":\"") + user + "\"}");
+  } else {
+    server.send(500, "application/json", F("{\"status\":\"error\",\"error\":\"failed saving credentials\"}"));
+  }
+}
+
 // FR-43: only in MANUAL mode, only an output of a zone or the pump, respecting NC / NO (FR-15.1)
 void handleApiRelayTest() {
   if (!requireAuth()) return;
@@ -1628,5 +1651,6 @@ void registerWebRoutes() {
   server.on("/api/relay/test", HTTP_POST, handleApiRelayTest);
   server.on("/api/config/export", HTTP_GET, handleApiConfigExport);
   server.on("/api/config/import", HTTP_POST, handleApiConfigImport);
+  server.on("/api/config/credentials", HTTP_POST, handleApiConfigCredentials);
 
 }

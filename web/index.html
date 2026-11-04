@@ -167,6 +167,14 @@ code,.mono{font:13px/1.35 ui-monospace,SFMono-Regular,Consolas,monospace}
       <div style="font-weight:600;margin:18px 0 4px">Sistem &amp; Mentenanță</div>
       <div class="row">Locație (lat,lon) <input id="loc" placeholder="45.65,25.60"><button id="saveLoc">Salvează</button><span id="locMsg" class="s"></span></div>
       <div class="row"><a href="update">Actualizare firmware (OTA)</a></div>
+      <div style="font-weight:600;margin:18px 0 4px">Credențiale Administrare (FR-59)</div>
+      <div class="s">Setează utilizatorul și parola de administrare în NVS (OTA &amp; API). Un utilizator personalizat stinge DTC-403.</div>
+      <div class="row" style="gap:8px;align-items:center;flex-wrap:wrap">
+        <input id="cfgAdminUser" placeholder="Utilizator (1-31 caractere)" style="width:170px">
+        <input id="cfgAdminPass" type="password" placeholder="Parolă nouă (8-63 car.)" style="width:170px">
+        <button type="button" id="btnSaveAdminCreds">Schimbă credențialele</button>
+        <span id="cfgAdminCredMsg" class="s"></span>
+      </div>
       <div class="row"><button id="cfgExport">Export setări</button><button id="cfgImportBtn">Import setări…</button>
         <input type="file" id="cfgFile" accept=".json,application/json" style="display:none"><span id="cfgMsg" class="s"></span></div>
       <div class="s">Fișierul conține locația, numele camerelor, senzorii și programul, nu parole. Păstrează-l privat.</div>
@@ -1218,7 +1226,7 @@ function renderGasMeter() {
   <div id="gasReadForm" style="display:none;background:var(--card);border:1px solid var(--line);border-radius:8px;padding:12px;margin-top:10px">
     <div style="font-weight:600;font-size:13px;margin-bottom:8px">Citire contor (indexul de pe contorul fizic)</div>
     <div class="row" style="gap:10px;align-items:flex-end;flex-wrap:wrap">
-      <div><label class="s" style="display:block;margin-bottom:3px">Index citit (m³)</label><input type="number" step="0.001" min="0" id="cfgGasIndex" placeholder="ex. 2265.304" style="width:130px" /></div>
+      <div><label class="s" style="display:block;margin-bottom:3px">Index citit (m³)</label><input type="text" inputmode="decimal" id="cfgGasIndex" placeholder="ex. 2265.304" style="width:130px" /></div>
       <div><label class="s" style="display:block;margin-bottom:3px">Ora citirii (gol = acum)</label><input type="datetime-local" id="cfgGasTime" style="width:190px" /></div>
       <button type="button" id="btnSaveGasReading" class="ok">💾 Salvează citirea</button>
       <span class="s" id="gasReadMsg" style="color:var(--mut)"></span>
@@ -1240,14 +1248,15 @@ function renderGasMeter() {
     if (gasFormOpen) loadGasReadings();
   };
   $("btnSaveGasReading").onclick = async () => {
-    const idx = $("cfgGasIndex").value;
+    const idx = $("cfgGasIndex").value.trim().replace(',', '.');
     const t = $("cfgGasTime").value;
     const msg = $("gasReadMsg");
+    if (!idx) { msg.textContent = "Introdu indexul contorului (ex. 2266.123)"; return; }
     let body = `index=${encodeURIComponent(idx)}`;
     if (t) body += `&time=${Math.floor(new Date(t).getTime() / 1000)}`;
     try {
       const res = await fetch("api/boiler/gas-meter", { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body });
-      if (res.ok) { msg.textContent = "✅ Citire salvată"; $("cfgGasIndex").value = ""; $("cfgGasTime").value = ""; loadGasReadings(); poll(); }
+      if (res.ok) { msg.textContent = "✅ Citire salvată"; $("cfgGasIndex").value = ""; $("cfgGasTime").value = ""; loadGasReadings(); refresh(); }
       else { const e = await res.json().catch(() => ({})); msg.textContent = "Respinsă: " + (e.error || ("HTTP " + res.status)); }
     } catch (err) { msg.textContent = "Eroare de rețea: " + err; }
   };
@@ -1255,8 +1264,8 @@ function renderGasMeter() {
     const body = `boilerSetTemp=${encodeURIComponent($("cfgGasSetTemp").value)}&boilerFlowObserved=${encodeURIComponent($("cfgGasFlowObs").value)}&gasPrice=${encodeURIComponent($("cfgGasPrice").value)}`;
     try {
       const res = await fetch("api/config/system", { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body });
-      $("gasReadMsg").textContent = res.ok ? "✅ Setări salvate" : "Respinse: valoare în afara limitelor (HTTP " + res.status + ")";
-      poll();
+      $("gasReadMsg").textContent = res.ok ? "✅ Setări salvate" : "Respinse: valoare în afara limitelor sau autentificare necesară (HTTP " + res.status + ")";
+      refresh();
     } catch (err) { $("gasReadMsg").textContent = "Eroare de rețea: " + err; }
   };
   loadGasReadings();
