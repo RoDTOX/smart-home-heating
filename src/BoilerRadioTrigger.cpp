@@ -152,13 +152,26 @@ void BoilerRadioTrigger::begin(uint8_t dataPin) {
     // An immediate forced STOP burst guarantees the physical burner is shut down.
     netConsole.printf("[RF 433MHz][BOOT-SAFE] Boot power resume (last NVS state: %s). Emitting failsafe STOP [OFF] burst...\n",
                       _lastCommandOn ? "ON" : "OFF");
-    sendBoilerOff(true);
+    sendBoilerOff(true, RS_BOOT);
 }
 
-void BoilerRadioTrigger::setPendingAction(PendingBoilerAction action) {
+void BoilerRadioTrigger::setPending(PendingBoilerAction action, uint8_t why) {
+    if (action == _pendingAction) return;
+    eventLog.add(EV_PENDING, 0, why, 0, _pendingAction, action);
     _pendingAction = action;
+}
+
+void BoilerRadioTrigger::cancelPendingAction(uint8_t why) { setPending(PENDING_NONE, why); }
+
+void BoilerRadioTrigger::noteRefusal(uint8_t why, uint32_t waitSec, bool targetOn) {
+    eventLog.add(EV_REFUSED, 0, why, 0, waitSec > 0xFFFF ? 0xFFFF : (uint16_t)waitSec, targetOn ? 1 : 0, true);
+}
+
+void BoilerRadioTrigger::setPendingAction(PendingBoilerAction action, uint8_t why) {
     uint32_t waitSec = 0;
-    canTransmit(action == PENDING_ON, &waitSec);
+    uint8_t guardWhy = RS_NONE;
+    canTransmit(action == PENDING_ON, &waitSec, nullptr, &guardWhy);
+    setPending(action, why == RS_NONE ? guardWhy : why);
     netConsole.printf("[RF 433MHz][QUEUE] Scheduled deferred boiler %s command (cooldown: %u s remaining).\n",
                       action == PENDING_OFF ? "STOP [OFF]" : "START [ON]", waitSec);
 }
@@ -178,15 +191,15 @@ void BoilerRadioTrigger::update() {
     if (_pendingAction == PENDING_OFF) {
         if (canTransmit(false)) {
             netConsole.println(F("[RF 433MHz][QUEUE] Anti-short-cycling delay expired. Executing deferred boiler STOP [OFF]!"));
-            sendBoilerOff(false);
+            sendBoilerOff(false, RS_QUEUE);
         }
     } else if (_pendingAction == PENDING_ON) {
         if (_onPermit && !_onPermit()) {  // FR-2: interlock lost, the start is cancelled, nothing is sent
-            _pendingAction = PENDING_NONE;
+            setPending(PENDING_NONE, RS_INTERLOCK);
             netConsole.println(F("[RF 433MHz][QUEUE] Deferred boiler START cancelled: no valve open for interlockDelay (FR-2)."));
         } else if (canTransmit(true)) {
             netConsole.println(F("[RF 433MHz][QUEUE] Minimum pause expired. Executing deferred boiler START [ON]!"));
-            sendBoilerOn(false);
+            sendBoilerOn(false, RS_QUEUE);
         }
     }
 
@@ -198,6 +211,7 @@ void BoilerRadioTrigger::update() {
             transmitBurst(rf_off_durations);
         }
         _lastTxTime = now;
+        eventLog.add(EV_RF, _dataPin, RS_HEARTBEAT, 0, _lastCommandOn ? 1 : 0, _lastCommandOn ? 1 : 0);
         netConsole.printf("[RF 433MHz][HEARTBEAT] %u s safety refresh burst emitted (%s).\n",
                           (unsigned int)(_safetyHeartbeatMs / 1000),
                           _lastCommandOn ? "ON" : "OFF");
@@ -218,7 +232,7 @@ void BoilerRadioTrigger::update() {
     }
 }
 
-bool BoilerRadioTrigger::canTransmit(bool targetOn, uint32_t* remainingSec, bool* isIdempotent) const {
+bool BoilerRadioTrigger::canTransmit(bool targetOn, uint32_t* remainingSec, bool* isIdempotent, uint8_t* why) const {
     uint32_t now = millis();
 
     // 1. Check idempotency (FR-17.1)
@@ -231,6 +245,7 @@ bool BoilerRadioTrigger::canTransmit(bool targetOn, uint32_t* remainingSec, bool
 
     // 2. Check RF hardware burst cooldown (Configurable, default 3s)
     if (_lastTxTime > 0 && (now - _lastTxTime < RF_MIN_COOLDOWN_MS)) {
+        if (why) *why = RS_GUARD_COOLDOWN;
         if (remainingSec) {
             *remainingSec = (RF_MIN_COOLDOWN_MS - (now - _lastTxTime) + 999) / 1000;
         }
@@ -242,6 +257,7 @@ bool BoilerRadioTrigger::canTransmit(bool targetOn, uint32_t* remainingSec, bool
         if (_lastCommandOn && !targetOn) {
             // Switching ON -> OFF: must run at least _minRunTimeMs
             if (now - _lastStateChangeTime < _minRunTimeMs) {
+                if (why) *why = RS_GUARD_RUN;
                 if (remainingSec) {
                     *remainingSec = (_minRunTimeMs - (now - _lastStateChangeTime) + 999) / 1000;
                 }
@@ -250,6 +266,7 @@ bool BoilerRadioTrigger::canTransmit(bool targetOn, uint32_t* remainingSec, bool
         } else if (!_lastCommandOn && targetOn) {
             // Switching OFF -> ON: must rest at least _minPauseTimeMs
             if (now - _lastStateChangeTime < _minPauseTimeMs) {
+                if (why) *why = RS_GUARD_PAUSE;
                 if (remainingSec) {
                     *remainingSec = (_minPauseTimeMs - (now - _lastStateChangeTime) + 999) / 1000;
                 }
@@ -277,12 +294,14 @@ void BoilerRadioTrigger::recordSpamAttempt() {
     }
 }
 
-bool BoilerRadioTrigger::sendBoilerOn(bool force) {
+bool BoilerRadioTrigger::sendBoilerOn(bool force, uint8_t why) {
     bool isIdempotent = false;
     uint32_t waitSec = 0;
 
     if (!force) {
-        if (!canTransmit(true, &waitSec, &isIdempotent)) {
+        uint8_t guardWhy = RS_NONE;
+        if (!canTransmit(true, &waitSec, &isIdempotent, &guardWhy)) {
+            noteRefusal(guardWhy, waitSec, true);
             recordSpamAttempt();
             netConsole.printf("[RF 433MHz] REJECTED: Boiler ON rejected by anti-short-cycling guard. Wait %u s.\n", waitSec);
             return false;
@@ -295,6 +314,7 @@ bool BoilerRadioTrigger::sendBoilerOn(bool force) {
     }
     // FR-2: no ON without an open valve, from any source
     if (_onPermit && !_onPermit()) {
+        noteRefusal(RS_INTERLOCK, 0, true);
         netConsole.println(F("[RF 433MHz] REJECTED: Boiler ON needs a valve energised for interlockDelay (FR-2)."));
         return false;
     }
@@ -302,24 +322,28 @@ bool BoilerRadioTrigger::sendBoilerOn(bool force) {
     netConsole.printf("[RF 433MHz] Transmitting boiler START [ON] command on GPIO%d%s...\n",
                       _dataPin, force ? " [FORCED]" : "");
     transmitBurst(rf_on_durations);
+    bool wasOn = _lastCommandOn;
     _lastCommandOn = true;
     _flameStartTimeMs = millis();
     _hasTransmittedOnce = true;
     _lastTxTime = millis();
     _lastStateChangeTime = _lastTxTime;
     _spamAttemptCount = 0;
-    _pendingAction = PENDING_NONE;
+    setPending(PENDING_NONE, why);
+    eventLog.add(EV_RF, _dataPin, why, 0, wasOn ? 1 : 0, 1);
     saveState();
     netConsole.println(F("[RF 433MHz] Boiler ON burst sent successfully."));
     return true;
 }
 
-bool BoilerRadioTrigger::sendBoilerOff(bool force) {
+bool BoilerRadioTrigger::sendBoilerOff(bool force, uint8_t why) {
     bool isIdempotent = false;
     uint32_t waitSec = 0;
 
     if (!force) {
-        if (!canTransmit(false, &waitSec, &isIdempotent)) {
+        uint8_t guardWhy = RS_NONE;
+        if (!canTransmit(false, &waitSec, &isIdempotent, &guardWhy)) {
+            noteRefusal(guardWhy, waitSec, false);
             recordSpamAttempt();
             netConsole.printf("[RF 433MHz] REJECTED: Boiler OFF rejected by anti-short-cycling guard. Wait %u s.\n", waitSec);
             return false;
@@ -351,12 +375,14 @@ bool BoilerRadioTrigger::sendBoilerOff(bool force) {
         }
         _flameStartTimeMs = 0;
     }
+    bool wasOn = _lastCommandOn;
     _lastCommandOn = false;
     _hasTransmittedOnce = true;
     _lastTxTime = millis();
     _lastStateChangeTime = _lastTxTime;
     _spamAttemptCount = 0;
-    _pendingAction = PENDING_NONE;
+    setPending(PENDING_NONE, why);
+    eventLog.add(EV_RF, _dataPin, why, 0, wasOn ? 1 : 0, 0);
     saveState();
     netConsole.println(F("[RF 433MHz] Boiler OFF burst sent successfully."));
     return true;

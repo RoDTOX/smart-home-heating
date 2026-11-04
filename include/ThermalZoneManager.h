@@ -2,6 +2,7 @@
 #define THERMAL_ZONE_MANAGER_H
 
 #include <Arduino.h>
+#include "EventLog.h"
 #include "Config.h"
 #include "ParamStore.h"
 #include "BoilerRadioTrigger.h"
@@ -184,6 +185,7 @@ public:
     // Pump Control (Relay 4 on PIN_RELAY_SPARE / GPIO26)
     bool isPumpControlEnabled() const { return _pumpControlEnabled; }
     bool isPumpActive() const { return _pumpActive; }
+    uint8_t eventContext() const;  // FR-62.1: boiler side state for every log entry
     bool setPumpControlEnabled(bool enabled);  // false: a zone uses the pump relay (FR-11.3), nothing changed
     // FR-11.3: index of the zone (other than exceptIndex) driving this relay output, -1 when none
     int zoneUsingRelay(uint8_t pin, size_t exceptIndex) const;
@@ -358,6 +360,8 @@ private:
     bool _overrunActive;        // FR-3: the flame was lit and the OFF is sent, the keeper valve is held
     uint32_t _overrunUntilMs;
     int8_t _overrunKeeperZone;
+    bool _holdLogged = false;                          // FR-62.1: the held close of the keeper valve is logged once
+    bool _valveReady[MAX_THERMAL_ZONES] = {false};     // FR-62.1: interlock end seen for the energised valve
     float _freezeProtectionTemp;
     bool _frostProtectionActive;
     bool _antiSeizeRunning;
@@ -380,7 +384,7 @@ private:
     bool _nvsSavePending;
     uint32_t _nvsSavePendingMs;
 
-    void applyRelay(uint8_t pin, bool active);
+    void applyRelay(uint8_t pin, bool active, uint8_t reason = RS_NONE);
     bool valveOpen(size_t index, uint32_t now) const;  // energised for at least interlockDelay (FR-2)
     bool anyValveOpen(uint32_t now) const;
     void trackBoilerState(uint32_t now);                // starts and ends the overrun window (FR-3)

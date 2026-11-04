@@ -4,6 +4,7 @@
 #include "Config.h"
 #include "ConfigTransfer.h"
 #include "DiagnosticEngine.h"
+#include "EventLog.h"
 #include "NetworkConsole.h"
 #include "ThermalZoneManager.h"
 #include "TelemetryHistoryManager.h"
@@ -138,13 +139,16 @@ void handleApiOn() {
 
   // 2. Interlock (FR-2): no boiler ON, queued or not, before a zone valve has been energised for interlockDelay
   if (!thermalZones.boilerOnPermitted()) {
+    boilerRadio.noteRefusal(RS_INTERLOCK, 0, true);
     boilerRadio.recordSpamAttempt();  // a rejected manual request counts for DTC-201 (FR-17.5)
     server.send(409, "application/json", F("{\"status\":\"interlock\",\"error\":\"No zone valve has been open for interlockDelay\",\"boiler\":\"OFF\"}"));
     return;
   }
 
   // 3. Pre-validate against anti-short-cycling guard & RF cooldown (FR-17.2, FR-17.3, FR-17.4)
-  if (!boilerRadio.canTransmit(true, &waitSec, &isIdempotent)) {
+  uint8_t guardWhy = RS_NONE;
+  if (!boilerRadio.canTransmit(true, &waitSec, &isIdempotent, &guardWhy)) {
+    boilerRadio.noteRefusal(guardWhy, waitSec, true);
     boilerRadio.recordSpamAttempt();
     // Schedule deferred startup if not already running
     if (!boilerRadio.isLastCommandOn()) {
@@ -195,7 +199,9 @@ void handleApiOff() {
   }
 
   // 2. Pre-validate against anti-short-cycling guard & RF cooldown (FR-17.2, FR-17.3, FR-17.4)
-  if (!force && !boilerRadio.canTransmit(false, &waitSec, &isIdempotent)) {
+  uint8_t guardWhy = RS_NONE;
+  if (!force && !boilerRadio.canTransmit(false, &waitSec, &isIdempotent, &guardWhy)) {
+    boilerRadio.noteRefusal(guardWhy, waitSec, false);
     boilerRadio.recordSpamAttempt();
     // Schedule deferred shutdown: remember command and automatically trigger OFF when cooldown ends!
     if (boilerRadio.isLastCommandOn()) {
@@ -903,6 +909,42 @@ void handleApiDiagEvents() {
   server.send(200, "application/json", diagEngine.eventsJson());
 }
 
+// FR-62.1: the event log, newest first, streamed in chunks from one fixed buffer
+struct LogOut {
+  JsonOut *j;
+  bool first;
+};
+
+static void logEntryOut(const EventEntry &e, void *arg) {
+  LogOut *o = (LogOut *)arg;
+  JsonOut &j = *o->j;
+  j.put("%s{\"time\":%lu,\"timeValid\":%s,\"type\":\"%s\",\"subject\":%u,\"zone\":%u,\"reason\":\"%s\",\"old\":%u,\"new\":%u,"
+        "\"boiler\":%s,\"overrun\":%s,\"pending\":\"%s\"",
+        o->first ? "" : ",", (unsigned long)e.time, tf(e.flags & 1), EventLog::typeName(e.type), e.subject, e.zone,
+        EventLog::reasonName(e.reason), e.oldV, e.newV, tf(e.ctx & EVCTX_BOILER_ON), tf(e.ctx & EVCTX_OVERRUN),
+        (e.ctx & EVCTX_PENDING_OFF) ? "off" : ((e.ctx & EVCTX_PENDING_ON) ? "on" : "none"));
+  if (e.type == EV_DTC) {
+    const DtcRecord *d = diagEngine.getDtc(e.subject);
+    j.put(",\"code\":\"%s\"", d ? d->code : "");
+  }
+  j.put("}");
+  o->first = false;
+}
+
+void handleApiDiagLog() {
+  long v = server.hasArg("n") ? server.arg("n").toInt() : 200;
+  size_t n = v < 1 ? 1 : (v > 4096 ? 4096 : (size_t)v);
+  size_t have = eventLog.queued() + eventLog.stored();
+  if (n > have) n = have;
+  JsonOut j;
+  j.put("{\"count\":%u,\"stored\":%u,\"queued\":%u,\"events\":[", (unsigned)n, (unsigned)eventLog.stored(),
+        (unsigned)eventLog.queued());
+  LogOut o = {&j, true};
+  eventLog.forEachNewest(n, logEntryOut, &o);
+  j.put("]}");
+  j.end();
+}
+
 extern volatile uint32_t g_wxStackFreeMin;  // TimeAndWeatherService.cpp
 
 // FR-10.6: read-only memory probe, one fixed buffer, no String
@@ -1510,6 +1552,7 @@ void registerWebRoutes() {
   server.on("/api/ble/sensors", HTTP_GET, handleApiBleSensors);
   server.on("/api/diag/status", HTTP_GET, handleApiDiagStatus);
   server.on("/api/diag/events", HTTP_GET, handleApiDiagEvents);
+  server.on("/api/diag/log", HTTP_GET, handleApiDiagLog);
   server.on("/api/diag/mem", HTTP_GET, handleApiDiagMem);
   server.on("/api/web/update", HTTP_POST, handleWebUpdateDone, handleWebUpdateUpload);
   server.on("/api/web/remove", HTTP_POST, handleWebRemove);

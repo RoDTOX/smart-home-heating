@@ -2,6 +2,7 @@
 #define BOILER_RADIO_TRIGGER_H
 
 #include <Arduino.h>
+#include "EventLog.h"
 
 // FR-17 Timing Thresholds & Safety Limits (Defaults)
 #define RF_MIN_COOLDOWN_MS       3000UL   // FR-17.2: fixed minimum silence between two radio frames
@@ -22,16 +23,20 @@ public:
     void update();
 
     // FR-17: Returns true if burst transmitted or idempotent no-op; false if rate-limited
-    bool sendBoilerOn(bool force = false);
-    bool sendBoilerOff(bool force = false);
+    // why: the reason that goes into the event log (FR-62.1)
+    bool sendBoilerOn(bool force = false, uint8_t why = RS_USER);
+    bool sendBoilerOff(bool force = false, uint8_t why = RS_USER);
 
     // Pre-validation without blocking CPU or calling noInterrupts() (FR-17.6)
-    bool canTransmit(bool targetOn, uint32_t* remainingSec = nullptr, bool* isIdempotent = nullptr) const;
+    // why (optional): RS_GUARD_COOLDOWN / RS_GUARD_RUN / RS_GUARD_PAUSE when it returns false
+    bool canTransmit(bool targetOn, uint32_t* remainingSec = nullptr, bool* isIdempotent = nullptr, uint8_t* why = nullptr) const;
 
     // Deferred execution / Pending command queueing
     PendingBoilerAction getPendingAction() const { return _pendingAction; }
-    void setPendingAction(PendingBoilerAction action);
-    void cancelPendingAction() { _pendingAction = PENDING_NONE; }
+    void setPendingAction(PendingBoilerAction action, uint8_t why = RS_NONE);  // RS_NONE: the guard that queues it
+    void cancelPendingAction(uint8_t why = RS_USER);
+    // FR-62.1: a command refused before it reached sendBoilerOn / Off (interlock, burner guard)
+    void noteRefusal(uint8_t why, uint32_t waitSec, bool targetOn);
     const char* getPendingActionStr() const;
 
     // FR-2: every ON, from any source, passes this check (the interlock of the zone valves)
@@ -69,6 +74,7 @@ public:
     void setSafetyHeartbeatEnabled(bool en);
 
 private:
+    void setPending(PendingBoilerAction action, uint8_t why);
     uint8_t _dataPin;
     bool _lastCommandOn;
     bool _hasTransmittedOnce;

@@ -122,12 +122,15 @@ void handleSerialCommand(String cmd) {
   if (upperCmd == "1" || upperCmd == "ON" || upperCmd == "START") {
     uint32_t waitSec = 0;
     bool isIdempotent = false;
+    uint8_t guardWhy = RS_NONE;
     if (boilerRadio.hasTransmittedOnce() && boilerRadio.isLastCommandOn()) {
       netConsole.println(F("[BOILER] Boiler is already ON (idempotent no-op)."));
     } else if (!thermalZones.boilerOnPermitted()) {
+      boilerRadio.noteRefusal(RS_INTERLOCK, 0, true);
       boilerRadio.recordSpamAttempt();
       netConsole.println(F("[BOILER] ON rejected: no zone valve has been open for interlockDelay (FR-2)."));
-    } else if (!boilerRadio.canTransmit(true, &waitSec, &isIdempotent)) {
+    } else if (!boilerRadio.canTransmit(true, &waitSec, &isIdempotent, &guardWhy)) {
+      boilerRadio.noteRefusal(guardWhy, waitSec, true);
       boilerRadio.recordSpamAttempt();
       netConsole.printf("[BOILER] Command rejected by Anti-Short-Cycling guard. Wait %u s.\n", waitSec);
     } else {
@@ -137,9 +140,11 @@ void handleSerialCommand(String cmd) {
   } else if (upperCmd == "0" || upperCmd == "OFF" || upperCmd == "STOP") {
     uint32_t waitSec = 0;
     bool isIdempotent = false;
+    uint8_t guardWhy = RS_NONE;
     if (boilerRadio.hasTransmittedOnce() && !boilerRadio.isLastCommandOn()) {
       netConsole.println(F("[BOILER] Boiler is already OFF (idempotent no-op)."));
-    } else if (!boilerRadio.canTransmit(false, &waitSec, &isIdempotent)) {
+    } else if (!boilerRadio.canTransmit(false, &waitSec, &isIdempotent, &guardWhy)) {
+      boilerRadio.noteRefusal(guardWhy, waitSec, false);
       boilerRadio.recordSpamAttempt();
       netConsole.printf("[BOILER] Command rejected by Anti-Short-Cycling guard. Wait %u s.\n", waitSec);
     } else {

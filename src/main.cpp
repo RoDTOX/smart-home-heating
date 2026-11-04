@@ -3,6 +3,7 @@
 #include "BoilerRadioTrigger.h"
 #include "Config.h"
 #include "DiagnosticEngine.h"
+#include "EventLog.h"
 #include "NetworkConsole.h"
 #include "ConsoleAuth.h"
 #include "ThermalZoneManager.h"
@@ -23,11 +24,21 @@ HTTPUpdateServer httpUpdater;
 static bool softApActive = false;
 static String serialBuffer = "";
 
+// FR-62.1: every level change of the status LED is one entry; `log` false for the blink while connecting
+static uint8_t _ledLevel = 255;
+static void ledWrite(uint8_t level, uint8_t reason, bool log = true) {
+  digitalWrite(PIN_STATUS_LED, level);
+  if (level != _ledLevel) {
+    if (log) eventLog.add(EV_OUT, PIN_STATUS_LED, reason, 0, _ledLevel, level);
+    _ledLevel = level;
+  }
+}
+
 void blinkLed(uint8_t count, uint16_t delayMs) {
   for (uint8_t i = 0; i < count; i++) {
-    digitalWrite(PIN_STATUS_LED, HIGH); // Active HIGH on ESP32 Relay board
+    ledWrite(HIGH, RS_USER); // Active HIGH on ESP32 Relay board
     delay(delayMs);
-    digitalWrite(PIN_STATUS_LED, LOW);
+    ledWrite(LOW, RS_USER);
     delay(delayMs);
   }
 }
@@ -102,14 +113,14 @@ void setupWifi() {
   while (WiFi.status() != WL_CONNECTED && millis() - startAttempt < 12000) {
     delay(300);
     Serial.print(F("."));
-    digitalWrite(PIN_STATUS_LED, !digitalRead(PIN_STATUS_LED));
+    ledWrite(!_ledLevel, RS_WIFI, false);
   }
   Serial.println();
 
   if (WiFi.status() == WL_CONNECTED) {
     Serial.printf("[WiFi] Connected successfully! Local IP: %s\n",
                   WiFi.localIP().toString().c_str());
-    digitalWrite(PIN_STATUS_LED, LOW); // LED off when connected
+    ledWrite(LOW, RS_WIFI); // LED off when connected
     _wifiWasConnected = true;
     _wifiDisconnectMs = 0;
   } else {
@@ -136,7 +147,7 @@ void updateWifiWatchdog() {
     if (!_wifiWasConnected) {
       _wifiWasConnected = true;
       _wifiDisconnectMs = 0;
-      digitalWrite(PIN_STATUS_LED, LOW);
+      ledWrite(LOW, RS_WIFI);
       netConsole.printf("[WiFi][RECOVERED] Reconnected successfully! Local IP: %s (RSSI: %d dBm)\n",
                         WiFi.localIP().toString().c_str(), WiFi.RSSI());
       diagEngine.clearDtc(Dtc::WARN_WIFI_SIGNAL_DEGRADED);
@@ -145,7 +156,7 @@ void updateWifiWatchdog() {
     if (_wifiWasConnected) {
       _wifiWasConnected = false;
       _wifiDisconnectMs = now;
-      digitalWrite(PIN_STATUS_LED, HIGH); // Status LED ON indicates connection lost
+      ledWrite(HIGH, RS_WIFI); // Status LED ON indicates connection lost
       netConsole.println(F("[WiFi][WARN] Wi-Fi connection lost! Initiating auto-recovery..."));
       diagEngine.raiseDtc(Dtc::WARN_WIFI_SIGNAL_DEGRADED, "Wi-Fi link disconnected", SEV_WARNING);
     }
@@ -171,8 +182,9 @@ void setup() {
   Serial.begin(115200);
   delay(200);
 
+  eventLog.add(EV_BOOT, 0, RS_BOOT, 0, 0, (uint16_t)esp_reset_reason());  // FR-62.1: first entry of this run
   pinMode(PIN_STATUS_LED, OUTPUT);
-  digitalWrite(PIN_STATUS_LED, LOW); // Off (active HIGH)
+  ledWrite(LOW, RS_BOOT); // Off (active HIGH)
 
   Serial.printf("[Hardware] Initializing RF transmitter on GPIO%d...\n",
                 PIN_RF_DATA);

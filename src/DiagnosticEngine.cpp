@@ -1,4 +1,5 @@
 #include "DiagnosticEngine.h"
+#include "EventLog.h"
 #include "BleSensorScanner.h"
 #include "BoilerRadioTrigger.h"
 #include "NetworkConsole.h"
@@ -44,6 +45,7 @@ DiagnosticEngine::DiagnosticEngine()
 }
 
 void DiagnosticEngine::begin() {
+  eventLog.begin();  // FR-62.1
   loadEvents();
   recordRestart((uint32_t)esp_reset_reason());
   Serial.println(F("[DIAG] Diagnostic Engine initialized."));
@@ -103,6 +105,8 @@ void DiagnosticEngine::flushEvents() {
 }
 
 void DiagnosticEngine::addEvent(EventType type, uint8_t code, uint8_t zone, uint32_t value) {
+  if (type != EVT_RESTART)  // FR-62.1: every raise and clear, without the hourly limit of the 50-entry ring
+    eventLog.add(EV_DTC, code, RS_NONE, zone, 0, type == EVT_DTC_RAISED ? 1 : 0);
   time_t epoch = time(nullptr);
   bool epochValid = epoch > 1700000000;
   uint32_t now = epochValid ? (uint32_t)epoch : millis() / 1000;
@@ -253,6 +257,7 @@ const char *DiagnosticEngine::getSeverityStr(DtcSeverity sev) const {
 
 void DiagnosticEngine::update() {
   flushEvents();
+  eventLog.update();
   uint32_t now = millis();
   if (now - _lastEvaluationMs < 10000UL) {
     return;
@@ -285,6 +290,12 @@ void DiagnosticEngine::evaluateSensors() {
 void DiagnosticEngine::evaluateSystem() {
   // FR-61: without valid time the zones keep their last schedule level
   if (timeAndWeather.isTimeSynced()) {
+    static bool syncLogged = false;
+    if (!syncLogged) {  // FR-62.1: dates the entries written before the clock was valid
+      syncLogged = true;
+      uint32_t up = millis() / 1000;
+      eventLog.add(EV_TIME_SYNC, 0, RS_NONE, 0, (uint16_t)(up >> 16), (uint16_t)(up & 0xFFFF));
+    }
     clearDtc(Dtc::WARN_TIME_NOT_SET);
   } else if (millis() > 120000UL) {
     raiseDtc(Dtc::WARN_TIME_NOT_SET, "Time not set (NTP)", SEV_WARNING);

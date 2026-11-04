@@ -912,3 +912,10 @@ efresh() guarded, ocusout debounced).
 ## [04.11.2026] - Chain rules for any IDE: git `commit-msg` hook (owner, Antigravity handover)
 
 - **What:** `tools/sh_chain.py commit-check` + `.githooks/commit-msg` enforce outside Claude Code: tests first (phase `tests` closes code, frozen hash), existing tests edited only with a `PB-n` / `D-n` / `C-n` in the message, no `Co-Authored-By` / "Generated with", `Safety-Reviewed:` line when a safety-list file changes. Owner bypass `SH_HOOK_SKIP=owner` (printed loudly). Enable: `git config core.hooksPath .githooks`. Pointers in AGENTS.md §5 and process.md §5.
+
+## [04.11.2026] - Event log of safety and I/O (PB-121, FR-62.1, C-37, D-57)
+
+- **What:** new `EventLog` (`src/EventLog.cpp`): 16 B entries with time, type, subject, reason, old / new value and the boiler-side state; every relay level change (`OutputBank`), every boiler frame, refusal and pending action (`BoilerRadioTrigger`), interlock start / end, overrun start / hold / end, frost, sensor loss, mode, boot, warm-up end, time sync, DTC raise / clear, status LED. RAM queue of 24, appended to two LittleFS files of 2048 entries (newest 2048-4096 kept) from `loop()`; `GET /api/diag/log?n=`.
+- **Measured before:** the board's LittleFS is 1 441 792 B (default partition table of the board, not the 128 KB of `min_spiffs`); 84 KB used.
+- **Safety review:** no blocker; note: `n=4096` streams about 780 KB inside `loop()` (a diagnostic call, the control timers only get longer).
+
