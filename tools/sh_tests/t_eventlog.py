@@ -4,6 +4,9 @@ Written from the requirement text FR-62.1 and requirements section 6. Every test
 the boiler OFF and the valves closed. Frost and sensor-loss entries need a fault injector (PB-116) and are
 not tested here.
 """
+import re
+from datetime import datetime
+
 from .base import *  # noqa: F401,F403
 
 
@@ -18,6 +21,11 @@ class EventLogTests:
         r = requests.get(f"{self.base_url}/api/diag/log?n={n}", timeout=self.timeout)
         assert r.status_code == 200, f"/api/diag/log HTTP {r.status_code}"
         return r.json()
+
+    @staticmethod
+    def _el_epoch(e):
+        """Epoch seconds of an entry with a valid time (`yymmddhhmmss`, local time, C-38)."""
+        return datetime.strptime(e["time"], "%y%m%d%H%M%S").timestamp()
 
     def _el_new(self, before, n=400):
         """Entries written after `before` (a list taken earlier, newest first), oldest first."""
@@ -52,6 +60,7 @@ class EventLogTests:
                 for key in ("time", "timeValid", "type", "subject", "zone", "reason", "old", "new",
                             "boiler", "overrun", "pending"):
                     assert key in e, f"entry without '{key}': {e}"
+                assert re.fullmatch(r"\d{12}" if e["timeValid"] else r"\d+", e["time"]), f"time {e['time']} (C-38)"
                 assert e["type"] in self.ET_TYPES, f"unknown type {e['type']}"
                 assert e["reason"] in self.ET_REASONS, f"unknown reason {e['reason']}"
                 assert e["pending"] in ("none", "off", "on"), f"pending {e['pending']}"
@@ -91,7 +100,7 @@ class EventLogTests:
             assert on["zone"] == zone, f"zone {on['zone']}, expected {zone}"
             assert on["reason"] == "manual", f"reason '{on['reason']}', expected 'manual'"
             if on["timeValid"]:
-                assert t0 - 5 <= on["time"] <= time.time() + 5, f"time {on['time']} is not now"
+                assert t0 - 5 <= self._el_epoch(on) <= time.time() + 5, f"time {on['time']} is not now"
             # an unchanged level writes no entry
             before2 = self._el_get(400)["events"]
             requests.post(f"{b}/api/relay/test?pin={pin}&state=0", timeout=to)
@@ -245,7 +254,7 @@ class EventLogTests:
             seq = [new.index(x) for x in (v_open, i_end, rf_on, rf_off, o_end, v_close)]
             assert seq == sorted(seq), f"entries out of order: {seq}"
             if v_open["timeValid"] and v_close["timeValid"]:
-                assert v_close["time"] - v_open["time"] >= 120 + 120 + 180, "valve cycle shorter than interlock + run + overrun"
+                assert self._el_epoch(v_close) - self._el_epoch(v_open) >= 120 + 120 + 180, "valve cycle shorter than interlock + run + overrun"
             return TestResult(test_id, name, req, "PASS", (time.time() - start) * 1000,
                               f"{len(new)} entries; interlock {i_end['old']} s, overrun {o_start['old']} s, valve closed with reason overrun-end")
         except Exception as e:

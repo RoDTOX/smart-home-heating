@@ -651,3 +651,7 @@ restores them (a test proves it). An old file with `target` skips it as unknown 
 **Affects**: FR-62.1, `DiagnosticEngine` (new `EventLog`), `OutputBank`, `ThermalZoneManager`, `BoilerRadioTrigger`, `WebApi`, `main`, TC40.x.
 **Consequences**: about 4 KB of flash and 400 B of RAM; flash wear about 1 000 block writes a day against a flash good for millions (checked in the PB-121 row). The board's LittleFS is 1 441 792 B (default partition table of the board), not the 128 KB of `min_spiffs`.
 
+
+## 2026-11-04 — Event log time readable (D-58, C-38)
+
+Owner: "timpul in loc de unix, sa fie yymmddhhmmss". `time` in `/api/diag/log` is local time as the text `yymmddhhmmss`; before the clock is set it stays uptime seconds, as text, with `timeValid` false. Only the answer changes: entries stay epoch seconds in the file, so old entries read correctly.

@@ -391,7 +391,7 @@ one example:
   - *Fallback:* event store cannot be written → events are kept in RAM until reboot, with a log line.
 - **FR-62.1 (Event log of safety and I/O):** *[now]* {SW; test} Next to the DTC history of FR-62 the controller keeps an
   event log in which a failed test or an odd moment in the house can be explained from the log alone (C-37, PB-121).
-  Every entry has a time stamp (epoch seconds when the clock is set, else uptime seconds, `timeValid` false), a
+  Every entry has a time stamp (local time as the text `yymmddhhmmss` when the clock is set, else uptime seconds as text, `timeValid` false), a
   type, a subject, a reason, an old and a new value, and the state of the boiler side at that moment (boiler last
   command ON or OFF, overrun active, pending boiler action). The log records:
   - `out`: every level change of every pin the firmware drives (FR-10.5: relay outputs GPIO32, GPIO33, GPIO25,
