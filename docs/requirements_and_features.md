@@ -661,7 +661,7 @@ one example:
 - **NFR-2.4 (Log time stamps):** {SW; test} Every console line carries a `[HH:MM:SS]` time stamp.
 - **NFR-2.6 (No heap drift):** {SW; board} No heap decrease > 5 KB over 24 h of operation; buffers are bounded and reserved
   statically.
-- **NFR-2.8 (Firmware size):** {SW; analysis} Firmware image ≤ 1 863 680 B: the OTA slot (0x1E0000 = 1 966 080 B) minus a reserve of 100 KiB, so OTA fits (C-32; replaces the 1.25 MiB of C-22, which was the old default partition).
+- **NFR-2.8 (Firmware size):** {SW; analysis} Firmware image ≤ 1 306 624 B: the OTA slot of the board (0x140000 = 1 310 720 B, the old partition table, flashed by USB) minus the 4 KiB the OTA update keeps, so OTA fits; the working target is a margin of at least 20 KB below it (C-34, supersedes C-32). The real window can grow only with a one-time USB reflash of the partition table (`min_spiffs`, 1 966 080 B per slot), which also erases LittleFS (gas readings, events); that is the owner's later decision.
 - **NFR-2.9 (Flash wear):** {SW; inspection} NVS is written only when a value changes.
 - ~~**NFR-2.1 (Power < 1.2 W):** retired.~~
 - ~~**NFR-2.5 (Paced OTA upload):** retired, merged into FR-8.3.~~

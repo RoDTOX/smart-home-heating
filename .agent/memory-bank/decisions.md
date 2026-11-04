@@ -618,3 +618,11 @@ restores them (a test proves it). An old file with `target` skips it as unknown 
 **Decided by**: owner (chat, 04.11.2026), relayed by the main chat.
 **Affects**: NFR-2.8, FR-10.6, AGENTS.md §3, `architecture.md` §14.1 / AR-18, `plan.md` R-1 / R-2, `tools/sh_process_check.py`, PB-115.
 **Consequences**: more room for steps 12 to 14; the safety list code is not touched by the batch.
+
+## 2026-11-04 — The board slot is 1.25 MiB, the flash limit goes back (D-54, C-34; supersedes D-53 part (a))
+
+**Context**: the OTA of the memory build (1 307 840 B) was refused with "Not Enough Space"; the console shows `Firmware Size 1.25 MB (1.25 MB OTA)`: the board has the old partition table (0x140000 per slot), not `min_spiffs`. A partition change needs USB and erases LittleFS (gas readings, events).
+**Decision**: stay on the real slot, no USB reflash in development. Limit 1 306 624 B (accepted by OTA), working margin of 20 KB (target image ≤ 1 286 144 B); flash cuts first (streamed JSON, weather task, Serial buffer, dead code), then the memory endpoint and the heap batch. Part (b) and (c) of D-53 stand.
+**Decided by**: owner's standing rule (no USB or Serial in development), applied by the main chat (04.11.2026).
+**Affects**: NFR-2.8, AGENTS.md §3, `architecture.md` §14.1 / AR-18, `plan.md` R-2, `tools/sh_process_check.py`, PB-115.
+**Consequences**: a bigger window is the owner's later decision (USB reflash after a backup of the gas readings).
