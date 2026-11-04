@@ -434,6 +434,10 @@ let again = false, lastFound = [];
 let RAW = {}, prevFlat = {}, changed = new Set(), trace = [], openSig = null;
 const dirtyRows = new Set();
 
+// A refusal from the controller (for example a boost above the limit) stays visible 8 s: the next refresh must not wipe it
+let errUntil = 0;
+function showErr(m) { $("err").textContent = m; errUntil = Date.now() + 8000; }
+
 async function api(path, params, isJson = false) {
   let opt = {};
   if (params) {
@@ -1707,7 +1711,7 @@ async function refresh() {
       if (debugOpen) { renderPins(); updateWatch(); }
       if (!busy("loc") && RAW["api/setup/location"]) $("loc").value = RAW["api/setup/location"].coords;
     }
-    $("err").textContent = "";
+    if (Date.now() >= errUntil) $("err").textContent = "";
   } catch (e) { $("err").textContent = "Conexiune pierdută (" + e.message + ")"; }
   inFlight = false;
   if (again) { again = false; refresh(); }
@@ -1723,7 +1727,7 @@ $("rooms").addEventListener("click", async e => {
         const t = Math.min(MAX_T, Math.max(MIN_T, z.effectiveTarget + (b.dataset.a === "up" ? STEP : -STEP)));
         await api("api/zones/setpoint", {id: i + 1, target: t.toFixed(1)});
       }
-    } catch (err) { $("err").textContent = err.message; }
+    } catch (err) { showErr(err.message); }
     return refresh();
   }
   if (e.target.closest(".ctl")) return;
