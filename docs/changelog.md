@@ -889,3 +889,7 @@ efresh() guarded, ocusout debounced).
 
 - **What:** the message of a refused boost (+2.5 C, FR-1.2) was written to the error line and wiped by the next refresh half a second later; `showErr` keeps it 8 s (`web/index.html`). Firmware 1.11.04.13. No new test (page text only); TC19.18 - TC19.20 and TC36.5 PASS. Other messages of the page that are cleared by a refresh are not reviewed yet.
 - **Gap found:** season mode (AUTO / ON / OFF, FR-12.2) can be set only by `POST /api/season`, the page has no control for it.
+
+## [04.11.2026] - Page: refusals and errors as a toast fixed to the viewport (owner remark, group test)
+
+- **What:** the refusal line sat in the page footer, off-screen in a maximized window; refusals and the lost-connection message are now a toast (`position: fixed`, top centre, 8 s, tap to close) (FR-8.1, requirement bullet added). Test TC19.21 written first, red on 1.11.04.13, PASS on 1.11.04.14. TC19.18, TC19.20, TC36.5 PASS. The per-panel message lines of the admin view (`cfgMsg`, `zoneMsg`, `gasReadMsg`) sit next to their own buttons and are unchanged. TC19.7 still fails (PB-91, old).

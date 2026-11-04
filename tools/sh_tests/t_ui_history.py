@@ -994,6 +994,30 @@ class UiHistoryTests:
         finally:
             requests.post(f"{self.base_url}/api/zones/hold/clear?id={zid}", timeout=self.timeout)
 
+    def test_tc19_21_toast_fixed_to_viewport(self):
+        """SWE.5-TC19.21: refusals and errors are a toast fixed to the viewport, 8 s, tap to close (FR-8.1)"""
+        test_id = "SWE.5-TC19.21"
+        name = "Page Toast Fixed To Viewport"
+        req = "FR-8.1"
+        start = time.time()
+        try:
+            r = requests.get(f"{self.base_url}/", timeout=self.timeout)
+            assert r.status_code == 200, f"Failed fetching page: {r.status_code}"
+            html = r.text
+            m = re.search(r"#toast\s*\{([^}]*)\}", html)
+            assert m, "No #toast style in the page"
+            css = m.group(1)
+            assert re.search(r"position\s*:\s*fixed", css), f"#toast is not position: fixed: {css}"
+            assert re.search(r"(top|bottom)\s*:", css), f"#toast has no top/bottom anchor: {css}"
+            assert 'id="toast"' in html, "No toast element in the page"
+            assert not re.search(r'<footer>[^\n]*id="err"', html), "Error line still sits in the page footer"
+            assert re.search(r"8000", html), "Toast visibility of 8 s (8000 ms) not found"
+            assert re.search(r"toast[^;\n]*addEventListener\(\s*[\"']click", html) or 'id="toast" onclick' in html, \
+                "Toast is not closed by a tap"
+            return TestResult(test_id, name, req, "PASS", (time.time() - start) * 1000, "fixed toast, 8 s, tap to close, no footer error line")
+        except Exception as e:
+            return TestResult(test_id, name, req, "FAIL", (time.time() - start) * 1000, str(e))
+
     def test_tc19_19_pin_states(self):
         """SWE.5-TC19.19: /api/diag/status reports pins GPIO32/33/25/26/19/23 with level 0 or 1 (FR-10.5)"""
         test_id = "SWE.5-TC19.19"

@@ -130,6 +130,7 @@ class SystemTestSuite(SuiteBase, HealthTests, HydraulicsTests, ControlTests, UiH
             self.test_tc19_18_boost_only_above_schedule,
             self.test_tc19_19_pin_states,
             self.test_tc19_20_debug_area_layout,
+            self.test_tc19_21_toast_fixed_to_viewport,
             self.test_tc19_9_engineering_view_covers_api,
             self.test_tc19_10_commissioning_rules,
             self.test_tc19_11_zone_card_direct_setpoint_steppers,

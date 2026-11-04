@@ -447,6 +447,9 @@ one example:
       and reasons of FR-65.6;
   - zone states are shown with the codes and texts of FR-8.4;
   - Family view language configurable (Romanian / English, NFR-3.1).
+  - A refusal or error of the firmware (e.g. a boost outside FR-1.2) and a lost connection are shown as a toast fixed
+    to the viewport (`position: fixed`, centred at the top, above the page, readable on any window size), visible 8 s
+    or until it is tapped; never as a line at the bottom of the page, which a tall page pushes off the screen.
   - Behind a reverse proxy that serves the controller under a path prefix (e.g. `/heating/` on a home server) the
     page works as served directly: every URL the page requests is relative to the page address (no leading `/`).
 - ~~**FR-8.2 (Remote access via Tailscale):** retired, user network setup, not product behaviour.~~

@@ -48,6 +48,8 @@ input,select{font:inherit;background:var(--bg);color:var(--fg);border:1px solid 
 input.n{width:64px}input.w{width:100%;max-width:420px}input.nm{width:150px}
 .row{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:6px 0}
 .scroll{overflow-x:auto}
+#toast{position:fixed;top:12px;left:50%;transform:translateX(-50%);z-index:9999;max-width:min(92vw,520px);background:var(--bad);color:#fff;padding:10px 16px;border-radius:10px;font-size:15px;font-weight:600;box-shadow:0 4px 16px rgba(0,0,0,.35);cursor:pointer}
+#toast:empty{display:none}
 footer{margin-top:20px;color:var(--mut);display:flex;gap:16px;flex-wrap:wrap}
 a{color:var(--idle)}
 code,.mono{font:13px/1.35 ui-monospace,SFMono-Regular,Consolas,monospace}
@@ -211,7 +213,8 @@ code,.mono{font:13px/1.35 ui-monospace,SFMono-Regular,Consolas,monospace}
   </details>
 </div>
 
-<footer><a href="#" id="toggleAdmin">Admin</a><span id="err"></span></footer>
+<footer><a href="#" id="toggleAdmin">Admin</a></footer>
+<div id="toast" role="alert"></div>
 </main>
 <!-- FR-8.1: API names watched by the engineering view and their explanation [text, requirement, "v" = changes continuously] -->
 <script type="application/json" id="doc">
@@ -434,9 +437,11 @@ let again = false, lastFound = [];
 let RAW = {}, prevFlat = {}, changed = new Set(), trace = [], openSig = null;
 const dirtyRows = new Set();
 
-// A refusal from the controller (for example a boost above the limit) stays visible 8 s: the next refresh must not wipe it
+// A refusal from the controller (for example a boost above the limit) is a toast fixed to the viewport, visible 8 s
+// or until tapped (FR-8.1): the next refresh must not wipe it
 let errUntil = 0;
-function showErr(m) { $("err").textContent = m; errUntil = Date.now() + 8000; }
+function showErr(m) { $("toast").textContent = m; errUntil = Date.now() + 8000; }
+$("toast").addEventListener("click", () => { $("toast").textContent = ""; errUntil = 0; });
 
 async function api(path, params, isJson = false) {
   let opt = {};
@@ -1711,8 +1716,8 @@ async function refresh() {
       if (debugOpen) { renderPins(); updateWatch(); }
       if (!busy("loc") && RAW["api/setup/location"]) $("loc").value = RAW["api/setup/location"].coords;
     }
-    if (Date.now() >= errUntil) $("err").textContent = "";
-  } catch (e) { $("err").textContent = "Conexiune pierdută (" + e.message + ")"; }
+    if (Date.now() >= errUntil) $("toast").textContent = "";
+  } catch (e) { showErr("Conexiune pierdută (" + e.message + ")"); }
   inFlight = false;
   if (again) { again = false; refresh(); }
 }
