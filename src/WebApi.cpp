@@ -1214,8 +1214,7 @@ void handleApiHistory() {
     }
   }
   String range = server.hasArg("range") ? server.arg("range") : "24h";
-  String json = telemetryHistory.getHistoryJson(range);
-  server.send(200, "application/json", json);
+  telemetryHistory.streamHistoryJson(server, range);
 }
 
 void handleApiHistoryClear() {

@@ -1,6 +1,8 @@
 #include "TelemetryHistoryManager.h"
 #include <LittleFS.h>
 #include <time.h>
+#include <WebServer.h>
+#include <stdarg.h>
 #include "ThermalZoneManager.h"
 #include "BoilerRadioTrigger.h"
 #include "TimeAndWeatherService.h"
@@ -288,79 +290,80 @@ void TelemetryHistoryManager::update() {
     updateLiveSample(false);
 }
 
-String TelemetryHistoryManager::getHistoryJson(const String& range) {
-    // Ensure RAM ongoing slot reflects live real-time state before JSON export
-    updateLiveSample(false);
+// FR-34, AR-15: the answer is streamed in chunks from one 256 byte buffer; no String grows with the history
+namespace {
+struct Chunker {
+    WebServer& srv;
+    char buf[256];
+    size_t n = 0;
+    explicit Chunker(WebServer& s) : srv(s) {}
+    void flush() { if (n) { buf[n] = '\0'; srv.sendContent(buf, n); n = 0; } }
+    void put(const char* fmt, ...) __attribute__((format(printf, 2, 3))) {
+        if (n > sizeof(buf) - 96) flush();  // one item is at most 90 characters
+        va_list ap;
+        va_start(ap, fmt);
+        int w = vsnprintf(buf + n, sizeof(buf) - n, fmt, ap);
+        va_end(ap);
+        if (w > 0) n += ((size_t)w < sizeof(buf) - n) ? (size_t)w : sizeof(buf) - n - 1;
+    }
+    void temp(int16_t v, char tail) {
+        if (v == -999) put("null%c", tail); else put("%.1f%c", (float)v / 10.0f, tail);
+    }
+};
+}  // namespace
+
+void TelemetryHistoryManager::streamHistoryJson(WebServer& server, const String& range) {
+    updateLiveSample(false);  // RAM ongoing slot reflects the live state before the export
 
     bool is5d = (range == "5d");
     size_t count = is5d ? TELEMETRY_5D_POINTS : TELEMETRY_24H_POINTS;
-    uint32_t stepSec = is5d ? 1800 : 300;
-    uint16_t curSlot = is5d ? _currentSlot5d : _currentSlot24h;
-
-    String json;
-    json.reserve(is5d ? 3500 : 4500);
-
-    json = "{\"range\":\"";
-    json += is5d ? "5d" : "24h";
-    json += "\",\"stepSec\":";
-    json += String(stepSec);
-    json += ",\"currentSlot\":";
-    json += String(curSlot);
-    json += ",\"points\":[";
+    server.setContentLength(CONTENT_LENGTH_UNKNOWN);
+    server.send(200, "application/json", "");
+    Chunker c(server);
+    c.put("{\"range\":\"%s\",\"stepSec\":%u,\"currentSlot\":%u,\"points\":[", is5d ? "5d" : "24h",
+          is5d ? 1800u : 300u, (unsigned)(is5d ? _currentSlot5d : _currentSlot24h));
 
     size_t written = 0;
     for (size_t i = 0; i < count; i++) {
         const TelemetryPoint& pt = is5d ? _ring5d[i] : _ring24h[i];
         if (!(pt.flags & 0x80)) continue; // Skip invalid
-
-        if (written > 0) json += ",";
-        json += "[";
-        json += String(i) + ",";
-        json += (pt.z1_temp == -999 ? "null" : String((float)pt.z1_temp / 10.0f, 1)) + ",";
-        json += (pt.z2_temp == -999 ? "null" : String((float)pt.z2_temp / 10.0f, 1)) + ",";
-        json += (pt.z3_temp == -999 ? "null" : String((float)pt.z3_temp / 10.0f, 1)) + ",";
-        json += (pt.out_temp == -999 ? "null" : String((float)pt.out_temp / 10.0f, 1)) + ",";
-        json += String(pt.flags);
-        json += "]";
+        c.put("%s[%u,", written ? "," : "", (unsigned)i);
+        c.temp(pt.z1_temp, ',');
+        c.temp(pt.z2_temp, ',');
+        c.temp(pt.z3_temp, ',');
+        c.temp(pt.out_temp, ',');
+        c.put("%u]", (unsigned)pt.flags);
         written++;
     }
 
-    json += "],\"reboots\":[";
+    c.put("],\"reboots\":[");
     for (size_t b = 0; b < _bootRecordCount; b++) {
-        if (b > 0) json += ",";
-        json += "{\"epoch\":";
-        json += String(_bootRecords[b].epoch);
-        json += ",\"slot24h\":";
-        json += String(_bootRecords[b].slot24h);
-        json += ",\"slot5d\":";
-        json += String(_bootRecords[b].slot5d);
-        json += ",\"reason\":\"";
+        const char* why;
         switch (_bootRecords[b].reason) {
-            case ESP_RST_SW:       json += "Firmware Update / Software Reboot"; break;
-            case ESP_RST_POWERON:  json += "Pornire alimentare"; break;
-            case ESP_RST_PANIC:    json += "Eroare sistem (Crash)"; break;
+            case ESP_RST_SW:       why = "Firmware Update / Software Reboot"; break;
+            case ESP_RST_POWERON:  why = "Pornire alimentare"; break;
+            case ESP_RST_PANIC:    why = "Eroare sistem (Crash)"; break;
             case ESP_RST_INT_WDT:
-            case ESP_RST_TASK_WDT: json += "Watchdog Timeout"; break;
-            default:               json += "Repornire sistem"; break;
+            case ESP_RST_TASK_WDT: why = "Watchdog Timeout"; break;
+            default:               why = "Repornire sistem"; break;
         }
-        json += "\"}";
+        c.put("%s{\"epoch\":%u,\"slot24h\":%u,\"slot5d\":%u,\"reason\":\"%s\"}", b ? "," : "",
+              (unsigned)_bootRecords[b].epoch, (unsigned)_bootRecords[b].slot24h, (unsigned)_bootRecords[b].slot5d, why);
     }
-    json += "],\"windows\":[";
+    c.put("],\"windows\":[");
     size_t wWritten = 0;
     for (size_t i = 0; i < thermalZones.getZoneCount() && i < 3; i++) {
         if (thermalZones.isWindowPauseActive(i)) {
-            if (wWritten > 0) json += ",";
-            json += "{\"id\":" + String(i + 1) + ",";
-            json += "\"name\":\"" + String(thermalZones.getConfig(i).name) + "\",";
-            json += "\"remainingSec\":" + String(thermalZones.getWindowPauseRemainingSec(i)) + ",";
-            json += "\"lastEpoch\":" + String(thermalZones.getWindowLastDetectionEpoch(i)) + "}";
+            c.put("%s{\"id\":%u,\"name\":\"%s\",\"remainingSec\":%u,\"lastEpoch\":%u}", wWritten ? "," : "",
+                  (unsigned)(i + 1), thermalZones.getConfig(i).name, (unsigned)thermalZones.getWindowPauseRemainingSec(i),
+                  (unsigned)thermalZones.getWindowLastDetectionEpoch(i));
             wWritten++;
         }
     }
-    json += "]}";
-    return json;
+    c.put("]}");
+    c.flush();
+    server.sendContent("");  // ends the chunked answer
 }
-
 
 uint32_t TelemetryHistoryManager::getZoneRuntimeTodayFromHistory(size_t zoneIndex) const {
     if (zoneIndex >= 3) return 0;

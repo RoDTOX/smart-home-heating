@@ -43,8 +43,8 @@ public:
     // Live ongoing slot tracking (updates in RAM, saves to flash on 5m boundary)
     void updateLiveSample(bool forceNewSlot = false);
 
-    // Export history as compact JSON for REST API
-    String getHistoryJson(const String& range = "24h");
+    // Stream history as compact JSON for REST API (AR-15)
+    void streamHistoryJson(class WebServer& server, const String& range = "24h");  // chunked, FR-34
 
     // Time synchronization injection from client browser if NTP is offline
     void setLocalTimeFromClient(uint32_t epochSec);
