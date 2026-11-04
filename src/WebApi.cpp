@@ -1,3 +1,4 @@
+#include "Commands.h"
 #include "App.h"
 #include "BleSensorScanner.h"
 #include "BoilerRadioTrigger.h"
@@ -39,8 +40,10 @@ static bool pageFileOk() {
   return ok;
 }
 
+static void sendCorsHeaders();
+
 void handleRoot() {
-  server.sendHeader("Access-Control-Allow-Origin", "*");
+  sendCorsHeaders();
   server.sendHeader("Cache-Control", "no-cache");
   if (pageFileOk()) {
     File f = LittleFS.open(PAGE_FILE, "r");
@@ -53,12 +56,34 @@ void handleRoot() {
   server.send_P(200, "text/html; charset=utf-8", STUB_HTML);
 }
 
+static void sendCorsHeaders() {
+  if (server.hasHeader("Origin")) {
+    String origin = server.header("Origin");
+    String host = server.hostHeader();
+    if (host.length() > 0 && origin.indexOf(host) >= 0) {
+      server.sendHeader("Access-Control-Allow-Origin", origin);
+      server.sendHeader("Access-Control-Allow-Credentials", "true");
+      server.sendHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
+    } else {
+      String localIp = WiFi.localIP().toString();
+      if (localIp.length() > 0 && origin.indexOf(localIp) >= 0) {
+        server.sendHeader("Access-Control-Allow-Origin", origin);
+        server.sendHeader("Access-Control-Allow-Credentials", "true");
+        server.sendHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
+      }
+    }
+  }
+}
+
 static bool webAuthOk() {
-#ifdef SH_DEV_OPEN
-  return true;  // FR-75.6: development profile
-#else
-  return server.authenticate(OTA_USER, OTA_PASS);
-#endif
+  return server.authenticate(commands.getUser(), commands.getPass());
+}
+
+static bool requireAuth() {
+  if (webAuthOk()) return true;
+  sendCorsHeaders();
+  server.requestAuthentication();
+  return false;
 }
 
 static size_t fsFreeBytes() { return LittleFS.totalBytes() - LittleFS.usedBytes(); }
@@ -107,22 +132,23 @@ void handleWebUpdateDone() {
   char b[96];
   if (code == 200) snprintf(b, sizeof(b), "{\"status\":\"ok\",\"bytes\":%u,\"fsFree\":%u}", (unsigned)g_upBytes, (unsigned)fsFreeBytes());
   else snprintf(b, sizeof(b), "{\"status\":\"error\",\"code\":%d}", code);
-  server.sendHeader("Access-Control-Allow-Origin", "*");
+  sendCorsHeaders();
   server.send(code, "application/json", b);
 }
 
 void handleWebRemove() {
   if (!webAuthOk()) { server.requestAuthentication(); return; }
   LittleFS.remove(PAGE_FILE);
-  server.sendHeader("Access-Control-Allow-Origin", "*");
+  sendCorsHeaders();
   server.send(200, "application/json", F("{\"status\":\"ok\"}"));
 }
 
 void handleApiOn() {
+  if (!requireAuth()) return;
   uint32_t waitSec = 0;
   bool isIdempotent = false;
 
-  server.sendHeader("Access-Control-Allow-Origin", "*");
+  sendCorsHeaders();
 
   // If a pending OFF was scheduled, user pressing ON cancels the scheduled shutdown
   if (boilerRadio.getPendingAction() == PENDING_OFF) {
@@ -178,12 +204,13 @@ void handleApiOn() {
 }
 
 void handleApiOff() {
+  if (!requireAuth()) return;
   // Forcing a stop is always safe; forcing a start is never allowed.
   bool force = server.hasArg("force") && server.arg("force") == "true";
   uint32_t waitSec = 0;
   bool isIdempotent = false;
 
-  server.sendHeader("Access-Control-Allow-Origin", "*");
+  sendCorsHeaders();
 
   // If a pending ON was scheduled, user pressing OFF cancels the scheduled startup
   if (boilerRadio.getPendingAction() == PENDING_ON) {
@@ -231,7 +258,8 @@ void handleApiOff() {
 }
 
 void handleApiBoilerCancelPending() {
-  server.sendHeader("Access-Control-Allow-Origin", "*");
+  if (!requireAuth()) return;
+  sendCorsHeaders();
   boilerRadio.cancelPendingAction();
   String resp = String("{\"status\":\"ok\",\"pendingCancelled\":true,\"boiler\":\"") + (boilerRadio.isLastCommandOn() ? "ON" : "OFF") + "\"}";
   server.send(200, "application/json", resp);
@@ -278,7 +306,8 @@ static String getGasMeterJson() {
 }
 
 void handleApiBoilerResetRuntime() {
-  server.sendHeader("Access-Control-Allow-Origin", "*");
+  if (!requireAuth()) return;
+  sendCorsHeaders();
   boilerRadio.resetRuntime();
   server.send(200, "application/json", F("{\"status\":\"ok\",\"message\":\"Boiler runtime counters reset to 0\"}"));
 }
@@ -287,7 +316,7 @@ void handleApiStatus();
 
 // FR-35.1: the only call that writes a reading. dryRun=1 validates and answers, stores nothing (test mode).
 void handleApiBoilerGasMeter() {
-  server.sendHeader("Access-Control-Allow-Origin", "*");
+  sendCorsHeaders();
   String idxArg = server.hasArg("index") ? server.arg("index") : String("");
   char* end = nullptr;
   double idx = strtod(idxArg.c_str(), &end);
@@ -349,7 +378,7 @@ struct GasListCtx {
 
 // FR-35.1: all stored readings, oldest first, streamed (up to 1000 entries)
 void handleApiGasReadings() {
-  server.sendHeader("Access-Control-Allow-Origin", "*");
+  sendCorsHeaders();
   server.setContentLength(CONTENT_LENGTH_UNKNOWN);
   server.send(200, "application/json", "");
   server.sendContent(String("{\"count\":") + telemetryHistory.gasReadingCount() + ",\"replaced\":" +
@@ -378,7 +407,7 @@ struct JsonOut {
   char b[384];
   size_t n = 0;
   JsonOut() {
-    server.sendHeader("Access-Control-Allow-Origin", "*");
+    sendCorsHeaders();
     server.setContentLength(CONTENT_LENGTH_UNKNOWN);
     server.send(200, "application/json", "");
   }
@@ -479,7 +508,7 @@ void handleApiZoneSetpoint() {
     return;
   }
   float target = server.arg("target").toFloat();
-  server.sendHeader("Access-Control-Allow-Origin", "*");
+  sendCorsHeaders();
   if (!thermalZones.setTargetTemperatureChecked(idx, target)) {  // FR-1.2: boost limits for every source
     server.send(400, "application/json", F("{\"error\":\"A boost is 0.5 to 2.0 C above the schedule level in 0.5 C steps\"}"));
     return;
@@ -499,7 +528,7 @@ void handleApiZoneHoldClear() {
                    : (size_t)idVal;
   if (idx < thermalZones.getZoneCount()) {
     thermalZones.clearManualHold(idx);
-    server.sendHeader("Access-Control-Allow-Origin", "*");
+    sendCorsHeaders();
     server.send(200, "application/json", F("{\"status\":\"ok\"}"));
   } else {
     server.send(404, "application/json", F("{\"error\":\"Zone not found\"}"));
@@ -507,7 +536,7 @@ void handleApiZoneHoldClear() {
 }
 
 void handleApiZoneWindowClear() {
-  server.sendHeader("Access-Control-Allow-Origin", "*");
+  sendCorsHeaders();
   if (!server.hasArg("id")) {
     server.send(400, "application/json",
                 F("{\"error\":\"Missing parameter (id)\"}"));
@@ -536,7 +565,7 @@ void handleApiZoneWindowClear() {
 }
 
 void handleApiZoneWindowThreshold() {
-  server.sendHeader("Access-Control-Allow-Origin", "*");
+  sendCorsHeaders();
   if (!server.hasArg("threshold")) {
     server.send(400, "application/json", F("{\"error\":\"Missing parameter threshold\"}"));
     return;
@@ -576,7 +605,7 @@ void handleApiZoneToggle() {
       return;
     }
     thermalZones.setZoneEnabled(idx, !current);
-    server.sendHeader("Access-Control-Allow-Origin", "*");
+    sendCorsHeaders();
     server.send(200, "application/json", F("{\"status\":\"ok\"}"));
   } else {
     server.send(404, "application/json", F("{\"error\":\"Zone not found\"}"));
@@ -586,7 +615,7 @@ void handleApiZoneToggle() {
 void handleApiSeason() {
   String m = server.arg("mode");
   m.toLowerCase();
-  server.sendHeader("Access-Control-Allow-Origin", "*");
+  sendCorsHeaders();
   if (m != "auto" && m != "on" && m != "off") {
     server.send(400, "application/json", F("{\"error\":\"mode must be auto, on or off\"}"));
     return;
@@ -606,9 +635,10 @@ void handleApiMode() {
   if (m == "auto") {
     thermalZones.setAutoMode(true);
   } else if (m == "manual") {
+    if (!requireAuth()) return;
     thermalZones.setAutoMode(false);
   }
-  server.sendHeader("Access-Control-Allow-Origin", "*");
+  sendCorsHeaders();
   server.send(200, "application/json", F("{\"status\":\"ok\"}"));
 }
 
@@ -622,7 +652,7 @@ void handleApiZoneSensor() {
   String sensorName = server.arg("sensor");
   if (id < thermalZones.getZoneCount()) {
     thermalZones.setSensorName(id, sensorName.c_str());
-    server.sendHeader("Access-Control-Allow-Origin", "*");
+    sendCorsHeaders();
     server.send(200, "application/json", F("{\"status\":\"ok\"}"));
   } else {
     server.send(404, "application/json", F("{\"error\":\"Zone not found\"}"));
@@ -646,7 +676,7 @@ void handleApiBleSensors() {
 }
 
 void handleApiSetupLocation() {
-  server.sendHeader("Access-Control-Allow-Origin", "*");
+  sendCorsHeaders();
   if (server.method() == HTTP_POST) {
     if (!timeAndWeather.setLocation(server.arg("coords").c_str())) {
       server.send(400, "application/json",
@@ -695,12 +725,12 @@ void handleApiSetupDiscoveredSensors() {
     written++;
   }
   json += "]}";
-  server.sendHeader("Access-Control-Allow-Origin", "*");
+  sendCorsHeaders();
   server.send(200, "application/json", json);
 }
 
 static void sendSetupError(const String &message) {
-  server.sendHeader("Access-Control-Allow-Origin", "*");
+  sendCorsHeaders();
   server.send(400, "application/json",
               "{\"status\":\"error\",\"message\":\"" + message + "; nothing changed\"}");
 }
@@ -733,7 +763,7 @@ void handleApiSetupZoneAdd() {
     return;
   }
   size_t index = 0;
-  server.sendHeader("Access-Control-Allow-Origin", "*");
+  sendCorsHeaders();
   if (thermalZones.addZone(name.c_str(), index) != ThermalZoneManager::ZoneResult::Ok) {
     server.send(409, "application/json", F("{\"status\":\"error\",\"message\":\"No relay output is free; nothing changed\"}"));
     return;
@@ -750,7 +780,7 @@ void handleApiSetupZoneDelete() {
     sendSetupError("Unknown zone number");
     return;
   }
-  server.sendHeader("Access-Control-Allow-Origin", "*");
+  sendCorsHeaders();
   if (thermalZones.deleteZone((size_t)number - 1) != ThermalZoneManager::ZoneResult::Ok) {
     server.send(409, "application/json",
                 F("{\"status\":\"error\",\"message\":\"Valve is open; delete the zone once the valve is closed; nothing changed\"}"));
@@ -862,7 +892,7 @@ void handleApiSetupMapZone() {
   if (server.hasArg("hyst")) thermalZones.setHysteresis(server.arg("hyst").toFloat());
   thermalZones.mapZone(z, name.c_str(), mac.c_str(), sname.c_str(), pin, target, en);
   thermalZones.setTempOffset(z, offset);
-  server.sendHeader("Access-Control-Allow-Origin", "*");
+  sendCorsHeaders();
   server.send(200, "application/json",
               F("{\"status\":\"ok\",\"message\":\"Zone configuration updated "
                 "and saved to NVS\"}"));
@@ -872,7 +902,7 @@ void handleApiSetupTime() {
   if (server.hasArg("refreshWeather")) {
     timeAndWeather.forceWeatherUpdate();
   }
-  server.sendHeader("Access-Control-Allow-Origin", "*");
+  sendCorsHeaders();
   server.send(200, "application/json", timeAndWeather.toJson());
 }
 
@@ -905,7 +935,7 @@ void handleApiDiagStatus() {
 }
 
 void handleApiDiagEvents() {
-  server.sendHeader("Access-Control-Allow-Origin", "*");
+  sendCorsHeaders();
   server.send(200, "application/json", diagEngine.eventsJson());
 }
 
@@ -984,25 +1014,27 @@ void handleApiDiagMem() {
     first = false;
   }
   snprintf(b + n, sizeof(b) - n, "]}");
-  server.sendHeader("Access-Control-Allow-Origin", "*");
+  sendCorsHeaders();
   server.send(200, "application/json", b);
 }
 
 void handleApiDiagSelfTest() {
   String report = diagEngine.runSelfTest();
-  server.sendHeader("Access-Control-Allow-Origin", "*");
+  sendCorsHeaders();
   server.send(200, "text/plain", report);
 }
 
 void handleApiDiagClear() {
+  if (!requireAuth()) return;
   diagEngine.clearAllDtcs();
-  server.sendHeader("Access-Control-Allow-Origin", "*");
+  sendCorsHeaders();
   server.send(200, "application/json",
               F("{\"status\":\"ok\",\"message\":\"All DTC codes cleared\"}"));
 }
 
 void handleApiSetupActuatorType() {
   if (server.method() == HTTP_POST) {
+    if (!requireAuth()) return;
     if (server.hasArg("type")) {
       String t = server.arg("type");
       t.toLowerCase();
@@ -1016,12 +1048,13 @@ void handleApiSetupActuatorType() {
   String json = "{\"status\":\"ok\",\"actuatorType\":\"" +
                 String(thermalZones.isActuatorNormallyClosed() ? "NC" : "NO") +
                 "\"}";
-  server.sendHeader("Access-Control-Allow-Origin", "*");
+  sendCorsHeaders();
   server.send(200, "application/json", json);
 }
 
 void handleApiSetupPump() {
   if (server.method() == HTTP_POST) {
+    if (!requireAuth()) return;
     if (server.hasArg("enabled")) {
       String v = server.arg("enabled");
       v.toLowerCase();
@@ -1035,23 +1068,26 @@ void handleApiSetupPump() {
                 String(thermalZones.isPumpControlEnabled() ? "true" : "false") +
                 ",\"pumpActive\":" +
                 String(thermalZones.isPumpActive() ? "true" : "false") + "}";
-  server.sendHeader("Access-Control-Allow-Origin", "*");
+  sendCorsHeaders();
   server.send(200, "application/json", json);
 }
 
 void handleApiDiagExercise() {
   thermalZones.triggerAntiSeizeExercise();
-  server.sendHeader("Access-Control-Allow-Origin", "*");
+  sendCorsHeaders();
   server.send(200, "application/json",
               F("{\"status\":\"ok\",\"message\":\"Anti-seize exercise cycle "
                 "started (20s)\"}"));
 }
 
 void handleApiSetupSensorTimeout() {
+  if (server.method() == HTTP_POST) {
+    if (!requireAuth()) return;
+  }
   if (server.method() == HTTP_POST && (server.hasArg("timeoutSec") || server.hasArg("sec"))) {
     String v = server.hasArg("timeoutSec") ? server.arg("timeoutSec") : server.arg("sec");
     if (!thermalZones.setSensorTimeoutSec((uint32_t)v.toInt())) {
-      server.sendHeader("Access-Control-Allow-Origin", "*");
+      sendCorsHeaders();
       server.send(400, "application/json",
                   F("{\"status\":\"error\",\"message\":\"sensorTimeout out of range (60 to 3600 s)\"}"));
       return;
@@ -1059,7 +1095,7 @@ void handleApiSetupSensorTimeout() {
   }
   String json = "{\"status\":\"ok\",\"sensorTimeoutSec\":" +
                 String(thermalZones.getSensorTimeoutSec()) + "}";
-  server.sendHeader("Access-Control-Allow-Origin", "*");
+  sendCorsHeaders();
   server.send(200, "application/json", json);
 }
 
@@ -1120,12 +1156,12 @@ void handleApiStatus() {
 }
 
 void handleApiScheduleGet() {
-  server.sendHeader("Access-Control-Allow-Origin", "*");
+  sendCorsHeaders();
   server.send(200, "application/json", thermalZones.getScheduleJson());
 }
 
 void handleApiScheduleEnable() {
-  server.sendHeader("Access-Control-Allow-Origin", "*");
+  sendCorsHeaders();
   if (server.hasArg("enabled")) {
     thermalZones.setScheduleEnabled(server.arg("enabled") == "true" || server.arg("enabled") == "1");
   }
@@ -1144,7 +1180,7 @@ void handleApiScheduleEnable() {
 }
 
 void handleApiScheduleLevel() {
-  server.sendHeader("Access-Control-Allow-Origin", "*");
+  sendCorsHeaders();
   int zone = server.arg("zone").toInt();
   int level = ThermalZoneManager::parseLevel(server.arg("level").c_str());
   if (zone < 1 || level < 0 ||
@@ -1156,7 +1192,7 @@ void handleApiScheduleLevel() {
 }
 
 void handleApiScheduleSlots() {
-  server.sendHeader("Access-Control-Allow-Origin", "*");
+  sendCorsHeaders();
   bool weekend = server.arg("weekend") == "true" || server.arg("weekend") == "1";
   if (!thermalZones.setSlots(weekend, server.arg("slots").c_str())) {
     server.send(400, "application/json", F("{\"status\":\"error\",\"error\":\"Use slots=HH:MM=day|night|away,... (max 8)\"}"));
@@ -1166,13 +1202,13 @@ void handleApiScheduleSlots() {
 }
 
 void handleApiScheduleReset() {
-  server.sendHeader("Access-Control-Allow-Origin", "*");
+  sendCorsHeaders();
   thermalZones.resetScheduleToDefault();
   server.send(200, "application/json", thermalZones.getScheduleJson());
 }
 
 void handleApiScheduleMode() {
-  server.sendHeader("Access-Control-Allow-Origin", "*");
+  sendCorsHeaders();
   String m = server.hasArg("mode") ? server.arg("mode") : "";
   if (m.length() == 0 && server.hasArg("plain")) {
     JsonDocument doc;
@@ -1190,7 +1226,7 @@ void handleApiScheduleMode() {
 }
 
 void handleApiScheduleMoment() {
-  server.sendHeader("Access-Control-Allow-Origin", "*");
+  sendCorsHeaders();
   String day = server.arg("day");
   int moment = server.arg("moment").toInt();
   String timeStr = server.arg("time");
@@ -1242,7 +1278,7 @@ void handleApiScheduleMoment() {
 }
 
 void handleApiScheduleNames() {
-  server.sendHeader("Access-Control-Allow-Origin", "*");
+  sendCorsHeaders();
   if (server.hasArg("plain")) {
     JsonDocument doc;
     if (!deserializeJson(doc, server.arg("plain"))) {
@@ -1279,7 +1315,7 @@ void handleApiScheduleNames() {
 }
 
 void handleApiHistory() {
-  server.sendHeader("Access-Control-Allow-Origin", "*");
+  sendCorsHeaders();
   if (server.hasArg("time")) {
     uint32_t clientTime = (uint32_t)server.arg("time").toInt();
     if (clientTime > 1700000000UL) {
@@ -1291,7 +1327,7 @@ void handleApiHistory() {
 }
 
 void handleApiHistoryClear() {
-  server.sendHeader("Access-Control-Allow-Origin", "*");
+  sendCorsHeaders();
   telemetryHistory.clearHistory();
   server.send(200, "application/json", F("{\"status\":\"ok\",\"cleared\":true}"));
 }
@@ -1383,7 +1419,8 @@ static bool flagOn(const String& v) {
 // Every value is checked first; one value outside requirements §6 rejects the whole request (HTTP 400) and
 // nothing is changed (FR-42).
 void handleApiConfigSystemPost() {
-  server.sendHeader("Access-Control-Allow-Origin", "*");
+  if (!requireAuth()) return;
+  sendCorsHeaders();
   String bad;
   for (int i = 0; i < server.args(); i++) {
     String name = server.argName(i);
@@ -1452,6 +1489,7 @@ void handleApiConfigExport() {
 // FR-65.7: checks in this order, the first that fails answers and nothing is changed: media type (415), size (413),
 // JSON object with "format": 1 (400, inside configImport). Authentication (401, FR-58) comes with migration step 9.
 void handleApiConfigImport() {
+  if (!requireAuth()) return;
   String type = server.header("Content-Type");
   type.toLowerCase();
   type.trim();
@@ -1472,7 +1510,8 @@ void handleApiConfigImport() {
 
 // FR-43: only in MANUAL mode, only an output of a zone or the pump, respecting NC / NO (FR-15.1)
 void handleApiRelayTest() {
-  server.sendHeader("Access-Control-Allow-Origin", "*");
+  if (!requireAuth()) return;
+  sendCorsHeaders();
   if (!server.hasArg("pin")) {
     server.send(400, "application/json", F("{\"status\":\"error\",\"message\":\"Missing 'pin' parameter.\"}"));
     return;
@@ -1525,7 +1564,7 @@ void handleApiDevWeather() {
 #endif
 
 void registerWebRoutes() {
-  static const char* headerKeys[] = {"Content-Type", "Authorization"};  // FR-65.7, FR-75.1
+  static const char* headerKeys[] = {"Content-Type", "Authorization", "Origin"};  // FR-58, FR-65.7, FR-75.1
   server.collectHeaders(headerKeys, 2);
   // Web Server routes
 #ifdef SH_DEV_OPEN

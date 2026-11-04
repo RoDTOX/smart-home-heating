@@ -34,9 +34,10 @@ from sh_tests.t_modes import ModeTests
 from sh_tests.t_history_stream import HistoryStreamTests
 from sh_tests.t_webassets import WebAssetTests
 from sh_tests.t_eventlog import EventLogTests
+from sh_tests.t_commands_auth import CommandsAuthTests
 
 
-class SystemTestSuite(SuiteBase, HealthTests, HydraulicsTests, ControlTests, UiHistoryTests, SafetyFeatureTests, ExportImportTests, ZoneTests, ConsoleTests, SafetySupervisorTests, SensorHubTests, WeatherTests, ModeTests, HistoryStreamTests, WebAssetTests, EventLogTests):
+class SystemTestSuite(SuiteBase, HealthTests, HydraulicsTests, ControlTests, UiHistoryTests, SafetyFeatureTests, ExportImportTests, ZoneTests, ConsoleTests, SafetySupervisorTests, SensorHubTests, WeatherTests, ModeTests, HistoryStreamTests, WebAssetTests, EventLogTests, CommandsAuthTests):
     # ---------------------------------------------------------
     # Test Runner & Traceability Matrix Evaluation
     # ---------------------------------------------------------
@@ -293,6 +294,13 @@ class SystemTestSuite(SuiteBase, HealthTests, HydraulicsTests, ControlTests, UiH
             self.test_tc40_4_refusals_dtc_and_batching,
             self.test_tc40_5_full_burn_logged,
             self.test_tc40_6_boot_and_time_sync_logged,
+            self.test_tc41_1_protected_actions_require_auth,
+            self.test_tc41_2_comfort_actions_open,
+            self.test_tc41_3_authenticated_request_succeeds,
+            self.test_tc41_4_cors_restricted_to_own_origin,
+            self.test_tc41_5_default_credentials_dtc403,
+            self.test_tc41_6_weather_task_stack_budget,
+            self.test_tc41_7_dtc402_low_ram_evaluation,
         ]
         if self.only:   # --only TC34,TC35: run just these groups (name part after test_)
             tests = [t for t in tests if any(t.__name__.startswith("test_" + o.lower() + "_") for o in self.only)]

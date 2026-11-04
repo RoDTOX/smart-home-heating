@@ -75,7 +75,7 @@ zones and sensors the user sets up (C-10, C-11), then step 2; the rest in the or
 | 6 | `SensorHub`: mailbox, plausibility filter, validity, one sensor timeout | built, flashed; owner test OK 04.11.2026 (accepted) | bcedf8a | — |
 | 7 | `ZoneController`: TPI, learned duty per outdoor band, FR-51 fault duty, window state; `FaultInjector` | open | — | — |
 | 8 | `ModeManager` + `Schedule`: MANUAL timeout, automatic season, global OFF, boost limits, last level without time | built, flashed, tests PASS; owner test OK 04.11.2026 (accepted) | bcedf8a | — |
-| 9 | `Commands` + authentication: one command path, FR-58 (also `/api/config/import`, FR-65.3), FR-59, CORS, English messages | open | — | — |
+| 9 | `Commands` + authentication: one command path, FR-58 (also `/api/config/import`, FR-65.3), FR-59, CORS, English messages | built, flashed, tests PASS; owner test pending | in step 9 | — |
 | 10 | `Weather` in the network worker | `Weather` worker built, flashed; control task of AR-21 not built (step 10 part 2); owner test OK 04.11.2026 (accepted; AR-21 part open, memory task) | bcedf8a | — |
 | 11 | `History` in LittleFS, `StatusModel` static buffer | streamed history built, flashed; ring move to LittleFS and `StatusModel` buffer not built; partly accepted 04.11.2026; memory task PB-115 done in part (streamed JSON, page on LittleFS, Serial buffer), rest open | bcedf8a | — |
 | 12 | `Maintenance`: OTA quiet gate and rollback, full self-test, valve exercise | open | — | — |

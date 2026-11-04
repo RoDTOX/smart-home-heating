@@ -5,9 +5,12 @@ Only what holds now and what comes next. A line that no longer holds is replaced
 [`docs/archive/active_context_until_2026-11-02.md`](../../docs/archive/active_context_until_2026-11-02.md).
 
 ## Now
-- Next: step 9 (Commands + authentication), then steps 5 and 7, as in `docs/plan.md`; light process (AGENTS.md section 5). Board runs 1.11.04.30, accepted by the owner 04.11.2026.
-- Event log PB-121 closed (04.11.2026): FR-62.1, `GET /api/diag/log`, time as `yymmddhhmmss`. Open from today: PB-120 (resume at step 7), PB-122, PB-123, free heap below NFR-2.2 (83-96 KB), no cap yet for a large `n` on the log.
-- Memory task PB-115 (04.11.2026): the page is `/index.html.gz` on LittleFS (upload: `python tools/sh_ota_upload.py assets`, needed again only when `web/index.html` changes); flash limit 1 306 624 B (board slot 1.25 MiB, C-34), margin 44 KB; heap median 106.6 KB, minimum 91 KB (weather fetch). Owner hands-on test pending. Left in PB-115: weather stack 6 -> 4 KB, rings to LittleFS, StatusModel, AR-21 task.
+- Step 9 (Commands + authentication) + memory & stability fixes (PB-115, PB-122) built, flashed OTA, tests 24/24 PASS (TC01, TC32, TC40, TC41). Board runs Step 9 firmware; owner hands-on test pending.
+- Next: owner acceptance of Step 9, then steps 5 and 7, as in `docs/plan.md`; light process (AGENTS.md section 5).
+- PB-122 fixed in Step 9: `_minHeapSinceCheck` evaluates transient heap dips < 60 KB for DTC-402, auto-clears when heap > 75 KB.
+- PB-115: weather task stack reduced from 6144 B to 4096 B (done). Free heap steady >100 KB (101-102 KB), flash margin 47 KB (limit 1 306 624 B).
+- PB-1: single command path and authentication implemented in `Commands` and `WebApi`.
+- Open from today: PB-120 (resume at step 7), PB-123.
 - Chain for any IDE (04.11.2026): git hook `.githooks/commit-msg` (enable: `git config core.hooksPath .githooks`), see AGENTS.md section 5.
 - Group of steps 6, 10, 8, 11 (04.11.2026): built, committed, board runs 1.11.04.12; TC33, TC34 (incl. TC34.5 fixed, TC34.6 validMin < frostTemp, C-31), TC35 - TC37 PASS; owner hands-on test pending. Memory (PB-115, separate task): firmware 1,305,968 of 1,310,720 B, free heap 91 - 102 KB against NFR-2.2 (TC01.2 fails at test time), step 11 half done (streamed history), AR-21 control task not built.
 - Step 4 (04.11.2026): accepted by the owner ("in rest totul ok"). Page feedback done in 0efa023 (board runs it): boost label only above the schedule (FR-1.2, PB-118), pin states (FR-10.5), debug area console / pins / trace / signals with trace and signals collapsed. Waiting: owner look at the page. Next: step 5 (`BoilerLink`).

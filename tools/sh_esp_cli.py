@@ -19,6 +19,37 @@ DEFAULT_PORT_HTTP = 80
 DEFAULT_PORT_TELNET = 23
 DEFAULT_TIMEOUT = 5.0
 
+def get_api_auth():
+    u = os.environ.get("SH_API_USER")
+    p = os.environ.get("SH_API_PASSWORD")
+    if u and p:
+        return (u, p)
+    sec_path = os.path.join(os.path.dirname(__file__), "..", "include", "secrets.h")
+    if os.path.exists(sec_path):
+        try:
+            with open(sec_path, encoding="utf-8") as f:
+                import re
+                sec = dict(re.findall(r'#define\s+(\w+)\s+"([^"]*)"', f.read()))
+                return (sec.get("OTA_USER", "admin"), sec.get("OTA_PASS", "admin123"))
+        except Exception:
+            pass
+    return ("admin", "admin123")
+
+_orig_post = requests.post
+
+def _auth_post(url, *args, **kwargs):
+    if "auth" not in kwargs:
+        for ep in ("/api/boiler/", "/api/mode", "/api/relay/test", "/api/diag/clear",
+                  "/api/diag/exercise", "/api/config/import", "/api/setup/actuator",
+                  "/api/setup/pump", "/api/setup/sensor-timeout"):
+            if ep in url:
+                kwargs["auth"] = get_api_auth()
+                break
+    return _orig_post(url, *args, **kwargs)
+
+requests.post = _auth_post
+
+
 def get_link_quality(rssi):
     if rssi >= -72: return "EXCELLENT"
     elif rssi >= -82: return "GOOD"

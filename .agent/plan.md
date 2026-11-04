@@ -1,38 +1,24 @@
 # Agent Plan Reference
 
 Authoritative plan: [`docs/plan.md`](../docs/plan.md) (named by AGENTS.md §2). Current phase status is tracked there.
-This file only points to it. On 03.11.2026 another AI tool (Google AGY) overwrote it with a work plan of its own for
-one task; that text is kept below unchanged as history (process review, `docs/review_agy_03_11.md`). Its stages are
-done on the board (a9c5175) outside the chain; they are not migration steps.
-
-Details: [`hardware_esp32_relay.md`](../docs/hardware_esp32_relay.md),
-[`underfloor_heating_hydraulics_and_failsafes.md`](../docs/underfloor_heating_hydraulics_and_failsafes.md).
-
----
-
-## History: AGY work plan of 03.11.2026
 
 ## Original request (verbatim)
-"perfect, planuiesti sa facem aici si un / sh process check , ca as vrea sa il bag si pe claude la inaintare, de pe celalalt GUI al Anthropic, Opus 5.5/Sonnet 5.5
-
-sper ca pe grafic pui sidetectia de geam deschis... urmeaza sa se detecteze pe camera adultilor.. am dat drumul la geam acum.. sper sa mearga. 
-
-markul ala de RESTART arata ca naiba, putea sa fie mai mic si mai elegant, un fulger ceva,
-
-iar in zona de instrumente inginerie si debug, era bun un log window/console... care sa printeze si sa imi arate.. ce mai face si pe unde se invarte softu`."
+"Da-i drumul"
+Context: Pachet Extins: Stabilitate (PB-115 + PB-122) + Pasul 9 complet (Commands + autentificare WebApi FR-58/59, CORS, DTC-403) - totul într-un singur flash OTA mare.
 
 ## Stage tracker
-- [ ] Stage 1: Elegant Minimalist Restart Marker (`web/index.html` - replace bulky 66px orange rectangular badge with a discreet 13px circular pin containing `⚡`, subtle 1px dashed line, clear hover tooltip with reset reason)
-- [ ] Stage 2: Open Window Detection on History Chart & Room Cards (`include/TelemetryHistoryManager.h`, `src/TelemetryHistoryManager.cpp`, `web/index.html` - track active window pause per zone in telemetry flags/JSON, display cyan aeration indicator on zone activity row, room card badge with countdown and instant cancel button)
-- [ ] Stage 3: Sliding Baseline Window Detection Optimization (`src/ThermalZoneManager.cpp` - track peak temperature reference over rolling window so that gradual or mid-cycle temperature drops aren't reset prematurely by fixed 5-minute boundaries)
-- [ ] Stage 4: Live Console & Log Window in Engineering/Debug (`web/index.html` - add interactive live console streaming `/api/console/logs?since=...`, auto-scroll toggle, clear button, command input using `POST /api/console/cmd`)
-- [ ] Stage 5: Build, Verify with `tools/sh_process_check.py`, OTA Flash & Live Board Testing
-- [ ] Stage 6: Update Documentation & Handoff Summary for Claude
+- [ ] Stage 1: Chain start & Tests First (`tools/sh_chain.py start`, write tests for PB-115, PB-122, Step 9 auth/CORS/DTC-403, run red tests on current board, freeze)
+- [ ] Stage 2: Memory & Stability fixes (PB-115 weather stack 6144 -> 4096 B, PB-122 DTC-402 dip tracking with auto-reset > 75 KB)
+- [ ] Stage 3: Step 9 Implementation (`include/Commands.h`, `src/Commands.cpp`, WebApi route protection with HTTP 401, CORS restriction to own origin, DTC-403 for default credentials)
+- [ ] Stage 4: Tooling & Test Suite updates (`tools/sh_esp_cli.py`, `tools/sh_tests/` updated with auth credentials)
+- [ ] Stage 5: Verification & Safety review (`pio run`, `tools/sh_process_check.py`, `sh-safety-reviewer` check for safety impacts)
+- [ ] Stage 6: OTA Flash & Live board testing (`tools/sh_ota_upload.py`, run system tests against board 192.168.1.20)
+- [ ] Stage 7: Documentation, commit and handoff (`docs/changelog.md`, `docs/problems.md`, `docs/plan.md`, activeContext, `git commit`, `sh_chain.py done`)
 
 ## Verification steps
-1. Verify restart marker is visually lightweight (small circular `⚡` pin, no bulky overlapping orange box).
-2. Verify open window detection is displayed clearly on room card (cyan border, countdown, cancel button) and on telemetry chart lane.
-3. Verify live console stream in "Instrumente Inginerie & Debug" receives and appends logs, scrolls automatically, and allows command submission.
-4. Verify `pio run` builds clean (<1.25 MB flash limit).
-5. Verify `python tools/sh_process_check.py` passes with 0 errors.
-6. Verify live board responses after OTA flashing on `192.168.1.20`.
+1. `tools/sh_chain.py` starts and freezes cleanly.
+2. New tests fail against current board (red run) and pass after implementation.
+3. Firmware builds clean with `pio run` and respects OTA flash margin (< 1 306 624 B).
+4. `tools/sh_process_check.py` reports 0 errors.
+5. Flash via OTA (`tools/sh_ota_upload.py`) succeeds without touching LittleFS or gas data.
+6. Board system tests pass against `192.168.1.20`.

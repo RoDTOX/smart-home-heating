@@ -1,3 +1,4 @@
+#include "Commands.h"
 #include "App.h"
 #include "BleSensorScanner.h"
 #include "BoilerRadioTrigger.h"
@@ -189,6 +190,7 @@ void setup() {
   Serial.printf("[Hardware] Initializing RF transmitter on GPIO%d...\n",
                 PIN_RF_DATA);
   paramStore.begin();  // first: every module reads its settings from it
+  commands.begin();
   boilerRadio.begin(PIN_RF_DATA);
 
   // Initialize Multi-Zone Thermal Controller (NC actuator relays)
@@ -257,7 +259,7 @@ void setup() {
 #ifdef SH_DEV_OPEN
   httpUpdater.setup(&server, "/update");  // FR-75.6: development profile, /update open
 #else
-  httpUpdater.setup(&server, "/update", OTA_USER, OTA_PASS);
+  httpUpdater.setup(&server, "/update", commands.getUser(), commands.getPass());
 #endif
   server.begin();
 

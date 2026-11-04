@@ -1,3 +1,4 @@
+#include "Commands.h"
 #include "DiagnosticEngine.h"
 #include "EventLog.h"
 #include "BleSensorScanner.h"
@@ -45,6 +46,7 @@ DiagnosticEngine::DiagnosticEngine()
 }
 
 void DiagnosticEngine::begin() {
+  _minHeapSinceCheck = ESP.getFreeHeap();
   eventLog.begin();  // FR-62.1
   loadEvents();
   recordRestart((uint32_t)esp_reset_reason());
@@ -231,6 +233,7 @@ void DiagnosticEngine::clearAllDtcs() {
     clearDtc((Dtc)i);
   }
   netConsole.println(F("[DIAG] All active DTC codes cleared."));
+  evaluateSystem();
 }
 
 const DtcRecord *DiagnosticEngine::getDtc(size_t index) const {
@@ -256,6 +259,8 @@ const char *DiagnosticEngine::getSeverityStr(DtcSeverity sev) const {
 }
 
 void DiagnosticEngine::update() {
+  uint32_t cur = ESP.getFreeHeap();
+  if (_minHeapSinceCheck == 0 || cur < _minHeapSinceCheck) _minHeapSinceCheck = cur;
   flushEvents();
   eventLog.update();
   uint32_t now = millis();
@@ -315,15 +320,17 @@ void DiagnosticEngine::evaluateSystem() {
     raiseDtc(Dtc::WARN_WIFI_SIGNAL_DEGRADED, "Wi-Fi link disconnected", SEV_WARNING);
   }
 
-  // Free heap memory check (hysteresis: raise at <60 KB, clear at >75 KB)
+  // Free heap memory check (NFR-2.2, PB-122: hysteresis: raise at <60 KB or dip <60 KB, clear at >75 KB)
   uint32_t heap = ESP.getFreeHeap();
-  if (heap < 60000) {
+  if (_minHeapSinceCheck == 0 || heap < _minHeapSinceCheck) _minHeapSinceCheck = heap;
+  if (heap < 60000 || _minHeapSinceCheck < 60000) {
     char buf[48];
-    snprintf(buf, sizeof(buf), "Free heap memory low (%u KB)",
-             (unsigned int)(heap / 1024));
+    snprintf(buf, sizeof(buf), "Free heap memory low (%u KB, dip %u KB)",
+             (unsigned int)(heap / 1024), (unsigned int)(_minHeapSinceCheck / 1024));
     raiseDtc(Dtc::WARN_HEAP_FRAGMENTATION, buf, SEV_WARNING);
   } else if (heap > 75000) {
     clearDtc(Dtc::WARN_HEAP_FRAGMENTATION);
+    _minHeapSinceCheck = heap;
   }
 
   // Learned value discarded at load (NFR-5.3); cleared only manually (DIAG CLEAR)
@@ -331,6 +338,13 @@ void DiagnosticEngine::evaluateSystem() {
   if (paramStore.learnedResets() > 0 && !learningResetRaised) {
     learningResetRaised = true;
     raiseDtc(Dtc::WARN_LEARNING_RESET, "Learned duty out of bounds, reset", SEV_WARNING);
+  }
+
+  // FR-59: DTC-403 while any default is active
+  if (commands.isDefaultCredentials()) {
+    raiseDtc(Dtc::WARN_DEFAULT_CREDENTIALS, "Default credentials active", SEV_WARNING);
+  } else {
+    clearDtc(Dtc::WARN_DEFAULT_CREDENTIALS);
   }
 }
 

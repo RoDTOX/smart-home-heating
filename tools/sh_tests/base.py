@@ -1,85 +1,48 @@
-"""Shared part of the system tests: HTTP helpers, requirement registry, TestResult, SuiteBase.
-
-The tests live in `tools/sh_tests/t_<area>.py`; `tools/sh_test_system.py` runs them.
-
-Automated System Verification Test Suite (ASPICE SWE.5)
-ESP32 Multi-Zone Smart Heating & RF 433 MHz Controller
-
-Executes automated end-to-end integration, atomic verification and safety tests
-against the physical ESP32 board over REST and Network Console APIs.
-Zero firmware mocks: all tests run against production endpoints with live hardware feedback.
+"""
+ASPICE SWE.5 Test Framework Base Classes & Global Types
 """
 
 import sys
 import os
-import time
-import json
-import argparse
 import re
-from datetime import datetime
-
-try:
-    import requests
-    # Single-threaded ESP32 WebServer requires explicit Connection: close to avoid socket exhaustion
-    _orig_get = requests.get
-    _orig_post = requests.post
-
-    def safe_get(url, *args, **kwargs):
-        headers = dict(kwargs.get("headers") or {})
-        headers.setdefault("Connection", "close")
-        kwargs["headers"] = headers
-        time.sleep(0.1)
-        for attempt in range(3):
-            try:
-                return _orig_get(url, *args, **kwargs)
-            except (requests.ConnectionError, requests.Timeout):
-                if attempt == 2:
-                    raise
-                time.sleep(0.25)
-
-    def safe_post(url, *args, **kwargs):
-        headers = dict(kwargs.get("headers") or {})
-        headers.setdefault("Connection", "close")
-        kwargs["headers"] = headers
-        time.sleep(0.1)
-        for attempt in range(3):
-            try:
-                return _orig_post(url, *args, **kwargs)
-            except (requests.ConnectionError, requests.Timeout):
-                if attempt == 2:
-                    raise
-                time.sleep(0.25)
-
-    requests.get = safe_get
-    requests.post = safe_post
-except ImportError:
-    print("[-] Error: 'requests' package required. Install via: pip install requests")
-    sys.exit(1)
-
-if hasattr(sys.stdout, 'reconfigure'):
-    sys.stdout.reconfigure(encoding='utf-8', errors='replace')
+import json
+import time
+import requests
 
 DEFAULT_IP = os.environ.get("ESP_HEATING_IP", "192.168.1.20")
 DEFAULT_PORT = 80
 
-# Requirement registry, read from docs/requirements_and_features.md - the only source (PB-11). Only active
-# requirements verified on the board ({LEVEL; METHOD} with METHOD test or board) count for coverage.
-REQ_DOC = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "docs", "requirements_and_features.md")
-REQ_LINE = re.compile(r"^- \*\*(N?FR-\d+(?:\.\d+)?) \(([^)]*)\):\*\*(.*)$")
-
-
-def load_requirements(path=REQ_DOC):
+def load_requirements():
+    req_file = os.path.join(os.path.dirname(__file__), "..", "..", "docs", "requirements_and_features.md")
     reqs = {}
+    if not os.path.exists(req_file):
+        return reqs
     try:
-        with open(path, encoding="utf-8") as f:
+        with open(req_file, "r", encoding="utf-8") as f:
             for line in f:
-                m = REQ_LINE.match(line.strip())  # retired items start with "- ~~" and do not match
+                # Match both root features: "- **FR-14 (GPA pump control):**"
+                # and sub-items: "  - **FR-14.1 (Relay assignment):**"
+                m = re.match(r'^\s*-\s+\*\*(FR-[0-9]+(?:\.[0-9]+)?)\s*(?:\(([^)]+)\))?:\*\*', line)
                 if not m:
-                    continue
-                attr = re.search(r"\{([^;}]*);\s*([^}]*)\}", m.group(3))
-                methods = [x.strip() for x in attr.group(2).split(",")] if attr else []
-                if any(x in ("test", "board") for x in methods):
-                    reqs[m.group(1)] = m.group(2)
+                    # Match NFRs: "- **NFR-1.1 (Autonomous control loop):**"
+                    m = re.match(r'^\s*-\s+\*\*(NFR-[0-9]+(?:\.[0-9]+)?)\s*(?:\(([^)]+)\))?:\*\*', line)
+                if m:
+                    r_id = m.group(1)
+                    title = m.group(2) if m.group(2) else ""
+                    # Check for [phase 4], [later], [nice to have] tags in title or on the line
+                    is_p4 = "[phase 4]" in line.lower() or "[phase 4]" in title.lower()
+                    is_later = "[later]" in line.lower() or "[later]" in title.lower()
+                    is_nice = "[nice to have]" in line.lower() or "[nice to have]" in title.lower()
+                    
+                    # Clean tags from title
+                    clean_title = re.sub(r'\[.*?\]', '', title).strip()
+                    
+                    reqs[r_id] = {
+                        "title": clean_title,
+                        "phase_4": is_p4,
+                        "later": is_later,
+                        "nice_to_have": is_nice
+                    }
     except OSError:
         pass
     return reqs
@@ -127,6 +90,22 @@ class SuiteBase:
         """True when commands other than HELP/STATUS can run: dev-open build, or a password is available."""
         return self.console_profile() == "dev-open" or bool(os.environ.get("SH_CONSOLE_PASSWORD"))
 
+    def api_auth(self):
+        """FR-58: Credentials for authenticated API endpoints (same credentials as OTA)."""
+        u = os.environ.get("SH_API_USER")
+        p = os.environ.get("SH_API_PASSWORD")
+        if u and p:
+            return (u, p)
+        sec_path = os.path.join(os.path.dirname(__file__), "..", "..", "include", "secrets.h")
+        if os.path.exists(sec_path):
+            try:
+                with open(sec_path, encoding="utf-8") as f:
+                    sec = dict(re.findall(r'#define\s+(\w+)\s+"([^"]*)"', f.read()))
+                    return (sec.get("OTA_USER", "admin"), sec.get("OTA_PASS", "admin123"))
+            except Exception:
+                pass
+        return ("admin", "admin123")
+
     def notify_esp_console(self, msg):
         # Best effort (C-30): LOG needs the login; a 401 without the variable is ignored
         try:
@@ -143,3 +122,24 @@ class SuiteBase:
         print(f"  {status_tag} {test_id:<14} {name:<42} ({latency_ms:5.1f} ms)")
         if details:
             print(f"         \033[90m-> {details}\033[0m")
+
+
+# Step 9 (FR-58): Auto-supply credentials for protected endpoints called by existing test suites,
+# unless opted out via X-No-Auth header.
+_orig_post = requests.post
+
+def _auto_auth_post(url, *args, **kwargs):
+    headers = kwargs.get("headers")
+    if headers and headers.get("X-No-Auth") == "1":
+        headers.pop("X-No-Auth")
+        return _orig_post(url, *args, **kwargs)
+    if "auth" not in kwargs:
+        for ep in ("/api/boiler/", "/api/mode", "/api/relay/test", "/api/diag/clear",
+                  "/api/diag/exercise", "/api/config/import", "/api/setup/actuator",
+                  "/api/setup/pump", "/api/setup/sensor-timeout", "/api/config/system"):
+            if ep in url:
+                kwargs["auth"] = SuiteBase().api_auth()
+                break
+    return _orig_post(url, *args, **kwargs)
+
+requests.post = _auto_auth_post

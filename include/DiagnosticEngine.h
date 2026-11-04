@@ -102,6 +102,7 @@ public:
 private:
     DtcRecord _dtcRecords[DTC_COUNT];
     uint32_t _lastEvaluationMs;
+    uint32_t _minHeapSinceCheck;
 
     EventRecord _events[EVENT_RING_SIZE];
     uint8_t _evHead;       // slot of the next record

@@ -7,6 +7,19 @@ Entries before 29.10.2026 (the system before the lean clean-up):
 
 
 
+## [04.11.2026] - Step 9 Commands & auth, and memory/stability fixes (FR-58, FR-59, NFR-2.2; C-39, PB-1, PB-115, PB-122)
+
+- **Who / when / why:** firmware session (Antigravity), light process, owner approved batch. Consolidates Step 9 (single command path, WebApi authentication for protected actions with HTTP 401, CORS restricted to controller's own origin, DTC-403 default credentials reporting) with urgent stability items (PB-115 weather task stack 6144 -> 4096 B, PB-122 DTC-402 transient dip evaluation with auto-reset > 75 KB).
+- **Done:**
+  - `include/Commands.h` & `src/Commands.cpp`: implemented unified `Commands` module (rule P8, AR-16) for all user actions.
+  - `src/WebApi.cpp`: protected routes (`/api/boiler/on`, `/api/boiler/off`, `/api/boiler/cancel`, `/api/mode` MANUAL, `/api/relay/test`, `/api/diag/clear`, `/api/config/import`, `/api/config/system`) require authentication and reject unauthenticated requests with HTTP 401; comfort endpoints remain open without credentials (FR-58).
+  - CORS restricted: replaced wildcard `*` with own origin matching (`hostHeader` or `localIP`); foreign origins receive no CORS header (FR-58).
+  - `src/DiagnosticEngine.cpp`: tracks `_minHeapSinceCheck` to detect transient memory dips < 60 KB for DTC-402, auto-clears when heap > 75 KB (PB-122); reports DTC-403 (`WARN_DEFAULT_CREDENTIALS`) while default credentials are active (FR-59).
+  - `src/TimeAndWeatherService.cpp`: weather task stack reduced from 6144 B to 4096 B (PB-115).
+  - `tools/sh_esp_cli.py` & `tools/sh_tests/`: updated with credentials for protected endpoints.
+- **Numbers:** firmware binary 1,265,472 B (flash margin 47 KB), free heap steady 101-102 KB.
+- **Tests:** Group 41 (`t_commands_auth.py`, TC41.1 - TC41.7) written first, failed on old build (red run), now 100% PASS on board (24/24 in regression suite TC01, TC32, TC40, TC41).
+
 ## [04.11.2026] - Ceiling 28 C for every target, level and boost (FR-1.2, FR-29; C-36, D-56)
 
 - **Who / when / why:** firmware session (Claude), ultra-light; owner decision relayed by the main chat: boost 0.5 to 2.0 C in 0.5 C steps, 99 C refused, never cut; 28 C maximum, boost included (EN 1264 floor 29 C; 28 C is the owner's choice). PB-120 opened (TC33.3, first run, unproven).

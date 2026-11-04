@@ -290,7 +290,7 @@ void TimeAndWeatherService::update() {
         if (!_fetching && (_lastWeatherPollMs == 0 || (now - _lastWeatherPollMs >= interval)) && ESP.getFreeHeap() > 40000) {
             _lastWeatherPollMs = now;
             _fetching = true;
-            if (xTaskCreatePinnedToCore(fetchTask, "wx", 6144, this, 1, nullptr, 0) != pdPASS) _fetching = false;
+            if (xTaskCreatePinnedToCore(fetchTask, "wx", 4096, this, 1, nullptr, 0) != pdPASS) _fetching = false;
         }
     }
 }
