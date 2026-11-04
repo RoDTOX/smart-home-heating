@@ -626,3 +626,11 @@ restores them (a test proves it). An old file with `target` skips it as unknown 
 **Decided by**: owner's standing rule (no USB or Serial in development), applied by the main chat (04.11.2026).
 **Affects**: NFR-2.8, AGENTS.md §3, `architecture.md` §14.1 / AR-18, `plan.md` R-2, `tools/sh_process_check.py`, PB-115.
 **Consequences**: a bigger window is the owner's later decision (USB reflash after a backup of the gas readings).
+
+## 2026-11-04 — The page moves out of the image onto LittleFS now (D-55, C-35)
+
+**Context**: the image is 12.5 KB under the OTA window of the board (D-54); the page is 35 KB gzip inside it. The owner proposed on 03.11.2026 (entry "Web asset decoupled LittleFS partition") to serve the page from LittleFS; it was planned for step 12.
+**Decision**: done now, as the flash solution instead of a USB repartition: the page is `/index.html.gz` on LittleFS; an embedded stub of at most 1 KB answers when it is missing or corrupt; `POST /api/web/update` uploads a new page atomically without a reboot, with a floor of 24 KB free; the release profile needs the login; `tools/sh_ota_upload.py assets` uploads it. The gas readings and events are never touched (the readings were backed up through the API before the first flash). UI versioning separate from the firmware version stays later (step 12).
+**Decided by**: owner (chat, 04.11.2026), relayed by the main chat.
+**Affects**: FR-8.5, FR-8.6, FR-10.6, NFR-2.8, `architecture.md` §14.1, `api_reference.md`, `tools/sh_build_web.py`, `tools/sh_ota_upload.py`, PB-115.
+**Consequences**: the image drops by about 35 KB; after the first flash of this change the page must be uploaded once (the stub offers it).
