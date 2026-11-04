@@ -7,6 +7,13 @@ Entries before 29.10.2026 (the system before the lean clean-up):
 
 
 
+## [04.11.2026] - Step 4 SafetySupervisor: interlock on every boiler ON, valve hold, overrun without pump, frost on all zones (FR-2, FR-3, FR-4, FR-16.1)
+
+- **Who / when / why:** firmware session (Claude), ultra-light mode; migration step 4, fixes PB-1, PB-2, PB-3, PB-7, PB-60 (PB-4 was fixed in step 1).
+- **Where:** `ThermalZoneManager` (`arbitrateValves`, `trackBoilerState`, `evaluateFrost`, pump guard, boiler section; MANUAL valves are demands), `BoilerRadioTrigger` (`setOnPermit`: every ON source passes the interlock), `WebApi` / `ConsoleCommands` (ON refused with HTTP 409 and counted for DTC-201). Tests `t_safety_supervisor.py` TC33.1 ... TC33.3 (written first, red on 1.11.04.01).
+- **Verified:** `pio run` clean, firmware 1.29 MB file (1,290,217 B, limit 1.25 MiB), checker PASS, one `sh-safety-reviewer` run (no BLOCKER; 3 risks fixed: disabled-zone relays at anti-seize, DTC-101 on frost zone, pump in MANUAL frost). Board 1.11.04.04: TC33.1, TC33.2, TC33.3 (real burn) PASS, `sh_process_check.py board` PASS.
+- **Not done:** `SafetySupervisor` is not yet a separate module (single writer, R-A3, invariants I-1...I-8 as a self-check only for I-1/FR-3); frost is untestable on the board (PB-117); TC09.1 now fails (it sends ON without an open valve, FR-2) and needs an owner decision on the test; the self-check records no event; MANUAL with `openLoopBypass` vs FR-3 is a requirement question.
+
 ## [04.11.2026] - Step 2 Diagnostics: DTC enum of requirements §5, event history in LittleFS (FR-62, FR-10.2)
 
 - **Who / when / why:** firmware session (Claude), light mode; migration step 2 (G22).
