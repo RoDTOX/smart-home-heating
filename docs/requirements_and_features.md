@@ -389,6 +389,51 @@ one example:
   only when an event occurs. Alarms are shown in the page and `/api/status`; there is no push channel.
   - *Read:* `GET /api/diag/events` returns `{"count":n,"events":[{"time":n,"timeValid":bool,"type":"dtc-raised|dtc-cleared|restart","code":"DTC-nnn"|"","zone":n,"value":n}]}`, newest first, at most 50 (`time` is epoch seconds when `timeValid`, else uptime seconds). `restart` carries the reset reason in `value` (`esp_reset_reason_t`). The same code and zone is recorded at most 6 times per hour; further repeats are counted in `value` of the last record. Other event types (frost, FAULT, season change, OTA) are added by the steps that build them.
   - *Fallback:* event store cannot be written → events are kept in RAM until reboot, with a log line.
+- **FR-62.1 (Event log of safety and I/O):** *[now]* {SW; test} Next to the DTC history of FR-62 the controller keeps an
+  event log in which a failed test or an odd moment in the house can be explained from the log alone (C-37, PB-121).
+  Every entry has a time stamp (epoch seconds when the clock is set, else uptime seconds, `timeValid` false), a
+  type, a subject, a reason, an old and a new value, and the state of the boiler side at that moment (boiler last
+  command ON or OFF, overrun active, pending boiler action). The log records:
+  - `out`: every level change of every pin the firmware drives (FR-10.5: relay outputs GPIO32, GPIO33, GPIO25,
+    GPIO26 and the status LED GPIO23); subject = GPIO, `zone` = the zone that owns the pin (0 = none), old and new
+    = level 0 or 1 (255 = not known yet, at boot). A change that writes the same level is not an entry.
+  - `rf`: every boiler frame on the 433 MHz transmitter (GPIO19), one entry per frame, the repeat of FR-17.7
+    included (reason `heartbeat`); old and new = the commanded state before and after, 0 = OFF, 1 = ON.
+  - `refused`: a boiler command that was not sent; reason `guard-run` (`burnerMinRun`, FR-4), `guard-pause`
+    (`burnerMinPause`, FR-4), `guard-cooldown` (FR-17.2) or `interlock` (FR-2); old = seconds to wait, new = the
+    requested state (0 OFF, 1 ON). The same refusal repeated within 10 s is one entry.
+  - `pending`: the pending boiler action changes (FR-32); old and new = 0 none, 1 OFF, 2 ON; the reason says why
+    (`guard-run`, `guard-pause`: queued; `queue`: executed; `demand-lost`, `interlock`, `user`, `demand`: cancelled).
+  - `interlock`: per zone, new = 1 when its valve is energised and `interlockDelay` starts (old = the delay in
+    seconds), new = 2 when the valve counts as open (old = seconds elapsed) (FR-2).
+  - `overrun`: new = 1 start (old = `overrun` in seconds), 2 end, 3 the close of the last valve is held because the
+    boiler is ON or `PENDING_OFF` or the overrun runs (`zone` = that valve) (FR-3).
+  - `frost` (new 1 on, 0 off, per zone, FR-16.1), `sensor` (new 1 lost, 0 back, per zone, FR-51), `mode`
+    (old and new = 1 AUTO, 0 MANUAL), `dtc` (new 1 raised, 0 cleared, per zone, with the code `DTC-nnn`, FR-10.2).
+  - `boot` (new = reset reason, `esp_reset_reason_t`), `warmup` (end of the boot warm-up, NFR-1.4: old = sensors
+    acquired, new = sensors paired), `time-sync` (the clock became valid: old and new = the uptime in seconds at
+    that moment, high and low 16 bits, so entries written before it can be dated), `dropped` (new = entries lost).
+  - Reasons (`reason`): `none`, `boot`, `demand`, `no-demand`, `manual`, `frost`, `sensor-loss`, `overrun-end`,
+    `exercise`, `config`, `safety`, `user`, `queue`, `heartbeat`, `guard-run`, `guard-pause`, `guard-cooldown`,
+    `interlock`, `demand-lost`, `pump-guard`, `wifi`. A valve change says whether the zone's demand, a manual
+    request, frost, sensor loss, the end of the overrun or a configuration change caused it; a boiler frame says
+    whether the zones' demand, a user request, the queue, the safety self-check (FR-3) or boot sent it.
+  - *Storage:* LittleFS, two append-only files of at most 2048 entries of 16 B each (32 KB each); when the current file
+    is full the other one is erased and used, so the newest 2048 to 4096 entries are kept (about 4 to 7 days at
+    about 600 entries a day). Entries survive a reset and a firmware flash; the configuration export and import
+    neither carry nor delete them (FR-65.1). Writing stops while less than 24 KB of LittleFS is free (the gas log
+    and the page come first); the entries refused are counted and logged as `dropped` later.
+  - *Resources:* entries are queued in a RAM ring of 24 entries (384 B, fixed) and written to the file from
+    `loop()` in one append when 8 are queued or 30 s after the first, never from a safety decision; recording never
+    delays or changes a safety action, never allocates heap and never writes NVS (NFR-2.2, NFR-2.9). A full queue
+    drops its oldest entry and counts it. An entry still queued can be lost on a power cut (at most 30 s).
+  - *Read:* `GET /api/diag/log?n=200` returns `{"count":n,"stored":s,"queued":q,"events":[{"time":n,"timeValid":bool,
+    "type":"...","subject":n,"zone":n,"reason":"...","old":n,"new":n,"boiler":bool,"overrun":bool,
+    "pending":"none|off|on"}]}` (a `dtc` entry also has `"code"`), newest first; `n` defaults to 200 and is at most
+    4096; `stored` = entries in the files, `queued` = entries not yet written. The answer is streamed, no growing
+    String (NFR-2.2).
+  - *Fallback:* LittleFS cannot be mounted or written → the RAM queue is kept to its size, the oldest entries are
+    dropped and counted, with a console line (as FR-62).
 - **FR-21 (Firmware identity):** *[now]* {SW; test} Version, build date and time, git commit and reset reason are reported in
   status, console `STATUS` and the boot message.
   - The version is `1.MM.DD.NN`: `MM` and `DD` are the month and day of the last commit that changed a firmware input

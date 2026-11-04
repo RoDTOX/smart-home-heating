@@ -616,7 +616,7 @@ Every row can be triggered for test as named in the last column (§11).
 | Valve stuck (FR-56, FR-57) | hardware | DTC, other zones continue | `PlantMonitor` | DTC-202, DTC-203 | — |
 | Credentials (FR-59) | default active | everything works | `ParamStore` | DTC-403 | — |
 | Sensor battery, signal | low | control continues | `SensorHub` | DTC-102, DTC-105 | — |
-| Event history (FR-62) | LittleFS not mounted | events kept in RAM until reboot | `Diagnostics` | log | — |
+| Event history (FR-62), event log (FR-62.1) | LittleFS not mounted | events kept in RAM until reboot; the log queue drops its oldest entry and counts it | `Diagnostics` | log | — |
 | Output expansion (FR-69) | expansion not responding | its outputs count as closed (unpowered state); other zones continue | `OutputBank`, `SafetySupervisor` | DTC-208 | — |
 
 ---
@@ -677,6 +677,13 @@ The event history lives in LittleFS (§10) to keep NVS free for parameters (AR-6
   watchdog reset, controlled restart, season change, OTA, invariant violation, parameter reset. The same code and zone
   are recorded at most 6 times per hour; further repeats are counted in the last record (flash wear and history
   stay bounded).
+- **Event log (FR-62.1):** `EventLog` inside `Diagnostics` (file `EventLog.cpp`): 16 B entries (time, type, subject,
+  reason, zone, context, old, new), RAM queue of 24, written from `loop()` in one append (8 queued or 30 s) to two
+  append-only LittleFS files of 2048 entries (`/evlog_a.bin`, `/evlog_b.bin`); the full file is replaced by the other
+  one. `add()` only copies into the queue: it is safe to call from any decision path. `OutputBank` logs every relay
+  level change, `BoilerRadioTrigger` every frame and refusal, `ThermalZoneManager` the interlock, overrun, frost,
+  sensor and mode events. Stored size of the board: LittleFS 1 441 792 B (the board runs the default partition
+  table, not `min_spiffs`, see PB-121).
 - **Health:** free heap, minimum, largest block every 10 s (FR-23, NFR-2.2); the checks of FR-10.4 (rule, value,
   `OK` / `FAIL` / `INFO`), no score.
 

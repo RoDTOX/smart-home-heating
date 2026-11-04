@@ -642,3 +642,12 @@ restores them (a test proves it). An old file with `target` skips it as unknown 
 **Decided by**: owner (chat, 04.11.2026, quiz answers relayed by the main chat).
 **Affects**: FR-1.2, FR-29, §6, `ThermalZoneManager`, `ConfigTransfer`, `WebApi`, `web/index.html`, TC11.5, TC19.2, TC39.1.
 **Consequences**: a stored level above 28 °C is used as 28 °C; nothing is rewritten in NVS.
+
+## 2026-11-04 — Event log of safety and I/O (D-57, C-37)
+
+**Context**: TC33.3 failed once and the cause could not be proved: the event log (FR-62, 50 entries, DTC and restart only) did not record valve closings (PB-120). The owner asked for a timestamp and the state change for everything safety-relevant, every I/O port included (PB-121).
+**Decision**: new requirement FR-62.1: an event log of 16 B entries (type, subject, reason, old / new value, boiler-side context) in two append-only LittleFS files of 2048 entries, so the newest 2048 to 4096 entries (4 to 7 days) are kept; a RAM queue of 24 entries written in batches from `loop()`; read by `GET /api/diag/log`. FR-62 (DTC history, 50 entries) is unchanged. Retention chosen by the owner among 32 KB / 64 KB / 128 KB: 64 KB.
+**Decided by**: owner (chat, 04.11.2026, via the main chat).
+**Affects**: FR-62.1, `DiagnosticEngine` (new `EventLog`), `OutputBank`, `ThermalZoneManager`, `BoilerRadioTrigger`, `WebApi`, `main`, TC40.x.
+**Consequences**: about 4 KB of flash and 400 B of RAM; flash wear about 1 000 block writes a day against a flash good for millions (checked in the PB-121 row). The board's LittleFS is 1 441 792 B (default partition table of the board), not the 128 KB of `min_spiffs`.
+
