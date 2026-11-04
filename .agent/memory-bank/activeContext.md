@@ -5,6 +5,7 @@ Only what holds now and what comes next. A line that no longer holds is replaced
 [`docs/archive/active_context_until_2026-11-02.md`](../../docs/archive/active_context_until_2026-11-02.md).
 
 ## Now
+- Memory task PB-115 (04.11.2026): board runs 1.11.04.23; the page is `/index.html.gz` on LittleFS (upload: `python tools/sh_ota_upload.py assets`, needed again only when `web/index.html` changes); flash limit 1 306 624 B (board slot 1.25 MiB, C-34), margin 44 KB; heap median 106.6 KB, minimum 91 KB (weather fetch). Owner hands-on test pending. Left in PB-115: weather stack 6 -> 4 KB, rings to LittleFS, StatusModel, AR-21 task.
 - Chain for any IDE (04.11.2026): git hook `.githooks/commit-msg` (enable: `git config core.hooksPath .githooks`), see AGENTS.md section 5.
 - Group of steps 6, 10, 8, 11 (04.11.2026): built, committed, board runs 1.11.04.12; TC33, TC34 (incl. TC34.5 fixed, TC34.6 validMin < frostTemp, C-31), TC35 - TC37 PASS; owner hands-on test pending. Memory (PB-115, separate task): firmware 1,305,968 of 1,310,720 B, free heap 91 - 102 KB against NFR-2.2 (TC01.2 fails at test time), step 11 half done (streamed history), AR-21 control task not built.
 - Step 4 (04.11.2026): accepted by the owner ("in rest totul ok"). Page feedback done in 0efa023 (board runs it): boost label only above the schedule (FR-1.2, PB-118), pin states (FR-10.5), debug area console / pins / trace / signals with trace and signals collapsed. Waiting: owner look at the page. Next: step 5 (`BoilerLink`).

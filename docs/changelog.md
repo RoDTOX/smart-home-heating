@@ -7,6 +7,15 @@ Entries before 29.10.2026 (the system before the lean clean-up):
 
 
 
+## [04.11.2026] - Memory task PB-115: flash limit corrected, page on LittleFS, streamed JSON, `/api/diag/mem` (NFR-2.8, FR-8.5, FR-8.6, FR-10.6)
+
+- **Who / when / why:** firmware session (Claude), ultra-light; owner decisions D-53, D-54 (supersedes the limit of D-53), D-55; rows C-32 ... C-35.
+- **Found:** the board has the old partition table: OTA slot 1.25 MiB (update accepted up to 1 306 624 B), LittleFS 1.4 MB; the memory build of 1 307 840 B was refused. Limit back to 1 306 624 B with a 20 KB working margin (NFR-2.8, C-34). No USB.
+- **Done:** `GET /api/diag/mem` (heap, minimum, largest block, LittleFS, stack minimums, `wx` last figure); status, zones, sensors, diag and system-config answers streamed from a 384 B buffer (-18 KB flash, no `String` growth); the page leaves the image: `/index.html.gz` on LittleFS, 1 KB stub when missing, `POST /api/web/update` atomic upload (floor 24 KB free, login in the release profile), `POST /api/web/remove`; `python tools/sh_ota_upload.py assets` uploads it; Serial TX buffer 4096 -> 1024 B (safety review light: none). The gas readings (2) were backed up through the API first and never touched.
+- **Numbers:** image 1 307 840 -> 1 261 680 B (margin 44 944 B); internal free heap median 103.5 -> 106.6 KB, 8 of 247 samples under 100 KB (min 91 KB, the weather fetch); stacks: loopTask 3.2 KB, wifi 4.4 KB, tiT 1.4 KB, btController 2.1 KB, nimble_host 2.0 KB, wx 3.8 KB free.
+- **Tests:** TC32.4 - TC32.6, TC38.1 - TC38.5 (written first, red, frozen; unfrozen once for C-35, additions only).
+- **Open:** PB-115 (minimum 100 KB, weather stack, rings, `StatusModel`); the 401 of the upload in the release profile is untested; owner hands-on: page loads and behaves as before, heating unchanged, debug area shows the memory line.
+
 ## [04.11.2026] - Step 4 SafetySupervisor: interlock on every boiler ON, valve hold, overrun without pump, frost on all zones (FR-2, FR-3, FR-4, FR-16.1)
 
 - **Who / when / why:** firmware session (Claude), ultra-light mode; migration step 4, fixes PB-1, PB-2, PB-3, PB-7, PB-60 (PB-4 was fixed in step 1).

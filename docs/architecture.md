@@ -805,7 +805,8 @@ Contract for every advisor:
 |---|---|
 | Limit (`FIRMWARE_MAX_BYTES`) = board OTA slot 1 310 720 minus 4 KiB (C-34) | 1 306 624 |
 | Build of 31.10.2026 (`.pio/build/esp32dev/firmware.bin`) | 1 196 192 |
-| **Margin today** | **114 528 (≈ 112 KB)** |
+| Build of 04.11.2026, page on LittleFS (FR-8.5) and streamed JSON (`.pio/build/esp32dev/firmware.bin`) | 1 261 680 |
+| **Margin today** | **44 944 (≈ 44 KB)** |
 | Estimated additions, baseline v2 (parameter table, commands and auth, events, fault injection, OTA verify, season) | ≈ 15–25 KB |
 | Estimated additions, phase 4 advisors and plant monitor | ≈ 10–20 KB |
 | Expected savings (streamed JSON instead of `String`, one DTC path, shorter log texts) | ≈ 10–20 KB |
