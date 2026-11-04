@@ -9,7 +9,6 @@
 #include "TelemetryHistoryManager.h"
 #include "TimeAndWeatherService.h"
 #include "Version.h"
-#include "dashboard_html_gz.h"
 #include <Arduino.h>
 #include <ArduinoJson.h>
 #include <WebServer.h>
@@ -19,11 +18,103 @@
 #include <freertos/task.h>
 #include <LittleFS.h>
 
+// FR-8.5 / FR-8.6: the page is a gzip file on LittleFS; an embedded stub answers when it is missing or corrupt
+static const char PAGE_FILE[] = "/index.html.gz";
+static const char PAGE_TMP[] = "/index.html.tmp";
+static const size_t PAGE_MAX_BYTES = 61440;
+static const size_t PAGE_MIN_BYTES = 100;
+static const size_t FS_FLOOR_BYTES = 24576;  // free LittleFS kept for the gas log, events and history
+static const char STUB_HTML[] PROGMEM =
+    "<!doctype html><meta charset=utf-8><title>Heating</title><body style=font-family:sans-serif>"
+    "<h3>The page is missing</h3><p>The controller keeps heating. Upload the page:</p>"
+    "<form method=post action=/api/web/update enctype=multipart/form-data><input type=file name=f><button>Upload</button></form>"
+    "<p>Firmware update: <a href=/update>/update</a></p>";
+
+static bool pageFileOk() {
+  File f = LittleFS.open(PAGE_FILE, "r");
+  if (!f) return false;
+  bool ok = f.size() >= PAGE_MIN_BYTES && f.read() == 0x1F && f.read() == 0x8B;
+  f.close();
+  return ok;
+}
+
 void handleRoot() {
   server.sendHeader("Access-Control-Allow-Origin", "*");
-  server.sendHeader("Content-Encoding", "gzip");
   server.sendHeader("Cache-Control", "no-cache");
-  server.send_P(200, "text/html; charset=utf-8", (const char*)DASHBOARD_HTML_GZ, DASHBOARD_HTML_GZ_LEN);
+  if (pageFileOk()) {
+    File f = LittleFS.open(PAGE_FILE, "r");
+    server.sendHeader("X-Page-Source", "littlefs");
+    server.streamFile(f, "text/html; charset=utf-8");  // the .gz name makes the core add Content-Encoding: gzip
+    f.close();
+    return;
+  }
+  server.sendHeader("X-Page-Source", "stub");
+  server.send_P(200, "text/html; charset=utf-8", STUB_HTML);
+}
+
+static bool webAuthOk() {
+#ifdef SH_DEV_OPEN
+  return true;  // FR-75.6: development profile
+#else
+  return server.authenticate(OTA_USER, OTA_PASS);
+#endif
+}
+
+static size_t fsFreeBytes() { return LittleFS.totalBytes() - LittleFS.usedBytes(); }
+
+static File g_upFile;
+static int g_upErr = 0;      // 0 = fine so far, else the HTTP code of the refusal
+static bool g_upSeen = false;
+static size_t g_upBytes = 0;
+static size_t g_upOldBytes = 0;
+
+static void upAbort(int code) {
+  g_upErr = code;
+  if (g_upFile) g_upFile.close();
+  LittleFS.remove(PAGE_TMP);
+}
+
+void handleWebUpdateUpload() {
+  HTTPUpload &u = server.upload();
+  if (u.status == UPLOAD_FILE_START) {
+    g_upSeen = true; g_upErr = 0; g_upBytes = 0; g_upOldBytes = 0;
+    if (g_upFile) g_upFile.close();
+    if (!webAuthOk()) { g_upErr = 401; return; }
+    File old = LittleFS.open(PAGE_FILE, "r");
+    if (old) { g_upOldBytes = old.size(); old.close(); }
+    g_upFile = LittleFS.open(PAGE_TMP, "w");
+    if (!g_upFile) g_upErr = 500;
+  } else if (u.status == UPLOAD_FILE_WRITE && !g_upErr) {
+    if (g_upBytes == 0 && (u.currentSize < 2 || u.buf[0] != 0x1F || u.buf[1] != 0x8B)) upAbort(400);
+    else if (g_upBytes + u.currentSize > PAGE_MAX_BYTES) upAbort(413);
+    else if (fsFreeBytes() + g_upOldBytes < FS_FLOOR_BYTES + g_upBytes + u.currentSize) upAbort(507);
+    else if (g_upFile.write(u.buf, u.currentSize) != u.currentSize) upAbort(507);
+    else g_upBytes += u.currentSize;
+  } else if (u.status == UPLOAD_FILE_END && !g_upErr) {
+    if (g_upFile) g_upFile.close();
+    if (g_upBytes < PAGE_MIN_BYTES) upAbort(400);
+    else if (!LittleFS.rename(PAGE_TMP, PAGE_FILE)) upAbort(500);  // replaces the old page in one step
+  } else if (u.status == UPLOAD_FILE_ABORTED) {
+    upAbort(500);
+  }
+}
+
+void handleWebUpdateDone() {
+  if (!webAuthOk()) { server.requestAuthentication(); g_upSeen = false; return; }
+  int code = g_upErr ? g_upErr : (g_upSeen ? 200 : 400);
+  g_upSeen = false; g_upErr = 0;
+  char b[96];
+  if (code == 200) snprintf(b, sizeof(b), "{\"status\":\"ok\",\"bytes\":%u,\"fsFree\":%u}", (unsigned)g_upBytes, (unsigned)fsFreeBytes());
+  else snprintf(b, sizeof(b), "{\"status\":\"error\",\"code\":%d}", code);
+  server.sendHeader("Access-Control-Allow-Origin", "*");
+  server.send(code, "application/json", b);
+}
+
+void handleWebRemove() {
+  if (!webAuthOk()) { server.requestAuthentication(); return; }
+  LittleFS.remove(PAGE_FILE);
+  server.sendHeader("Access-Control-Allow-Origin", "*");
+  server.send(200, "application/json", F("{\"status\":\"ok\"}"));
 }
 
 void handleApiOn() {
@@ -816,16 +907,17 @@ void handleApiDiagEvents() {
 void handleApiDiagMem() {
   multi_heap_info_t i8;
   heap_caps_get_info(&i8, MALLOC_CAP_8BIT);
-  char b[640];
+  char b[900];
   int n = snprintf(b, sizeof(b),
     "{\"free\":%u,\"minFreeEver\":%u,\"largestBlock\":%u,\"allocated\":%u,\"allocBlocks\":%u,\"freeBlocks\":%u,"
-    "\"internalFree\":%u,\"internalMin\":%u,\"internalLargest\":%u,\"heapSize\":%u,\"freeIram32\":%u,\"uptime\":%lu,\"tasks\":[",
+    "\"internalFree\":%u,\"internalMin\":%u,\"internalLargest\":%u,\"heapSize\":%u,\"freeIram32\":%u,\"uptime\":%lu,\"fsTotal\":%u,\"fsUsed\":%u,\"tasks\":[",
     (unsigned)heap_caps_get_free_size(MALLOC_CAP_8BIT), (unsigned)heap_caps_get_minimum_free_size(MALLOC_CAP_8BIT),
     (unsigned)heap_caps_get_largest_free_block(MALLOC_CAP_8BIT), (unsigned)i8.total_allocated_bytes,
     (unsigned)i8.allocated_blocks, (unsigned)i8.free_blocks,
     (unsigned)heap_caps_get_free_size(MALLOC_CAP_INTERNAL), (unsigned)heap_caps_get_minimum_free_size(MALLOC_CAP_INTERNAL),
     (unsigned)heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL), (unsigned)ESP.getHeapSize(),
-    (unsigned)heap_caps_get_free_size(MALLOC_CAP_IRAM_8BIT), (unsigned long)(millis() / 1000));
+    (unsigned)heap_caps_get_free_size(MALLOC_CAP_IRAM_8BIT), (unsigned long)(millis() / 1000),
+    (unsigned)LittleFS.totalBytes(), (unsigned)LittleFS.usedBytes());
   static const char *const names[] = {"loopTask", "wifi", "tiT", "btController", "nimble_host", "wx"};
   bool first = true;
   for (size_t k = 0; k < sizeof(names) / sizeof(names[0]) && n > 0 && n < (int)sizeof(b) - 64; k++) {
@@ -1415,6 +1507,8 @@ void registerWebRoutes() {
   server.on("/api/diag/status", HTTP_GET, handleApiDiagStatus);
   server.on("/api/diag/events", HTTP_GET, handleApiDiagEvents);
   server.on("/api/diag/mem", HTTP_GET, handleApiDiagMem);
+  server.on("/api/web/update", HTTP_POST, handleWebUpdateDone, handleWebUpdateUpload);
+  server.on("/api/web/remove", HTTP_POST, handleWebRemove);
   server.on("/api/diag/selftest", HTTP_GET, handleApiDiagSelfTest);
   server.on("/api/diag/clear", HTTP_POST, handleApiDiagClear);
   server.on("/api/diag/exercise", HTTP_POST, handleApiDiagExercise);

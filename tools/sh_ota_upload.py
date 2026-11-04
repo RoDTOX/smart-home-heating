@@ -15,12 +15,34 @@ HOST = "192.168.1.20"
 PORT = 80
 BIN_PATH = ".pio/build/esp32dev/firmware.bin"
 
-# The script takes no arguments and flashes at once: "--help" must never start a flash
-if len(sys.argv) > 1:
-    print("usage: python tools/sh_ota_upload.py   (no arguments; flashes .pio/build/esp32dev/firmware.bin to the board)")
-    sys.exit(0 if sys.argv[1] in ("-h", "--help") else 2)
-
 SECRETS_PATH = "include/secrets.h"
+
+
+def upload_assets():
+    """FR-8.6: build the page (tools/sh_build_web.py) and upload it to LittleFS; no reboot."""
+    import subprocess
+    import requests
+    subprocess.run([sys.executable, "tools/sh_build_web.py"], check=True)
+    gz_path = ".pio/build/index.html.gz"
+    auth = ("admin", "admin123")
+    if os.path.exists(SECRETS_PATH):
+        with open(SECRETS_PATH, encoding="utf-8") as f:
+            sec = dict(re.findall(r'#define\s+(\w+)\s+"([^"]*)"', f.read()))
+        auth = (sec.get("OTA_USER", "admin"), sec.get("OTA_PASS", "admin123"))
+    with open(gz_path, "rb") as f:
+        data = f.read()
+    r = requests.post(f"http://{HOST}:{PORT}/api/web/update", files={"f": ("index.html.gz", data)}, auth=auth, timeout=60)
+    print(f"Page {len(data)} bytes -> HTTP {r.status_code} {r.text[:200]}")
+    sys.exit(0 if r.status_code == 200 else 1)
+
+
+# Without arguments the script flashes at once: "--help" must never start a flash. "assets" only uploads the page.
+if sys.argv[1:] == ["assets"]:
+    upload_assets()
+if len(sys.argv) > 1:
+    print("usage: python tools/sh_ota_upload.py          (flashes .pio/build/esp32dev/firmware.bin to the board)\n"
+          "       python tools/sh_ota_upload.py assets   (uploads the page web/index.html to LittleFS, FR-8.6)")
+    sys.exit(0 if sys.argv[1] in ("-h", "--help") else 2)
 
 if not os.path.exists(BIN_PATH):
     print(f"Error: {BIN_PATH} not found (run 'pio run' first)")
