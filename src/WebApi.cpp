@@ -267,7 +267,8 @@ void handleApiBoilerCancelPending() {
   server.send(200, "application/json", resp);
 }
 
-static String getGasMeterJson() {
+static const char* getGasMeterJson() {
+  static char j[512];
   float measuredFlow = 0.0f;
   bool haveMeasured = telemetryHistory.gasFlowMeasured(measuredFlow);
   float flameRate = haveMeasured ? measuredFlow : paramStore.getf(Param::GasFlameRate);
@@ -287,23 +288,35 @@ static String getGasMeterJson() {
     if (telemetryHistory.gasMonthFromReadings((uint32_t)nowT, fromReadings)) gasThisMonth = fromReadings;
   }
 
-  String j;
-  j.reserve(520);
-  j = "\"gasMeter\":{";
-  j += "\"lastReadingIndex\":" + (haveReading ? String(lastIndex, 3) : String("null")) + ",";
-  j += "\"lastReadingTime\":" + (haveReading ? String(lastEpoch) : String("null")) + ",";
-  j += "\"estimatedIndex\":" + (haveReading ? String(currentEstimatedIndex, 3) : String("null")) + ",";
-  j += "\"readingCount\":" + String(telemetryHistory.gasReadingCount()) + ",";
-  j += "\"gasTodayM3\":" + String(gasToday, 2) + ",";
-  j += "\"gasYesterdayM3\":" + String(gasYesterday, 2) + ",";
-  j += "\"gasThisMonthM3\":" + String(gasThisMonth, 2) + ",";
-  j += "\"gasFlowMeasured\":" + (haveMeasured ? String(measuredFlow, 3) : String("null")) + ",";
-  j += "\"gasFlameRate\":" + String(paramStore.getf(Param::GasFlameRate), 2) + ",";
-  j += "\"boilerSetTemp\":" + String(paramStore.get(Param::BoilerSetTemp)) + ",";
-  j += "\"boilerFlowObserved\":" + String(paramStore.get(Param::BoilerFlowObserved)) + ",";
-  j += "\"boilerPowerKw\":" + String(paramStore.get(Param::BoilerPowerKw)) + ",";
-  j += "\"gasPrice\":" + String(paramStore.getf(Param::GasPrice), 2);
-  j += "},";
+  char lastIdxStr[16], lastTimeStr[16], estIdxStr[16], measFlowStr[16];
+  if (haveReading) {
+    snprintf(lastIdxStr, sizeof(lastIdxStr), "%.3f", lastIndex);
+    snprintf(lastTimeStr, sizeof(lastTimeStr), "%u", (unsigned)lastEpoch);
+    snprintf(estIdxStr, sizeof(estIdxStr), "%.3f", currentEstimatedIndex);
+  } else {
+    strcpy(lastIdxStr, "null");
+    strcpy(lastTimeStr, "null");
+    strcpy(estIdxStr, "null");
+  }
+  if (haveMeasured) {
+    snprintf(measFlowStr, sizeof(measFlowStr), "%.3f", measuredFlow);
+  } else {
+    strcpy(measFlowStr, "null");
+  }
+
+  snprintf(j, sizeof(j),
+           "\"gasMeter\":{\"lastReadingIndex\":%s,\"lastReadingTime\":%s,\"estimatedIndex\":%s,"
+           "\"readingCount\":%u,\"gasTodayM3\":%.2f,\"gasYesterdayM3\":%.2f,\"gasThisMonthM3\":%.2f,"
+           "\"gasFlowMeasured\":%s,\"gasFlameRate\":%.2f,\"boilerSetTemp\":%u,\"boilerFlowObserved\":%u,"
+           "\"boilerPowerKw\":%u,\"gasPrice\":%.2f},",
+           lastIdxStr, lastTimeStr, estIdxStr,
+           (unsigned)telemetryHistory.gasReadingCount(),
+           gasToday, gasYesterday, gasThisMonth, measFlowStr,
+           paramStore.getf(Param::GasFlameRate),
+           (unsigned)paramStore.get(Param::BoilerSetTemp),
+           (unsigned)paramStore.get(Param::BoilerFlowObserved),
+           (unsigned)paramStore.get(Param::BoilerPowerKw),
+           paramStore.getf(Param::GasPrice));
   return j;
 }
 
@@ -366,10 +379,20 @@ void handleApiBoilerGasMeter() {
       paramStore.saveState(StateKey::GasMeterBaseEpoch, epoch);
     }
   }
-  String resp = String("{\"status\":\"ok\",\"stored\":") + (stored ? "true" : "false") + ",\"reading\":{\"time\":" +
-                String(epoch) + ",\"index\":" + String((double)idxMilli / 1000.0, 3) + "}," + getGasMeterJson();
-  if (resp.endsWith(",")) resp.remove(resp.length() - 1);
-  resp += "}";
+  char resp[768];
+  const char* gm = getGasMeterJson();
+  size_t gmLen = strlen(gm);
+  char gmClean[512];
+  if (gmLen > 0 && gm[gmLen - 1] == ',') {
+    strncpy(gmClean, gm, gmLen - 1);
+    gmClean[gmLen - 1] = '\0';
+  } else {
+    strncpy(gmClean, gm, sizeof(gmClean) - 1);
+    gmClean[sizeof(gmClean) - 1] = '\0';
+  }
+  snprintf(resp, sizeof(resp),
+           "{\"status\":\"ok\",\"stored\":%s,\"reading\":{\"time\":%u,\"index\":%.3f},%s}",
+           stored ? "true" : "false", (unsigned)epoch, (double)idxMilli / 1000.0, gmClean);
   server.send(200, "application/json", resp);
 }
 
