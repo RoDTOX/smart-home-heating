@@ -667,3 +667,14 @@ Owner: "timpul in loc de unix, sa fie yymmddhhmmss". `time` in `/api/diag/log` i
 **Affects**: FR-70, `include/SolarThrottle.h`, `src/SolarThrottle.cpp`, `ThermalZoneManager`, `ParamStore`, `WebApi`, `ConfigTransfer`, `web/index.html`, TC48.x.
 **Consequences**: Prevents zone overheating caused by large south/west-facing windows during sunny winter days.
 
+## 2026-11-05 — NVS Backward-Compatible Schema Migration & Heap Hysteresis (D-60, C-40)
+
+**Context**: Extending `ZoneRecord` binary layout with `solarGain` changed its size from 88 B to 90 B, causing legacy NVS records to be rejected on boot with defaults loaded. Furthermore, DTC-402 remained latched due to transient OTA upload heap dips.
+**Decision**:
+- Implement automatic schema migration in `ParamStore::zone()`: detect legacy `ZoneRecordV1` (88 B), map existing fields, assign `solarGain = 0`, and transparently migrate in NVS to current `ZoneRecord` (90 B).
+- Correct heap fragmentation alert hysteresis in `DiagnosticEngine`: clear DTC-402 and reset `_minHeapSinceCheck` whenever heap recovers to $\ge 75\text{ KB}$.
+**Decided by**: owner feedback (2026-11-05).
+**Affects**: `ParamStore.h`, `ParamStore.cpp`, `DiagnosticEngine.cpp`, FR-11.3, NFR-2.2, NFR-2.9.
+**Consequences**: Seamless zero-data-loss OTA updates for all legacy client installations.
+
+

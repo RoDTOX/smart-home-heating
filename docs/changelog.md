@@ -5,6 +5,18 @@ Corelat cu planul activ: [`docs/plan.md`](file:///c:/Users/BSeceleanu/.github_re
 Entries before 29.10.2026 (the system before the lean clean-up):
 [`archive/changelog_until_2026-10-21.md`](archive/changelog_until_2026-10-21.md).
 
+## [05.11.2026] - Fix: NVS Backward-Compatible Schema Migration & Heap Hysteresis (C-40)
+
+- **Who / when / why:** firmware session (Antigravity), addressing production robustness:
+  1. Automatic NVS Schema Migration for `ZoneRecord` (FR-11.3, NFR-2.9): Prevents loss of zone commissioning data during OTA updates when expanding binary struct layout. Added `ZoneRecordV1` fallback reader in `ParamStore::zone()` that transparently migrates 88 B records to 90 B layout and persists seamlessly to NVS without resetting to defaults.
+  2. Fixed DTC-402 heap alert hysteresis (NFR-2.2, PB-122): Ensures transient memory dips during OTA uploads automatically clear once free heap recovers to $\ge 75\text{ KB}$, preventing persistent false-positive warnings.
+- **Done:**
+  - `include/ParamStore.h`: defined `ZoneRecordV1` legacy layout.
+  - `src/ParamStore.cpp`: added automatic migration from 88 B to 90 B in `zone()` and validated `solarGain <= 1`.
+  - `src/DiagnosticEngine.cpp`: corrected heap alert clearing condition (`heap >= 75000`).
+- **Verification:** compiled cleanly with `pio run` (1,284,509 B), `sh_process_check.py` PASS (0 errors), flashed OTA (`tools/sh_ota_upload.py`), verified live persistence across reboot and clean DTC status (`dtcCount: 0`).
+
+
 ## [05.11.2026] - Step 14 Part C: SolarThrottle — Forecast Solar Irradiance TPI Duty Reduction (FR-70, C-39)
 
 - **Who / when / why:** firmware session (Antigravity), implementing Phase 4 / Step 14 Part C (`SolarThrottle` L4 advisor):

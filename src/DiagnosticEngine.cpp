@@ -322,17 +322,17 @@ void DiagnosticEngine::evaluateSystem() {
     raiseDtc(Dtc::WARN_WIFI_SIGNAL_DEGRADED, "Wi-Fi link disconnected", SEV_WARNING);
   }
 
-  // Free heap memory check (NFR-2.2, PB-122: hysteresis: raise at <60 KB or dip <60 KB, clear at >75 KB)
+  // Free heap memory check (NFR-2.2, PB-122: hysteresis: raise at <60 KB or dip <60 KB, clear at >=75 KB)
   uint32_t heap = ESP.getFreeHeap();
   if (_minHeapSinceCheck == 0 || heap < _minHeapSinceCheck) _minHeapSinceCheck = heap;
-  if (heap < 60000 || _minHeapSinceCheck < 60000) {
+  if (heap >= 75000) {
+    clearDtc(Dtc::WARN_HEAP_FRAGMENTATION);
+    _minHeapSinceCheck = heap;
+  } else if (heap < 60000 || _minHeapSinceCheck < 60000) {
     char buf[48];
     snprintf(buf, sizeof(buf), "Free heap memory low (%u KB, dip %u KB)",
              (unsigned int)(heap / 1024), (unsigned int)(_minHeapSinceCheck / 1024));
     raiseDtc(Dtc::WARN_HEAP_FRAGMENTATION, buf, SEV_WARNING);
-  } else if (heap > 75000) {
-    clearDtc(Dtc::WARN_HEAP_FRAGMENTATION);
-    _minHeapSinceCheck = heap;
   }
 
   // Learned value discarded at load (NFR-5.3); cleared only manually (DIAG CLEAR)

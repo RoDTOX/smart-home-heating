@@ -100,6 +100,17 @@ struct ParamDef {
 #define PARAM_ZONES 32  // zone slots reserved statically (FR-69, NFR-2.6)
 #define PARAM_LEARNED_MAX 600  // learned TPI base duty, per mille (0..60 %, FR-47)
 
+// Legacy v1 record layout before solarGain (88 bytes, FR-11.3)
+struct ZoneRecordV1 {
+    char name[32];
+    char sensorMac[18];
+    char sensorName[32];
+    uint8_t relayPin;
+    uint8_t enabled;
+    int16_t offsetC10;   // sensor offset, 0.1 C (FR-49, -30..30)
+    int16_t targetC10;   // manual target, 0.1 C
+};
+
 // Installation data of one zone (FR-11.3, FR-11.4). Empty strings until commissioning (FR-11.1).
 struct ZoneRecord {
     char name[32];

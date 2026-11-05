@@ -132,7 +132,7 @@ void ParamStore::defaultZone(size_t i, ZoneRecord& z) {
 bool ParamStore::validZone(const ZoneRecord& z) {
     return terminated(z.name, sizeof(z.name)) && terminated(z.sensorMac, sizeof(z.sensorMac)) &&
            terminated(z.sensorName, sizeof(z.sensorName)) && (validPin(z.relayPin) || (z.relayPin == 0 && z.enabled == 0)) && z.enabled <= 1 &&
-           z.offsetC10 >= -30 && z.offsetC10 <= 30 && z.targetC10 >= 50 && z.targetC10 <= 300;
+           z.solarGain <= 1 && z.offsetC10 >= -30 && z.offsetC10 <= 30 && z.targetC10 >= 50 && z.targetC10 <= 300;
 }
 
 bool ParamStore::validLocation(const char* coords) {
@@ -372,10 +372,35 @@ ZoneRecord ParamStore::zone(size_t i) const {
     defaultZone(i < PARAM_ZONES ? i : 0, z);
     if (i >= PARAM_ZONES) return z;
     Preferences prefs;
-    if (prefs.begin(NS_ZONE, true)) {
-        ZoneRecord stored;
-        if (prefs.getBytes(zoneKey(i), &stored, sizeof(stored)) == sizeof(stored) && validZone(stored)) {
-            z = stored;
+    if (prefs.begin(NS_ZONE, false)) {
+        size_t len = prefs.getBytesLength(zoneKey(i));
+        if (len == sizeof(ZoneRecord)) {
+            ZoneRecord stored;
+            if (prefs.getBytes(zoneKey(i), &stored, sizeof(stored)) == sizeof(stored) && validZone(stored)) {
+                z = stored;
+            } else {
+                netConsole.printf("[Params] zone %u record invalid, defaults used\n", (unsigned)(i + 1));
+            }
+        } else if (len == sizeof(ZoneRecordV1)) {
+            ZoneRecordV1 v1;
+            if (prefs.getBytes(zoneKey(i), &v1, sizeof(v1)) == sizeof(v1)) {
+                memcpy(z.name, v1.name, sizeof(z.name));
+                memcpy(z.sensorMac, v1.sensorMac, sizeof(z.sensorMac));
+                memcpy(z.sensorName, v1.sensorName, sizeof(z.sensorName));
+                z.relayPin = v1.relayPin;
+                z.enabled = v1.enabled;
+                z.solarGain = 0;
+                z.offsetC10 = v1.offsetC10;
+                z.targetC10 = v1.targetC10;
+                if (validZone(z)) {
+                    prefs.putBytes(zoneKey(i), &z, sizeof(ZoneRecord));
+                    netConsole.printf("[Params] zone %u migrated from v1 (%u B) to v2 (%u B)\n",
+                                       (unsigned)(i + 1), (unsigned)sizeof(ZoneRecordV1), (unsigned)sizeof(ZoneRecord));
+                } else {
+                    defaultZone(i, z);
+                    netConsole.printf("[Params] zone %u v1 record invalid, defaults used\n", (unsigned)(i + 1));
+                }
+            }
         } else if (prefs.isKey(zoneKey(i))) {
             netConsole.printf("[Params] zone %u record invalid, defaults used\n", (unsigned)(i + 1));
         }
