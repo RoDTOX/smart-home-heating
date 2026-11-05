@@ -27,22 +27,24 @@ input.time24{width:68px;text-align:center;font-weight:600;font-size:14px;border-
 .room-main{flex:1;min-width:0}
 .room .t{font-size:38px;font-weight:600;line-height:1.1;margin:2px 0}
 .s,.room .s{color:var(--mut)}
-.ctl{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;background:var(--bg);padding:6px 8px;border-radius:10px;border:1px solid var(--line);min-width:54px}
-.ctl button{width:36px;height:30px;display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:700;padding:0;line-height:1;border-radius:6px;cursor:pointer}
-.ctl .sp-val{font-size:15px;font-weight:700;padding:2px 0;text-align:center}
-.ctl .sp-clr{font-size:11px;font-weight:600;width:auto;height:auto;padding:2px 6px;margin-top:2px;border-radius:5px;background:var(--card);color:var(--idle);cursor:pointer}
+.ctl{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;background:var(--bg);padding:6px 8px;border-radius:10px;border:1px solid var(--line);min-width:56px;height:104px;box-sizing:border-box}
+.ctl button{width:36px;height:26px;display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:700;padding:0;line-height:1;border-radius:6px;cursor:pointer}
+.ctl .sp-val{font-size:15px;font-weight:700;padding:1px 0;text-align:center;min-height:20px;line-height:20px}
+.ctl .sp-clr{font-size:11px;font-weight:600;width:auto;height:18px;line-height:18px;padding:0 6px;margin-top:2px;border-radius:5px;background:var(--card);color:var(--idle);cursor:pointer}
+.ctl .sp-clr.hidden{visibility:hidden;pointer-events:none}
 .alerts{margin:0 0 12px;padding:0;list-style:none}
 .alerts li{background:var(--card);border:1px solid var(--bad);color:var(--bad);border-radius:10px;padding:8px 12px;margin-bottom:6px}
 section,details.adm-card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px;margin-top:12px}
 section h2{font-size:16px;margin:0 0 10px}
-details.adm-card > summary{cursor:pointer;user-select:none;list-style:none;display:flex;align-items:center;justify-content:space-between}
-details.adm-card > summary::-webkit-details-marker{display:none}
+summary{cursor:pointer;user-select:none;list-style:none}
+summary::-webkit-details-marker{display:none}
+summary::marker{display:none}
+details.adm-card > summary{display:flex;align-items:center;justify-content:space-between}
 details.adm-card > summary h2{display:inline-block;font-size:16px;margin:0}
 details.adm-card > summary::after{content:'▼';font-size:12px;color:var(--mut);transition:transform 0.2s;flex-shrink:0;margin-left:8px}
 details.adm-card[open] > summary::after{transform:rotate(180deg)}
 details.adm-card[open] > summary{margin-bottom:12px;border-bottom:1px solid var(--line);padding-bottom:8px}
-details:not(.adm-card) > summary{cursor:pointer;user-select:none;list-style:none;display:flex;align-items:center;justify-content:space-between}
-details:not(.adm-card) > summary::-webkit-details-marker{display:none}
+details:not(.adm-card) > summary{display:flex;align-items:center;justify-content:space-between}
 details:not(.adm-card) > summary::after{content:'▼';font-size:11px;color:var(--mut);transition:transform 0.2s;flex-shrink:0;margin-left:8px}
 details:not(.adm-card)[open] > summary::after{transform:rotate(180deg)}
 .adm-body{margin-top:4px}
@@ -80,14 +82,15 @@ code,.mono{font:13px/1.35 ui-monospace,SFMono-Regular,Consolas,monospace}
 <div id="admin">
   <!-- 1. Confort & Programare (Default: OPEN) -->
   <details class="adm-card" id="grpSched">
-    <summary><h2>Confort &amp; Programare (Honeywell)</h2></summary>
+    <summary><h2>1. Confort &amp; Programare (Honeywell)</h2></summary>
     <div class="adm-body" id="schedSection">
+      <div style="font-weight:600;margin:6px 0 4px">1.1 Mod Programare &amp; Programe Zilnice</div>
       <div class="row" style="justify-content:space-between">
         <label style="font-weight:600"><input type="checkbox" id="schedOn"> Program activ</label>
         <div id="schedActiveBadge" class="s"></div>
       </div>
       
-      <div style="margin-top:10px"><b>Mod programare:</b></div>
+      <div style="margin-top:10px"><b>Tip program:</b></div>
       <div class="row" id="schedModeTabs" style="gap:6px;margin:6px 0 10px 0">
         <button type="button" class="sm sched-mode-btn" data-mode="5+2">5 + 2 Zile (L–V / S–D)</button>
         <button type="button" class="sm sched-mode-btn" data-mode="unified">Zilnic unificat (L–D)</button>
@@ -101,7 +104,7 @@ code,.mono{font:13px/1.35 ui-monospace,SFMono-Regular,Consolas,monospace}
 
       <!-- Configurable Away Mode Temperatures -->
       <div class="sched-away-card">
-        <div style="font-weight:600;margin-bottom:4px">Temperaturi Mod Plecat (Away)</div>
+        <div style="font-weight:600;margin-bottom:4px">1.2 Temperaturi Mod Plecat (Away)</div>
         <div class="s" style="margin-bottom:8px">Temperaturi menținute când este activat butonul „Plecat” din antet.</div>
         <div id="awayInputs" class="row" style="gap:10px;flex-wrap:wrap"></div>
       </div>
@@ -117,14 +120,15 @@ code,.mono{font:13px/1.35 ui-monospace,SFMono-Regular,Consolas,monospace}
 
   <!-- 2. Sănătate & Diagnoză (Default: COLLAPSED) -->
   <details class="adm-card" id="grpDiag">
-    <summary><h2>Sănătate &amp; Diagnoză (FR-10.4)</h2></summary>
+    <summary><h2>2. Sănătate &amp; Diagnoză (FR-10.4)</h2></summary>
     <div class="adm-body">
+      <div style="font-weight:600;margin:6px 0 4px">2.1 Verificări Subcircuite Sistem (Self-Test)</div>
       <div class="scroll"><table id="checks"></table></div>
       <div id="dtcActiveSection"></div>
       <div id="dtcHistorySection" style="margin-top:8px">
         <details id="dtcHistoryDetails" style="font-size:12px;color:var(--mut)" ontoggle="if(this.open)loadDtcEvents()">
           <summary style="cursor:pointer;font-weight:600;display:flex;align-items:center;gap:8px">
-            <span style="flex:1">📜 Istoric persistent evenimente &amp; erori (LittleFS - ultimele 50)</span>
+            <span style="flex:1">📜 2.3 Istoric persistent evenimente &amp; erori (LittleFS - ultimele 50)</span>
             <button type="button" class="s" style="padding:2px 8px;font-size:11px;background:none;border:1px solid var(--line);border-radius:4px;cursor:pointer;color:var(--mut)" onclick="event.stopPropagation();loadDtcEvents(true)">🔄 Reîmprospătează</button>
           </summary>
           <div id="persistentDtcHistory" style="margin-top:6px"><div class="s" style="color:var(--mut)">Deschide pentru a încărca istoricul salvat în memoria flash...</div></div>
@@ -135,7 +139,7 @@ code,.mono{font:13px/1.35 ui-monospace,SFMono-Regular,Consolas,monospace}
 
   <!-- 3. Istoric & Grafic Telemetrie (Default: COLLAPSED, FR-34) -->
   <details class="adm-card" id="grpHistory">
-    <summary><h2>Istoric &amp; Grafic Telemetrie (TPI, Activitate, Temperaturi)</h2></summary>
+    <summary><h2>3. Istoric &amp; Grafic Telemetrie (TPI, Activitate, Temperaturi)</h2></summary>
     <div class="adm-body" id="histBody">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;gap:8px;flex-wrap:nowrap">
         <div id="histRangeTabs" style="display:flex;gap:6px;flex-shrink:0">
@@ -151,7 +155,7 @@ code,.mono{font:13px/1.35 ui-monospace,SFMono-Regular,Consolas,monospace}
         </div>
       </div>
 
-      <div style="font-weight:600;font-size:13px;margin:8px 0 4px">Activitate Circuite &amp; Cazan</div>
+      <div style="font-weight:600;font-size:13px;margin:8px 0 4px">3.1 Activitate Circuite &amp; Cazan (Timeline)</div>
       <div id="histChartBox" style="position:relative;background:var(--card);border:1px solid var(--line);border-radius:10px;padding:8px;overflow-x:auto">
         <div id="histSvgContainer"></div>
         <div id="histInfoBar" style="margin-top:8px;padding:6px 12px;background:var(--bg);border:1px solid var(--line);border-radius:8px;font-size:12px;height:70px;min-height:70px;max-height:70px;box-sizing:border-box;display:flex;flex-direction:column;justify-content:center;gap:6px;overflow:hidden"></div>
@@ -164,22 +168,23 @@ code,.mono{font:13px/1.35 ui-monospace,SFMono-Regular,Consolas,monospace}
 
   <!-- 4. Configurare Instalație (Default: COLLAPSED) -->
   <details class="adm-card" id="grpSetup">
-    <summary><h2>Configurare Instalație</h2></summary>
+    <summary><h2>4. Configurare Instalație</h2></summary>
     <div class="adm-body">
-      <div style="font-weight:600;margin:6px 0 4px">Zone – punere în funcțiune (FR-11.3)</div>
+      <div style="font-weight:600;margin:6px 0 4px">4.1 Zone &amp; Circuite Termice – punere în funcțiune (FR-11.3)</div>
       <div class="s">Adaugi zone pe ieșirile libere ale plăcii. O zonă se pornește doar cu senzor; un releu și un senzor servesc o singură zonă; releul nu e al pompei.</div>
       <div class="row"><button id="zoneAdd">Adaugă zonă</button><button id="zonesSave">Salvează zonele</button><span id="zoneMsg" class="s"></span></div>
       <div class="scroll"><table id="setup"></table></div>
       <datalist id="macList"></datalist>
 
-      <div style="font-weight:600;margin:18px 0 4px">Senzori BLE (FR-11.5)</div>
+      <div style="font-weight:600;margin:18px 0 4px">4.2 Senzori BLE (FR-11.5)</div>
       <div class="row"><button id="searchToggle">Caută senzori</button><button id="searchStop" style="display:none">Stop</button><span id="searchInfo" class="s"></span></div>
       <div class="s">Căutarea ține până apeși Stop, cel mult 10 minute. În afara căutării controlerul ține doar senzorii zonelor.</div>
       <div class="scroll"><table id="sensors"></table></div>
 
-      <div style="font-weight:600;margin:18px 0 4px">Sistem &amp; Mentenanță</div>
+      <div style="font-weight:600;margin:18px 0 4px">4.3 Sistem &amp; Mentenanță (Locație)</div>
       <div class="row">Locație (lat,lon) <input id="loc" placeholder="45.65,25.60"><button id="saveLoc">Salvează</button><span id="locMsg" class="s"></span></div>
-      <div style="font-weight:600;margin:18px 0 4px">Credențiale Administrare (FR-59)</div>
+      
+      <div style="font-weight:600;margin:18px 0 4px">4.4 Credențiale Administrare (FR-59)</div>
       <div class="s">Setează utilizatorul și parola de administrare în NVS (OTA &amp; API). Un utilizator personalizat stinge DTC-403.</div>
       <div class="row" style="gap:8px;align-items:center;flex-wrap:wrap">
         <input id="cfgAdminUser" placeholder="Utilizator (1-31 caractere)" style="width:170px">
@@ -187,13 +192,15 @@ code,.mono{font:13px/1.35 ui-monospace,SFMono-Regular,Consolas,monospace}
         <button type="button" id="btnSaveAdminCreds">Schimbă credențialele</button>
         <span id="cfgAdminCredMsg" class="s"></span>
       </div>
+
+      <div style="font-weight:600;margin:18px 0 4px">4.5 Salvare &amp; Restaurare Configurație (Export / Import)</div>
       <div class="row"><button id="cfgExport">Export setări</button><button id="cfgImportBtn">Import setări…</button>
         <input type="file" id="cfgFile" accept=".json,application/json" style="display:none"><span id="cfgMsg" class="s"></span></div>
       <div class="s">Fișierul conține locația, numele camerelor, senzorii și programul, nu parole. Păstrează-l privat.</div>
       <div id="cfgPreview" style="display:none;margin-top:12px;padding:12px;background:var(--bg);border-radius:10px;border:1px solid var(--line)"></div>
       <div id="cfgReport" class="s"></div>
 
-      <div style="font-weight:600;margin:18px 0 6px">Actualizare Firmware (OTA)</div>
+      <div style="font-weight:600;margin:18px 0 6px">4.6 Actualizare Firmware (OTA)</div>
       <div class="row" style="align-items:center;gap:12px;margin:8px 0">
         <a href="/update" target="_blank" rel="noopener" style="background:#1e293b;border:1px solid #38bdf8;color:#38bdf8;font-weight:600;display:inline-flex;align-items:center;gap:8px;padding:8px 16px;border-radius:6px;cursor:pointer;font-size:13px;text-decoration:none">
           <span style="font-size:15px">🚀</span> Deschide Actualizare Firmware OTA ↗
@@ -205,9 +212,9 @@ code,.mono{font:13px/1.35 ui-monospace,SFMono-Regular,Consolas,monospace}
 
   <!-- 5. Instrumente Inginerie & Debug (Default: COLLAPSED) -->
   <details class="adm-card" id="grpDebug">
-    <summary><h2>Instrumente Inginerie &amp; Debug</h2></summary>
+    <summary><h2>5. Instrumente Inginerie &amp; Debug</h2></summary>
     <div class="adm-body">
-      <div style="font-weight:600;margin:6px 0 4px">Jurnal &amp; Consolă Live (Firmware Stream)</div>
+      <div style="font-weight:600;margin:6px 0 4px">5.1 Jurnal &amp; Consolă Live (Firmware Stream)</div>
       <div class="row" style="gap:8px;align-items:center;flex-wrap:wrap">
         <button type="button" id="clearConsoleBtn">Golește ecran</button>
         <button type="button" id="pauseConsoleBtn">Pauză stream</button>
@@ -220,19 +227,19 @@ code,.mono{font:13px/1.35 ui-monospace,SFMono-Regular,Consolas,monospace}
         <input id="consoleInput" class="w" placeholder="Comandă consolă (ex: help, status, zones, boiler, dtc, tpi)...">
         <button type="button" id="consoleSendBtn">Trimite</button>
       </div>
-      <div style="font-weight:600;margin:18px 0 4px">Stare pini (FR-10.5)</div>
+      <div style="font-weight:600;margin:18px 0 4px">5.2 Stare Pini &amp; Relee (FR-10.5)</div>
       <div class="s">Nivelul real citit de pe cip: 1 = HIGH, 0 = LOW. Releele sunt active pe HIGH.</div>
       <table class="mono" id="pinsTable"></table>
       <div class="s" id="memLine" style="margin-top:8px"></div>
       <details id="dbgTrace" style="margin-top:18px">
-        <summary style="font-weight:600;cursor:pointer">Trace – schimbări cât timp pagina e deschisă</summary>
+        <summary style="font-weight:600;cursor:pointer">5.3 Trace – Schimbări în timp real cât timp pagina e deschisă</summary>
             <div class="row"><button id="csv">Export CSV</button><button id="clearTrace">Golește</button>
         <label><input type="checkbox" id="traceAll"> și valorile care se schimbă continuu (ore, vechimi, memorie)</label><span id="traceInfo" class="s"></span></div>
       <div id="trace" class="scroll"><table class="mono" id="traceTable"></table></div>
 
       </details>
       <details id="dbgWatch" style="margin-top:18px">
-        <summary style="font-weight:600;cursor:pointer">Semnale – tot ce raportează API-ul (FR-8.1)</summary>
+        <summary style="font-weight:600;cursor:pointer">5.4 Semnale – Tot ce raportează API-ul (FR-8.1)</summary>
             <div class="row"><input class="w" id="filter" placeholder="Filtru: nume sau explicație (ex. zones[0], relay, boiler)"><span id="watchInfo" class="s"></span></div>
       <div class="s">Atinge un rând pentru cerință. Galben = s-a schimbat la ultima citire.</div>
       <div class="scroll"><table id="watch" class="mono"></table></div>
@@ -473,7 +480,7 @@ const DTC_INFO = {
 
 const RESET_REASONS = {
   1: {title: "Pornire la rece (Power-on Reset)", desc: "Alimentare deconectată și reconectată la rețea / panou."},
-  3: {title: "Repornire Software / OTA", desc: "Comandă software de restart sau finalizare actualizare firmware OTA."},
+  3: {title: "Repornire Software / OTA", desc: "Sistem restaurat cu succes după actualizare firmware OTA sau comandă software de restart (~1-2m downtime anterior)."},
   4: {title: "Panică Nucleu (Crash / Exception)", desc: "Eroare critică în execuția firmware-ului ESP32."},
   5: {title: "Watchdog Întrerupere (IWDT)", desc: "Buclă blocată sau rutină de întrerupere fără cedare."},
   6: {title: "Task Watchdog (TWDT)", desc: "Task-ul de control sau bucla principală nu a răspuns în limita de 90 secunde."},
@@ -493,6 +500,7 @@ let selectedHistRange = "24h";
 let again = false, lastFound = [];
 let RAW = {}, prevFlat = {}, changed = new Set(), trace = [], openSig = null;
 const dirtyRows = new Set();
+const pendingSetpoints = {}; // zoneId -> { target: number, holdUntil: number, timer: number }
 
 // A refusal from the controller (for example a boost above the limit) is a toast fixed to the viewport, visible 8 s
 // or until tapped (FR-8.1): the next refresh must not wipe it
@@ -574,6 +582,12 @@ function renderRooms() {
     const rtBadge = `⏱ Încălzit azi: ${formatRt(rtToday)}${rtYest > 0 ? ' (ieri ' + formatRt(rtYest) + ')' : ''}`;
     const winBtn = isWin ? `<div style="margin-top:4px"><button type="button" class="s" style="padding:2px 8px;font-size:11px;background:rgba(56,189,248,0.15);border:1px solid #38bdf8;color:#38bdf8;border-radius:4px;cursor:pointer" onclick="clearWindowPause(${z.id})">Închide pauza ✕</button></div>` : "";
 
+    const zid = (z.id !== undefined) ? z.id : (i + 1);
+    const pVal = pendingSetpoints[zid];
+    const isPending = (pVal !== undefined && typeof pVal.target === "number");
+    const targetVal = isPending ? pVal.target : (typeof z.effectiveTarget === "number" ? z.effectiveTarget : 20.0);
+    const isHold = z.isManualHold || isPending;
+
     return `<div class="room ${roomClass(z)}" data-i="${i}">
       <div class="room-main">
         <div style="font-weight:600">${esc(z.name)}</div>
@@ -585,9 +599,9 @@ function renderRooms() {
       </div>
       <div class="ctl">
         <button type="button" data-a="up" data-i="${i}" title="Crește ținta">+</button>
-        <div class="sp-val" title="Țintă">${((z._pendingTarget !== undefined) ? z._pendingTarget : z.effectiveTarget).toFixed(1)}°</div>
+        <div class="sp-val" title="Țintă">${targetVal.toFixed(1)}°</div>
         <button type="button" data-a="dn" data-i="${i}" title="Scade ținta">−</button>
-        ${z.isManualHold ? `<button type="button" class="sp-clr" data-a="clr" data-i="${i}" title="Revino la program">↺ prog</button>` : ""}
+        <button type="button" class="sp-clr ${isHold ? '' : 'hidden'}" data-a="clr" data-i="${i}" title="Revino la program">↺ prog</button>
       </div>
     </div>`;
   }).join("");
@@ -698,7 +712,7 @@ function renderChecks() {
           <div style="display:flex;align-items:center;gap:10px">
             <span style="font-size:18px">✅</span>
             <div>
-              <div style="font-weight:600;color:var(--ok)">Niciun cod de eroare activ (DTC)</div>
+              <div style="font-weight:600;color:var(--ok)">2.2 Niciun cod de eroare activ (DTC)</div>
               <div class="s" style="color:var(--mut)">Toate subsistemele (rețea, senzori BLE, memorie, logică hidraulică) funcționează în parametri normali.</div>
             </div>
           </div>
@@ -708,7 +722,7 @@ function renderChecks() {
       let tbl = `<div style="margin-top:10px;padding:10px 12px;background:rgba(248,81,73,0.1);border:1px solid rgba(248,81,73,0.3);border-radius:6px">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
           <div style="font-weight:600;color:var(--err);display:flex;align-items:center;gap:6px">
-            <span>⚠️</span> Coduri de eroare active (${dtcs.length}):
+            <span>⚠️</span> 2.2 Coduri de eroare active (${dtcs.length}):
           </div>
           <button type="button" class="sm danger" id="btnClearDtc" title="Șterge toate codurile active">Curăță codurile de eroare</button>
         </div>
@@ -906,21 +920,22 @@ function renderHistoryChart() {
       let endStr = "";
       let durText = "~2m";
       if (rb.epoch) {
-        const dStart = new Date(rb.epoch * 1000);
+        const dEnd = new Date(rb.epoch * 1000);
+        const dStart = new Date((rb.epoch - 120) * 1000);
         startStr = `${String(dStart.getHours()).padStart(2, "0")}:${String(dStart.getMinutes()).padStart(2, "0")}`;
-        const dEnd = new Date((rb.epoch + 120) * 1000);
         endStr = `${String(dEnd.getHours()).padStart(2, "0")}:${String(dEnd.getMinutes()).padStart(2, "0")}`;
       } else {
         const hoursAgo = isMultiDay ? (slotsAgo * 0.5) : (slotsAgo * (5 / 60));
-        const dStart = new Date(Date.now() - hoursAgo * 3600 * 1000);
+        const dEnd = new Date(Date.now() - hoursAgo * 3600 * 1000);
+        const dStart = new Date(Date.now() - (hoursAgo + 2/60) * 3600 * 1000);
         startStr = `${String(dStart.getHours()).padStart(2, "0")}:${String(dStart.getMinutes()).padStart(2, "0")}`;
-        endStr = startStr;
+        endStr = `${String(dEnd.getHours()).padStart(2, "0")}:${String(dEnd.getMinutes()).padStart(2, "0")}`;
       }
-      const intervalLabel = (startStr && endStr && startStr !== endStr) ? `${startStr} → ${endStr} (${durText})` : startStr;
+      const intervalLabel = `${startStr} → ${endStr} (${durText})`;
 
       // Event block dimensions on the Evenimente track
       const rxCenter = x1 - (slotsAgo + 0.5) * slotW;
-      const bw = Math.max(26, slotW * 1.5);
+      const bw = Math.max(6, Math.min(22, Math.max(slotW * 0.45, 8)));
       const bx = Math.max(x0, Math.min(x1 - bw, rxCenter - bw / 2));
 
       visibleEvents.push({
@@ -931,7 +946,8 @@ function renderHistoryChart() {
         rb: rb,
         reason: rb.reason || "Restart sistem",
         intervalLabel: intervalLabel,
-        startStr: startStr
+        startStr: startStr,
+        endStr: endStr
       });
     }
   });
@@ -994,9 +1010,9 @@ function renderHistoryChart() {
         const segX = Math.max(x0, x1 - (start + 0.5) * slotW);
         const segXEnd = Math.min(x1, x1 - (end - 0.5) * slotW);
         const segW = Math.max(3, segXEnd - segX);
-        svgParts.push(`<rect x="${segX.toFixed(1)}" y="${ry}" width="${segW.toFixed(1)}" height="${actRowH}" rx="2" fill="rgba(56,189,248,0.35)" stroke="#38bdf8" stroke-width="1" />`);
+        svgParts.push(`<rect x="${segX.toFixed(1)}" y="${ry}" width="${segW.toFixed(1)}" height="${actRowH}" rx="2" fill="${r.color}33" stroke="${r.color}" stroke-width="1.2" />`);
         if (segW >= 14) {
-          svgParts.push(`<text x="${(segX + segW / 2).toFixed(1)}" y="${(ry + 10).toFixed(1)}" font-size="8.5" text-anchor="middle" fill="#38bdf8">🪟</text>`);
+          svgParts.push(`<text x="${(segX + segW / 2).toFixed(1)}" y="${(ry + 10).toFixed(1)}" font-size="8.5" text-anchor="middle" fill="${r.color}">🪟</text>`);
         }
       };
       for (let k = 0; k < ordered.length; k++) {
@@ -1162,8 +1178,8 @@ function renderHistoryChart() {
       else if (/panic|crash/i.test(rawReason)) shortReason = "Crash";
       else if (/brownout/i.test(rawReason)) shortReason = "Brownout";
 
-      const timeTag = nearReboot.startStr ? ` (${nearReboot.startStr})` : (rbObj.epoch ? ` (${new Date(rbObj.epoch * 1000).toLocaleTimeString().slice(0,5)})` : '');
-      row1 += `<span style="padding:2px 8px;border-radius:4px;font-weight:600;font-size:11px;background:rgba(245,158,11,0.15);border:1px solid #f59e0b;color:#f59e0b;white-space:nowrap" title="${esc(rawReason)}">
+      const timeTag = nearReboot.endStr ? ` (${nearReboot.endStr})` : (nearReboot.startStr ? ` (${nearReboot.startStr})` : (rbObj.epoch ? ` (${new Date(rbObj.epoch * 1000).toLocaleTimeString().slice(0,5)})` : ''));
+      row1 += `<span style="padding:2px 8px;border-radius:4px;font-weight:600;font-size:11px;background:rgba(245,158,11,0.15);border:1px solid #f59e0b;color:#f59e0b;white-space:nowrap" title="${esc(rawReason)} · ${esc(nearReboot.intervalLabel || '')}">
         ⚡ ${shortReason}${timeTag}
       </span>`;
     }
@@ -1182,7 +1198,7 @@ function renderHistoryChart() {
         let stateColor = vOn ? 'var(--ok)' : 'var(--mut)';
         if (winActive) {
           stateLabel = vOn ? '🪟 geam deschis' : '🪟 pauză geam';
-          stateColor = '#38bdf8';
+          stateColor = color;
         }
         row2 += `<span style="padding:2px 8px;border-radius:4px;font-size:11px;background:rgba(255,255,255,0.03);border:1px solid var(--line);color:var(--fg);white-space:nowrap">
           <b style="color:${color}">${esc(z.name)}</b>: ${temp} <span style="color:${stateColor};font-weight:500">(${stateLabel})</span>
@@ -1233,12 +1249,12 @@ function renderHistoryChart() {
         if (diff < minDiff) { minDiff = diff; closest = item; }
       });
 
-      // Check if cursor is inside or near ANY visible event box
+      // Check if cursor is inside or near ANY visible event box (pinpoint precision)
       let nearReboot = null;
       visibleEvents.forEach(ve => {
-        if (xPos >= ve.bx - 6 && xPos <= ve.bx + ve.bw + 6) {
+        if (xPos >= ve.bx - 4 && xPos <= ve.bx + ve.bw + 4) {
           nearReboot = ve;
-        } else if (Math.abs(cursorSlotsAgo - ve.slotsAgo) <= (selectedHistRange === "1h" ? 1.0 : (isMultiDay ? 3 : 5))) {
+        } else if (Math.abs(cursorSlotsAgo - ve.slotsAgo) <= (selectedHistRange === "1h" ? 0.5 : (isMultiDay ? 1.0 : 0.7))) {
           nearReboot = ve;
         }
       });
@@ -1349,7 +1365,7 @@ function renderGasMeter() {
   }
 
   box.innerHTML = `<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:10px">
-    <div style="font-weight:600;font-size:14px">🔥 Contor gaz & centrală (FR-35.1)</div>
+    <div style="font-weight:600;font-size:14px">🔥 3.3 Contor gaz &amp; centrală (FR-35.1)</div>
     <button type="button" class="sm" id="btnToggleGasForm">⚙️ Citire contor / Setări</button>
   </div>
   <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:12px;margin-bottom:10px">
@@ -1433,7 +1449,7 @@ function renderTpiInspector() {
     outCompPct = Math.min(30, Math.max(0, Math.round((15.0 - outT) * 1.5)));
   }
 
-  let html = `<div style="font-weight:600;font-size:14px;margin-bottom:8px">🧠 Diagnoză Algoritm TPI – Calcul în timp real per zonă (FR-47)</div>
+  let html = `<div style="font-weight:600;font-size:14px;margin-bottom:8px">🧠 3.2 Diagnoză Algoritm TPI – Calcul în timp real per zonă (FR-47)</div>
   <div class="scroll"><table style="font-size:12px;width:100%">
     <thead>
       <tr>
@@ -1892,6 +1908,12 @@ async function refresh() {
     Z = RAW["api/zones"]; B = RAW["api/ble/sensors"].sensors; ST = RAW["api/boiler/status"]; D = RAW["api/diag/status"];
     S = RAW["api/schedule"] || S;
     $("devBanner").style.display = ST && ST.profile === "dev-open" ? "block" : "none";
+    const now = Date.now();
+    for (const zid in pendingSetpoints) {
+      if (!pendingSetpoints[zid].timer && now > pendingSetpoints[zid].holdUntil) {
+        delete pendingSetpoints[zid];
+      }
+    }
     renderHeader(); renderRooms(); renderAlerts();
     if (admin) {
       renderChecks(); renderSetup(); renderSensors();
@@ -1910,47 +1932,60 @@ async function refresh() {
   if (again) { again = false; refresh(); }
 }
 
-const setpointTimers = {};
 $("rooms").addEventListener("click", async e => {
   const b = e.target.closest("button");
   if (b && b.dataset.a) {
-    const i = +b.dataset.i, z = Z.zones[i];
+    const i = +b.dataset.i, z = Z && Z.zones && Z.zones[i];
+    if (!z) return;
+    const zid = (z.id !== undefined) ? z.id : (i + 1);
+
     if (b.dataset.a === "clr") {
+      delete pendingSetpoints[zid];
       try {
-        await api("api/zones/hold/clear", {id: i + 1});
+        await api("api/zones/hold/clear", {id: zid});
         refresh();
       } catch (err) { showErr(err.message); }
       return;
     }
 
-    // 1. Calculate new target optimistically
+    // 1. Calculate new target optimistically from persistent pendingSetpoints or effectiveTarget
     const step = b.dataset.a === "up" ? STEP : -STEP;
-    const baseTarget = (z._pendingTarget !== undefined) ? z._pendingTarget : z.effectiveTarget;
-    const nextTarget = Math.min(MAX_T, Math.max(MIN_T, +(baseTarget + step).toFixed(1)));
-    z._pendingTarget = nextTarget;
-    z.effectiveTarget = nextTarget;
+    const pVal = pendingSetpoints[zid];
+    const curTarget = (pVal !== undefined && typeof pVal.target === "number")
+      ? pVal.target
+      : (typeof z.effectiveTarget === "number" ? z.effectiveTarget : 20.0);
+    const nextTarget = Math.min(MAX_T, Math.max(MIN_T, +(curTarget + step).toFixed(1)));
 
-    // 2. Instant DOM update (0 ms response!)
+    // Cancel in-flight debounce timer if user is clicking rapidly
+    if (pVal && pVal.timer) clearTimeout(pVal.timer);
+
+    pendingSetpoints[zid] = {
+      target: nextTarget,
+      holdUntil: Date.now() + 2500,
+      timer: setTimeout(async () => {
+        try {
+          await api("api/zones/setpoint", {id: zid, target: nextTarget.toFixed(1)});
+        } catch (err) {
+          showErr(err.message);
+        } finally {
+          setTimeout(() => {
+            if (pendingSetpoints[zid] && pendingSetpoints[zid].target === nextTarget) {
+              delete pendingSetpoints[zid];
+            }
+          }, 1200);
+          refresh();
+        }
+      }, 350)
+    };
+
+    // 2. Instant DOM update with zero flicker
     const card = b.closest(".room");
     if (card) {
       const spVal = card.querySelector(".sp-val");
       if (spVal) spVal.textContent = nextTarget.toFixed(1) + "°";
+      const clrBtn = card.querySelector(".sp-clr");
+      if (clrBtn) clrBtn.classList.remove("hidden");
     }
-
-    // 3. Debounce network dispatch by 350 ms: user can click repeatedly, only the final value is sent
-    if (setpointTimers[i]) clearTimeout(setpointTimers[i]);
-    setpointTimers[i] = setTimeout(async () => {
-      delete setpointTimers[i];
-      const targetToSend = z._pendingTarget;
-      try {
-        await api("api/zones/setpoint", {id: i + 1, target: targetToSend.toFixed(1)});
-      } catch (err) {
-        showErr(err.message);
-      } finally {
-        delete z._pendingTarget;
-        refresh();
-      }
-    }, 350);
     return;
   }
   if (e.target.closest(".ctl")) return;
@@ -2691,7 +2726,7 @@ async function loadDtcEvents(force = false) {
           const rInfo = RESET_REASONS[e.value] || {title: "Repornire sistem (motiv " + e.value + ")", desc: "Reset placă ESP32"};
           codeStr = '<code style="color:#f59e0b;font-weight:bold">SYS-REBOOT</code>';
           descStr = `<b>${esc(rInfo.title)}</b><div class="s" style="color:var(--mut);margin-top:2px">${esc(rInfo.desc)}</div>`;
-          targetStr = 'Sistem';
+          targetStr = 'Sistem (Restaurat)';
         } else {
           const cleanCode = String(e.code || '').replace("DTC-", "");
           const info = DTC_INFO[cleanCode] || {title: "Cod eroare diagnostic", cause: "Eveniment înregistrat de DiagnosticEngine."};

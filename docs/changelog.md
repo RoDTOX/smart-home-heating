@@ -5,6 +5,23 @@ Corelat cu planul activ: [`docs/plan.md`](file:///c:/Users/BSeceleanu/.github_re
 Entries before 29.10.2026 (the system before the lean clean-up):
 [`archive/changelog_until_2026-10-21.md`](archive/changelog_until_2026-10-21.md).
 
+## [05.11.2026] - Web UI: setpoint bounce & toFixed fix, reserved layout for prog button, accurate chart event intervals, and numbered admin chapters (FR-8.4, FR-34, FR-59)
+
+- **Who / when / why:** firmware session (Antigravity), resolving user findings: fixed setpoint bounce/reversion and `Cannot read properties of undefined (reading 'toFixed')` when spamming buttons, fixed room card layout shift when `↺ prog` button appears, fixed chart event lane showing 25-minute wide boxes and ghost reboot badges 24 minutes away from cursor, fixed Kids window pause badge showing Living's cyan color, numbered admin sections into structured chapters and subchapters (1.1..5.4), and clarified OTA vs reboot downtime and restore timestamps.
+- **Done:**
+  - `web/index.html`:
+    - Fixed setpoint bounce and `toFixed` crash: introduced persistent `pendingSetpoints` map storing in-flight and hold targets across 3s background polls; guarded target value with fallback; preserved pending manual hold across poll responses.
+    - Stabilized `.ctl` room card layout: configured `.ctl` with fixed 104px height and reserved 18px slot for `.sp-clr` (`visibility: hidden` when inactive), completely preventing card height stretching or vertical jitter.
+    - Fixed chart event box width and hover precision: scaled event box width to true reboot duration (`Math.max(6, Math.min(22, ...))`), fixed downtime calculation to show true elapsed interval before restore (`epoch - 120s → epoch`), and restricted cursor hover detection to actual box boundaries, eliminating ghost reboot chips 25 minutes away.
+    - Fixed window pause badge color on chart: zone rows now render window pause blocks using their own color (`r.color` with 20% alpha fill and stroke) instead of hardcoded cyan.
+    - Numbered Admin sections: structured all admin cards into 5 numbered chapters with subchapters:
+      - 1. Confort & Programare (1.1 Mod Programare, 1.2 Temperaturi Away)
+      - 2. Sănătate & Diagnoză (2.1 Verificări Subcircuite, 2.2 Coduri Active DTC, 2.3 Istoric LittleFS)
+      - 3. Istoric & Grafic Telemetrie (3.1 Activitate Circuite & Cazan, 3.2 Diagnoză TPI, 3.3 Consum Gaz)
+      - 4. Configurare Instalație (4.1 Zone & Circuite, 4.2 Senzori BLE, 4.3 Sistem & Locație, 4.4 Credențiale, 4.5 Salvare/Restaurare, 4.6 Actualizare OTA)
+      - 5. Instrumente Inginerie & Debug (5.1 Jurnal & Consolă, 5.2 Stare Pini, 5.3 Trace, 5.4 Semnale API)
+- **Verification:** built web assets (`tools/sh_build_web.py`, 40,795 B gzip), uploaded to LittleFS on board (`192.168.1.20`, HTTP 200 OK), verified live API and parameters (`python tools/sh_process_check.py board` PASS, 0 errors).
+
 ## [05.11.2026] - Web UI: DTC & reboot history descriptions, compact single-line refresh status, and concise event chips (FR-8.4, FR-10.2, FR-34)
 
 - **Who / when / why:** firmware session (Antigravity), addressing user feedback on UI clarity, compactness, and readability. Added comprehensive titles and causes for all DTCs (101..403) and ESP32 reboot reasons in the LittleFS persistent history table, shortened the telemetry refresh indicator to prevent header row wrapping/jitter, and condensed the `#histInfoBar` reboot badge to a clean short chip.
