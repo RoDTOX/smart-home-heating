@@ -5,17 +5,14 @@ Only what holds now and what comes next. A line that no longer holds is replaced
 [`docs/archive/active_context_until_2026-11-02.md`](../../docs/archive/active_context_until_2026-11-02.md).
 
 ## Now
-- **Step 14 Part E (`HumidityComp` FR-71)**: Complete, flashed and verified on board with SWE.5-TC50.1..TC50.4 100% PASS (commit pending). Implemented `HumidityComp` in Layer 4 (FR-71):
-  - At room relative humidity $\ge 60\%$, automatically lowers control target by up to 0.5 °C for zones with `humidityComp: true`.
-  - Fallback: missing or invalid sensor reading results in 0.0 °C reduction.
-  - Added `ZoneRecordV3` (91 B) legacy reader in `ParamStore`, automatically migrating to 92 B on read without configuration loss.
-  - Exposed status report via `GET /api/humidity/status`.
-- **Step 14 Part D (`CycleAligner` FR-63)**: Complete, flashed and verified on board with SWE.5-TC49.1..TC49.4 100% PASS (commit `6097c99`).
-- **NVS Schema Migration & Heap Hysteresis Fix (C-40)**: Complete, flashed and verified on board.
-- **Step 14 Part C (`SolarThrottle` FR-70)**: Complete, flashed and verified on board with SWE.5-TC48.1..TC48.4 100% PASS.
-- **Step 14 Part B (`HeatUpModel` FR-48, FR-67)**: Complete, flashed and verified on board with SWE.5-TC47.1..TC47.4 100% PASS.
-- **Step 14 Part A (`PlantMonitor` FR-56, FR-57)**: Complete, flashed and verified on board with SWE.5-TC46.1..TC46.4 100% PASS.
-- **Accepted Steps (1–12)**: All validated on board.
+- **Step 14 Completed (Phase 4 Advisors: FR-56, FR-57, FR-67, FR-70, FR-63, FR-71, FR-40.2)**:
+  - Part A (`PlantMonitor` FR-56, FR-57): TC46 100% PASS on board.
+  - Part B (`HeatUpModel` FR-48, FR-67): TC47 100% PASS on board.
+  - Part C (`SolarThrottle` FR-70): TC48 100% PASS on board.
+  - Part D (`CycleAligner` FR-63): TC49 100% PASS on board (commit `6097c99`).
+  - Part E (`HumidityComp` FR-71): TC50 100% PASS on board (commit `e932f6a`).
+  - Part F (`SmartWindow` FR-40.2): TC51 100% PASS on board. Multivariable window detection advisor skeleton with physical absolute humidity ($AH$) via Magnus formula, $\Delta T < 5.0\text{ }^\circ\text{C}$ suspension rule, baseline FR-40 fallback contract (Risk R-5), and status endpoint `/api/window/status`.
+- **Accepted Steps (1–12)**: All validated on board. Step 13 (probes) deferred with owner confirmation.
 
 ## Next
-1. **Step 14 Part F (`SmartWindow` FR-40.2)**: Dynamic window opening detection via slope / absolute humidity (Risk R-5: calibration traces).
+1. **Migration Review & Final Release Gate**: Assess whole system status, verify process checks, and complete handoff documentation for Step 14.

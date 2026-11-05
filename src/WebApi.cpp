@@ -19,6 +19,7 @@
 #include "SolarThrottle.h"
 #include "CycleAligner.h"
 #include "HumidityComp.h"
+#include "SmartWindow.h"
 #include <Arduino.h>
 #include <ArduinoJson.h>
 #include <WebServer.h>
@@ -1767,6 +1768,11 @@ void handleApiHumidityStatus() {
   server.send(200, "application/json", humidityComp.getStatusJson());
 }
 
+void handleApiWindowStatus() {
+  sendCorsHeaders();
+  server.send(200, "application/json", smartWindow.getStatusJson());
+}
+
 void registerWebRoutes() {
   static const char* headerKeys[] = {"Content-Type", "Authorization", "Origin"};  // FR-58, FR-65.7, FR-75.1
   server.collectHeaders(headerKeys, 2);
@@ -1845,4 +1851,5 @@ void registerWebRoutes() {
   server.on("/api/solar/status", HTTP_GET, handleApiSolarStatus);
   server.on("/api/cycles/status", HTTP_GET, handleApiCyclesStatus);
   server.on("/api/humidity/status", HTTP_GET, handleApiHumidityStatus);
+  server.on("/api/window/status", HTTP_GET, handleApiWindowStatus);
 }

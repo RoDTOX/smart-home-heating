@@ -16,6 +16,7 @@
 #include "SolarThrottle.h"
 #include "CycleAligner.h"
 #include "HumidityComp.h"
+#include "SmartWindow.h"
 #include "Version.h"
 #include <Arduino.h>
 #include <ArduinoJson.h>
@@ -353,6 +354,7 @@ void loop() {
   solarThrottle.update();
   cycleAligner.update();
   humidityComp.update();
+  smartWindow.update();
   thermalZones.flushPendingNvs();
   updateWifiWatchdog();
   checkPhysicalResetButton();

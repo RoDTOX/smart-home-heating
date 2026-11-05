@@ -50,9 +50,10 @@ from sh_tests.t_heatup_model import HeatUpModelTests
 from sh_tests.t_solar_throttle import SolarThrottleTests
 from sh_tests.t_cycle_aligner import CycleAlignerTests
 from sh_tests.t_humidity_comp import HumidityCompTests
+from sh_tests.t_smart_window import SmartWindowTests
 
 
-class SystemTestSuite(SuiteBase, HealthTests, HydraulicsTests, ControlTests, UiHistoryTests, SafetyFeatureTests, ExportImportTests, ZoneTests, ConsoleTests, SafetySupervisorTests, SensorHubTests, WeatherTests, ModeTests, HistoryStreamTests, WebAssetTests, EventLogTests, CommandsAuthTests, BoilerLinkTests, ZoneControllerTests, ControlTaskTests, MaintenanceTests, PlantMonitorTests, HeatUpModelTests, SolarThrottleTests, CycleAlignerTests, HumidityCompTests):
+class SystemTestSuite(SuiteBase, HealthTests, HydraulicsTests, ControlTests, UiHistoryTests, SafetyFeatureTests, ExportImportTests, ZoneTests, ConsoleTests, SafetySupervisorTests, SensorHubTests, WeatherTests, ModeTests, HistoryStreamTests, WebAssetTests, EventLogTests, CommandsAuthTests, BoilerLinkTests, ZoneControllerTests, ControlTaskTests, MaintenanceTests, PlantMonitorTests, HeatUpModelTests, SolarThrottleTests, CycleAlignerTests, HumidityCompTests, SmartWindowTests):
     # ---------------------------------------------------------
     # Test Runner & Traceability Matrix Evaluation
     # ---------------------------------------------------------
@@ -364,6 +365,11 @@ class SystemTestSuite(SuiteBase, HealthTests, HydraulicsTests, ControlTests, UiH
             self.test_tc50_2_humidity_status_contract,
             self.test_tc50_3_effective_target_reduction_above_threshold,
             self.test_tc50_4_fallback_no_humidity_no_compensation,
+            # Group 51: SmartWindow (FR-40.2) (step 14)
+            self.test_tc51_1_smart_window_status_contract,
+            self.test_tc51_2_absolute_humidity_magnus_formula,
+            self.test_tc51_3_dt_suspension_rule,
+            self.test_tc51_4_fallback_to_fr40_without_data,
         ]
         if self.only:   # --only TC34,TC35: run just these groups (name part after test_)
             tests = [t for t in tests if any(t.__name__.startswith("test_" + o.lower() + "_") for o in self.only)]

@@ -5,6 +5,20 @@ Corelat cu planul activ: [`docs/plan.md`](file:///c:/Users/BSeceleanu/.github_re
 Entries before 29.10.2026 (the system before the lean clean-up):
 [`archive/changelog_until_2026-10-21.md`](archive/changelog_until_2026-10-21.md).
 
+## [05.11.2026] - Step 14 Part F: SmartWindow — Slope & Absolute Humidity Detection Skeleton (FR-40.2, C-43)
+
+- **Who / when / why:** firmware session (Antigravity), implementing Phase 4 / Step 14 Part F (`SmartWindow` L4 advisor):
+  1. Multivariable window detection skeleton (FR-40.2): calculates physical absolute humidity ($AH$, $\text{g/m}^3$) via Magnus-Tetens formula from room temperature and relative humidity, tracks temperature slope, and evaluates $\Delta T = T_{\text{room}} - T_{\text{outdoor}}$.
+  2. $\Delta T$ suspension rule: detection is automatically suspended when $T_{\text{room}} - T_{\text{outdoor}} < 5.0\text{ }^\circ\text{C}$ where room/outdoor temperature gradients are insufficient for reliable detection.
+  3. Safe fallback contract: pending multi-week recorded traces for tuning `windowK` / `windowAhDrop` (Risk R-5, D33), the detector strictly falls back to the baseline simple drop rule (FR-40).
+  4. Diagnostics & API: exposed window analysis status report via `GET /api/window/status`.
+- **Done:**
+  - `include/SmartWindow.h` & `src/SmartWindow.cpp`: created `SmartWindow` advisor in Layer 4 with Magnus calculation and status report.
+  - `src/WebApi.cpp`: registered route `GET /api/window/status`.
+  - `src/main.cpp`: registered `smartWindow.update()` in `loop()`.
+  - `tools/sh_tests/t_smart_window.py`: added `SWE.5-TC51.1..TC51.4` test suite.
+- **Verification:** compiled cleanly with `pio run` (1,293,933 B, OTA margin 12 KB), `sh_process_check.py` PASS (0 errors), flashed OTA (`tools/sh_ota_upload.py`), live test run `SWE.5-TC51` 4/4 PASS (100%).
+
 ## [05.11.2026] - Step 14 Part E: HumidityComp — Perceived Comfort Compensation (FR-71, C-42)
 
 - **Who / when / why:** firmware session (Antigravity), implementing Phase 4 / Step 14 Part E (`HumidityComp` L4 advisor):
