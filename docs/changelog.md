@@ -7,6 +7,19 @@ Entries before 29.10.2026 (the system before the lean clean-up):
 
 
 
+## [05.11.2026] - Web UI: stable DTC history, prominent OTA button, system event lane, and telemetry badge bar (FR-8.4, FR-34)
+
+- **Who / when / why:** firmware session (Antigravity), addressing user feedback on UI responsiveness and presentation. Resolved `<details>` dropdown collapsing on 3s timer refresh, placed prominent OTA button at bottom of configuration, simplified chart text, added dedicated horizontal lane for system reboot/flash events, converted hover text into structured persistent badges, and collapsed long TPI explanation.
+- **Done:**
+  - `web/index.html`:
+    - Decoupled `dtcActiveSection` from `dtcHistorySection` so timer-based `renderChecks()` updates only active DTCs and never destroys or minimizes `<details id="dtcHistoryDetails">`. Added reload guard and manual refresh button.
+    - Moved OTA update action to the bottom of the installation setup card with a prominent, styled `<button>` element opening `/update` in a new tab.
+    - Simplified telemetry chart header to `Activitate Circuite & Cazan`.
+    - Added dedicated horizontal activity track (`⚡ Evenimente`) in telemetry SVG chart displaying amber event blocks and vertical guidelines aligned with exact reboot timestamps.
+    - Replaced jumpy disappearing hover text under telemetry chart with a permanent, fixed-height structured badge bar (`#histInfoBar`) showing chips for time, boiler status, zone states with colors, outdoor temperature, and reboot reasons. Defaults to latest sample when not hovering (zero layout shift).
+    - Collapsed long TPI explanation text into a clean `<details>` dropdown that preserves state across refreshes.
+- **Verification:** built web assets (`tools/sh_build_web.py`, 38,452 B gzip), uploaded to LittleFS on live board (HTTP 200 OK), verified live serving on `http://192.168.1.20/`.
+
 ## [05.11.2026] - Fix: DTC occurrence runaway, persistent DTC history panel, hardware BOOT button reset, and OTA update link (FR-10.2, FR-59, FR-62.1)
 
 - **Who / when / why:** firmware session (Antigravity), addressing user findings. Fixed DTC-403 occurrence count incrementing endlessly (reached 219x because periodic 10s health evaluations treated continuing condition as new occurrences), added persistent LittleFS 50-event history display to Web UI, implemented 10-second hardware BOOT button reset to default credentials, and fixed OTA update link in web interface.
