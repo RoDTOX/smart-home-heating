@@ -5,6 +5,20 @@ Corelat cu planul activ: [`docs/plan.md`](file:///c:/Users/BSeceleanu/.github_re
 Entries before 29.10.2026 (the system before the lean clean-up):
 [`archive/changelog_until_2026-10-21.md`](archive/changelog_until_2026-10-21.md).
 
+## [05.11.2026] - Fix: Web UI dropdown arrows, OTA popup navigation, zero-jitter telemetry info bar, and test schedule restore (FR-8.4, FR-29, FR-34)
+
+- **Who / when / why:** firmware session (Antigravity), addressing user findings regarding Web UI behavior and test suite configuration preservation. Fixed dropdown arrows sticking in reversed/open direction (▲) on closed details, resolved OTA button click doing nothing on browsers blocking window popups, fixed layout shift causing the page to bounce up and down during telemetry updates, redesigned system event visualization with semi-transparent boxes and immediate hover synchronization, and fixed `SWE.5-TC16.6` test overwriting the user's "Constant 24/7" schedule mode and Away setpoints without restoring them.
+- **Done:**
+  - `web/index.html`:
+    - Fixed CSS descendant selector bug: changed `details.adm-card summary::after` to direct child selector `details.adm-card > summary::after` and added specific `details:not(.adm-card) > summary::after` styling. Dropdown arrows now correctly display `▼` when closed and rotate to `▲` when expanded, completely decoupling nested summaries from parent card state.
+    - Replaced `<button onclick="window.open('/update',...)">` with native `<a href="/update" target="_blank" rel="noopener">` styled as a button, bypassing browser popup blockers on local HTTP IP addresses.
+    - Redesigned `#histInfoBar` into a rock-solid, fixed-height 2-row layout (`height: 70px; overflow: hidden`) with dedicated rows for system status and zone telemetry. Completely eliminated layout shift (CLS) on data updates, mouse moves, and empty time intervals.
+    - Updated `⚡ Evenimente` activity lane: replaced solid orange blocks with clean semi-transparent bordered badges (`rgba(245,158,11,0.14)` with `#f59e0b` outline), removed the full-height vertical line cutting across temperature curves, and synchronized cursor hover detection directly with event bounding intervals.
+  - `tools/sh_tests/t_control.py`:
+    - Updated `test_tc16_6_honeywell_moments` (TC11.4) to capture the original schedule mode, moment configuration, and away temperatures, wrapping execution in a `try...finally` block that unconditionally restores user settings.
+  - Live hardware: restored user's preferred "Constant 24/7" schedule mode and away setpoints on board (`192.168.1.20`).
+- **Verification:** built web assets (`tools/sh_build_web.py`, 39,004 B gzip), uploaded to LittleFS on board (HTTP 200 OK), verified system tests (`SWE.5-TC16` 8/8 PASS, `SWE.5-TC44` 4/4 PASS, schedule mode remains `constant`), `sh_process_check.py` 0 errors.
+
 
 
 ## [05.11.2026] - Web UI: stable DTC history, prominent OTA button, system event lane, and telemetry badge bar (FR-8.4, FR-34)

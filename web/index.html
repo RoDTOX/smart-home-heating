@@ -35,12 +35,16 @@ input.time24{width:68px;text-align:center;font-weight:600;font-size:14px;border-
 .alerts li{background:var(--card);border:1px solid var(--bad);color:var(--bad);border-radius:10px;padding:8px 12px;margin-bottom:6px}
 section,details.adm-card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px;margin-top:12px}
 section h2{font-size:16px;margin:0 0 10px}
-details.adm-card summary{cursor:pointer;user-select:none;list-style:none;display:flex;align-items:center;justify-content:space-between}
-details.adm-card summary::-webkit-details-marker{display:none}
-details.adm-card summary h2{display:inline-block;font-size:16px;margin:0}
-details.adm-card summary::after{content:'▼';font-size:12px;color:var(--mut);transition:transform 0.2s}
-details.adm-card[open] summary::after{transform:rotate(180deg)}
-details.adm-card[open] summary{margin-bottom:12px;border-bottom:1px solid var(--line);padding-bottom:8px}
+details.adm-card > summary{cursor:pointer;user-select:none;list-style:none;display:flex;align-items:center;justify-content:space-between}
+details.adm-card > summary::-webkit-details-marker{display:none}
+details.adm-card > summary h2{display:inline-block;font-size:16px;margin:0}
+details.adm-card > summary::after{content:'▼';font-size:12px;color:var(--mut);transition:transform 0.2s;flex-shrink:0;margin-left:8px}
+details.adm-card[open] > summary::after{transform:rotate(180deg)}
+details.adm-card[open] > summary{margin-bottom:12px;border-bottom:1px solid var(--line);padding-bottom:8px}
+details:not(.adm-card) > summary{cursor:pointer;user-select:none;list-style:none;display:flex;align-items:center;justify-content:space-between}
+details:not(.adm-card) > summary::-webkit-details-marker{display:none}
+details:not(.adm-card) > summary::after{content:'▼';font-size:11px;color:var(--mut);transition:transform 0.2s;flex-shrink:0;margin-left:8px}
+details:not(.adm-card)[open] > summary::after{transform:rotate(180deg)}
 .adm-body{margin-top:4px}
 table{width:100%;border-collapse:collapse}
 td,th{text-align:left;padding:5px 4px;border-bottom:1px solid var(--line);vertical-align:top}
@@ -119,8 +123,8 @@ code,.mono{font:13px/1.35 ui-monospace,SFMono-Regular,Consolas,monospace}
       <div id="dtcActiveSection"></div>
       <div id="dtcHistorySection" style="margin-top:8px">
         <details id="dtcHistoryDetails" style="font-size:12px;color:var(--mut)" ontoggle="if(this.open)loadDtcEvents()">
-          <summary style="cursor:pointer;font-weight:600;display:flex;align-items:center;justify-content:space-between">
-            <span>📜 Istoric persistent evenimente &amp; erori (LittleFS - ultimele 50)</span>
+          <summary style="cursor:pointer;font-weight:600;display:flex;align-items:center;gap:8px">
+            <span style="flex:1">📜 Istoric persistent evenimente &amp; erori (LittleFS - ultimele 50)</span>
             <button type="button" class="s" style="padding:2px 8px;font-size:11px;background:none;border:1px solid var(--line);border-radius:4px;cursor:pointer;color:var(--mut)" onclick="event.stopPropagation();loadDtcEvents(true)">🔄 Reîmprospătează</button>
           </summary>
           <div id="persistentDtcHistory" style="margin-top:6px"><div class="s" style="color:var(--mut)">Deschide pentru a încărca istoricul salvat în memoria flash...</div></div>
@@ -150,7 +154,7 @@ code,.mono{font:13px/1.35 ui-monospace,SFMono-Regular,Consolas,monospace}
       <div style="font-weight:600;font-size:13px;margin:8px 0 4px">Activitate Circuite &amp; Cazan</div>
       <div id="histChartBox" style="position:relative;background:var(--card);border:1px solid var(--line);border-radius:10px;padding:8px;overflow-x:auto">
         <div id="histSvgContainer"></div>
-        <div id="histInfoBar" style="margin-top:8px;padding:8px 12px;background:var(--bg);border:1px solid var(--line);border-radius:8px;font-size:12px;display:flex;align-items:center;flex-wrap:wrap;gap:8px;min-height:42px"></div>
+        <div id="histInfoBar" style="margin-top:8px;padding:6px 12px;background:var(--bg);border:1px solid var(--line);border-radius:8px;font-size:12px;height:70px;min-height:70px;max-height:70px;box-sizing:border-box;display:flex;flex-direction:column;justify-content:center;gap:6px;overflow:hidden"></div>
       </div>
 
       <div id="tpiInspectorBox" style="margin-top:14px;padding:12px;background:var(--bg);border:1px solid var(--line);border-radius:10px"></div>
@@ -191,9 +195,9 @@ code,.mono{font:13px/1.35 ui-monospace,SFMono-Regular,Consolas,monospace}
 
       <div style="font-weight:600;margin:18px 0 6px">Actualizare Firmware (OTA)</div>
       <div class="row" style="align-items:center;gap:12px;margin:8px 0">
-        <button type="button" class="btn" style="background:#1e293b;border:1px solid #38bdf8;color:#38bdf8;font-weight:600;display:inline-flex;align-items:center;gap:8px;padding:8px 16px;border-radius:6px;cursor:pointer;font-size:13px" onclick="window.open('/update','_blank','noopener')">
+        <a href="/update" target="_blank" rel="noopener" style="background:#1e293b;border:1px solid #38bdf8;color:#38bdf8;font-weight:600;display:inline-flex;align-items:center;gap:8px;padding:8px 16px;border-radius:6px;cursor:pointer;font-size:13px;text-decoration:none">
           <span style="font-size:15px">🚀</span> Deschide Actualizare Firmware OTA ↗
-        </button>
+        </a>
         <span class="s" style="color:var(--mut)">(upload fișier .bin direct pe portul 80)</span>
       </div>
     </div>
@@ -867,14 +871,43 @@ function renderHistoryChart() {
   }
 
   const reboots = data.reboots || [];
-  const visibleReboots = [];
+  const visibleEvents = [];
   reboots.forEach(rb => {
     const rSlot = isMultiDay ? rb.slot5d : rb.slot24h;
     const slotCap = isMultiDay ? 240 : 288;
     const slotsAgo = (cur >= rSlot) ? (cur - rSlot) : (cur + slotCap - rSlot);
     if (slotsAgo < totalWindowSlots) {
-      const rx = x1 - (slotsAgo + 0.5) * slotW;
-      visibleReboots.push({ rx: rx, slotsAgo: slotsAgo, rb: rb });
+      let startStr = "";
+      let endStr = "";
+      let durText = "~2m";
+      if (rb.epoch) {
+        const dStart = new Date(rb.epoch * 1000);
+        startStr = `${String(dStart.getHours()).padStart(2, "0")}:${String(dStart.getMinutes()).padStart(2, "0")}`;
+        const dEnd = new Date((rb.epoch + 120) * 1000);
+        endStr = `${String(dEnd.getHours()).padStart(2, "0")}:${String(dEnd.getMinutes()).padStart(2, "0")}`;
+      } else {
+        const hoursAgo = isMultiDay ? (slotsAgo * 0.5) : (slotsAgo * (5 / 60));
+        const dStart = new Date(Date.now() - hoursAgo * 3600 * 1000);
+        startStr = `${String(dStart.getHours()).padStart(2, "0")}:${String(dStart.getMinutes()).padStart(2, "0")}`;
+        endStr = startStr;
+      }
+      const intervalLabel = (startStr && endStr && startStr !== endStr) ? `${startStr} → ${endStr} (${durText})` : startStr;
+
+      // Event block dimensions on the Evenimente track
+      const rxCenter = x1 - (slotsAgo + 0.5) * slotW;
+      const bw = Math.max(26, slotW * 1.5);
+      const bx = Math.max(x0, Math.min(x1 - bw, rxCenter - bw / 2));
+
+      visibleEvents.push({
+        bx: bx,
+        bw: bw,
+        rx: rxCenter,
+        slotsAgo: slotsAgo,
+        rb: rb,
+        reason: rb.reason || "Restart sistem",
+        intervalLabel: intervalLabel,
+        startStr: startStr
+      });
     }
   });
 
@@ -885,12 +918,13 @@ function renderHistoryChart() {
     svgParts.push(`<rect x="${x0}" y="${ry}" width="${chartW}" height="${actRowH}" rx="3" fill="var(--bg)" stroke="var(--line)" />`);
 
     if (r.isEvent) {
-      visibleReboots.forEach(vr => {
-        const bw = Math.max(16, slotW * 1.5);
-        const bx = Math.max(x0, Math.min(x1 - bw, vr.rx - bw / 2));
-        svgParts.push(`<rect x="${bx.toFixed(1)}" y="${ry}" width="${bw.toFixed(1)}" height="${actRowH}" rx="2" fill="#f59e0b" stroke="#b45309" stroke-width="1" />`);
-        svgParts.push(`<text x="${(bx + bw / 2).toFixed(1)}" y="${(ry + 10.5).toFixed(1)}" font-size="9" text-anchor="middle" fill="#000" font-weight="bold">⚡</text>`);
-        svgParts.push(`<line x1="${vr.rx.toFixed(1)}" y1="${topActY}" x2="${vr.rx.toFixed(1)}" y2="${tempBot}" stroke="#f59e0b" stroke-width="1" stroke-dasharray="2,3" opacity="0.35" pointer-events="none" />`);
+      visibleEvents.forEach(ve => {
+        svgParts.push(`<rect x="${ve.bx.toFixed(1)}" y="${ry}" width="${ve.bw.toFixed(1)}" height="${actRowH}" rx="3" fill="rgba(245,158,11,0.14)" stroke="#f59e0b" stroke-width="1.2" />`);
+        const iconX = (ve.bw > 45) ? (ve.bx + 11) : (ve.bx + ve.bw / 2);
+        svgParts.push(`<text x="${iconX.toFixed(1)}" y="${(ry + 10.5).toFixed(1)}" font-size="9" text-anchor="middle" fill="#f59e0b" font-weight="bold">⚡</text>`);
+        if (ve.bw > 55) {
+          svgParts.push(`<text x="${(ve.bx + 22).toFixed(1)}" y="${(ry + 10.5).toFixed(1)}" font-size="8.5" fill="#f59e0b" font-weight="600">Restart</text>`);
+        }
       });
       return;
     }
@@ -1071,67 +1105,65 @@ function renderHistoryChart() {
   const updateInfoBar = (item, timeStr, isCurrent, nearReboot) => {
     const bar = $("histInfoBar");
     if (!bar) return;
-    if (!item) {
-      let emptyMsg = `<div style="display:flex;align-items:center;gap:6px;font-weight:600;color:var(--fg)">
-        <span>📅</span> <span>${esc(timeStr)}</span>
-      </div>
-      <span class="s" style="color:var(--mut)">Fără date înregistrate în această perioadă</span>`;
-      if (nearReboot) {
-        emptyMsg += `<span style="padding:2px 8px;border-radius:4px;font-weight:600;font-size:11px;background:rgba(245,158,11,0.15);border:1px solid #f59e0b;color:#f59e0b">
-          ⚡ Restart: ${esc(nearReboot.reason || 'Sistem')}
+
+    let row1 = `<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;height:24px;overflow-x:auto">`;
+    row1 += `<div style="display:flex;align-items:center;gap:8px;flex-shrink:0">`;
+    row1 += `<div style="display:flex;align-items:center;gap:5px;font-weight:600;color:var(--fg);white-space:nowrap"><span>${isCurrent ? '⏱️' : '📅'}</span> <span>${esc(timeStr)}</span></div>`;
+
+    if (item) {
+      const p = item.p;
+      const bOn = (p[5] & 1) !== 0;
+      row1 += `<span style="padding:2px 8px;border-radius:4px;font-weight:600;font-size:11px;white-space:nowrap;background:${bOn ? 'rgba(239,68,68,0.15);color:#ef4444;border:1px solid rgba(239,68,68,0.4)' : 'rgba(100,116,139,0.15);color:var(--mut);border:1px solid var(--line)'}">
+        ${bOn ? '🔥 Cazan PORNIT' : '⚪ Cazan Oprit'}
+      </span>`;
+      if (p[4] !== null && p[4] !== undefined) {
+        row1 += `<span style="padding:2px 8px;border-radius:4px;font-size:11px;background:rgba(148,163,184,0.1);border:1px solid #64748b;color:#94a3b8;white-space:nowrap">
+          🌡️ Afară: ${p[4].toFixed(1)}°C
         </span>`;
       }
-      bar.innerHTML = emptyMsg;
-      return;
+    } else {
+      row1 += `<span class="s" style="color:var(--mut);white-space:nowrap">Fără date temperatură în acest interval</span>`;
     }
+    row1 += `</div>`;
 
-    const p = item.p;
-    const bOn = (p[5] & 1) !== 0;
-
-    let h = `<div style="display:flex;align-items:center;gap:6px;font-weight:600;color:var(--fg);margin-right:4px">
-      <span>${isCurrent ? '⏱️' : '📅'}</span> <span>${esc(timeStr)}</span>
-    </div>`;
-
-    // Boiler chip
-    h += `<span style="padding:2px 8px;border-radius:4px;font-weight:600;font-size:11px;background:${bOn ? 'rgba(239,68,68,0.15);color:#ef4444;border:1px solid rgba(239,68,68,0.4)' : 'rgba(100,116,139,0.15);color:var(--mut);border:1px solid var(--line)'}">
-      ${bOn ? '🔥 Cazan PORNIT' : '⚪ Cazan Oprit'}
-    </span>`;
-
-    // Zone chips
-    zones.forEach((z, idx) => {
-      const bit = 1 << (idx + 2);
-      const vOn = (p[5] & bit) !== 0;
-      const winActive = (((p[5] >> 5) & 0x03) === (idx + 1));
-      const temp = (p[idx + 1] !== null && p[idx + 1] !== undefined) ? p[idx + 1].toFixed(1) + '°C' : '--';
-      const color = zoneColors[idx % zoneColors.length];
-      
-      let stateLabel = vOn ? 'vană deschisă' : 'închis';
-      let stateColor = vOn ? 'var(--ok)' : 'var(--mut)';
-      if (winActive) {
-        stateLabel = vOn ? '🪟 geam deschis' : '🪟 pauză geam';
-        stateColor = '#38bdf8';
-      }
-
-      h += `<span style="padding:2px 8px;border-radius:4px;font-size:11px;background:rgba(255,255,255,0.03);border:1px solid var(--line);color:var(--fg)">
-        <b style="color:${color}">${esc(z.name)}</b>: ${temp} <span style="color:${stateColor};font-weight:500">(${stateLabel})</span>
-      </span>`;
-    });
-
-    // Outdoor temp chip
-    if (p[4] !== null && p[4] !== undefined) {
-      h += `<span style="padding:2px 8px;border-radius:4px;font-size:11px;background:rgba(148,163,184,0.1);border:1px solid #64748b;color:#94a3b8">
-        🌡️ Afară: ${p[4].toFixed(1)}°C
-      </span>`;
-    }
-
-    // Reboot chip
+    row1 += `<div style="display:flex;align-items:center;gap:6px;flex-shrink:0">`;
     if (nearReboot) {
-      h += `<span style="padding:2px 8px;border-radius:4px;font-weight:600;font-size:11px;background:rgba(245,158,11,0.15);border:1px solid #f59e0b;color:#f59e0b">
-        ⚡ Restart: ${esc(nearReboot.reason || 'Sistem')}
+      const rbObj = nearReboot.rb || nearReboot;
+      const rbReason = esc(nearReboot.reason || rbObj.reason || 'Sistem');
+      const timeInfo = nearReboot.intervalLabel ? ` (${nearReboot.intervalLabel})` : (nearReboot.startStr ? ` (${nearReboot.startStr})` : '');
+      row1 += `<span style="padding:2px 8px;border-radius:4px;font-weight:600;font-size:11px;background:rgba(245,158,11,0.15);border:1px solid #f59e0b;color:#f59e0b;white-space:nowrap">
+        ⚡ Restart: ${rbReason}${timeInfo}
       </span>`;
     }
+    row1 += `</div></div>`;
 
-    bar.innerHTML = h;
+    let row2 = `<div style="display:flex;align-items:center;gap:8px;height:24px;overflow-x:auto">`;
+    zones.forEach((z, idx) => {
+      const color = zoneColors[idx % zoneColors.length];
+      if (item) {
+        const p = item.p;
+        const bit = 1 << (idx + 2);
+        const vOn = (p[5] & bit) !== 0;
+        const winActive = (((p[5] >> 5) & 0x03) === (idx + 1));
+        const temp = (p[idx + 1] !== null && p[idx + 1] !== undefined) ? p[idx + 1].toFixed(1) + '°C' : '--';
+        let stateLabel = vOn ? 'vană deschisă' : 'închis';
+        let stateColor = vOn ? 'var(--ok)' : 'var(--mut)';
+        if (winActive) {
+          stateLabel = vOn ? '🪟 geam deschis' : '🪟 pauză geam';
+          stateColor = '#38bdf8';
+        }
+        row2 += `<span style="padding:2px 8px;border-radius:4px;font-size:11px;background:rgba(255,255,255,0.03);border:1px solid var(--line);color:var(--fg);white-space:nowrap">
+          <b style="color:${color}">${esc(z.name)}</b>: ${temp} <span style="color:${stateColor};font-weight:500">(${stateLabel})</span>
+        </span>`;
+      } else {
+        row2 += `<span style="padding:2px 8px;border-radius:4px;font-size:11px;background:rgba(255,255,255,0.03);border:1px solid var(--line);color:var(--mut);white-space:nowrap">
+          <b style="color:${color}">${esc(z.name)}</b>: --
+        </span>`;
+      }
+    });
+    row2 += `</div>`;
+
+    bar.innerHTML = row1 + row2;
   };
 
   const latestItem = ordered[ordered.length - 1];
@@ -1168,11 +1200,13 @@ function renderHistoryChart() {
         if (diff < minDiff) { minDiff = diff; closest = item; }
       });
 
-      // Check if cursor is near a visible reboot marker
+      // Check if cursor is inside or near ANY visible event box
       let nearReboot = null;
-      visibleReboots.forEach(vr => {
-        if (Math.abs(cursorSlotsAgo - vr.slotsAgo) <= (selectedHistRange === "1h" ? 1.0 : (isMultiDay ? 3 : 5))) {
-          nearReboot = vr.rb;
+      visibleEvents.forEach(ve => {
+        if (xPos >= ve.bx - 6 && xPos <= ve.bx + ve.bw + 6) {
+          nearReboot = ve;
+        } else if (Math.abs(cursorSlotsAgo - ve.slotsAgo) <= (selectedHistRange === "1h" ? 1.0 : (isMultiDay ? 3 : 5))) {
+          nearReboot = ve;
         }
       });
 

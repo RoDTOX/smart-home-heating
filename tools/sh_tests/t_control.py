@@ -454,8 +454,24 @@ class ControlTests:
         name = "Honeywell Moments Matrix & Modes Roundtrip"
         req = "FR-29, FR-31"
         start = time.time()
+        orig_mode = "constant"
+        orig_away = 20.0
+        orig_moment1 = None
         try:
             # 1. Verify GET /api/schedule contains Honeywell moments structure or scheduleMode
+            r_init = requests.get(f"{self.base_url}/api/schedule", timeout=self.timeout)
+            if r_init.status_code == 200:
+                d_init = r_init.json()
+                orig_mode = d_init.get("scheduleMode", "constant")
+                orig_away = float((d_init.get("awayTemps") or {}).get("1", 20.0))
+                wk_m = d_init.get("weekday_moments") or d_init.get("moments", {}).get("weekday") or []
+                if wk_m:
+                    orig_moment1 = {
+                        "day": "weekday",
+                        "moment": wk_m[0].get("moment", 1),
+                        "time": wk_m[0].get("time", "06:30"),
+                        "temps": wk_m[0].get("temps", {"1": 23.5, "2": 23.0, "3": 22.5})
+                    }
             r = requests.get(f"{self.base_url}/api/schedule", timeout=self.timeout)
             assert r.status_code == 200, f"HTTP {r.status_code}"
             d = r.json()
@@ -467,8 +483,7 @@ class ControlTests:
                 assert r_mode.status_code == 200, f"Failed setting schedule mode {m}: HTTP {r_mode.status_code}"
                 assert requests.get(f"{self.base_url}/api/schedule", timeout=self.timeout).json().get("scheduleMode") == m
 
-            # Restore 5+2 mode
-            requests.post(f"{self.base_url}/api/schedule/mode?mode=5+2", timeout=self.timeout)
+
 
             # 3. Test updating a specific moment via /api/schedule/moment
             payload = {
@@ -496,6 +511,14 @@ class ControlTests:
             return TestResult(test_id, name, req, "PASS", latency, "Honeywell moments schedule matrix verified")
         except Exception as e:
             return TestResult(test_id, name, req, "FAIL", (time.time() - start) * 1000, str(e))
+        finally:
+            try:
+                requests.post(f"{self.base_url}/api/schedule/mode?mode={orig_mode}", timeout=self.timeout)
+                if orig_moment1:
+                    requests.post(f"{self.base_url}/api/schedule/moment", json=orig_moment1, timeout=self.timeout)
+                requests.post(f"{self.base_url}/api/schedule/level?zone=1&level=away&temp={orig_away:.1f}", timeout=self.timeout)
+            except Exception:
+                pass
 
     def test_tc11_5_tpi_deficit_duty(self):
         """SWE.5-TC11.5: TPI 100% Duty on Thermal Deficit >= 0.4 C (FR-47)"""
