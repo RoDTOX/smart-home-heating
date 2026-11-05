@@ -63,6 +63,8 @@ static const ParamDef PARAMS[(uint8_t)Param::Count] = {
     P("noEffectDuty", "ne_dty", 50, 30, 100, 1, P_NONE),
     P("noEffectTime", "ne_tim", 3, 1, 6, 1, P_NONE),
     P("noEffectRise", "ne_ris", 0.2f, 0.1f, 1.0f, 10, P_NONE),
+    P("solarLimit", "sol_lim", 400, 200, 800, 1, P_NONE),
+    P("solarReduction", "sol_red", 30, 10, 60, 1, P_NONE),
 };
 
 static const char* STATE_KEYS[(uint8_t)StateKey::Count] = {

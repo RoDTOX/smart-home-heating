@@ -126,6 +126,7 @@ struct ThermalZoneConfig {
     float targetTemp;
     bool enabled;
     float tempOffset;          // Sensor calibration offset added to the reading (-3..+3 C)
+    bool solarGain;            // FR-70: zone participates in solar throttling (e.g. South/West exposure)
 };
 
 struct ThermalZoneStatus {
@@ -243,6 +244,8 @@ public:
     void setSensorMac(size_t index, const char* sensorMac);
     void setRelayPin(size_t index, uint8_t pin);
     bool setTempOffset(size_t index, float offset);
+    void setSolarGain(size_t index, bool enabled);
+    bool isSolarGain(size_t index) const { return index < MAX_THERMAL_ZONES ? _configs[index].solarGain : false; }
 
     // TPI control state (for diagnostics)
     float getDuty(size_t index) const { return index < MAX_THERMAL_ZONES ? _tpi[index].duty : 0.0f; }

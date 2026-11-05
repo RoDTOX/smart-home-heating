@@ -13,6 +13,7 @@
 #include "Maintenance.h"
 #include "PlantMonitor.h"
 #include "HeatUpModel.h"
+#include "SolarThrottle.h"
 #include "Version.h"
 #include <Arduino.h>
 #include <ArduinoJson.h>
@@ -347,6 +348,7 @@ void loop() {
   maintenance.update();
   plantMonitor.update();
   heatUpModel.update();
+  solarThrottle.update();
   thermalZones.flushPendingNvs();
   updateWifiWatchdog();
   checkPhysicalResetButton();

@@ -47,9 +47,10 @@ from sh_tests.t_control_task import ControlTaskTests
 from sh_tests.t_maintenance import MaintenanceTests
 from sh_tests.t_plant_monitor import PlantMonitorTests
 from sh_tests.t_heatup_model import HeatUpModelTests
+from sh_tests.t_solar_throttle import SolarThrottleTests
 
 
-class SystemTestSuite(SuiteBase, HealthTests, HydraulicsTests, ControlTests, UiHistoryTests, SafetyFeatureTests, ExportImportTests, ZoneTests, ConsoleTests, SafetySupervisorTests, SensorHubTests, WeatherTests, ModeTests, HistoryStreamTests, WebAssetTests, EventLogTests, CommandsAuthTests, BoilerLinkTests, ZoneControllerTests, ControlTaskTests, MaintenanceTests, PlantMonitorTests, HeatUpModelTests):
+class SystemTestSuite(SuiteBase, HealthTests, HydraulicsTests, ControlTests, UiHistoryTests, SafetyFeatureTests, ExportImportTests, ZoneTests, ConsoleTests, SafetySupervisorTests, SensorHubTests, WeatherTests, ModeTests, HistoryStreamTests, WebAssetTests, EventLogTests, CommandsAuthTests, BoilerLinkTests, ZoneControllerTests, ControlTaskTests, MaintenanceTests, PlantMonitorTests, HeatUpModelTests, SolarThrottleTests):
     # ---------------------------------------------------------
     # Test Runner & Traceability Matrix Evaluation
     # ---------------------------------------------------------
@@ -346,6 +347,11 @@ class SystemTestSuite(SuiteBase, HealthTests, HydraulicsTests, ControlTests, UiH
             self.test_tc47_2_heatup_status_contract,
             self.test_tc47_3_learned_rate_bounds,
             self.test_tc47_4_weather_lost_preheat_fallback,
+            # Group 48: SolarThrottle (FR-70) (step 14)
+            self.test_tc48_1_solar_param_bounds,
+            self.test_tc48_2_solar_status_contract,
+            self.test_tc48_3_zone_solargain_flag,
+            self.test_tc48_4_weather_lost_disables_reduction,
         ]
         if self.only:   # --only TC34,TC35: run just these groups (name part after test_)
             tests = [t for t in tests if any(t.__name__.startswith("test_" + o.lower() + "_") for o in self.only)]

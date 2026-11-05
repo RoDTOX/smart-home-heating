@@ -11,6 +11,7 @@
 #include "ZoneController.h"
 #include "FaultInjector.h"
 #include "HeatUpModel.h"
+#include "SolarThrottle.h"
 #include <time.h>
 #include <algorithm>
 
@@ -139,6 +140,7 @@ void ThermalZoneManager::loadConfig() {
         strlcpy(_configs[i].sensorName, z.sensorName, sizeof(_configs[i].sensorName));
         _configs[i].relayPin = z.relayPin;
         _configs[i].enabled = z.enabled != 0;
+        _configs[i].solarGain = z.solarGain != 0;
         _configs[i].tempOffset = z.offsetC10 / 10.0f;
         _configs[i].targetTemp = z.targetC10 / 10.0f;
         _tpi[i].integral = _tpi[i].savedIntegral = paramStore.learned(i) / 1000.0f;
@@ -166,6 +168,7 @@ void ThermalZoneManager::persistConfig() {
         strlcpy(z.sensorName, _configs[i].sensorName, sizeof(z.sensorName));
         z.relayPin = _configs[i].relayPin;
         z.enabled = _configs[i].enabled ? 1 : 0;
+        z.solarGain = _configs[i].solarGain ? 1 : 0;
         z.offsetC10 = (int16_t)lroundf(_configs[i].tempOffset * 10);
         z.targetC10 = (int16_t)lroundf(_configs[i].targetTemp * 10);
         paramStore.saveZone(i, z);
@@ -520,6 +523,13 @@ bool ThermalZoneManager::setTempOffset(size_t index, float offset) {
     }
     netConsole.printf("[Thermal] Zone %u (%s) sensor offset %+.1f C\n", _configs[index].id, _configs[index].name, offset);
     return true;
+}
+
+void ThermalZoneManager::setSolarGain(size_t index, bool enabled) {
+    if (index < MAX_THERMAL_ZONES && _configs[index].solarGain != enabled) {
+        _configs[index].solarGain = enabled;
+        persistConfig();
+    }
 }
 
 void ThermalZoneManager::mapZone(size_t index, const char* name, const char* sensorMac, const char* sensorName, uint8_t relayPin, float targetTemp, bool enabled) {
@@ -1144,8 +1154,12 @@ bool ThermalZoneManager::evaluateTpi(size_t index, float target, uint32_t now) {
     float outT = timeAndWeather.getOutdoorTemperature();
     bool weatherValid = timeAndWeather.isWeatherValid() && !faultInjector.isWeatherLost();
     bool demand = zoneController.evaluateTpi(index, temp, target, now, outT, weatherValid, _hysteresis);
-    _tpi[index].duty = zoneController.getDuty(index);
-    _tpi[index].onMs = zoneController.getOnMs(index);
+    float duty = zoneController.getDuty(index);
+    // FR-70: SolarThrottle factor
+    float solarFactor = solarThrottle.getThrottleFactor(index);
+    duty *= solarFactor;
+    _tpi[index].duty = duty;
+    _tpi[index].onMs = (uint32_t)(duty * 1800000.0f); // TPI cycle is 30 min (1800 s)
     _tpi[index].target = target;
     return demand;
 }

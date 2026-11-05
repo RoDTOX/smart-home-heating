@@ -655,3 +655,15 @@ restores them (a test proves it). An old file with `target` skips it as unknown 
 ## 2026-11-04 — Event log time readable (D-58, C-38)
 
 Owner: "timpul in loc de unix, sa fie yymmddhhmmss". `time` in `/api/diag/log` is local time as the text `yymmddhhmmss`; before the clock is set it stays uptime seconds, as text, with `timeValid` false. Only the answer changes: entries stay epoch seconds in the file, so old entries read correctly.
+
+## 2026-11-05 — Step 14 Part C: SolarThrottle (FR-70, D-59, C-39)
+
+**Context**: Step 14 Part C implements SolarThrottle (FR-70). High solar irradiance through windows overheats underfloor heating rooms if actuators stay open.
+**Decision**:
+- SolarThrottle advisor in L4 (RAM <= 500 B, tick <= 2 ms) monitors forecast solar irradiance (`solarLimit` [200..800 W/m², default 400]) and applies `solarReduction` [10..60%, default 30%] to TPI duty multiplier for zones configured with `solarGain: true`.
+- User configuration in Web UI: added "Însorire (Sud/Vest)" checkbox column in Section 4.1 (`#setup` table), persisted via `solarGain` boolean in `/api/config/import` and `/api/setup/map-zone`.
+- Fail-safe fallback: weather lost or missing forecast immediately bypasses reduction (0% reduction, normal TPI operation).
+**Decided by**: owner (request 05.11.2026).
+**Affects**: FR-70, `include/SolarThrottle.h`, `src/SolarThrottle.cpp`, `ThermalZoneManager`, `ParamStore`, `WebApi`, `ConfigTransfer`, `web/index.html`, TC48.x.
+**Consequences**: Prevents zone overheating caused by large south/west-facing windows during sunny winter days.
+

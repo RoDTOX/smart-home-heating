@@ -5,6 +5,25 @@ Corelat cu planul activ: [`docs/plan.md`](file:///c:/Users/BSeceleanu/.github_re
 Entries before 29.10.2026 (the system before the lean clean-up):
 [`archive/changelog_until_2026-10-21.md`](archive/changelog_until_2026-10-21.md).
 
+## [05.11.2026] - Step 14 Part C: SolarThrottle — Forecast Solar Irradiance TPI Duty Reduction (FR-70, C-39)
+
+- **Who / when / why:** firmware session (Antigravity), implementing Phase 4 / Step 14 Part C (`SolarThrottle` L4 advisor):
+  1. Solar throttle advisor (FR-70): monitors forecast solar shortwave irradiance (`solarLimit` [200..800 W/m², default 400]) and throttles TPI duty cycle by `solarReduction` [10..60%, default 30%] for designated solar-gain zones.
+  2. Per-zone solar exposure mapping: added `solarGain` flag to zone configuration, allowing selective application to rooms with significant south/west window solar exposure while leaving north/shaded zones unaffected.
+  3. Web UI integration: added "Însorire (Sud/Vest)" checkbox column in Section 4.1 (`#setup` table in `web/index.html`), fully persisted via `POST /api/config/import` and `POST /api/setup/map-zone`.
+  4. Fail-safe weather-lost fallback: if weather service is offline or forecast is missing, throttling is safely bypassed (0% reduction, normal TPI operation preserved).
+- **Done:**
+  - `include/SolarThrottle.h` & `src/SolarThrottle.cpp`: created `SolarThrottle` singleton in Layer 4 (<= 2 ms execution, ~400 B static RAM).
+  - `include/ParamStore.h` & `src/ParamStore.cpp`: added `Param::SolarLimit`, `Param::SolarReduction`, and `uint8_t solarGain` in `ZoneRecord`.
+  - `include/ThermalZoneManager.h` & `src/ThermalZoneManager.cpp`: added `solarGain` configuration and getter/setter, applied `solarThrottle.getThrottleFactor(i)` in `evaluateTpi`.
+  - `src/WebApi.cpp`: exposed `solarLimit` / `solarReduction` in `/api/config/system`, endpoint `GET /api/solar/status`, and mapped `solarGain` in `/api/zones` and `/api/setup/map-zone`.
+  - `src/ConfigTransfer.cpp`: added `solarGain` to `ZONE_FIELDS`, `ZonePlan`, `planZone`, `importZones`, and `configExportJson`.
+  - `src/main.cpp`: registered `solarThrottle.update()` in `loop()`.
+  - `web/index.html`: updated Section 4.1 setup table with "Însorire (Sud/Vest)" column and `zonesSave` payload.
+  - `tools/sh_tests/t_solar_throttle.py`: added `SWE.5-TC48.1..TC48.4` test suite.
+- **Verification:** compiled cleanly with `pio run` (1,284,225 B, OTA margin 22 KB), `sh_process_check.py` PASS (0 errors), flashed OTA (`tools/sh_ota_upload.py`), live test run `SWE.5-TC48` 4/4 PASS (100%).
+
+
 ## [05.11.2026] - Step 14 Part B: HeatUpModel — Learned Pre-Heat Lead and Fallback (FR-48, FR-67)
 
 - **Who / when / why:** firmware session (Antigravity), implementing Phase 4 / Step 14 Part B (`HeatUpModel` L4 advisor):

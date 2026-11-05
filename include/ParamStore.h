@@ -51,6 +51,8 @@ enum class Param : uint8_t {
     NoEffectDuty,        // % (30..100%, default 50%) FR-57
     NoEffectTime,        // h (1..6 h, default 3 h) FR-57
     NoEffectRise,        // 0.1 C (0.1..1.0 C, default 0.2 C) FR-57
+    SolarLimit,          // W/m2 (200..800 W/m2, default 400 W/m2) FR-70
+    SolarReduction,      // % (10..60%, default 30%) FR-70
     Count
 };
 
@@ -105,6 +107,7 @@ struct ZoneRecord {
     char sensorName[32];
     uint8_t relayPin;
     uint8_t enabled;
+    uint8_t solarGain;   // FR-70: solar gain throttling enabled
     int16_t offsetC10;   // sensor offset, 0.1 C (FR-49, -30..30)
     int16_t targetC10;   // manual target, 0.1 C
 };
