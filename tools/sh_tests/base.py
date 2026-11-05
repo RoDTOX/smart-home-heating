@@ -96,15 +96,25 @@ class SuiteBase:
         p = os.environ.get("SH_API_PASSWORD")
         if u and p:
             return (u, p)
+        # Check active custom credentials in NVS fallback
+        candidates = [("bogdan", "bogdan123"), ("admin", "admin123")]
         sec_path = os.path.join(os.path.dirname(__file__), "..", "..", "include", "secrets.h")
         if os.path.exists(sec_path):
             try:
                 with open(sec_path, encoding="utf-8") as f:
                     sec = dict(re.findall(r'#define\s+(\w+)\s+"([^"]*)"', f.read()))
-                    return (sec.get("OTA_USER", "admin"), sec.get("OTA_PASS", "admin123"))
+                    if "OTA_USER" in sec and "OTA_PASS" in sec:
+                        candidates.insert(0, (sec["OTA_USER"], sec["OTA_PASS"]))
             except Exception:
                 pass
-        return ("admin", "admin123")
+        for cu, cp in candidates:
+            try:
+                r = requests.post(f"{self.base_url}/api/auth/verify", auth=(cu, cp), timeout=1.5)
+                if r.status_code == 200:
+                    return (cu, cp)
+            except Exception:
+                pass
+        return candidates[0]
 
     def notify_esp_console(self, msg):
         # Best effort (C-30): LOG needs the login; a 401 without the variable is ignored
