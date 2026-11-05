@@ -5,6 +5,20 @@ Corelat cu planul activ: [`docs/plan.md`](file:///c:/Users/BSeceleanu/.github_re
 Entries before 29.10.2026 (the system before the lean clean-up):
 [`archive/changelog_until_2026-10-21.md`](archive/changelog_until_2026-10-21.md).
 
+## [05.11.2026] - Step 14 Part A: PlantMonitor — Zone Overheat, No-Effect, Boiler Not Heating (FR-56, FR-57)
+
+- **Who / when / why:** firmware session (Antigravity), implementing Phase 4 / Step 14 Part A (`PlantMonitor` L4 observer):
+  1. Zone overheat detection (FR-56, DTC-203): detects actuators stuck open or inverted polarity (`overheatMargin` [1.0..5.0 °C, default 2.0], `overheatTime` [30..180 min, default 60]).
+  2. Zone heating without effect (FR-57, DTC-202): detects stuck closed valves (`noEffectDuty` [30..100%, default 50%], `noEffectTime` [1..6 h, default 3 h], `noEffectRise` [0.1..1.0 °C, default 0.2 °C]).
+  3. Boiler not heating detection (FR-57, DTC-204): underfloor-inertia adapted detection with 30 min stagnation wait before re-sending ON frame and 60 min cumulative check before raising critical alert.
+- **Done:**
+  - `include/PlantMonitor.h` & `src/PlantMonitor.cpp`: lightweight observer in Layer 4 (<= 2 ms per cycle, ~500 B static RAM).
+  - `include/ParamStore.h` & `src/ParamStore.cpp`: added `Param::OverheatMargin`, `Param::OverheatTime`, `Param::NoEffectDuty`, `Param::NoEffectTime`, `Param::NoEffectRise`.
+  - `src/WebApi.cpp`: registered endpoint `GET /api/plant/status` and exposed new parameters in `GET / POST /api/config/system`.
+  - `src/main.cpp`: registered `plantMonitor.update()` in `loop()`.
+  - `tools/sh_tests/t_plant_monitor.py`: added `SWE.5-TC46.1..TC46.4` test suite.
+- **Verification:** compiled clean with `pio run` (1,280,001 B, OTA margin 26 KB), `sh_process_check.py` PASS (0 errors), flashed OTA (`tools/sh_ota_upload.py`), live test run `SWE.5-TC46` 4/4 PASS (100%).
+
 ## [05.11.2026] - Step 12: Maintenance module — QuietGate, OTA Rollback, Valve Exercise, and Full Self-Test (FR-19, FR-60, NFR-1.8)
 
 - **Who / when / why:** firmware session (Antigravity), implementing Step 12 of architecture migration (§18):

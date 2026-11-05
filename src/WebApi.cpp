@@ -14,6 +14,7 @@
 #include "FaultInjector.h"
 #include "ZoneController.h"
 #include "Maintenance.h"
+#include "PlantMonitor.h"
 #include <Arduino.h>
 #include <ArduinoJson.h>
 #include <WebServer.h>
@@ -961,6 +962,11 @@ void handleApiDiagStatus() {
   o.end();
 }
 
+void handleApiPlantStatus() {
+  sendCorsHeaders();
+  server.send(200, "application/json", plantMonitor.getStatusJson());
+}
+
 void handleApiDiagInjectGet() {
   sendCorsHeaders();
   server.send(200, "application/json", faultInjector.getInjectionsJsonString());
@@ -1420,8 +1426,8 @@ void handleApiConfigSystemGet() {
         pi(Param::BoilerFlowObserved), pf(Param::GasFlameRate), pi(Param::BoilerPowerKw));
   o.put("\"gasPrice\":%.2f,\"validMin\":%.1f,\"validMax\":%.1f,\"maxJump\":%.1f,\"manualTimeoutSec\":%ld,\"boostDurationSec\":%ld,",
         pf(Param::GasPrice), pf(Param::ValidMin), pf(Param::ValidMax), pf(Param::MaxJump), pi(Param::ManualTimeout), pi(Param::BoostDuration));
-  o.put("\"heatLimit\":%ld,\"seasonOnDays\":%ld,\"seasonOffDays\":%ld,\"heatingType\":%ld,\"boilerLinkType\":%ld,\"faultDuty\":%ld,\"faultFrostOutdoor\":%ld,\"adaptiveWindow\":%s,\"exerciseIdleDays\":%ld,\"selfTestBurn\":%ld,\"zones\":[", pi(Param::HeatLimit), pi(Param::SeasonOnDays),
-        pi(Param::SeasonOffDays), pi(Param::HeatingType), pi(Param::BoilerLinkType), pi(Param::FaultDuty), pi(Param::FaultFrostOutdoor), tf(thermalZones.getHeatingType() == HEATING_TYPE_FLOOR), pi(Param::ExerciseIdleDays), pi(Param::SelfTestBurn));
+  o.put("\"heatLimit\":%ld,\"seasonOnDays\":%ld,\"seasonOffDays\":%ld,\"heatingType\":%ld,\"boilerLinkType\":%ld,\"faultDuty\":%ld,\"faultFrostOutdoor\":%ld,\"adaptiveWindow\":%s,\"exerciseIdleDays\":%ld,\"selfTestBurn\":%ld,\"overheatMargin\":%.1f,\"overheatTime\":%ld,\"noEffectDuty\":%ld,\"noEffectTime\":%ld,\"noEffectRise\":%.1f,\"zones\":[", pi(Param::HeatLimit), pi(Param::SeasonOnDays),
+        pi(Param::SeasonOffDays), pi(Param::HeatingType), pi(Param::BoilerLinkType), pi(Param::FaultDuty), pi(Param::FaultFrostOutdoor), tf(thermalZones.getHeatingType() == HEATING_TYPE_FLOOR), pi(Param::ExerciseIdleDays), pi(Param::SelfTestBurn), pf(Param::OverheatMargin), pi(Param::OverheatTime), pi(Param::NoEffectDuty), pi(Param::NoEffectTime), pf(Param::NoEffectRise));
   for (size_t i = 0; i < thermalZones.getZoneCount(); i++) {
     const auto& z = thermalZones.getConfig(i);
     o.put("%s{\"id\":%d,\"name\":\"%s\",\"mac\":\"%s\",\"relayPin\":%d,\"enabled\":%s}", i > 0 ? "," : "", (int)z.id, z.name,
@@ -1465,6 +1471,11 @@ static const ConfigArg CONFIG_ARGS[] = {
     {"boilerLinkHeartbeat", Param::BoilerLinkHeartbeat},
     {"exerciseIdleDays", Param::ExerciseIdleDays},
     {"selfTestBurn", Param::SelfTestBurn},
+    {"overheatMargin", Param::OverheatMargin},
+    {"overheatTime", Param::OverheatTime},
+    {"noEffectDuty", Param::NoEffectDuty},
+    {"noEffectTime", Param::NoEffectTime},
+    {"noEffectRise", Param::NoEffectRise},
 };
 static const char* CONFIG_FLAGS[] = {"openLoopBypass", "rfSafetyHeartbeatEnabled", "pumpControlEnabled",
                                      "actuatorNormallyClosed", "boilerLinkHeartbeat"};
@@ -1790,4 +1801,5 @@ void registerWebRoutes() {
   server.on("/api/maint/selftest", HTTP_GET, handleApiMaintSelfTest);
   server.on("/api/maint/selftest", HTTP_POST, handleApiMaintSelfTest);
   server.on("/api/maint/exercise", HTTP_POST, handleApiMaintExercise);
+  server.on("/api/plant/status", HTTP_GET, handleApiPlantStatus);
 }

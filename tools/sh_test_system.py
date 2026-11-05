@@ -45,9 +45,10 @@ from sh_tests.t_boiler_link import BoilerLinkTests
 from sh_tests.t_zone_controller import ZoneControllerTests
 from sh_tests.t_control_task import ControlTaskTests
 from sh_tests.t_maintenance import MaintenanceTests
+from sh_tests.t_plant_monitor import PlantMonitorTests
 
 
-class SystemTestSuite(SuiteBase, HealthTests, HydraulicsTests, ControlTests, UiHistoryTests, SafetyFeatureTests, ExportImportTests, ZoneTests, ConsoleTests, SafetySupervisorTests, SensorHubTests, WeatherTests, ModeTests, HistoryStreamTests, WebAssetTests, EventLogTests, CommandsAuthTests, BoilerLinkTests, ZoneControllerTests, ControlTaskTests, MaintenanceTests):
+class SystemTestSuite(SuiteBase, HealthTests, HydraulicsTests, ControlTests, UiHistoryTests, SafetyFeatureTests, ExportImportTests, ZoneTests, ConsoleTests, SafetySupervisorTests, SensorHubTests, WeatherTests, ModeTests, HistoryStreamTests, WebAssetTests, EventLogTests, CommandsAuthTests, BoilerLinkTests, ZoneControllerTests, ControlTaskTests, MaintenanceTests, PlantMonitorTests):
     # ---------------------------------------------------------
     # Test Runner & Traceability Matrix Evaluation
     # ---------------------------------------------------------
@@ -334,6 +335,11 @@ class SystemTestSuite(SuiteBase, HealthTests, HydraulicsTests, ControlTests, UiH
             self.test_tc45_2_valve_exercise_param_bounds,
             self.test_tc45_3_selftest_api_contract,
             self.test_tc45_4_ota_rollback_contract,
+            # Group 46: PlantMonitor (FR-56, FR-57) (step 14)
+            self.test_tc46_1_plant_status_contract,
+            self.test_tc46_2_overheat_param_bounds,
+            self.test_tc46_3_no_effect_param_bounds,
+            self.test_tc46_4_plant_monitor_dtc_contract,
         ]
         if self.only:   # --only TC34,TC35: run just these groups (name part after test_)
             tests = [t for t in tests if any(t.__name__.startswith("test_" + o.lower() + "_") for o in self.only)]

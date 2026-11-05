@@ -1,27 +1,20 @@
-# Step 12 — Maintenance: OTA Quiet Gate, Rollback, Valve Exercise, Full Self-Test
+# Step 14 — Phase 4: PlantMonitor (FR-56, FR-57) & Advisors
 
 ## Original request (verbatim)
-Continuam cu pasul 12.
+pas 13 amanat, nu am sonde de temperatura momentan, dar documenteaza ce trebuie sa cumpar, sa fie potrivit si ca pret si ca utilitate.
+deschidem pasul 14.
 
-## Goal (architecture §18, step 12)
-Close G24 (anti-seize 20s weekly), G25 (OTA quiet gate & rollback), G26 (full self-test).
-Requirements: FR-19, FR-60, NFR-1.8.
-
-## Design
-1. `include/Maintenance.h` & `src/Maintenance.cpp`:
-   - `QuietGate`: checks if boiler flame is ON; rejects or defers OTA upload until boiler is confirmed OFF and overrun ended.
-   - `Exercise`: weekly 20s exercise (FR-19) on unexercised zone valves, records epoch in NVS.
-   - `SelfTest`: validates NVS integrity, LittleFS filesystem, radio driver, sensors and task health.
-2. WebApi integration:
-   - Protect `/update` upload handler with `QuietGate::canStartOta()`.
-   - Add `/api/maint/selftest` endpoint.
-   - Add `/api/maint/exercise` manual trigger.
+## Goal (architecture §18, step 14; §13 PlantMonitor)
+1. Document flow probe hardware recommendations (DS18B20 vs NTC, clamp-on pipe mounting, pricing/utility).
+2. Implement Step 14 Part A: `PlantMonitor` (L4 observer, FR-56, FR-57):
+   - FR-56: Zone overheat detection (`overheatMargin` 2°C, `overheatTime` 60 min) with commanded-closed valve -> DTC-203 `ERR_ZONE_OVERHEAT` (valve stuck open or polarity error).
+   - FR-57: Heating without effect (`noEffectDuty` 50%, `noEffectTime` 3h, `noEffectRise` 0.2°C) -> DTC-202 `ERR_ZONE_NO_EFFECT`.
+   - FR-57: Boiler not heating (all demanding zones stagnant for 15 min -> resend ON once -> 15 min still stagnant) -> DTC-204 `ERR_BOILER_NOT_HEATING`.
+   - Pure observer in L4, execution time <= 2 ms per tick, memory <= 1 KB RAM.
 
 ## Stage tracker
-- [x] 1. Write tests-first in tools/sh_tests/t_maintenance.py
-- [x] 2. Implement include/Maintenance.h & src/Maintenance.cpp
-- [x] 3. Integrate QuietGate into OTA upload in main.cpp / WebApi.cpp
-- [x] 4. Integrate weekly valve exercise into ControlTask/ThermalZoneManager
-- [x] 5. Implement full self-test contract
-- [x] 6. Build (pio run), process check, and flash to board
-- [x] 7. Verify SWE.5-TC maintenance test suite 100% PASS
+- [x] 1. Document flow probes recommendation for owner
+- [x] 2. Write tests-first in tools/sh_tests/t_plant_monitor.py (SWE.5-TC46)
+- [x] 3. Implement include/PlantMonitor.h and src/PlantMonitor.cpp
+- [x] 4. Register PlantMonitor in ControlTask / main.cpp loop & WebApi status
+- [x] 5. Run process check, build clean (pio run), flash OTA, and verify 100% PASS

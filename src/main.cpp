@@ -11,6 +11,7 @@
 #include "TelemetryHistoryManager.h"
 #include "TimeAndWeatherService.h"
 #include "Maintenance.h"
+#include "PlantMonitor.h"
 #include "Version.h"
 #include <Arduino.h>
 #include <ArduinoJson.h>
@@ -343,6 +344,7 @@ void loop() {
   telemetryHistory.update();
   diagEngine.update();
   maintenance.update();
+  plantMonitor.update();
   thermalZones.flushPendingNvs();
   updateWifiWatchdog();
   checkPhysicalResetButton();

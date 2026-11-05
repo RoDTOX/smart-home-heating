@@ -46,6 +46,11 @@ enum class Param : uint8_t {
     FaultFrostOutdoor,   // C (-10..10 C, default 5 C) FR-51, FR-64
     ExerciseIdleDays,    // days (7..14, default 14) FR-19
     SelfTestBurn,        // min (5..20, default 10) FR-60
+    OverheatMargin,      // 0.1 C (1.0..5.0 C, default 2.0 C) FR-56
+    OverheatTime,        // min (30..180 min, default 60 min) FR-56
+    NoEffectDuty,        // % (30..100%, default 50%) FR-57
+    NoEffectTime,        // h (1..6 h, default 3 h) FR-57
+    NoEffectRise,        // 0.1 C (0.1..1.0 C, default 0.2 C) FR-57
     Count
 };
 

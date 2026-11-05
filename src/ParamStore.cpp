@@ -58,6 +58,11 @@ static const ParamDef PARAMS[(uint8_t)Param::Count] = {
     P("faultFrostOutdoor", "ffrost", 5, -10, 10, 1, P_NONE),
     P("exerciseIdleDays", "ex_days", 14, 7, 14, 1, P_NONE),
     P("selfTestBurn", "st_burn", 10, 5, 20, 1, P_NONE),
+    P("overheatMargin", "ov_mrg", 2.0f, 1.0f, 5.0f, 10, P_NONE),
+    P("overheatTime", "ov_tim", 60, 30, 180, 1, P_NONE),
+    P("noEffectDuty", "ne_dty", 50, 30, 100, 1, P_NONE),
+    P("noEffectTime", "ne_tim", 3, 1, 6, 1, P_NONE),
+    P("noEffectRise", "ne_ris", 0.2f, 0.1f, 1.0f, 10, P_NONE),
 };
 
 static const char* STATE_KEYS[(uint8_t)StateKey::Count] = {
