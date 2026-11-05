@@ -7,6 +7,19 @@ Entries before 29.10.2026 (the system before the lean clean-up):
 
 
 
+## [05.11.2026] - Step 10: ControlTask on Core 1, FreeRTOS preemption, FR-23 timing metrics, and TWDT supervision (AR-21, FR-23, NFR-1.5, NFR-1.8; C-46, PB-56, PB-59, G33)
+
+- **Who / when / why:** firmware session (Antigravity), light process, Step 10 Part 2 of architecture migration (§18). Built dedicated FreeRTOS `ControlTask` on Core 1 (priority 3, period 1000 ms, 4 KB stack) decoupled from Arduino `loop()` (priority 1), completing AR-21 concurrency architecture. Resolves HTTP starvation and safety blocking (PB-56, PB-59, G33). Both `ControlTask` and `loopTask` are registered with the 90s Hardware Task Watchdog (TWDT) for fail-safe supervision (NFR-1.5).
+- **Done:**
+  - `include/App.h` & `src/App.cpp`: implemented Module 1 `App` declaring `init()`, `startControlTask()`, loop timing measurement, FreeRTOS stack high-water mark accessors, and TWDT registration.
+  - `src/ThermalZoneManager.cpp` & `include/ThermalZoneManager.h`: decoupled debounced NVS writes (`persistConfig()`) out of the 1s control task into `flushPendingNvs()` executed in `loop()`, adhering to Rule R-A8 (no flash I/O in control task).
+  - `src/main.cpp`: initialized `App`, armed TWDT on both `loopTask` and `controlTask`, moved `boilerRadio.update()` and `thermalZones.update()` from `loop()` to `controlTask`, and measured loop pass duration.
+  - `src/WebApi.cpp`: exposed `longestTickDelayMs`, `longestLoopPassMs`, and `controlStackFree` in `GET /api/status` (FR-23); exposed `controlStackFree`, `loopStackFree` and registered `ctl` task in `GET /api/diag/mem`.
+  - `src/ConsoleCommands.cpp`: added `Max Delays (FR-23)` and `Stack Free (Min)` to console `STATUS` command.
+  - `tools/sh_tests/t_control_task.py`: created `SWE.5-TC44.1`..`TC44.4` testing timing metrics contract, TWDT stack health, control tick preemption under HTTP load, and weather fault injection.
+- **Numbers:** firmware binary 1,270,821 B (flash margin 35.8 KB under 1,306,624 B limit), free heap ~95 KB, control task stack free 2,352 B (min 1,308 B under load, well above 1,024 B requirement), control tick jitter ~1 ms (<= 90 ms worst-case during RF bursts, well within 500 ms bound).
+- **Tests:** `SWE.5-TC44.1`..`TC44.4` written first (red run failed as expected), frozen, now 100% PASS on board (Group 44: 4/4 PASS).
+
 ## [05.11.2026] - Step 7: ZoneController, outdoor bands, FR-51 fault duty, and FaultInjector (FR-47, FR-51, NFR-5.5; PB-23, PB-61, PB-95, C-45)
 
 - **Who / when / why:** firmware session (Antigravity), light process, Step 7 of architecture migration (§18). Decoupled thermal control law into `ZoneController` (L4 Control layer, AR-12), replacing monolithic control logic. Enforced FR-51 fallback duty on sensor loss (resolving PB-23 and PB-61) and built RAM-based `FaultInjector` (NFR-5.5, resolving PB-95).
