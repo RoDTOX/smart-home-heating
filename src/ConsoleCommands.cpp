@@ -9,6 +9,7 @@
 #include "TelemetryHistoryManager.h"
 #include "TimeAndWeatherService.h"
 #include "Version.h"
+#include "FaultInjector.h"
 #include <Arduino.h>
 #include <ArduinoJson.h>
 #include <WebServer.h>
@@ -217,6 +218,28 @@ void handleSerialCommand(String cmd) {
       netConsole.printf("[Thermal] Current sensor failsafe timeout: %u s (%u min)\n",
                         thermalZones.getSensorTimeoutSec(),
                         thermalZones.getSensorTimeoutSec() / 60);
+    }
+  } else if (upperCmd.startsWith("INJECT")) {
+    int sp1 = upperCmd.indexOf(' ');
+    if (sp1 > 0) {
+      int sp2 = upperCmd.indexOf(' ', sp1 + 1);
+      String pt = (sp2 > 0) ? upperCmd.substring(sp1 + 1, sp2) : upperCmd.substring(sp1 + 1);
+      pt.trim();
+      if (pt == "CLEAR") {
+        faultInjector.clear();
+        netConsole.println(F("[INJECT] All fault injections cleared (RAM reset)."));
+      } else if (pt == "STATUS") {
+        netConsole.printf("[INJECT] Active injections: %s\r\n", faultInjector.getInjectionsJsonString().c_str());
+      } else {
+        uint8_t zone = (sp2 > 0) ? (uint8_t)upperCmd.substring(sp2 + 1).toInt() : 0;
+        if (faultInjector.inject(pt, zone)) {
+          netConsole.printf("[INJECT] Injected: %s (zone: %u)\r\n", pt.c_str(), zone);
+        } else {
+          netConsole.println(F("[INJECT] Injection refused or unsupported."));
+        }
+      }
+    } else {
+      netConsole.println(F("[INJECT] Usage: INJECT <sensor-lost|weather-lost|time-lost|humidity-lost> [zone] | INJECT CLEAR | INJECT STATUS"));
     }
   } else if (upperCmd == "S" || upperCmd == "STATUS") {
 

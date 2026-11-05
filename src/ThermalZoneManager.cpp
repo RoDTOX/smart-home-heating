@@ -8,6 +8,8 @@
 #include "BleSensorScanner.h"
 #include "DiagnosticEngine.h"
 #include "TimeAndWeatherService.h"
+#include "ZoneController.h"
+#include "FaultInjector.h"
 #include <time.h>
 #include <algorithm>
 
@@ -263,6 +265,7 @@ uint8_t ThermalZoneManager::eventContext() const {
 void ThermalZoneManager::begin() {
     eventLog.setContextFn([]() { return thermalZones.eventContext(); });
     boilerRadio.setOnPermit([]() { return thermalZones.boilerOnPermitted(); });  // FR-2, every ON source
+    zoneController.begin();
     loadConfig();
     loadSchedule();
     evaluateSchedule(millis());
@@ -1127,58 +1130,15 @@ uint32_t ThermalZoneManager::getPreHeatLeadMinutes() const {
 }
 
 bool ThermalZoneManager::evaluateTpi(size_t index, float target, uint32_t now) {
-    TpiState& t = _tpi[index];
+    if (index >= MAX_THERMAL_ZONES) return false;
     float temp = _statuses[index].currentTemp;
-    float err = target - temp;
-    bool cycleDone = t.cycleStartMs != 0 && now - t.cycleStartMs >= TPI_CYCLE_MS;
-
-    // Full 100% duty on thermal deficit >= 0.4 C (underfloor screed inertia, PB-67, C-14, FR-47)
-    if (err >= 0.4f) {
-        t.duty = 1.0f;
-        t.onMs = TPI_CYCLE_MS;
-        t.cycleStartMs = now;
-        t.target = target;
-        return true;
-    }
-
-    // New cycle every hour, when transitioning from deficit, or when target moves > 0.4 C
-    if (t.cycleStartMs == 0 || cycleDone || t.duty >= 1.0f || fabsf(target - t.target) > 0.4f) {
-        // Learn the base duty that holds the target; only near target so big setpoint jumps do not wind it up
-        if (cycleDone && fabsf(err) < 1.0f) {
-            t.integral = constrain(t.integral + TPI_KI * err, 0.0f, TPI_MAX_INTEGRAL);
-            // Keep the learning across reboots; write only on a meaningful change (NVS wear)
-            if (fabsf(t.integral - t.savedIntegral) >= 0.05f) {
-                paramStore.saveLearned(index, (int16_t)lroundf(t.integral * 1000));
-                t.savedIntegral = t.integral;
-            }
-        }
-        // Outdoor temperature compensation: colder weather adds base duty (PB-67, C-14, FR-47)
-        float outdoorComp = 0.0f;
-        if (timeAndWeather.isWeatherValid()) {
-            float outT = timeAndWeather.getOutdoorTemperature();
-            if (outT < 15.0f) {
-                outdoorComp = constrain((15.0f - outT) * 0.015f, 0.0f, 0.30f);
-            }
-        }
-        t.duty = constrain(err / TPI_BAND_C + outdoorComp + t.integral, 0.0f, 1.0f);
-        uint32_t onMs = (uint32_t)(t.duty * TPI_CYCLE_MS);
-        if (onMs < TPI_MIN_ON_MS) onMs = 0;
-        else if (TPI_CYCLE_MS - onMs < TPI_MIN_ON_MS) onMs = TPI_CYCLE_MS;
-        t.cycleStartMs = now;
-        t.onMs = onMs;
-        t.target = target;
-        netConsole.printf("[Thermal][TPI] Zone %u (%s): %.2f C -> target %.1f C, duty %u%% (learned %u%%, extComp %u%%), valve %u min/h\n",
-            _configs[index].id, _configs[index].name, temp, target,
-            (unsigned int)(t.duty * 100), (unsigned int)(t.integral * 100), (unsigned int)(outdoorComp * 100), (unsigned int)(onMs / 60000UL));
-    }
-
-    // Overshoot cut: stop for the rest of the cycle once above target + hysteresis (e.g. solar gain)
-    uint32_t elapsed = now - t.cycleStartMs;
-    if (temp >= target + _hysteresis && elapsed < t.onMs) {
-        t.onMs = elapsed;
-        t.duty = 0.0f;
-    }
-    return elapsed < t.onMs;
+    float outT = timeAndWeather.getOutdoorTemperature();
+    bool weatherValid = timeAndWeather.isWeatherValid() && !faultInjector.isWeatherLost();
+    bool demand = zoneController.evaluateTpi(index, temp, target, now, outT, weatherValid, _hysteresis);
+    _tpi[index].duty = zoneController.getDuty(index);
+    _tpi[index].onMs = zoneController.getOnMs(index);
+    _tpi[index].target = target;
+    return demand;
 }
 
 float ThermalZoneManager::getEffectiveTargetTemp(size_t index) const {
@@ -1743,19 +1703,23 @@ void ThermalZoneManager::update(BoilerRadioTrigger& boiler) {
         uint32_t timeoutMs = _sensorTimeoutSec * 1000UL;
 
         // Direct Native BLE Sensor Resolution
-        if (strlen(_configs[i].sensorMac) > 0) {
-            const BleSensorData* ble = bleScanner.findSensorByMac(_configs[i].sensorMac);
-            if (ble && ble->valid && (millis() - ble->lastSeenMs < timeoutMs)) {
-                currentTemp = ble->temperature + _configs[i].tempOffset;
-                found = true;
+        if (faultInjector.isSensorLost(_configs[i].id)) {
+            found = false;
+        } else {
+            if (strlen(_configs[i].sensorMac) > 0) {
+                const BleSensorData* ble = bleScanner.findSensorByMac(_configs[i].sensorMac);
+                if (ble && ble->valid && (millis() - ble->lastSeenMs < timeoutMs)) {
+                    currentTemp = ble->temperature + _configs[i].tempOffset;
+                    found = true;
+                }
             }
-        }
 
-        if (!found && strlen(_configs[i].sensorName) > 0) {
-            const BleSensorData* ble = bleScanner.findSensorByName(_configs[i].sensorName);
-            if (ble && ble->valid && (millis() - ble->lastSeenMs < timeoutMs)) {
-                currentTemp = ble->temperature + _configs[i].tempOffset;
-                found = true;
+            if (!found && strlen(_configs[i].sensorName) > 0) {
+                const BleSensorData* ble = bleScanner.findSensorByName(_configs[i].sensorName);
+                if (ble && ble->valid && (millis() - ble->lastSeenMs < timeoutMs)) {
+                    currentTemp = ble->temperature + _configs[i].tempOffset;
+                    found = true;
+                }
             }
         }
 
@@ -1811,25 +1775,34 @@ void ThermalZoneManager::update(BoilerRadioTrigger& boiler) {
             }
         } else {
             evaluateFrost(i, false, 0.0f);  // no accepted reading: no frost duty (FR-16.1), FR-51 covers the loss
-            if (_bootWarmupActive) {
+            if (_bootWarmupActive && !faultInjector.isSensorLost(_configs[i].id) && _statuses[i].state == ZONE_WARMUP) {
                 _statuses[i].sensorValid = false;
                 _statuses[i].sensorFault = false;
                 _statuses[i].state = ZONE_WARMUP;
             } else {
-                // Sensor missing > timeout: CRITICAL FAILSAFE
+                // Sensor missing > timeout: FR-51 Fallback Duty (fixes PB-23, PB-61)
                 bool newFault = _statuses[i].state != ZONE_FAULT_TIMEOUT;
                 _statuses[i].sensorValid = false;
                 _statuses[i].sensorFault = true;
                 _statuses[i].state = ZONE_FAULT_TIMEOUT;
 
                 if (newFault) eventLog.add(EV_SENSOR, 0, RS_SENSOR_LOSS, _configs[i].id, 0, 1);
-                if (newFault || (_autoMode && _statuses[i].demand)) {
-                    netConsole.printf("[Thermal] CRITICAL FAILSAFE: Zone %u (%s) sensor timeout >%u s! Shutting down actuator.\n",
-                        _configs[i].id, _configs[i].name, _sensorTimeoutSec);
-                    if (_autoMode) _statuses[i].demand = false;  // the valve closes in arbitrateValves (FR-37, FR-3)
+                if (newFault) {
                     char dtcMsg[64];
-                    snprintf(dtcMsg, sizeof(dtcMsg), "Zone %u sensor timeout >%us - zone shutdown", _configs[i].id, _sensorTimeoutSec);
+                    snprintf(dtcMsg, sizeof(dtcMsg), "Zone %u sensor timeout >%us - fallback heating active", _configs[i].id, _sensorTimeoutSec);
                     diagEngine.raiseDtc(Dtc::ERR_SENSOR_TIMEOUT, dtcMsg, SEV_ERROR, _configs[i].id);
+                }
+
+                // FR-51: In AUTO mode, zone in FAULT keeps heating with learned duty or faultDuty
+                if (_autoMode && !_statuses[i].frostActive) {
+                    float outT = timeAndWeather.getOutdoorTemperature();
+                    bool weatherValid = timeAndWeather.isWeatherValid() && !faultInjector.isWeatherLost();
+                    float faultDutyPct = (float)paramStore.get(Param::FaultDuty);
+                    float faultFrostOutdoor = (float)paramStore.get(Param::FaultFrostOutdoor);
+                    _statuses[i].demand = zoneController.evaluateFaultDuty(i, now, outT, weatherValid,
+                                                                         _seasonHeating, faultDutyPct, faultFrostOutdoor);
+                    _tpi[i].duty = zoneController.getDuty(i);
+                    _tpi[i].onMs = zoneController.getOnMs(i);
                 }
             }
         }

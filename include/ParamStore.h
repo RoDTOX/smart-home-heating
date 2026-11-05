@@ -42,6 +42,8 @@ enum class Param : uint8_t {
     SeasonMode,          // 0 = AUTO, 1 = ON, 2 = OFF   FR-12.2
     HeatingType,         // 0 = floor, 1 = radiators   FR-40
     BoilerLinkType,      // 0 = rf433, 1 = wired, 2 = receiver   FR-55, FR-69
+    FaultDuty,           // % (0..30%, default 20%) FR-51
+    FaultFrostOutdoor,   // C (-10..10 C, default 5 C) FR-51, FR-64
     Count
 };
 

@@ -245,6 +245,7 @@ public:
 
     // TPI control state (for diagnostics)
     float getDuty(size_t index) const { return index < MAX_THERMAL_ZONES ? _tpi[index].duty : 0.0f; }
+    uint32_t getZoneOnMs(size_t index) const { return index < MAX_THERMAL_ZONES ? _tpi[index].onMs : 0; }
     float getLearnedDuty(size_t index) const { return index < MAX_THERMAL_ZONES ? _tpi[index].integral : 0.0f; }
     // Learned base duty in % with one decimal (the resolution of the stored per-mille value), 0..60 (FR-47)
     float getLearnedDutyPct(size_t index) const;

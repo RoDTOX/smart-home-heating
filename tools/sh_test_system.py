@@ -36,9 +36,10 @@ from sh_tests.t_webassets import WebAssetTests
 from sh_tests.t_eventlog import EventLogTests
 from sh_tests.t_commands_auth import CommandsAuthTests
 from sh_tests.t_boiler_link import BoilerLinkTests
+from sh_tests.t_zone_controller import ZoneControllerTests
 
 
-class SystemTestSuite(SuiteBase, HealthTests, HydraulicsTests, ControlTests, UiHistoryTests, SafetyFeatureTests, ExportImportTests, ZoneTests, ConsoleTests, SafetySupervisorTests, SensorHubTests, WeatherTests, ModeTests, HistoryStreamTests, WebAssetTests, EventLogTests, CommandsAuthTests, BoilerLinkTests):
+class SystemTestSuite(SuiteBase, HealthTests, HydraulicsTests, ControlTests, UiHistoryTests, SafetyFeatureTests, ExportImportTests, ZoneTests, ConsoleTests, SafetySupervisorTests, SensorHubTests, WeatherTests, ModeTests, HistoryStreamTests, WebAssetTests, EventLogTests, CommandsAuthTests, BoilerLinkTests, ZoneControllerTests):
     # ---------------------------------------------------------
     # Test Runner & Traceability Matrix Evaluation
     # ---------------------------------------------------------
@@ -310,6 +311,11 @@ class SystemTestSuite(SuiteBase, HealthTests, HydraulicsTests, ControlTests, UiH
             self.test_tc42_2_boiler_link_heartbeat_toggle_and_dtc207,
             self.test_tc42_3_boiler_link_idempotency_and_cooldown,
             self.test_tc42_4_boiler_link_type_contract,
+            # Group 43: ZoneController, learned duty per band, FR-51 fault duty, FaultInjector (step 7)
+            self.test_tc43_1_fault_injector_api_contract,
+            self.test_tc43_2_fr51_sensor_loss_fallback_duty,
+            self.test_tc43_3_outdoor_temperature_bands,
+            self.test_tc43_4_pb61_minimum_valve_on_time_clamp,
         ]
         if self.only:   # --only TC34,TC35: run just these groups (name part after test_)
             tests = [t for t in tests if any(t.__name__.startswith("test_" + o.lower() + "_") for o in self.only)]

@@ -54,6 +54,8 @@ static const ParamDef PARAMS[(uint8_t)Param::Count] = {
     P("seasonMode", "smode", 0, 0, 2, 1, P_NONE),
     P("heatingType", "htype", 0, 0, 1, 1, P_AUTH),
     P("boilerLinkType", "bltype", 0, 0, 2, 1, P_AUTH),
+    P("faultDuty", "fduty", 20, 0, 30, 1, P_NONE),
+    P("faultFrostOutdoor", "ffrost", 5, -10, 10, 1, P_NONE),
 };
 
 static const char* STATE_KEYS[(uint8_t)StateKey::Count] = {

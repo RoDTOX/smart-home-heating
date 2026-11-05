@@ -11,6 +11,8 @@
 #include "TelemetryHistoryManager.h"
 #include "TimeAndWeatherService.h"
 #include "Version.h"
+#include "FaultInjector.h"
+#include "ZoneController.h"
 #include <Arduino.h>
 #include <ArduinoJson.h>
 #include <WebServer.h>
@@ -448,6 +450,7 @@ void handleApiZones() {
   o.put("\"activeLevel\":\"%s\",\"nextLevel\":\"%s\",\"minsToNextSlot\":%ld,\"preHeatActive\":%s,",
         ThermalZoneManager::getLevelName(thermalZones.getActiveLevel()), ThermalZoneManager::getLevelName(thermalZones.getNextLevel()),
         (long)thermalZones.getMinutesToNextSlot(), tf(thermalZones.isPreHeatActive()));
+  o.put("\"outdoorTemp\":%.1f,\"outdoorBand\":%u,", (double)timeAndWeather.getOutdoorTemperature(), (unsigned)ZoneController::getOutdoorBand(timeAndWeather.getOutdoorTemperature()));
   o.put("\"boilerRuntime\":{\"totalSec\":%lu,\"todaySec\":%lu,\"yesterdaySec\":%lu,\"thisMonthSec\":%lu,\"lastMonthSec\":%lu,\"currentBurnSec\":%lu},\"zones\":[",
         (unsigned long)boilerRadio.getRuntimeTotalSec(), (unsigned long)boilerRadio.getRuntimeTodaySec(),
         (unsigned long)boilerRadio.getRuntimeYesterdaySec(), (unsigned long)boilerRadio.getRuntimeThisMonthSec(),
@@ -481,9 +484,9 @@ void handleApiZones() {
     o.put("\"windowPauseRemainingSec\":%lu,\"windowDropThreshold\":%.1f,\"lastWindowEpoch\":%lu,\"lastWindowDurationSec\":%lu,",
           (unsigned long)thermalZones.getWindowPauseRemainingSec(i), (double)thermalZones.getWindowThreshold(),
           (unsigned long)thermalZones.getWindowLastDetectionEpoch(i), (unsigned long)thermalZones.getWindowLastDetectionDurationSec(i));
-    o.put("\"demand\":%s,\"relayEngaged\":%s,\"openSec\":%lu,\"isManualHold\":%s,\"duty\":%d,\"learnedDuty\":%.1f,\"tempOffset\":%.1f,",
-          tf(st.demand), tf(st.relayEngaged), (unsigned long)openSec, tf(st.isManualHold), (int)(thermalZones.getDuty(i) * 100),
-          (double)thermalZones.getLearnedDutyPct(i), (double)cfg.tempOffset);
+    o.put("\"demand\":%s,\"relayEngaged\":%s,\"openSec\":%lu,\"isManualHold\":%s,\"duty\":%.2f,\"dutyPct\":%d,\"onTimeSec\":%lu,\"learnedDuty\":%.1f,\"tempOffset\":%.1f,",
+          tf(st.demand), tf(st.relayEngaged), (unsigned long)openSec, tf(st.isManualHold), (double)thermalZones.getDuty(i), (int)(thermalZones.getDuty(i) * 100),
+          (unsigned long)(thermalZones.getZoneOnMs(i) / 1000), (double)thermalZones.getLearnedDutyPct(i), (double)cfg.tempOffset);
     o.put("\"runtimeTodaySec\":%lu,\"runtimeYesterdaySec\":%lu,\"state\":\"%s\"}",
           (unsigned long)thermalZones.getZoneRuntimeTodaySec(i), (unsigned long)thermalZones.getZoneRuntimeYesterdaySec(i),
           thermalZones.getStateCode(i));
@@ -934,6 +937,44 @@ void handleApiDiagStatus() {
   o.end();
 }
 
+void handleApiDiagInjectGet() {
+  sendCorsHeaders();
+  server.send(200, "application/json", faultInjector.getInjectionsJsonString());
+}
+
+void handleApiDiagInjectPost() {
+  if (!requireAuth()) return;
+  if (!server.hasArg("plain")) {
+    server.send(400, "application/json", "{\"error\":\"missing body\"}");
+    return;
+  }
+  JsonDocument doc;
+  DeserializationError err = deserializeJson(doc, server.arg("plain"));
+  if (err) {
+    server.send(400, "application/json", "{\"error\":\"invalid json\"}");
+    return;
+  }
+  const char* pt = doc["point"] | "";
+  uint8_t zone = doc["zone"] | 0;
+  if (!pt || strlen(pt) == 0) {
+    server.send(400, "application/json", "{\"error\":\"missing point\"}");
+    return;
+  }
+  if (faultInjector.inject(String(pt), zone)) {
+    sendCorsHeaders();
+    server.send(200, "application/json", "{\"status\":\"ok\"}");
+  } else {
+    server.send(400, "application/json", "{\"error\":\"injection refused or unsupported\"}");
+  }
+}
+
+void handleApiDiagInjectClear() {
+  if (!requireAuth()) return;
+  faultInjector.clear();
+  sendCorsHeaders();
+  server.send(200, "application/json", "{\"status\":\"ok\"}");
+}
+
 void handleApiDiagEvents() {
   sendCorsHeaders();
   server.send(200, "application/json", diagEngine.eventsJson());
@@ -1351,8 +1392,8 @@ void handleApiConfigSystemGet() {
         pi(Param::BoilerFlowObserved), pf(Param::GasFlameRate), pi(Param::BoilerPowerKw));
   o.put("\"gasPrice\":%.2f,\"validMin\":%.1f,\"validMax\":%.1f,\"maxJump\":%.1f,\"manualTimeoutSec\":%ld,\"boostDurationSec\":%ld,",
         pf(Param::GasPrice), pf(Param::ValidMin), pf(Param::ValidMax), pf(Param::MaxJump), pi(Param::ManualTimeout), pi(Param::BoostDuration));
-  o.put("\"heatLimit\":%ld,\"seasonOnDays\":%ld,\"seasonOffDays\":%ld,\"heatingType\":%ld,\"boilerLinkType\":%ld,\"adaptiveWindow\":%s,\"zones\":[", pi(Param::HeatLimit), pi(Param::SeasonOnDays),
-        pi(Param::SeasonOffDays), pi(Param::HeatingType), pi(Param::BoilerLinkType), tf(thermalZones.getHeatingType() == HEATING_TYPE_FLOOR));
+  o.put("\"heatLimit\":%ld,\"seasonOnDays\":%ld,\"seasonOffDays\":%ld,\"heatingType\":%ld,\"boilerLinkType\":%ld,\"faultDuty\":%ld,\"faultFrostOutdoor\":%ld,\"adaptiveWindow\":%s,\"zones\":[", pi(Param::HeatLimit), pi(Param::SeasonOnDays),
+        pi(Param::SeasonOffDays), pi(Param::HeatingType), pi(Param::BoilerLinkType), pi(Param::FaultDuty), pi(Param::FaultFrostOutdoor), tf(thermalZones.getHeatingType() == HEATING_TYPE_FLOOR));
   for (size_t i = 0; i < thermalZones.getZoneCount(); i++) {
     const auto& z = thermalZones.getConfig(i);
     o.put("%s{\"id\":%d,\"name\":\"%s\",\"mac\":\"%s\",\"relayPin\":%d,\"enabled\":%s}", i > 0 ? "," : "", (int)z.id, z.name,
@@ -1390,6 +1431,8 @@ static const ConfigArg CONFIG_ARGS[] = {
     {"seasonOffDays", Param::SeasonOffDays},
     {"heatingType", Param::HeatingType},
     {"boilerLinkType", Param::BoilerLinkType},
+    {"faultDuty", Param::FaultDuty},
+    {"faultFrostOutdoor", Param::FaultFrostOutdoor},
     {"hbInterval", Param::HbInterval},
     {"boilerLinkHeartbeat", Param::BoilerLinkHeartbeat},
 };
@@ -1632,6 +1675,9 @@ void registerWebRoutes() {
   server.on("/api/season", HTTP_POST, handleApiSeason);
   server.on("/api/ble/sensors", HTTP_GET, handleApiBleSensors);
   server.on("/api/diag/status", HTTP_GET, handleApiDiagStatus);
+  server.on("/api/diag/inject", HTTP_GET, handleApiDiagInjectGet);
+  server.on("/api/diag/inject", HTTP_POST, handleApiDiagInjectPost);
+  server.on("/api/diag/inject/clear", HTTP_POST, handleApiDiagInjectClear);
   server.on("/api/diag/events", HTTP_GET, handleApiDiagEvents);
   server.on("/api/diag/log", HTTP_GET, handleApiDiagLog);
   server.on("/api/diag/mem", HTTP_GET, handleApiDiagMem);
