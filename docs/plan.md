@@ -78,7 +78,7 @@ zones and sensors the user sets up (C-10, C-11), then step 2; the rest in the or
 | 9 | `Commands` + authentication: one command path, FR-58 (also `/api/config/import`, FR-65.3), FR-59, CORS, English messages | built, flashed, tests PASS; owner test pending | in step 9 | — |
 | 10 | `Weather` and `ControlTask` (AR-21) | accepted: Weather worker 04.11.2026, ControlTask 05.11.2026 (automated tests sufficient per owner) | 431a64f | owner OK 05.11.2026 |
 | 11 | `History` in LittleFS, `StatusModel` static buffer | done: rings moved from RAM to LittleFS (5.28 KB RAM saved), StatusModel static buffer implemented (fragmentation eliminated, largestBlock 86 KB); tests SWE.5-TC37 100% PASS | 81ada91 | owner OK 05.11.2026 |
-| 12 | `Maintenance`: OTA quiet gate and rollback, full self-test, valve exercise | open | — | — |
+| 12 | `Maintenance`: OTA quiet gate and rollback, full self-test, valve exercise | done: QuietGate (FR-60, NFR-1.8), automatic rollback verification (FR-60), valve exercise weekly (FR-19), self-test diagnostics (/api/maint/selftest); tests SWE.5-TC45 100% PASS | in step 12 | owner OK 05.11.2026 |
 | 13 | `FlowInput` + `FlowLimit` — waits for the probe decision (risk R-4) | open | — | — |
 | 14 | Phase 4, one advisor per step: `PlantMonitor`, `HeatUpModel`, `SmartWindow` (risk R-5), `CycleAligner`, `SolarThrottle`, `HumidityComp`; later `RemoteGateway`, factory reset (export / import moved before step 3, C-9) | open | — | — |
 

@@ -5,6 +5,21 @@ Corelat cu planul activ: [`docs/plan.md`](file:///c:/Users/BSeceleanu/.github_re
 Entries before 29.10.2026 (the system before the lean clean-up):
 [`archive/changelog_until_2026-10-21.md`](archive/changelog_until_2026-10-21.md).
 
+## [05.11.2026] - Step 12: Maintenance module — QuietGate, OTA Rollback, Valve Exercise, and Full Self-Test (FR-19, FR-60, NFR-1.8)
+
+- **Who / when / why:** firmware session (Antigravity), implementing Step 12 of architecture migration (§18):
+  1. `QuietGate` (FR-60, NFR-1.8): OTA upload is blocked or deferred if boiler flame is currently active or pending overrun.
+  2. Automatic OTA Rollback verification (FR-60): checks `esp_ota_get_state_partition` on boot and records app validity / rollback support.
+  3. Valve Exercise (FR-19, D27): periodic 5 min exercise with boiler OFF for valves idle >= `exerciseIdleDays` [7..14] to prevent actuator sticking.
+  4. Full Self-Test (FR-60): on-demand diagnostics over 6 critical subsystems (NVS, LittleFS, Radio, SensorHub, ControlTask, Memory).
+- **Done:**
+  - `include/Maintenance.h` & `src/Maintenance.cpp`: created `Maintenance` singleton in Layer 5 (Infrastructure/Diagnostic).
+  - `include/ParamStore.h` & `src/ParamStore.cpp`: added `Param::ExerciseIdleDays` (default 14, bounds 7..14) and `Param::SelfTestBurn` (default 10, bounds 5..20).
+  - `src/WebApi.cpp`: exposed endpoints `GET /api/maint/status`, `POST /api/maint/selftest`, `POST /api/maint/exercise`; exposed parameters in `/api/config/system`; protected `/update` upload with `maintenance.canStartOta()`.
+  - `src/main.cpp`: registered `maintenance.begin()` in `setup()` and `maintenance.update()` in `loop()`.
+  - `tools/sh_tests/t_maintenance.py`: added SWE.5-TC45.1..TC45.4 test suite.
+- **Verification:** compiled cleanly with `pio run` (1,277,793 bytes, OTA margin 28 KB), `sh_process_check.py` PASS (0 errors, 1 known, 1 waived), flashed via OTA (`tools/sh_ota_upload.py`), SWE.5-TC45 4/4 PASS (100%).
+
 ## [05.11.2026] - Telemetry & Web UI: offline interval tracking ($T_{\text{OFF}} \rightarrow T_{\text{ON}}$), Admin password authentication modal, top header button, and dev banner removal (FR-34, FR-58, FR-59, FR-62.1)
 
 - **Who / when / why:** firmware session (Antigravity), addressing user requirements:

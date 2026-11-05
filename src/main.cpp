@@ -10,6 +10,7 @@
 #include "ThermalZoneManager.h"
 #include "TelemetryHistoryManager.h"
 #include "TimeAndWeatherService.h"
+#include "Maintenance.h"
 #include "Version.h"
 #include <Arduino.h>
 #include <ArduinoJson.h>
@@ -290,6 +291,7 @@ void setup() {
 
   // Initialize Flash Telemetry History Manager (LittleFS wear-leveling ring buffer)
   telemetryHistory.begin();
+  maintenance.begin();
 
   registerWebRoutes();
   // Initialize Hardware Task Watchdog Timer (90 seconds timeout)
@@ -340,6 +342,7 @@ void loop() {
   }
   telemetryHistory.update();
   diagEngine.update();
+  maintenance.update();
   thermalZones.flushPendingNvs();
   updateWifiWatchdog();
   checkPhysicalResetButton();

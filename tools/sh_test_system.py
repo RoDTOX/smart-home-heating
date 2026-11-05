@@ -44,9 +44,10 @@ from sh_tests.t_commands_auth import CommandsAuthTests
 from sh_tests.t_boiler_link import BoilerLinkTests
 from sh_tests.t_zone_controller import ZoneControllerTests
 from sh_tests.t_control_task import ControlTaskTests
+from sh_tests.t_maintenance import MaintenanceTests
 
 
-class SystemTestSuite(SuiteBase, HealthTests, HydraulicsTests, ControlTests, UiHistoryTests, SafetyFeatureTests, ExportImportTests, ZoneTests, ConsoleTests, SafetySupervisorTests, SensorHubTests, WeatherTests, ModeTests, HistoryStreamTests, WebAssetTests, EventLogTests, CommandsAuthTests, BoilerLinkTests, ZoneControllerTests, ControlTaskTests):
+class SystemTestSuite(SuiteBase, HealthTests, HydraulicsTests, ControlTests, UiHistoryTests, SafetyFeatureTests, ExportImportTests, ZoneTests, ConsoleTests, SafetySupervisorTests, SensorHubTests, WeatherTests, ModeTests, HistoryStreamTests, WebAssetTests, EventLogTests, CommandsAuthTests, BoilerLinkTests, ZoneControllerTests, ControlTaskTests, MaintenanceTests):
     # ---------------------------------------------------------
     # Test Runner & Traceability Matrix Evaluation
     # ---------------------------------------------------------
@@ -328,6 +329,11 @@ class SystemTestSuite(SuiteBase, HealthTests, HydraulicsTests, ControlTests, UiH
             self.test_tc44_2_task_watchdog_and_stack_health,
             self.test_tc44_3_control_tick_preemption_under_load,
             self.test_tc44_4_weather_lost_injection,
+            # Group 45: Maintenance (FR-19, FR-60, NFR-1.8) (step 12)
+            self.test_tc45_1_ota_quiet_gate_contract,
+            self.test_tc45_2_valve_exercise_param_bounds,
+            self.test_tc45_3_selftest_api_contract,
+            self.test_tc45_4_ota_rollback_contract,
         ]
         if self.only:   # --only TC34,TC35: run just these groups (name part after test_)
             tests = [t for t in tests if any(t.__name__.startswith("test_" + o.lower() + "_") for o in self.only)]

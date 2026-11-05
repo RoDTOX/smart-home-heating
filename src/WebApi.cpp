@@ -13,6 +13,7 @@
 #include "Version.h"
 #include "FaultInjector.h"
 #include "ZoneController.h"
+#include "Maintenance.h"
 #include <Arduino.h>
 #include <ArduinoJson.h>
 #include <WebServer.h>
@@ -1419,8 +1420,8 @@ void handleApiConfigSystemGet() {
         pi(Param::BoilerFlowObserved), pf(Param::GasFlameRate), pi(Param::BoilerPowerKw));
   o.put("\"gasPrice\":%.2f,\"validMin\":%.1f,\"validMax\":%.1f,\"maxJump\":%.1f,\"manualTimeoutSec\":%ld,\"boostDurationSec\":%ld,",
         pf(Param::GasPrice), pf(Param::ValidMin), pf(Param::ValidMax), pf(Param::MaxJump), pi(Param::ManualTimeout), pi(Param::BoostDuration));
-  o.put("\"heatLimit\":%ld,\"seasonOnDays\":%ld,\"seasonOffDays\":%ld,\"heatingType\":%ld,\"boilerLinkType\":%ld,\"faultDuty\":%ld,\"faultFrostOutdoor\":%ld,\"adaptiveWindow\":%s,\"zones\":[", pi(Param::HeatLimit), pi(Param::SeasonOnDays),
-        pi(Param::SeasonOffDays), pi(Param::HeatingType), pi(Param::BoilerLinkType), pi(Param::FaultDuty), pi(Param::FaultFrostOutdoor), tf(thermalZones.getHeatingType() == HEATING_TYPE_FLOOR));
+  o.put("\"heatLimit\":%ld,\"seasonOnDays\":%ld,\"seasonOffDays\":%ld,\"heatingType\":%ld,\"boilerLinkType\":%ld,\"faultDuty\":%ld,\"faultFrostOutdoor\":%ld,\"adaptiveWindow\":%s,\"exerciseIdleDays\":%ld,\"selfTestBurn\":%ld,\"zones\":[", pi(Param::HeatLimit), pi(Param::SeasonOnDays),
+        pi(Param::SeasonOffDays), pi(Param::HeatingType), pi(Param::BoilerLinkType), pi(Param::FaultDuty), pi(Param::FaultFrostOutdoor), tf(thermalZones.getHeatingType() == HEATING_TYPE_FLOOR), pi(Param::ExerciseIdleDays), pi(Param::SelfTestBurn));
   for (size_t i = 0; i < thermalZones.getZoneCount(); i++) {
     const auto& z = thermalZones.getConfig(i);
     o.put("%s{\"id\":%d,\"name\":\"%s\",\"mac\":\"%s\",\"relayPin\":%d,\"enabled\":%s}", i > 0 ? "," : "", (int)z.id, z.name,
@@ -1462,6 +1463,8 @@ static const ConfigArg CONFIG_ARGS[] = {
     {"faultFrostOutdoor", Param::FaultFrostOutdoor},
     {"hbInterval", Param::HbInterval},
     {"boilerLinkHeartbeat", Param::BoilerLinkHeartbeat},
+    {"exerciseIdleDays", Param::ExerciseIdleDays},
+    {"selfTestBurn", Param::SelfTestBurn},
 };
 static const char* CONFIG_FLAGS[] = {"openLoopBypass", "rfSafetyHeartbeatEnabled", "pumpControlEnabled",
                                      "actuatorNormallyClosed", "boilerLinkHeartbeat"};
@@ -1672,6 +1675,48 @@ void handleApiDevWeather() {
 }
 #endif
 
+void handleApiMaintStatus() {
+  sendCorsHeaders();
+  const char* gateReason = nullptr;
+  bool canOta = maintenance.canStartOta(&gateReason);
+  char resp[384];
+  snprintf(resp, sizeof(resp),
+           "{\"otaQuietGate\":{\"canStartOta\":%s,\"boilerOff\":%s,\"reason\":\"%s\"},"
+           "\"ota\":{\"rollbackSupported\":%s,\"appValid\":%s},"
+           "\"exercise\":{\"running\":%s,\"remainingSec\":%u,\"lastEpoch\":%u}}",
+           canOta ? "true" : "false",
+           !boilerRadio.isLastCommandOn() ? "true" : "false",
+           gateReason ? gateReason : "OK",
+           maintenance.isRollbackSupported() ? "true" : "false",
+           maintenance.isAppValid() ? "true" : "false",
+           maintenance.isExerciseRunning() ? "true" : "false",
+           (unsigned)maintenance.getExerciseRemainingSec(),
+           (unsigned)maintenance.getLastExerciseEpoch());
+  server.send(200, "application/json", resp);
+}
+
+void handleApiMaintSelfTest() {
+  sendCorsHeaders();
+  bool includeBurn = server.hasArg("burn") && server.arg("burn") == "1";
+  const auto& rep = maintenance.runSelfTest(includeBurn);
+  char resp[768];
+  int n = snprintf(resp, sizeof(resp), "{\"timestamp\":%u,\"allPassed\":%s,\"checks\":[",
+                   (unsigned)rep.timestamp, rep.allPassed ? "true" : "false");
+  for (uint8_t i = 0; i < rep.checkCount; i++) {
+    n += snprintf(resp + n, sizeof(resp) - n, "%s{\"name\":\"%s\",\"ok\":%s,\"detail\":\"%s\"}",
+                  i > 0 ? "," : "", rep.checks[i].name, rep.checks[i].ok ? "true" : "false", rep.checks[i].detail);
+  }
+  snprintf(resp + n, sizeof(resp) - n, "]}");
+  server.send(200, "application/json", resp);
+}
+
+void handleApiMaintExercise() {
+  if (!requireAuth()) return;
+  sendCorsHeaders();
+  maintenance.triggerManualExercise();
+  server.send(200, "application/json", F("{\"status\":\"ok\",\"message\":\"Valve exercise triggered (5 min)\"}"));
+}
+
 void registerWebRoutes() {
   static const char* headerKeys[] = {"Content-Type", "Authorization", "Origin"};  // FR-58, FR-65.7, FR-75.1
   server.collectHeaders(headerKeys, 2);
@@ -1741,5 +1786,8 @@ void registerWebRoutes() {
   server.on("/api/config/credentials", HTTP_POST, handleApiConfigCredentials);
   server.on("/api/auth/verify", HTTP_POST, handleApiAuthVerify);
   server.on("/api/auth/verify", HTTP_GET, handleApiAuthVerify);
-
+  server.on("/api/maint/status", HTTP_GET, handleApiMaintStatus);
+  server.on("/api/maint/selftest", HTTP_GET, handleApiMaintSelfTest);
+  server.on("/api/maint/selftest", HTTP_POST, handleApiMaintSelfTest);
+  server.on("/api/maint/exercise", HTTP_POST, handleApiMaintExercise);
 }

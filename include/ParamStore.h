@@ -44,6 +44,8 @@ enum class Param : uint8_t {
     BoilerLinkType,      // 0 = rf433, 1 = wired, 2 = receiver   FR-55, FR-69
     FaultDuty,           // % (0..30%, default 20%) FR-51
     FaultFrostOutdoor,   // C (-10..10 C, default 5 C) FR-51, FR-64
+    ExerciseIdleDays,    // days (7..14, default 14) FR-19
+    SelfTestBurn,        // min (5..20, default 10) FR-60
     Count
 };
 
