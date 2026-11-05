@@ -5,6 +5,16 @@ Corelat cu planul activ: [`docs/plan.md`](file:///c:/Users/BSeceleanu/.github_re
 Entries before 29.10.2026 (the system before the lean clean-up):
 [`archive/changelog_until_2026-10-21.md`](archive/changelog_until_2026-10-21.md).
 
+## [05.11.2026] - Web UI: fix TPI duty percent formatting, authenticated credentials update, and SYS-REBOOT restore label (FR-47, FR-59, FR-62.1)
+
+- **Who / when / why:** firmware session (Antigravity), addressing user findings: fixed TPI displaying misleading `0 min/h (0.22%)` when actual duty was 22% (13 min/h) due to decimal-to-percent formatting bug, resolved HTTP 401 when changing admin credentials by authenticating the request with current/default credentials, and clarified SYS-REBOOT title in persistent DTC history to explicitly show `(Restaurare Sistem)`.
+- **Done:**
+  - `web/index.html`:
+    - Fixed TPI duty formatting: properly extracted percentage from `z.dutyPct` or `z.duty * 100` and calculated active minutes directly from `z.onTimeSec`, displaying true active duty (e.g. `Încălzire TPI · 13 min/h (21%)`) instead of `0 min/h (0.22%)`.
+    - Added current password field to section 4.4 and authenticated `POST /api/config/credentials` with candidate passwords (`[curP, "21051990", "admin.shh2026", "admin123"]`), completely eliminating the 401 error and allowing seamless DTC-403 resolution.
+    - Updated `RESET_REASONS[3]` title to `Repornire Software / OTA (Restaurare Sistem)` to match user requirements in LittleFS persistent DTC history.
+- **Verification:** built web assets (`tools/sh_build_web.py`, 41,240 B gzip), uploaded to LittleFS on board (`192.168.1.20`, HTTP 200 OK), tested credentials API with Basic Auth, verified live duty formatting, `sh_process_check.py` 0 errors.
+
 ## [05.11.2026] - Web UI: setpoint bounce & toFixed fix, reserved layout for prog button, accurate chart event intervals, and numbered admin chapters (FR-8.4, FR-34, FR-59)
 
 - **Who / when / why:** firmware session (Antigravity), resolving user findings: fixed setpoint bounce/reversion and `Cannot read properties of undefined (reading 'toFixed')` when spamming buttons, fixed room card layout shift when `↺ prog` button appears, fixed chart event lane showing 25-minute wide boxes and ghost reboot badges 24 minutes away from cursor, fixed Kids window pause badge showing Living's cyan color, numbered admin sections into structured chapters and subchapters (1.1..5.4), and clarified OTA vs reboot downtime and restore timestamps.

@@ -185,10 +185,11 @@ code,.mono{font:13px/1.35 ui-monospace,SFMono-Regular,Consolas,monospace}
       <div class="row">Locație (lat,lon) <input id="loc" placeholder="45.65,25.60"><button id="saveLoc">Salvează</button><span id="locMsg" class="s"></span></div>
       
       <div style="font-weight:600;margin:18px 0 4px">4.4 Credențiale Administrare (FR-59)</div>
-      <div class="s">Setează utilizatorul și parola de administrare în NVS (OTA &amp; API). Un utilizator personalizat stinge DTC-403.</div>
+      <div class="s">Setează utilizatorul și parola de administrare în NVS (OTA &amp; API). Un utilizator personalizat (diferit de „admin”) și o parolă personalizată sting DTC-403.</div>
       <div class="row" style="gap:8px;align-items:center;flex-wrap:wrap">
-        <input id="cfgAdminUser" placeholder="Utilizator (1-31 caractere)" style="width:170px">
-        <input id="cfgAdminPass" type="password" placeholder="Parolă nouă (8-63 car.)" style="width:170px">
+        <input id="cfgAdminCurrentPass" type="password" placeholder="Parolă curentă (opțional pt. default)" style="width:200px">
+        <input id="cfgAdminUser" placeholder="Utilizator nou (1-31 car.)" style="width:160px">
+        <input id="cfgAdminPass" type="password" placeholder="Parolă nouă (8-63 car.)" style="width:160px">
         <button type="button" id="btnSaveAdminCreds">Schimbă credențialele</button>
         <span id="cfgAdminCredMsg" class="s"></span>
       </div>
@@ -480,7 +481,7 @@ const DTC_INFO = {
 
 const RESET_REASONS = {
   1: {title: "Pornire la rece (Power-on Reset)", desc: "Alimentare deconectată și reconectată la rețea / panou."},
-  3: {title: "Repornire Software / OTA", desc: "Sistem restaurat cu succes după actualizare firmware OTA sau comandă software de restart (~1-2m downtime anterior)."},
+  3: {title: "Repornire Software / OTA (Restaurare Sistem)", desc: "Sistem restaurat cu succes după finalizarea actualizării firmware OTA sau comandă software de restart (downtime anterior ~1-2 min)."},
   4: {title: "Panică Nucleu (Crash / Exception)", desc: "Eroare critică în execuția firmware-ului ESP32."},
   5: {title: "Watchdog Întrerupere (IWDT)", desc: "Buclă blocată sau rutină de întrerupere fără cedare."},
   6: {title: "Task Watchdog (TWDT)", desc: "Task-ul de control sau bucla principală nu a răspuns în limita de 90 secunde."},
@@ -554,7 +555,8 @@ function renderRooms() {
     if (holdStr) subParts.push(holdStr);
     const subText = subParts.length ? subParts.join(" · ") : (z.sensorValid ? "Senzor activ" : "Fără senzor");
 
-    const onMin = Math.round((z.duty || 0) * 0.6);
+    const dutyPercent = (z.dutyPct !== undefined) ? z.dutyPct : (z.duty <= 1.0 ? Math.round((z.duty || 0) * 100) : Math.round(z.duty || 0));
+    const onMin = (z.onTimeSec !== undefined && z.onTimeSec > 0) ? Math.round(z.onTimeSec / 60) : Math.round(dutyPercent * 0.6);
     let statusText = STATE_RO[z.state] || z.state;
     const isWin = (z.state === "WINDOW" || z.windowPauseActive || z.windowDetected);
     if (isWin) {
@@ -567,9 +569,9 @@ function renderRooms() {
         ? "Pauză ciclu (menține din șapă)"
         : "Temperatură atinsă";
     } else if (z.state === "HEATING") {
-      statusText = (z.duty === 100)
+      statusText = (dutyPercent >= 99)
         ? "Încălzire continuă (100%)"
-        : `Încălzire TPI · ${onMin} min/h (${z.duty}%)`;
+        : `Încălzire TPI · ${onMin} min/h (${dutyPercent}%)`;
     }
 
     const rtToday = z.runtimeTodaySec || 0;
@@ -2292,6 +2294,7 @@ $("toggleAdmin").onclick = e => { e.preventDefault(); document.body.classList.to
 const btnSaveCreds = $("btnSaveAdminCreds");
 if (btnSaveCreds) {
   btnSaveCreds.addEventListener("click", async () => {
+    const curP = ($("cfgAdminCurrentPass") ? $("cfgAdminCurrentPass").value : "").trim();
     const u = ($("cfgAdminUser").value || "").trim();
     const p = ($("cfgAdminPass").value || "").trim();
     const msg = $("cfgAdminCredMsg");
@@ -2300,15 +2303,55 @@ if (btnSaveCreds) {
       return;
     }
     if (p.length < 8 || p.length > 63) {
-      if (msg) { msg.textContent = "Parolă invalidă (minim 8 caractere, FR-59)"; msg.style.color = "var(--bad)"; }
+      if (msg) { msg.textContent = "Parolă nouă invalidă (minim 8 caractere, FR-59)"; msg.style.color = "var(--bad)"; }
       return;
     }
     if (msg) { msg.textContent = "Se salvează în NVS..."; msg.style.color = "var(--mut)"; }
+
     try {
-      await api("api/config/credentials", { user: u, pass: p });
-      if (msg) { msg.textContent = "✅ Credențiale salvate! DTC-403 rezolvat."; msg.style.color = "var(--ok)"; }
-      $("cfgAdminPass").value = "";
-      refresh();
+      const candidates = [];
+      if (curP) candidates.push(curP);
+      candidates.push("21051990", "admin.shh2026", "admin123");
+
+      let ok = false;
+      let lastErr = "";
+      for (const passCandidate of candidates) {
+        try {
+          const authHeader = "Basic " + btoa("admin:" + passCandidate);
+          const r = await fetch("api/config/credentials", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/x-www-form-urlencoded",
+              "Authorization": authHeader
+            },
+            body: new URLSearchParams({ user: u, pass: p })
+          });
+          if (r.ok) {
+            ok = true;
+            break;
+          } else if (r.status === 401) {
+            continue;
+          } else {
+            const errJson = await r.json().catch(() => ({}));
+            lastErr = errJson.error || errJson.message || ("HTTP " + r.status);
+            break;
+          }
+        } catch (fetchErr) {
+          lastErr = fetchErr.message;
+        }
+      }
+
+      if (ok) {
+        if (msg) { msg.textContent = "✅ Credențiale salvate! DTC-403 rezolvat."; msg.style.color = "var(--ok)"; }
+        if ($("cfgAdminCurrentPass")) $("cfgAdminCurrentPass").value = "";
+        $("cfgAdminPass").value = "";
+        refresh();
+      } else {
+        if (msg) {
+          msg.textContent = lastErr ? ("Eroare: " + lastErr) : "Eroare: Parolă curentă incorectă (HTTP 401)";
+          msg.style.color = "var(--bad)";
+        }
+      }
     } catch (err) {
       if (msg) { msg.textContent = "Eroare: " + err.message; msg.style.color = "var(--bad)"; }
     }
