@@ -1,17 +1,69 @@
-# Agent Plan Reference
+# Step 11 — History in LittleFS + StatusModel static buffer
 
-Authoritative plan: [`docs/plan.md`](../docs/plan.md) (ASPICE MAN.3). Status is tracked there.
+## Original request (verbatim)
 
-## Current Phase: Step 10 Part 2 (`ControlTask` AR-21) & Step 7 Review
+Step 7 am verificat vizual cat se poate. Step 10 nu o sa verific ce poti verifica tu, astea sunt verificabile
+automat prin teste, nu au nevoie de testare manuala. fa ce faci si apoi trecem la step 11.
 
-- **Active State**: Step 7 and Step 10 Part 2 built, flashed, and verified on board with 100% test pass rate. Owner hands-on test pending.
-- **Goal of Step 10 Part 2**: FreeRTOS `ControlTask` on Core 1 (priority 3, period 1000 ms, 4 KB stack) decoupled from `loop()` (priority 1), 90s TWDT registration (NFR-1.5), timing metrics measurement (`longestTickDelayMs`, `longestLoopPassMs`, FR-23), stack headroom monitoring (NFR-1.5, NFR-2.2), and preemption under HTTP load (NFR-1.8).
+## Goal (architecture §18, step 11)
 
-## Stage Tracker (Execution via `/sh-change`)
-- [x] Step 7 Implementation & SWE.5-TC43 tests (100% PASS on board, commit `211a7ee`)
-- [x] Step 10 Stage 1: Requirements & Architecture alignment (AR-21, FR-23, NFR-1.5, NFR-1.8)
-- [x] Step 10 Stage 2: Tests First (`tools/sh_tests/t_control_task.py`, SWE.5-TC44 suite, Red Run on board, `tools/sh_chain.py freeze`)
-- [x] Step 10 Stage 3: Implementation (`include/App.h`, `src/App.cpp`, `ThermalZoneManager`, `WebApi`, `ConsoleCommands`, `main.cpp`)
-- [x] Step 10 Stage 4: Local verification (`pio run`, `python tools/sh_process_check.py` 0 errors)
-- [x] Step 10 Stage 5: Flash OTA & Board tests (`SWE.5-TC44.1..4` 100% PASS, `sh_process_check.py board` PASS)
-- [x] Step 10 Stage 6: Documentation, plan status, changelog, and commit (commit `431a64f`)
+Close G28 (telemetry rings from RAM to LittleFS) and G29 (JSON built with `String` → `StatusModel` static buffer).
+Done when: heap ≥ 100 KB with 32 zones configured on the bench.
+
+## What is already done (partial acceptance 04.11.2026)
+
+- Streamed JSON for `/api/history` (AR-15) — chunked response, no full String in RAM
+- Web page served from LittleFS (FR-8.5)
+- Serial buffer reduced to 1 KB
+- `/api/diag/mem` endpoint (FR-10.6)
+- Weather task stack 6 KB → 4 KB
+
+## What remains
+
+### Part A — G28: Telemetry rings from RAM to LittleFS (AR-15)
+
+Today: `_ring24h[288]` (2,880 B) and `_ring5d[240]` (2,400 B) live entirely in RAM = **5,280 B**.
+Target: only the current record in RAM (~10 B); rings read from/written to LittleFS files.
+
+Design:
+1. Keep the current slot in RAM (one `TelemetryPoint` per ring = 20 B total).
+2. On a 5-min boundary, write the completed slot to the LittleFS file at the correct offset (append/seek).
+3. `streamHistoryJson()` already streams — change it to read from the file sequentially instead of the RAM array.
+4. `boilerOnSeconds()`, `gasFlowMeasured()`, runtime counters: read from file, not RAM array.
+5. Remove the two arrays from the class → saves **5,260 B heap**.
+6. `loadFromFlash()` / `saveToFlash()`: no longer bulk-copy arrays; file IS the persistence.
+
+### Part B — G29: StatusModel static buffer
+
+Today: every API handler in WebApi.cpp builds a `String` (106 uses) → heap fragmentation.
+Target: a 4 KB static `char[]` buffer; JSON written with `snprintf` / ArduinoJson `serializeJson` into it.
+
+Design:
+1. Create `StatusModel.h` / `StatusModel.cpp` with a static 4 KB buffer.
+2. The control tick (step 6 of the snapshot I16) populates the snapshot; `StatusModel` formats it.
+3. Migrate the biggest endpoints first: `/api/status`, `/api/zones` (each ~1.5 KB JSON).
+4. Then smaller endpoints: `/api/schedule`, `/api/config/*`, `/api/diag/*`.
+5. `server.send()` with `const char*` instead of `String`.
+
+### Part C — Verification
+
+1. `pio run` clean
+2. `python tools/sh_process_check.py` 0 ERROR
+3. Free heap ≥ 100 KB (NFR-2.2) — measure with `/api/diag/mem`
+4. Flash size ≤ 1,306,624 B with margin ≥ 20 KB (NFR-2.8)
+5. System tests pass on board
+
+## Stage tracker
+
+- [x] A1: Design ring-on-disk file layout (seek offsets, header)
+- [x] A2: Implement file-based write (updateSlots writes to LittleFS at offset)
+- [x] A3: Implement file-based read for streamHistoryJson
+- [x] A4: Implement file-based read for boilerOnSeconds, runtime counters
+- [x] A5: Remove RAM arrays, keep only current slot
+- [x] A6: Test: build clean, flash, verify history still works (TC37.1..TC37.2 100% PASS)
+- [ ] B1: Create StatusModel.h/cpp with static buffer
+- [ ] B2: Migrate /api/status to static buffer
+- [ ] B3: Migrate /api/zones to static buffer
+- [ ] B4: Migrate remaining endpoints
+- [ ] B5: Remove String usage from migrated handlers
+- [ ] C1: Full verification (build, process check, heap, flash, board test)

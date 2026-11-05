@@ -44,9 +44,93 @@ TelemetryHistoryManager::TelemetryHistoryManager()
       _lastRecorded30mSlot(255),
       _dirty24h(false),
       _dirty5d(false) {
-    memset(_ring24h, 0, sizeof(_ring24h));
-    memset(_ring5d, 0, sizeof(_ring5d));
+    memset(&_livePoint24h, 0, sizeof(_livePoint24h));
+    memset(&_livePoint5d, 0, sizeof(_livePoint5d));
     memset(_bootRecords, 0, sizeof(_bootRecords));
+}
+
+void TelemetryHistoryManager::initFlashFiles() {
+    if (!_fsMounted) return;
+
+    // Check or initialize 24h file (fixed size 2880 bytes)
+    const size_t sz24h = TELEMETRY_24H_POINTS * sizeof(TelemetryPoint);
+    if (!LittleFS.exists(FILE_24H) || LittleFS.open(FILE_24H, "r").size() < sz24h) {
+        File f = LittleFS.open(FILE_24H, "w");
+        if (f) {
+            TelemetryPoint blank;
+            memset(&blank, 0, sizeof(blank));
+            for (size_t i = 0; i < TELEMETRY_24H_POINTS; i++) {
+                f.write((const uint8_t*)&blank, sizeof(blank));
+            }
+            f.close();
+            netConsole.println(F("[HISTORY] Formatted 24h telemetry flash ring file (2880 B)."));
+        }
+    }
+
+    // Check or initialize 5d file (fixed size 2400 bytes)
+    const size_t sz5d = TELEMETRY_5D_POINTS * sizeof(TelemetryPoint);
+    if (!LittleFS.exists(FILE_5D) || LittleFS.open(FILE_5D, "r").size() < sz5d) {
+        File f = LittleFS.open(FILE_5D, "w");
+        if (f) {
+            TelemetryPoint blank;
+            memset(&blank, 0, sizeof(blank));
+            for (size_t i = 0; i < TELEMETRY_5D_POINTS; i++) {
+                f.write((const uint8_t*)&blank, sizeof(blank));
+            }
+            f.close();
+            netConsole.println(F("[HISTORY] Formatted 5d telemetry flash ring file (2400 B)."));
+        }
+    }
+}
+
+bool TelemetryHistoryManager::readPoint24h(uint16_t slot, TelemetryPoint& pt) const {
+    if (slot >= TELEMETRY_24H_POINTS) return false;
+    if (slot == _currentSlot24h && (_livePoint24h.flags & 0x80)) {
+        pt = _livePoint24h;
+        return true;
+    }
+    if (!_fsMounted) return false;
+    File f = LittleFS.open(FILE_24H, "r");
+    if (!f) return false;
+    if (!f.seek(slot * sizeof(TelemetryPoint))) { f.close(); return false; }
+    size_t rd = f.read((uint8_t*)&pt, sizeof(TelemetryPoint));
+    f.close();
+    return (rd == sizeof(TelemetryPoint));
+}
+
+bool TelemetryHistoryManager::writePoint24h(uint16_t slot, const TelemetryPoint& pt) {
+    if (slot >= TELEMETRY_24H_POINTS || !_fsMounted) return false;
+    File f = LittleFS.open(FILE_24H, "r+");
+    if (!f) return false;
+    if (!f.seek(slot * sizeof(TelemetryPoint))) { f.close(); return false; }
+    size_t wr = f.write((const uint8_t*)&pt, sizeof(TelemetryPoint));
+    f.close();
+    return (wr == sizeof(TelemetryPoint));
+}
+
+bool TelemetryHistoryManager::readPoint5d(uint8_t slot, TelemetryPoint& pt) const {
+    if (slot >= TELEMETRY_5D_POINTS) return false;
+    if (slot == _currentSlot5d && (_livePoint5d.flags & 0x80)) {
+        pt = _livePoint5d;
+        return true;
+    }
+    if (!_fsMounted) return false;
+    File f = LittleFS.open(FILE_5D, "r");
+    if (!f) return false;
+    if (!f.seek(slot * sizeof(TelemetryPoint))) { f.close(); return false; }
+    size_t rd = f.read((uint8_t*)&pt, sizeof(TelemetryPoint));
+    f.close();
+    return (rd == sizeof(TelemetryPoint));
+}
+
+bool TelemetryHistoryManager::writePoint5d(uint8_t slot, const TelemetryPoint& pt) {
+    if (slot >= TELEMETRY_5D_POINTS || !_fsMounted) return false;
+    File f = LittleFS.open(FILE_5D, "r+");
+    if (!f) return false;
+    if (!f.seek(slot * sizeof(TelemetryPoint))) { f.close(); return false; }
+    size_t wr = f.write((const uint8_t*)&pt, sizeof(TelemetryPoint));
+    f.close();
+    return (wr == sizeof(TelemetryPoint));
 }
 
 void TelemetryHistoryManager::begin() {
@@ -67,6 +151,7 @@ void TelemetryHistoryManager::begin() {
     } else {
         _fsMounted = true;
         netConsole.println(F("[HISTORY] LittleFS mounted successfully."));
+        initFlashFiles();
         loadFromFlash();
         gasReadingsBegin();
     }
@@ -88,29 +173,10 @@ void TelemetryHistoryManager::loadFromFlash() {
         }
     }
 
-    // Load 24h Ring Buffer
-    if (LittleFS.exists(FILE_24H)) {
-        File f = LittleFS.open(FILE_24H, "r");
-        if (f) {
-            size_t bytesRead = f.read((uint8_t*)_ring24h, sizeof(_ring24h));
-            f.close();
-            netConsole.printf("[HISTORY] Loaded 24h history (%u bytes)\r\n", (unsigned int)bytesRead);
-        }
-    } else {
-        netConsole.println(F("[HISTORY] No existing 24h history file found. Initialized blank."));
-    }
-
-    // Load 5d Ring Buffer
-    if (LittleFS.exists(FILE_5D)) {
-        File f = LittleFS.open(FILE_5D, "r");
-        if (f) {
-            size_t bytesRead = f.read((uint8_t*)_ring5d, sizeof(_ring5d));
-            f.close();
-            netConsole.printf("[HISTORY] Loaded 5d history (%u bytes)\r\n", (unsigned int)bytesRead);
-        }
-    } else {
-        netConsole.println(F("[HISTORY] No existing 5d history file found. Initialized blank."));
-    }
+    // Read current live slot if already populated on flash
+    readPoint24h(_currentSlot24h, _livePoint24h);
+    readPoint5d(_currentSlot5d, _livePoint5d);
+    netConsole.println(F("[HISTORY] Telemetry flash rings initialized (RAM cache 20 B)."));
 
     // Load Boot Records
     if (LittleFS.exists(FILE_BOOT)) {
@@ -213,12 +279,8 @@ void TelemetryHistoryManager::saveToFlash() {
     if (!_fsMounted) return;
 
     if (_dirty24h) {
-        File f = LittleFS.open(FILE_24H, "w");
-        if (f) {
-            f.write((const uint8_t*)_ring24h, sizeof(_ring24h));
-            f.close();
-            _dirty24h = false;
-        }
+        writePoint24h(_currentSlot24h, _livePoint24h);
+        _dirty24h = false;
         time_t now = time(nullptr);
         if (now > 1700000000UL) {
             File fla = LittleFS.open(FILE_LAST_ALIVE, "w");
@@ -231,37 +293,43 @@ void TelemetryHistoryManager::saveToFlash() {
     }
 
     if (_dirty5d) {
-        File f = LittleFS.open(FILE_5D, "w");
-        if (f) {
-            f.write((const uint8_t*)_ring5d, sizeof(_ring5d));
-            f.close();
-            _dirty5d = false;
-        }
+        writePoint5d(_currentSlot5d, _livePoint5d);
+        _dirty5d = false;
     }
 }
 
 void TelemetryHistoryManager::clearHistory() {
-    memset(_ring24h, 0, sizeof(_ring24h));
-    memset(_ring5d, 0, sizeof(_ring5d));
-    _dirty24h = true;
-    _dirty5d = true;
-    saveToFlash();
-    netConsole.println(F("[HISTORY] Cleared all history buffers."));
+    memset(&_livePoint24h, 0, sizeof(_livePoint24h));
+    memset(&_livePoint5d, 0, sizeof(_livePoint5d));
+    _dirty24h = false;
+    _dirty5d = false;
+    if (_fsMounted) {
+        LittleFS.remove(FILE_24H);
+        LittleFS.remove(FILE_5D);
+        initFlashFiles();
+    }
+    netConsole.println(F("[HISTORY] Cleared all history buffers in flash."));
 }
 
 void TelemetryHistoryManager::clear5dHistory() {
-    memset(_ring5d, 0, sizeof(_ring5d));
-    _dirty5d = true;
-    saveToFlash();
-    netConsole.println(F("[HISTORY] Cleared 5d history buffer."));
+    memset(&_livePoint5d, 0, sizeof(_livePoint5d));
+    _dirty5d = false;
+    if (_fsMounted) {
+        LittleFS.remove(FILE_5D);
+        initFlashFiles();
+    }
+    netConsole.println(F("[HISTORY] Cleared 5d history buffer in flash."));
 }
 
 void TelemetryHistoryManager::sync24hTo5d() {
+    if (!_fsMounted) return;
     for (uint16_t s = 0; s < TELEMETRY_24H_POINTS; s++) {
-        if ((_ring24h[s].flags & 0x80) && (s % 6 == 0)) {
-            uint8_t slot30m = (uint8_t)((s / 6) % TELEMETRY_5D_POINTS);
-            _ring5d[slot30m] = _ring24h[s];
-            _dirty5d = true;
+        if (s % 6 == 0) {
+            TelemetryPoint pt;
+            if (readPoint24h(s, pt) && (pt.flags & 0x80)) {
+                uint8_t slot30m = (uint8_t)((s / 6) % TELEMETRY_5D_POINTS);
+                writePoint5d(slot30m, pt);
+            }
         }
     }
 }
@@ -307,9 +375,27 @@ void TelemetryHistoryManager::updateLiveSample(bool forceNewSlot) {
     }
 
     bool isNew5mSlot = (slot5m != _lastRecorded5mSlot);
-    if (isNew5mSlot && _lastRecorded5mSlot != 0xFFFF && _fsMounted && _dirty24h) {
-        // Finalize previous slot and persist to flash
-        saveToFlash();
+    if (isNew5mSlot && _lastRecorded5mSlot != 0xFFFF) {
+        // Finalize previous 24h slot on flash
+        if (_dirty24h) {
+            writePoint24h(_lastRecorded5mSlot, _livePoint24h);
+            _dirty24h = false;
+        }
+        // Load target slot from flash into live cache
+        memset(&_livePoint24h, 0, sizeof(_livePoint24h));
+        readPoint24h(slot5m, _livePoint24h);
+    }
+
+    bool isNew30mSlot = (slot30m != _lastRecorded30mSlot);
+    if (isNew30mSlot && _lastRecorded30mSlot != 255) {
+        // Finalize previous 5d slot on flash
+        if (_dirty5d) {
+            writePoint5d(_lastRecorded30mSlot, _livePoint5d);
+            _dirty5d = false;
+        }
+        // Load target slot from flash into live cache
+        memset(&_livePoint5d, 0, sizeof(_livePoint5d));
+        readPoint5d(slot30m, _livePoint5d);
     }
 
     // Build current live sample point
@@ -352,27 +438,26 @@ void TelemetryHistoryManager::updateLiveSample(bool forceNewSlot) {
     }
     f |= ((winCode & 0x03) << 5);
 
-    // Within same 5-minute slot in RAM: latch active flags if boiler/valves/window operated at any point during this slot
-    if (!isNew5mSlot && !forceNewSlot && (_ring24h[slot5m].flags & 0x80)) {
-        f |= (_ring24h[slot5m].flags & 0x7F);
+    // Within same 5-minute slot: latch active flags if boiler/valves/window operated at any point during this slot
+    if (!isNew5mSlot && !forceNewSlot && (_livePoint24h.flags & 0x80)) {
+        f |= (_livePoint24h.flags & 0x7F);
     }
     p.flags = f;
     p.reserved = 0;
 
-    // 1. Update 24h slot in RAM
-    _ring24h[slot5m] = p;
+    // 1. Update 24h live slot
+    _livePoint24h = p;
     _dirty24h = true;
     _lastRecorded5mSlot = slot5m;
 
-    // 2. Update 5d slot in RAM
-    bool isNew30mSlot = (slot30m != _lastRecorded30mSlot);
+    // 2. Update 5d live slot
     uint8_t f5d = f;
-    if (!isNew30mSlot && (_ring5d[slot30m].flags & 0x80)) {
-        f5d |= (_ring5d[slot30m].flags & 0x7F);
+    if (!isNew30mSlot && (_livePoint5d.flags & 0x80)) {
+        f5d |= (_livePoint5d.flags & 0x7F);
     }
     TelemetryPoint p5d = p;
     p5d.flags = f5d;
-    _ring5d[slot30m] = p5d;
+    _livePoint5d = p5d;
     _dirty5d = true;
     if (isNew30mSlot) {
         _lastRecorded30mSlot = slot30m;
@@ -380,14 +465,14 @@ void TelemetryHistoryManager::updateLiveSample(bool forceNewSlot) {
 
     _lastSampleMs = millis();
 
-    // Commit to flash ONLY on slot boundary crossing or explicit forced capture
-    if (isNew5mSlot || forceNewSlot) {
+    // Commit to flash on slot boundary crossing or explicit forced capture
+    if (isNew5mSlot || isNew30mSlot || forceNewSlot) {
         saveToFlash();
     }
 }
 
 void TelemetryHistoryManager::update() {
-    // Check every 10 seconds to update ongoing slot in RAM and commit on 5-minute boundaries
+    // Check every 10 seconds to update ongoing slot in live cache and commit on 5-minute boundaries
     if (millis() - _lastSampleMs < 10000UL && _lastSampleMs > 0) {
         return;
     }
@@ -395,16 +480,16 @@ void TelemetryHistoryManager::update() {
     updateLiveSample(false);
 }
 
-// FR-34, AR-15: the answer is streamed in chunks from one 256 byte buffer; no String grows with the history
+// FR-34, AR-15: the answer is streamed in chunks from one static buffer; no String grows with the history
 namespace {
 struct Chunker {
     WebServer& srv;
-    char buf[256];
+    char buf[512];
     size_t n = 0;
     explicit Chunker(WebServer& s) : srv(s) {}
     void flush() { if (n) { buf[n] = '\0'; srv.sendContent(buf, n); n = 0; } }
     void put(const char* fmt, ...) __attribute__((format(printf, 2, 3))) {
-        if (n > sizeof(buf) - 96) flush();  // one item is at most 90 characters
+        if (n > sizeof(buf) - 160) flush();  // one item is at most ~120 characters
         va_list ap;
         va_start(ap, fmt);
         int w = vsnprintf(buf + n, sizeof(buf) - n, fmt, ap);
@@ -418,7 +503,7 @@ struct Chunker {
 }  // namespace
 
 void TelemetryHistoryManager::streamHistoryJson(WebServer& server, const String& range) {
-    updateLiveSample(false);  // RAM ongoing slot reflects the live state before the export
+    updateLiveSample(false);  // RAM live slot reflects the ongoing state before the export
 
     bool is5d = (range == "5d");
     size_t count = is5d ? TELEMETRY_5D_POINTS : TELEMETRY_24H_POINTS;
@@ -428,10 +513,21 @@ void TelemetryHistoryManager::streamHistoryJson(WebServer& server, const String&
     c.put("{\"range\":\"%s\",\"stepSec\":%u,\"currentSlot\":%u,\"points\":[", is5d ? "5d" : "24h",
           is5d ? 1800u : 300u, (unsigned)(is5d ? _currentSlot5d : _currentSlot24h));
 
+    File f = _fsMounted ? LittleFS.open(is5d ? FILE_5D : FILE_24H, "r") : File();
     size_t written = 0;
     for (size_t i = 0; i < count; i++) {
-        const TelemetryPoint& pt = is5d ? _ring5d[i] : _ring24h[i];
-        if (!(pt.flags & 0x80)) continue; // Skip invalid
+        TelemetryPoint pt;
+        bool ok = false;
+        if (i == (is5d ? _currentSlot5d : _currentSlot24h)) {
+            pt = is5d ? _livePoint5d : _livePoint24h;
+            ok = (pt.flags & 0x80);
+            if (f) f.seek((i + 1) * sizeof(TelemetryPoint));
+        } else if (f) {
+            if (f.read((uint8_t*)&pt, sizeof(TelemetryPoint)) == sizeof(TelemetryPoint)) {
+                ok = (pt.flags & 0x80);
+            }
+        }
+        if (!ok) continue; // Skip invalid
         c.put("%s[%u,", written ? "," : "", (unsigned)i);
         c.temp(pt.z1_temp, ',');
         c.temp(pt.z2_temp, ',');
@@ -440,6 +536,7 @@ void TelemetryHistoryManager::streamHistoryJson(WebServer& server, const String&
         c.put("%u]", (unsigned)pt.flags);
         written++;
     }
+    if (f) f.close();
 
     c.put("],\"reboots\":[");
     for (size_t b = 0; b < _bootRecordCount; b++) {
@@ -476,11 +573,23 @@ uint32_t TelemetryHistoryManager::getZoneRuntimeTodayFromHistory(size_t zoneInde
     if (zoneIndex >= 3) return 0;
     uint8_t bit = 1 << (zoneIndex + 2);
     uint32_t count = 0;
+    File f = _fsMounted ? LittleFS.open(FILE_24H, "r") : File();
     for (uint16_t s = 0; s <= _currentSlot24h && s < TELEMETRY_24H_POINTS; s++) {
-        if ((_ring24h[s].flags & 0x80) && (_ring24h[s].flags & bit)) {
+        TelemetryPoint pt;
+        bool ok = false;
+        if (s == _currentSlot24h) {
+            pt = _livePoint24h;
+            ok = true;
+        } else if (f) {
+            if (f.read((uint8_t*)&pt, sizeof(TelemetryPoint)) == sizeof(TelemetryPoint)) {
+                ok = true;
+            }
+        }
+        if (ok && (pt.flags & 0x80) && (pt.flags & bit)) {
             count++;
         }
     }
+    if (f) f.close();
     return count * 300UL;
 }
 
@@ -488,11 +597,19 @@ uint32_t TelemetryHistoryManager::getZoneRuntimeYesterdayFromHistory(size_t zone
     if (zoneIndex >= 3) return 0;
     uint8_t bit = 1 << (zoneIndex + 2);
     uint32_t count = 0;
-    for (uint16_t s = _currentSlot24h + 1; s < TELEMETRY_24H_POINTS; s++) {
-        if ((_ring24h[s].flags & 0x80) && (_ring24h[s].flags & bit)) {
-            count++;
+    File f = _fsMounted ? LittleFS.open(FILE_24H, "r") : File();
+    if (f && (_currentSlot24h + 1 < TELEMETRY_24H_POINTS)) {
+        f.seek((_currentSlot24h + 1) * sizeof(TelemetryPoint));
+        TelemetryPoint pt;
+        for (uint16_t s = _currentSlot24h + 1; s < TELEMETRY_24H_POINTS; s++) {
+            if (f.read((uint8_t*)&pt, sizeof(TelemetryPoint)) == sizeof(TelemetryPoint)) {
+                if ((pt.flags & 0x80) && (pt.flags & bit)) {
+                    count++;
+                }
+            }
         }
     }
+    if (f) f.close();
     return count * 300UL;
 }
 
@@ -679,8 +796,9 @@ bool TelemetryHistoryManager::boilerOnSeconds(uint32_t t1, uint32_t t2, uint32_t
         } else {
             slot = (uint16_t)((tt / 1800UL) % TELEMETRY_5D_POINTS);
         }
-        const TelemetryPoint& pt = use24 ? _ring24h[slot] : _ring5d[slot];
-        if (!(pt.flags & 0x80)) return false;  // a step that was not recorded: the history does not cover the interval
+        TelemetryPoint pt;
+        bool ok = use24 ? readPoint24h(slot, pt) : readPoint5d((uint8_t)slot, pt);
+        if (!ok || !(pt.flags & 0x80)) return false;  // a step that was not recorded: the history does not cover the interval
         if (pt.flags & 0x01) on += step;
     }
     onSec = on;

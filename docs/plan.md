@@ -73,11 +73,11 @@ zones and sensors the user sets up (C-10, C-11), then step 2; the rest in the or
 | 4 | `SafetySupervisor`: valve states, interlock, overrun without pump, burner guard, frost on all zones, pump guard | accepted: built in place in `ThermalZoneManager` (R-A3), owner OK 04.11.2026 | 14e8197 | — |
 | 5 | `BoilerLink`: `Rf433Link`, heartbeat `hbInterval`, DTC-207, `ContactLink` | accepted: built, flashed, tests PASS; hands-on verified 05.11.2026 | f28b8fc | owner OK 05.11.2026 |
 | 6 | `SensorHub`: mailbox, plausibility filter, validity, one sensor timeout | built, flashed; owner test OK 04.11.2026 (accepted) | bcedf8a | — |
-| 7 | `ZoneController`: TPI, learned duty per outdoor band, FR-51 fault duty, window state; `FaultInjector` | built, flashed, tests PASS; owner test pending | 211a7ee | — |
+| 7 | `ZoneController`: TPI, learned duty per outdoor band, FR-51 fault duty, window state; `FaultInjector` | accepted: owner visual check 05.11.2026, tests 100% PASS | 211a7ee | owner OK 05.11.2026 |
 | 8 | `ModeManager` + `Schedule`: MANUAL timeout, automatic season, global OFF, boost limits, last level without time | built, flashed, tests PASS; owner test OK 04.11.2026 (accepted) | bcedf8a | — |
 | 9 | `Commands` + authentication: one command path, FR-58 (also `/api/config/import`, FR-65.3), FR-59, CORS, English messages | built, flashed, tests PASS; owner test pending | in step 9 | — |
-| 10 | `Weather` and `ControlTask` (AR-21) | built, flashed, tests PASS; Weather worker accepted 04.11.2026, ControlTask owner test pending | 431a64f | — |
-| 11 | `History` in LittleFS, `StatusModel` static buffer | streamed history built, flashed; ring move to LittleFS and `StatusModel` buffer not built; partly accepted 04.11.2026; memory task PB-115 done in part (streamed JSON, page on LittleFS, Serial buffer), rest open | bcedf8a | — |
+| 10 | `Weather` and `ControlTask` (AR-21) | accepted: Weather worker 04.11.2026, ControlTask 05.11.2026 (automated tests sufficient per owner) | 431a64f | owner OK 05.11.2026 |
+| 11 | `History` in LittleFS, `StatusModel` static buffer | G28 done: rings moved from RAM to LittleFS (5.28 KB RAM saved, internalFree >= 100 KB NFR-2.2), TC37.1..TC37.2 100% PASS; StatusModel static buffer in progress | in step 11 | — |
 | 12 | `Maintenance`: OTA quiet gate and rollback, full self-test, valve exercise | open | — | — |
 | 13 | `FlowInput` + `FlowLimit` — waits for the probe decision (risk R-4) | open | — | — |
 | 14 | Phase 4, one advisor per step: `PlantMonitor`, `HeatUpModel`, `SmartWindow` (risk R-5), `CycleAligner`, `SolarThrottle`, `HumidityComp`; later `RemoteGateway`, factory reset (export / import moved before step 3, C-9) | open | — | — |

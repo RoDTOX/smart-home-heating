@@ -34,6 +34,7 @@ class HistoryStreamTests:
             h0 = heap()
             for _ in range(5):
                 requests.get(f"{self.base_url}/api/history?range=5d", timeout=15)
+            time.sleep(1.5)  # allow lwIP TCP buffers to drain
             h1 = heap()
             assert h1 >= h0 - 1500, f"free heap {h0} -> {h1} bytes after 5 history requests"
             return TestResult(test_id, name, req, "PASS", (time.time() - start) * 1000, f"free heap {h0} -> {h1} bytes")

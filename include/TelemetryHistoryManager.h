@@ -91,8 +91,8 @@ public:
 
 private:
     bool _fsMounted;
-    TelemetryPoint _ring24h[TELEMETRY_24H_POINTS];
-    TelemetryPoint _ring5d[TELEMETRY_5D_POINTS];
+    TelemetryPoint _livePoint24h;
+    TelemetryPoint _livePoint5d;
     BootRecord _bootRecords[10];
     uint8_t  _bootRecordCount;
     bool     _currentBootRecorded;
@@ -110,6 +110,11 @@ private:
     bool     _dirty24h;
     bool     _dirty5d;
 
+    void initFlashFiles();
+    bool readPoint24h(uint16_t slot, TelemetryPoint& pt) const;
+    bool writePoint24h(uint16_t slot, const TelemetryPoint& pt);
+    bool readPoint5d(uint8_t slot, TelemetryPoint& pt) const;
+    bool writePoint5d(uint8_t slot, const TelemetryPoint& pt);
     void updateSlots(uint32_t epochNow);
 };
 
