@@ -7,6 +7,17 @@ Entries before 29.10.2026 (the system before the lean clean-up):
 
 
 
+## [05.11.2026] - Fix: DTC occurrence runaway, persistent DTC history panel, hardware BOOT button reset, and OTA update link (FR-10.2, FR-59, FR-62.1)
+
+- **Who / when / why:** firmware session (Antigravity), addressing user findings. Fixed DTC-403 occurrence count incrementing endlessly (reached 219x because periodic 10s health evaluations treated continuing condition as new occurrences), added persistent LittleFS 50-event history display to Web UI, implemented 10-second hardware BOOT button reset to default credentials, and fixed OTA update link in web interface.
+- **Done:**
+  - `src/DiagnosticEngine.cpp`: `occurrenceCount` only increments on transition to active (`!wasActive || newZone`), preserving actual incident count instead of incrementing on periodic health checks.
+  - `web/index.html`: added persistent LittleFS DTC & system history panel (queries `/api/diag/events`, rendering all 50 events: timestamp, type, code, and zone/reset value); styled OTA update link with absolute URL `/update` and `target="_blank" rel="noopener"`.
+  - `include/Config.h`, `include/Commands.h`, `src/Commands.cpp`, `include/ParamStore.h`, `src/ParamStore.cpp`: implemented `resetToDefault()` erasing `apicred` blob and restoring default credentials (`admin` / `DEFAULT_ADMIN_PASS`).
+  - `include/ConsoleAuth.h` & `src/ConsoleAuth.cpp`: added `unlockAll()` to clear brute-force lockout on hardware reset.
+  - `src/main.cpp`: added non-blocking `checkPhysicalResetButton()` on GPIO0 (`PIN_BOOT_BTN`); 3..10s hold blinks status LED at 1 Hz; 10..29s hold blinks at 5 Hz and on release resets admin credentials, clears lockouts, and raises DTC-403; hold < 10s is ignored.
+- **Verification:** compiled cleanly with `pio run` (margin 34.7 KB), `sh_process_check.py` 0 errors, `sh_process_check.py board` 0 errors / 0 warnings (`board runs 283b421 = HEAD`), live DTC-403 occurrence count stable at 1x.
+
 ## [05.11.2026] - Step 10: ControlTask on Core 1, FreeRTOS preemption, FR-23 timing metrics, and TWDT supervision (AR-21, FR-23, NFR-1.5, NFR-1.8; C-46, PB-56, PB-59, G33)
 
 - **Who / when / why:** firmware session (Antigravity), light process, Step 10 Part 2 of architecture migration (§18). Built dedicated FreeRTOS `ControlTask` on Core 1 (priority 3, period 1000 ms, 4 KB stack) decoupled from Arduino `loop()` (priority 1), completing AR-21 concurrency architecture. Resolves HTTP starvation and safety blocking (PB-56, PB-59, G33). Both `ControlTask` and `loopTask` are registered with the 90s Hardware Task Watchdog (TWDT) for fail-safe supervision (NFR-1.5).
