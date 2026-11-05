@@ -61,9 +61,9 @@ Design:
 - [x] A4: Implement file-based read for boilerOnSeconds, runtime counters
 - [x] A5: Remove RAM arrays, keep only current slot
 - [x] A6: Test: build clean, flash, verify history still works (TC37.1..TC37.2 100% PASS)
-- [ ] B1: Create StatusModel.h/cpp with static buffer
-- [ ] B2: Migrate /api/status to static buffer
-- [ ] B3: Migrate /api/zones to static buffer
-- [ ] B4: Migrate remaining endpoints
-- [ ] B5: Remove String usage from migrated handlers
-- [ ] C1: Full verification (build, process check, heap, flash, board test)
+- [x] B1: Create StatusModel.h/cpp with static buffer
+- [x] B2: Migrate /api/status to static buffer
+- [x] B3: Migrate /api/zones to static buffer
+- [x] B4: Migrate remaining endpoints
+- [x] B5: Remove String usage from migrated handlers
+- [x] C1: Full verification (build, process check, heap, flash, board test)
