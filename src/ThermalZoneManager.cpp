@@ -142,6 +142,7 @@ void ThermalZoneManager::loadConfig() {
         _configs[i].enabled = z.enabled != 0;
         _configs[i].solarGain = z.solarGain != 0;
         _configs[i].circuits = (z.circuits >= 1 && z.circuits <= 16) ? z.circuits : ((i == 0) ? 3 : 2);
+        _configs[i].humidityComp = z.humidityComp != 0;
         _configs[i].tempOffset = z.offsetC10 / 10.0f;
         _configs[i].targetTemp = z.targetC10 / 10.0f;
         _tpi[i].integral = _tpi[i].savedIntegral = paramStore.learned(i) / 1000.0f;
@@ -171,6 +172,7 @@ void ThermalZoneManager::persistConfig() {
         z.enabled = _configs[i].enabled ? 1 : 0;
         z.solarGain = _configs[i].solarGain ? 1 : 0;
         z.circuits = _configs[i].circuits >= 1 && _configs[i].circuits <= 16 ? _configs[i].circuits : 1;
+        z.humidityComp = _configs[i].humidityComp ? 1 : 0;
         z.offsetC10 = (int16_t)lroundf(_configs[i].tempOffset * 10);
         z.targetC10 = (int16_t)lroundf(_configs[i].targetTemp * 10);
         paramStore.saveZone(i, z);
@@ -537,6 +539,13 @@ void ThermalZoneManager::setSolarGain(size_t index, bool enabled) {
 void ThermalZoneManager::setCircuits(size_t index, uint8_t circuits) {
     if (index < MAX_THERMAL_ZONES && circuits >= 1 && circuits <= 16 && _configs[index].circuits != circuits) {
         _configs[index].circuits = circuits;
+        persistConfig();
+    }
+}
+
+void ThermalZoneManager::setHumidityComp(size_t index, bool enabled) {
+    if (index < MAX_THERMAL_ZONES && _configs[index].humidityComp != enabled) {
+        _configs[index].humidityComp = enabled;
         persistConfig();
     }
 }
@@ -1173,10 +1182,22 @@ bool ThermalZoneManager::evaluateTpi(size_t index, float target, uint32_t now) {
     return demand;
 }
 
+float ThermalZoneManager::getHumidityCompReduction(size_t index) const {
+    // FR-71: Relative humidity compensation lowers target by up to 0.5 C at RH >= 60%
+    if (index >= MAX_THERMAL_ZONES || !_configs[index].humidityComp) return 0.0f;
+    const BleSensorData* sens = bleScanner.findSensorByMac(_configs[index].sensorMac);
+    if (!sens || !_statuses[index].sensorValid || _statuses[index].sensorFault) return 0.0f;
+    float rh = sens->humidity;
+    if (rh < 60.0f) return 0.0f;
+    float red = (rh - 60.0f) * 0.025f;
+    return constrain(red, 0.0f, 0.5f);
+}
+
 float ThermalZoneManager::getEffectiveTargetTemp(size_t index) const {
     if (index >= MAX_THERMAL_ZONES) return DEFAULT_SETPOINT_TEMP;
-    if (_statuses[index].isManualHold) return fminf(_configs[index].targetTemp, TARGET_MAX_C);  // a stored value above the ceiling is used as the ceiling (C-36)
-    return getScheduleTargetTemp(index);
+    float baseTarget = _statuses[index].isManualHold ? fminf(_configs[index].targetTemp, TARGET_MAX_C) : getScheduleTargetTemp(index);
+    float reduction = getHumidityCompReduction(index);
+    return fmaxf(baseTarget - reduction, 5.0f);
 }
 
 // FR-1.2: the level the schedule (or away) asks now, ignoring a hold

@@ -124,8 +124,8 @@ struct ZoneRecordV2 {
     int16_t targetC10;   // manual target, 0.1 C
 };
 
-// Installation data of one zone (FR-11.3, FR-11.4). Empty strings until commissioning (FR-11.1).
-struct ZoneRecord {
+// Legacy v3 record layout before humidityComp (91 bytes)
+struct ZoneRecordV3 {
     char name[32];
     char sensorMac[18];
     char sensorName[32];
@@ -135,6 +135,20 @@ struct ZoneRecord {
     uint8_t circuits;    // FR-63: underfloor heating loops/circuits (1..16, default 1)
     int16_t offsetC10;   // sensor offset, 0.1 C (FR-49, -30..30)
     int16_t targetC10;   // manual target, 0.1 C
+};
+
+// Installation data of one zone (FR-11.3, FR-11.4). Empty strings until commissioning (FR-11.1).
+struct ZoneRecord {
+    char name[32];
+    char sensorMac[18];
+    char sensorName[32];
+    uint8_t relayPin;
+    uint8_t enabled;
+    uint8_t solarGain;    // FR-70: solar gain throttling enabled
+    uint8_t circuits;     // FR-63: underfloor heating loops/circuits (1..16, default 1)
+    uint8_t humidityComp; // FR-71: relative humidity compensation enabled
+    int16_t offsetC10;    // sensor offset, 0.1 C (FR-49, -30..30)
+    int16_t targetC10;    // manual target, 0.1 C
 };
 
 class ParamStore {

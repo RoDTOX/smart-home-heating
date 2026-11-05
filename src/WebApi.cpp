@@ -18,6 +18,7 @@
 #include "HeatUpModel.h"
 #include "SolarThrottle.h"
 #include "CycleAligner.h"
+#include "HumidityComp.h"
 #include <Arduino.h>
 #include <ArduinoJson.h>
 #include <WebServer.h>
@@ -512,9 +513,9 @@ void handleApiZones() {
     o.put("\"windowPauseRemainingSec\":%lu,\"windowDropThreshold\":%.1f,\"lastWindowEpoch\":%lu,\"lastWindowDurationSec\":%lu,",
           (unsigned long)thermalZones.getWindowPauseRemainingSec(i), (double)thermalZones.getWindowThreshold(),
           (unsigned long)thermalZones.getWindowLastDetectionEpoch(i), (unsigned long)thermalZones.getWindowLastDetectionDurationSec(i));
-    o.put("\"demand\":%s,\"relayEngaged\":%s,\"openSec\":%lu,\"isManualHold\":%s,\"duty\":%.2f,\"dutyPct\":%d,\"onTimeSec\":%lu,\"learnedDuty\":%.1f,\"tempOffset\":%.1f,\"solarGain\":%s,\"circuits\":%u,",
+    o.put("\"demand\":%s,\"relayEngaged\":%s,\"openSec\":%lu,\"isManualHold\":%s,\"duty\":%.2f,\"dutyPct\":%d,\"onTimeSec\":%lu,\"learnedDuty\":%.1f,\"tempOffset\":%.1f,\"solarGain\":%s,\"circuits\":%u,\"humidityComp\":%s,",
           tf(st.demand), tf(st.relayEngaged), (unsigned long)openSec, tf(st.isManualHold), (double)thermalZones.getDuty(i), (int)(thermalZones.getDuty(i) * 100),
-          (unsigned long)(thermalZones.getZoneOnMs(i) / 1000), (double)thermalZones.getLearnedDutyPct(i), (double)cfg.tempOffset, tf(cfg.solarGain), (unsigned)cfg.circuits);
+          (unsigned long)(thermalZones.getZoneOnMs(i) / 1000), (double)thermalZones.getLearnedDutyPct(i), (double)cfg.tempOffset, tf(cfg.solarGain), (unsigned)cfg.circuits, tf(cfg.humidityComp));
     o.put("\"runtimeTodaySec\":%lu,\"runtimeYesterdaySec\":%lu,\"state\":\"%s\"}",
           (unsigned long)thermalZones.getZoneRuntimeTodaySec(i), (unsigned long)thermalZones.getZoneRuntimeYesterdaySec(i),
           thermalZones.getStateCode(i));
@@ -930,6 +931,10 @@ void handleApiSetupMapZone() {
   if (server.hasArg("circuits")) {
     int c = server.arg("circuits").toInt();
     if (c >= 1 && c <= 16) thermalZones.setCircuits(z, (uint8_t)c);
+  }
+  if (server.hasArg("humidityComp")) {
+    bool hc = (server.arg("humidityComp") == "true" || server.arg("humidityComp") == "1");
+    thermalZones.setHumidityComp(z, hc);
   }
   sendCorsHeaders();
   server.send(200, "application/json",
@@ -1757,6 +1762,11 @@ void handleApiCyclesStatus() {
   server.send(200, "application/json", cycleAligner.getStatusJson());
 }
 
+void handleApiHumidityStatus() {
+  sendCorsHeaders();
+  server.send(200, "application/json", humidityComp.getStatusJson());
+}
+
 void registerWebRoutes() {
   static const char* headerKeys[] = {"Content-Type", "Authorization", "Origin"};  // FR-58, FR-65.7, FR-75.1
   server.collectHeaders(headerKeys, 2);
@@ -1834,4 +1844,5 @@ void registerWebRoutes() {
   server.on("/api/heatup/status", HTTP_GET, handleApiHeatUpStatus);
   server.on("/api/solar/status", HTTP_GET, handleApiSolarStatus);
   server.on("/api/cycles/status", HTTP_GET, handleApiCyclesStatus);
+  server.on("/api/humidity/status", HTTP_GET, handleApiHumidityStatus);
 }

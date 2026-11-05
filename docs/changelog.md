@@ -5,6 +5,24 @@ Corelat cu planul activ: [`docs/plan.md`](file:///c:/Users/BSeceleanu/.github_re
 Entries before 29.10.2026 (the system before the lean clean-up):
 [`archive/changelog_until_2026-10-21.md`](archive/changelog_until_2026-10-21.md).
 
+## [05.11.2026] - Step 14 Part E: HumidityComp — Perceived Comfort Compensation (FR-71, C-42)
+
+- **Who / when / why:** firmware session (Antigravity), implementing Phase 4 / Step 14 Part E (`HumidityComp` L4 advisor):
+  1. Per-zone perceived warmth compensation (FR-71): when room relative humidity is $\ge 60\%$, the effective control target is proportionally lowered by up to 0.5 °C (60% RH $\to$ 0.0 °C, 80% RH $\to$ 0.5 °C), optimizing perceived comfort and fuel consumption.
+  2. Fallback protection: if humidity sensor reading is missing or invalid, compensation is immediately set to 0.0 °C reduction (FR-71, NFR-5.1).
+  3. Retro-compatible NVS schema migration: defined `ZoneRecordV3` (91 B) in `ParamStore`, automatically migrating to 92 B (`ZoneRecord` with `humidityComp`) on read without data reset.
+  4. Diagnostics & API: exposed `humidityComp` flag in `/api/zones` and `/api/setup/map-zone`, and status report via `GET /api/humidity/status`.
+- **Done:**
+  - `include/HumidityComp.h` & `src/HumidityComp.cpp`: created `HumidityComp` singleton in Layer 4.
+  - `include/ParamStore.h` & `src/ParamStore.cpp`: added `uint8_t humidityComp` in `ZoneRecord` and `ZoneRecordV3` legacy loader.
+  - `include/ThermalZoneManager.h` & `src/ThermalZoneManager.cpp`: integrated reduction into `getEffectiveTargetTemp(i)`.
+  - `src/WebApi.cpp`: registered `GET /api/humidity/status`, exposed `humidityComp` in `/api/zones` and `/api/setup/map-zone`.
+  - `src/ConfigTransfer.cpp`: added `humidityComp` to `ZONE_FIELDS`, `ZonePlan`, `planZone`, `importZones`, and `configExportJson`.
+  - `src/main.cpp`: registered `humidityComp.update()` in `loop()`.
+  - `tools/sh_tests/t_humidity_comp.py`: added `SWE.5-TC50.1..TC50.4` test suite.
+- **Verification:** compiled cleanly with `pio run` (1,289,685 B, OTA margin 17 KB), `sh_process_check.py` PASS (0 errors), flashed OTA (`tools/sh_ota_upload.py`), live test run `SWE.5-TC50` 4/4 PASS (100%).
+
+
 ## [05.11.2026] - Step 14 Part D: CycleAligner — Aligned Cycles & Minimum Boiler Load (FR-63, C-41)
 
 - **Who / when / why:** firmware session (Antigravity), implementing Phase 4 / Step 14 Part D (`CycleAligner` L4 advisor):

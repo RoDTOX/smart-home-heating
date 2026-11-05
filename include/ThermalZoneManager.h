@@ -128,6 +128,7 @@ struct ThermalZoneConfig {
     float tempOffset;          // Sensor calibration offset added to the reading (-3..+3 C)
     bool solarGain;            // FR-70: zone participates in solar throttling (e.g. South/West exposure)
     uint8_t circuits;          // FR-63: underfloor heating loops/circuits (1..16, default 1)
+    bool humidityComp;         // FR-71: relative humidity compensation enabled
 };
 
 struct ThermalZoneStatus {
@@ -249,6 +250,9 @@ public:
     bool isSolarGain(size_t index) const { return index < MAX_THERMAL_ZONES ? _configs[index].solarGain : false; }
     void setCircuits(size_t index, uint8_t circuits);
     uint8_t getCircuits(size_t index) const { return index < MAX_THERMAL_ZONES ? _configs[index].circuits : 1; }
+    void setHumidityComp(size_t index, bool enabled);
+    bool isHumidityComp(size_t index) const { return index < MAX_THERMAL_ZONES ? _configs[index].humidityComp : false; }
+    float getHumidityCompReduction(size_t index) const;
 
     // TPI control state (for diagnostics)
     float getDuty(size_t index) const { return index < MAX_THERMAL_ZONES ? _tpi[index].duty : 0.0f; }

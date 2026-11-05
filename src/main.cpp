@@ -15,6 +15,7 @@
 #include "HeatUpModel.h"
 #include "SolarThrottle.h"
 #include "CycleAligner.h"
+#include "HumidityComp.h"
 #include "Version.h"
 #include <Arduino.h>
 #include <ArduinoJson.h>
@@ -351,6 +352,7 @@ void loop() {
   heatUpModel.update();
   solarThrottle.update();
   cycleAligner.update();
+  humidityComp.update();
   thermalZones.flushPendingNvs();
   updateWifiWatchdog();
   checkPhysicalResetButton();
