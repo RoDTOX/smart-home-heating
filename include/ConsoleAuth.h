@@ -38,6 +38,7 @@ public:
     AuthResult check(const char* password, const uint8_t ip[4], SecSource src, bool recordOk = true);
     void registerFail(const uint8_t ip[4], SecSource src);  // a wrong user name counts like a wrong password
     bool locked(const uint8_t ip[4]);
+    void unlockAll();
 
     // Serial: first password (initial, must be changed). Network: change with the old password.
     bool setInitial(const char* newPw, bool must = true);                                   // false: length outside 8..63

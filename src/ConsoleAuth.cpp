@@ -117,6 +117,13 @@ bool ConsoleAuth::locked(const uint8_t ip[4]) {
     return full && k != 0;
 }
 
+void ConsoleAuth::unlockAll() {
+    for (int i = 0; i < AUTH_CLIENTS; i++) {
+        _cl[i].fails = 0;
+        _cl[i].lockedUntilMs = 0;
+    }
+}
+
 void ConsoleAuth::noteFail(Client* c, SecSource src, const uint8_t ip[4]) {
     c->lastMs = millis();
     if (c->fails < 255) c->fails++;

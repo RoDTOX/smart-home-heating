@@ -166,7 +166,12 @@ code,.mono{font:13px/1.35 ui-monospace,SFMono-Regular,Consolas,monospace}
 
       <div style="font-weight:600;margin:18px 0 4px">Sistem &amp; Mentenanță</div>
       <div class="row">Locație (lat,lon) <input id="loc" placeholder="45.65,25.60"><button id="saveLoc">Salvează</button><span id="locMsg" class="s"></span></div>
-      <div class="row"><a href="update">Actualizare firmware (OTA)</a></div>
+      <div class="row" style="margin:10px 0">
+        <a href="/update" target="_blank" rel="noopener" style="text-decoration:none;display:inline-flex;align-items:center;gap:6px;background:var(--card);border:1px solid var(--accent);color:var(--accent);font-weight:600;padding:6px 12px;border-radius:6px">
+          <span>🚀</span> Deschide pagina Actualizare Firmware (OTA) ↗
+        </a>
+        <span class="s" style="color:var(--mut)">(upload fișier .bin direct pe portul 80)</span>
+      </div>
       <div style="font-weight:600;margin:18px 0 4px">Credențiale Administrare (FR-59)</div>
       <div class="s">Setează utilizatorul și parola de administrare în NVS (OTA &amp; API). Un utilizator personalizat stinge DTC-403.</div>
       <div class="row" style="gap:8px;align-items:center;flex-wrap:wrap">
@@ -646,9 +651,13 @@ function renderChecks() {
   const dtcBox = $("dtcSection");
   if (dtcBox) {
     const dtcs = (D && D.dtcs) || [];
-    let histHtml = "";
+    let histHtml = `
+      <details id="dtcHistoryDetails" style="margin-top:8px;font-size:12px;color:var(--mut)" ontoggle="if(this.open)loadDtcEvents()">
+        <summary style="cursor:pointer;font-weight:600">📜 Istoric persistent evenimente &amp; erori (LittleFS - ultimele 50)</summary>
+        <div id="persistentDtcHistory" style="margin-top:4px"><div class="s" style="color:var(--mut)">Deschide pentru a încărca istoricul salvat în memoria flash...</div></div>
+      </details>`;
     if (dtcHistory && dtcHistory.length > 0) {
-      histHtml = `
+      histHtml += `
         <details style="margin-top:8px;font-size:12px;color:var(--mut)">
           <summary style="cursor:pointer;font-weight:600">▶ Istoric erori curățate în această sesiune (${dtcHistory.length})</summary>
           <div class="scroll" style="margin-top:6px"><table style="font-size:12px">
@@ -2529,6 +2538,40 @@ async function loadSecEvents() {
     box.innerHTML = `<div style="font-weight:600;font-size:12px;margin:8px 0 4px 0">Evenimente de securitate (${d.count}):</div>` +
       d.events.slice().reverse().slice(0, 20).map(e => `<div class="s" style="color:var(--mut)">${esc(e.time > 1700000000 ? new Date(e.time * 1000).toLocaleString() : "+" + e.time + " s")} · ${esc(names[e.type] || e.type)} · ${esc(e.source)}${e.client ? " · " + esc(e.client) : ""}</div>`).join("");
   } catch (e) { box.innerHTML = ""; }
+}
+
+async function loadDtcEvents() {
+  const box = $("persistentDtcHistory");
+  if (!box) return;
+  try {
+    const d = await (await fetch("api/diag/events")).json();
+    if (!d || !d.events || d.events.length === 0) {
+      box.innerHTML = `<div class="s" style="color:var(--mut);padding:4px 0">Niciun eveniment diagnostic înregistrat în memoria flash.</div>`;
+      return;
+    }
+    const typeMap = {
+      "dtc-raised": '<span style="color:var(--err);font-weight:600">🔴 Ridicat</span>',
+      "dtc-cleared": '<span style="color:var(--ok);font-weight:600">🟢 Curățat</span>',
+      "restart": '<span style="color:#38bdf8;font-weight:600">⚡ Restart</span>'
+    };
+    box.innerHTML = `<div class="scroll" style="margin-top:6px;max-height:220px;overflow-y:auto"><table style="font-size:11px;width:100%">
+      <thead><tr><th>Dată / Timp</th><th>Tip</th><th>Cod</th><th>Zonă / Valoare</th></tr></thead>
+      <tbody>` +
+      d.events.map(e => {
+        const timeStr = (e.time > 1700000000) ? new Date(e.time * 1000).toLocaleString('ro-RO') : `+${e.time}s uptime`;
+        const codeStr = e.code ? `<code><b>${esc(e.code)}</b></code>` : (e.type === 'restart' ? `Reset reason ${e.value}` : '—');
+        const zoneStr = e.zone ? `Zona ${e.zone}` : (e.type === 'restart' ? 'Sistem' : 'Global');
+        return `<tr>
+          <td style="white-space:nowrap">${esc(timeStr)}</td>
+          <td>${typeMap[e.type] || esc(e.type)}</td>
+          <td>${codeStr}</td>
+          <td>${esc(zoneStr)}</td>
+        </tr>`;
+      }).join("") +
+      `</tbody></table></div>`;
+  } catch(err) {
+    box.innerHTML = `<div class="s" style="color:var(--err)">Eroare la încărcarea istoricului: ${esc(err.message)}</div>`;
+  }
 }
 
 async function sendConsoleCmd() {

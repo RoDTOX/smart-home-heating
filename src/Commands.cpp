@@ -37,10 +37,17 @@ bool Commands::isDefaultCredentials() const {
     if (!_customCreds) {
         return true;
     }
-    if (strcmp(_pass, "admin123") == 0 || strcmp(_user, "admin") == 0) {
+    if (strcmp(_pass, "admin123") == 0 || strcmp(_pass, DEFAULT_ADMIN_PASS) == 0 || strcmp(_user, "admin") == 0) {
         return true;
     }
     return false;
+}
+
+void Commands::resetToDefault() {
+    paramStore.eraseBlob("apicred");
+    strlcpy(_user, OTA_USER, sizeof(_user));
+    strlcpy(_pass, DEFAULT_ADMIN_PASS, sizeof(_pass));
+    _customCreds = false;
 }
 
 bool Commands::checkCredentials(const char* user, const char* pass) const {

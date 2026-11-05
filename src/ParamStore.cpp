@@ -472,3 +472,10 @@ void ParamStore::saveBlob(const char* key, const void* buf, size_t len) {
     if (!same) prefs.putBytes(key, buf, len);
     prefs.end();
 }
+
+void ParamStore::eraseBlob(const char* key) {
+    Preferences prefs;
+    if (!prefs.begin(NS_BLOB, false)) return;
+    prefs.remove(key);
+    prefs.end();
+}

@@ -34,9 +34,16 @@
 #define OTA_PASS "admin123"
 #endif
 
+#ifndef DEFAULT_ADMIN_PASS
+#define DEFAULT_ADMIN_PASS "admin.shh2026"
+#endif
+
 // ==========================================
 // 2. Hardware Pin Allocation (ESP32-Relay X4 V1.1 / DOIT ESP32-32E)
 // ==========================================
+// Hardware BOOT / Reset Button (GPIO0 on ESP32)
+#define PIN_BOOT_BTN          0
+
 // 433.92 MHz RF Transmitter DATA pin
 #define PIN_RF_DATA           19
 

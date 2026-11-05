@@ -194,7 +194,9 @@ void DiagnosticEngine::raiseDtc(Dtc dtc, const char *message, DtcSeverity severi
   strlcpy(t.message, message ? message : "", sizeof(t.message));
   t.severity = severity;
   t.lastRaisedMs = millis();
-  t.occurrenceCount++;
+  if (!wasActive || newZone) {
+    t.occurrenceCount++;
+  }
   t.active = true;
 
   if (!wasActive) {

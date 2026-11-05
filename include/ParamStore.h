@@ -137,6 +137,7 @@ public:
     // Opaque blob owned by a caller module (schedule); the caller validates the content.
     bool loadBlob(const char* key, void* buf, size_t len);
     void saveBlob(const char* key, const void* buf, size_t len);
+    void eraseBlob(const char* key);
 
     uint8_t schemaVersion() const { return _schema; }
 

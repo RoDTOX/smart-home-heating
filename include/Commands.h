@@ -56,6 +56,7 @@ public:
     // Credentials (FR-59)
     bool isDefaultCredentials() const;
     bool setCredentials(const char* user, const char* pass, bool authenticated);
+    void resetToDefault();
     bool checkCredentials(const char* user, const char* pass) const;
     const char* getUser() const;
     const char* getPass() const;

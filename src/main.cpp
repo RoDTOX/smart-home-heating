@@ -177,6 +177,61 @@ void updateWifiWatchdog() {
   }
 }
 
+// Hardware Reset Button (GPIO0 / BOOT) Supervisor (10s hold = credentials reset)
+static void checkPhysicalResetButton() {
+  static uint32_t pressStartMs = 0;
+  static bool wasPressed = false;
+  static uint32_t lastBlinkMs = 0;
+  static uint8_t blinkState = LOW;
+
+  bool pressed = (digitalRead(PIN_BOOT_BTN) == LOW); // Active LOW on ESP32 BOOT button
+
+  if (pressed) {
+    if (!wasPressed) {
+      wasPressed = true;
+      pressStartMs = millis();
+    }
+    uint32_t holdMs = millis() - pressStartMs;
+
+    // Visual feedback on Status LED:
+    if (holdMs >= 10000) {
+      // 10s reached: fast blinking (100 ms toggle = 5 Hz)
+      if (millis() - lastBlinkMs >= 100) {
+        lastBlinkMs = millis();
+        blinkState = (blinkState == HIGH) ? LOW : HIGH;
+        ledWrite(blinkState, RS_USER, false);
+      }
+    } else if (holdMs >= 3000) {
+      // 3s..10s: slow blinking (500 ms toggle = 1 Hz)
+      if (millis() - lastBlinkMs >= 500) {
+        lastBlinkMs = millis();
+        blinkState = (blinkState == HIGH) ? LOW : HIGH;
+        ledWrite(blinkState, RS_USER, false);
+      }
+    }
+  } else {
+    if (wasPressed) {
+      uint32_t holdMs = millis() - pressStartMs;
+      wasPressed = false;
+      ledWrite(LOW, RS_USER, false); // Restore LED off
+
+      if (holdMs >= 10000 && holdMs < 30000) {
+        // Credential reset to default
+        Serial.println(F("[SYSTEM] BOOT button held 10s+: Resetting admin credentials to default."));
+        netConsole.println(F("[SYSTEM] Hardware reset: Admin credentials restored to default (DTC-403)."));
+        commands.resetToDefault();
+        consoleAuth.unlockAll();
+        diagEngine.raiseDtc(Dtc::WARN_DEFAULT_CREDENTIALS, "Default credentials active", SEV_WARNING);
+        blinkLed(3, 80);
+      } else if (holdMs >= 30000) {
+        Serial.println(F("[SYSTEM] BOOT button held 30s+: Full factory reset deferred to Step 14."));
+      } else {
+        Serial.println(F("[SYSTEM] BOOT button released < 10s (ignored)."));
+      }
+    }
+  }
+}
+
 // Returns visible display character count, properly ignoring UTF-8 continuation bytes (0x80..0xBF)
 void setup() {
   Serial.setTxBufferSize(1024);  // NFR-2.2: 3 KB of heap back; the log goes to the network console
@@ -186,6 +241,7 @@ void setup() {
   App::init();
   eventLog.add(EV_BOOT, 0, RS_BOOT, 0, 0, (uint16_t)esp_reset_reason());  // FR-62.1: first entry of this run
   pinMode(PIN_STATUS_LED, OUTPUT);
+  pinMode(PIN_BOOT_BTN, INPUT_PULLUP);
   ledWrite(LOW, RS_BOOT); // Off (active HIGH)
 
   Serial.printf("[Hardware] Initializing RF transmitter on GPIO%d...\n",
@@ -285,6 +341,7 @@ void loop() {
   diagEngine.update();
   thermalZones.flushPendingNvs();
   updateWifiWatchdog();
+  checkPhysicalResetButton();
 
   // Non-blocking serial command reader
   while (Serial.available()) {
