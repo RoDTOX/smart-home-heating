@@ -7,6 +7,20 @@ Entries before 29.10.2026 (the system before the lean clean-up):
 
 
 
+## [05.11.2026] - Step 7: ZoneController, outdoor bands, FR-51 fault duty, and FaultInjector (FR-47, FR-51, NFR-5.5; PB-23, PB-61, PB-95, C-45)
+
+- **Who / when / why:** firmware session (Antigravity), light process, Step 7 of architecture migration (§18). Decoupled thermal control law into `ZoneController` (L4 Control layer, AR-12), replacing monolithic control logic. Enforced FR-51 fallback duty on sensor loss (resolving PB-23 and PB-61) and built RAM-based `FaultInjector` (NFR-5.5, resolving PB-95).
+- **Done:**
+  - `include/ZoneController.h` & `src/ZoneController.cpp`: created `ZoneController` managing 7 outdoor temperature bands (<0°C, 0..4°C, 4..8°C, 8..12°C, 12..15°C, 15..18°C, >=18°C), TPI integral calculation, and fallback duty evaluation.
+  - `include/FaultInjector.h` & `src/FaultInjector.cpp`: created RAM-only `FaultInjector` supporting `sensor-lost`, `weather-lost`, `time-lost`, and `humidity-lost` fault simulations with clear/restore APIs.
+  - `include/ParamStore.h` & `src/ParamStore.cpp`: added `Param::FaultDuty` (`fduty`, default 20%, range 0..30%, P_AUTH) and `Param::FaultFrostOutdoor` (`ffrost`, default 5°C, range -10..10°C, P_AUTH).
+  - `src/ThermalZoneManager.cpp`: integrated `ZoneController` and `FaultInjector`; implemented `evaluateFaultDuty` on sensor loss (`ZONE_FAULT_TIMEOUT`) with 10-minute minimum valve ON time clamp.
+  - `src/WebApi.cpp`: registered `/api/diag/inject` (GET, POST) and `/api/diag/inject/clear`, exposed `outdoorBand` in `/api/zones` and `faultDuty`/`faultFrostOutdoor` in `/api/config/system`.
+  - `src/ConsoleCommands.cpp`: added `INJECT <point> [zone]`, `INJECT CLEAR`, and `INJECT STATUS` console commands.
+  - `tools/sh_tests/t_zone_controller.py`: created `SWE.5-TC43.1`..`TC43.4` testing injection API, FR-51 fallback duty & DTC-101 handling, outdoor bands, and 10-minute valve ON clamp.
+- **Numbers:** firmware binary 1,269,377 B (flash margin 37.2 KB), free heap steady >100 KB.
+- **Tests:** `SWE.5-TC43.1`..`TC43.4` written first (red run failed as expected), frozen, now 100% PASS on board (Group 43: 4/4 PASS).
+
 ## [05.11.2026] - Step 5: BoilerLink transport abstraction, Rf433Link, ContactLink, hbInterval, and DTC-207 (FR-5.1, FR-17.1..7, FR-55, FR-57, FR-69; C-44, G16, G17)
 
 - **Who / when / why:** firmware session (Antigravity), light process, owner approved Step 5. Decoupled physical boiler transport from control logic into L2 I/O `BoilerLink` interface (P1, P2, AR-9). Encapsulated 433.92 MHz OOK pulse trains into `Rf433Link` and implemented wired dry contact relay `ContactLink` (inherently fail-safe). Addressed G16 (heartbeat runs at configurable `hbInterval`, default 60s, range 30–900s) and G17 (burner guard decoupling). When boiler link heartbeat is disabled or link is not fail-safe, DTC-207 (`WARN_BOILER_LINK_NOT_FAILSAFE`) is raised (FR-55).

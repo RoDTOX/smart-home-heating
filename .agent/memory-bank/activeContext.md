@@ -5,10 +5,11 @@ Only what holds now and what comes next. A line that no longer holds is replaced
 [`docs/archive/active_context_until_2026-11-02.md`](../../docs/archive/active_context_until_2026-11-02.md).
 
 ## Now
-- **Step 5 (BoilerLink)**: L2 I/O transport abstraction built with `Rf433Link` and `ContactLink` (FR-5.1, FR-17.1..7, FR-55, FR-57, FR-69; C-44, G16, G17). Configurable `boilerLinkType`, `hbInterval` (30–900 s), and fail-safe `DTC-207` raised when heartbeat is disabled and cleared when enabled. Group 42 tests (SWE.5-TC42.1..TC42.4) 100% PASS on board. Owner hands-on test pending.
-- **Step 9 (Commands + auth)**: Accepted by owner ("ALL OK", `docs/acceptance.md` citing `ee7c762`). Custom credentials via `/api/config/credentials`, DTC-403 cleared, SWE.5-TC41.8 passes.
-- **Accepted Steps (1–4, 6, 8, 9, partial 10 & 11)**: All validated on board. LittleFS assets, adaptive window detection (TC26 7/7 PASS), 24h telemetry chart with dual Y-axis, Honeywell multi-moment schedule, gas meter calibration (`2265.304 m³`).
-- **Health & Resources**: Free heap steady >100 KB (101–102 KB), flash margin ~47 KB (firmware ≤ 1 306 624 B limit, NFR-2.8).
+- **Step 7 (ZoneController & FaultInjector)**: Built, flashed, and verified on board with SWE.5-TC43.1..TC43.4 100% PASS (commit `211a7ee`). Decoupled L4 `ZoneController`, outdoor bands (AR-12), FR-51 fallback duty upon sensor timeout (fixes PB-23, PB-61), and RAM-based `FaultInjector` (NFR-5.5, fixes PB-95). Owner hands-on test pending.
+- **Step 5 (BoilerLink)**: Accepted by owner on board (05.11.2026, commit `f28b8fc`, row added to `docs/acceptance.md`). SWE.5-TC42.1..TC42.4 100% PASS, DTC-207 verified.
+- **Step 9 (Commands + auth)**: Accepted by owner ("ALL OK", `docs/acceptance.md` citing `ee7c762`).
+- **Accepted Steps (1–6, 8, 9, partial 10 & 11)**: All validated on board. LittleFS assets, adaptive window detection (TC26 7/7 PASS), 24h telemetry chart with dual Y-axis, Honeywell multi-moment schedule, gas meter calibration (`2265.304 m³`).
+- **Health & Resources**: Free heap steady >101 KB, flash margin ~37.2 KB (firmware binary 1,269,377 B ≤ 1 306 624 B limit, NFR-2.8).
 - **Tooling & Skills Consolidation**:
   - Unified 6 `/sh-*` skills (`sh-change`, `sh-grill`, `sh-debug`, `sh-review`, `sh-verify`, `sh-coach`).
   - Zero orphan files invariant enforced in `AGENTS.md` §3 (no `.scratch/`, all work products strictly in `docs/`).
@@ -16,7 +17,6 @@ Only what holds now and what comes next. A line that no longer holds is replaced
   - Git hook `.githooks/commit-msg` active.
 
 ## Next
-1. **Owner hands-on test of Step 5 (`BoilerLink`)**: Verify receiver behavior and DTC-207 on the live board (`docs/acceptance.md`).
-2. **Step 7 (`ZoneController`)**: TPI algorithm, learned duty per outdoor band, FR-51 fallback duty upon sensor loss, window state integration, and `FaultInjector`.
-3. **Open problems to resume at Step 7**: PB-120, PB-123.
-4. **Step 10 / 11 memory completion**: AR-21 control task separation and full LittleFS ring buffer.
+1. **Owner hands-on test of Step 7**: verify `/api/diag/inject` and fallback duty on live board.
+2. **Step 10 / 11 memory completion**: AR-21 control task separation and full LittleFS ring buffer.
+3. **Step 12 (`Maintenance`)**: OTA quiet gate, rollback, full self-test, valve exercise.
