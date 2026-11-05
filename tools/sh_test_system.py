@@ -48,9 +48,10 @@ from sh_tests.t_maintenance import MaintenanceTests
 from sh_tests.t_plant_monitor import PlantMonitorTests
 from sh_tests.t_heatup_model import HeatUpModelTests
 from sh_tests.t_solar_throttle import SolarThrottleTests
+from sh_tests.t_cycle_aligner import CycleAlignerTests
 
 
-class SystemTestSuite(SuiteBase, HealthTests, HydraulicsTests, ControlTests, UiHistoryTests, SafetyFeatureTests, ExportImportTests, ZoneTests, ConsoleTests, SafetySupervisorTests, SensorHubTests, WeatherTests, ModeTests, HistoryStreamTests, WebAssetTests, EventLogTests, CommandsAuthTests, BoilerLinkTests, ZoneControllerTests, ControlTaskTests, MaintenanceTests, PlantMonitorTests, HeatUpModelTests, SolarThrottleTests):
+class SystemTestSuite(SuiteBase, HealthTests, HydraulicsTests, ControlTests, UiHistoryTests, SafetyFeatureTests, ExportImportTests, ZoneTests, ConsoleTests, SafetySupervisorTests, SensorHubTests, WeatherTests, ModeTests, HistoryStreamTests, WebAssetTests, EventLogTests, CommandsAuthTests, BoilerLinkTests, ZoneControllerTests, ControlTaskTests, MaintenanceTests, PlantMonitorTests, HeatUpModelTests, SolarThrottleTests, CycleAlignerTests):
     # ---------------------------------------------------------
     # Test Runner & Traceability Matrix Evaluation
     # ---------------------------------------------------------
@@ -352,6 +353,11 @@ class SystemTestSuite(SuiteBase, HealthTests, HydraulicsTests, ControlTests, UiH
             self.test_tc48_2_solar_status_contract,
             self.test_tc48_3_zone_solargain_flag,
             self.test_tc48_4_weather_lost_disables_reduction,
+            # Group 49: CycleAligner (FR-63) (step 14)
+            self.test_tc49_1_min_loops_param_bounds,
+            self.test_tc49_2_cycle_status_contract,
+            self.test_tc49_3_zone_circuits_contract,
+            self.test_tc49_4_cycle_aligner_grouping_logic,
         ]
         if self.only:   # --only TC34,TC35: run just these groups (name part after test_)
             tests = [t for t in tests if any(t.__name__.startswith("test_" + o.lower() + "_") for o in self.only)]

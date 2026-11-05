@@ -65,6 +65,7 @@ static const ParamDef PARAMS[(uint8_t)Param::Count] = {
     P("noEffectRise", "ne_ris", 0.2f, 0.1f, 1.0f, 10, P_NONE),
     P("solarLimit", "sol_lim", 400, 200, 800, 1, P_NONE),
     P("solarReduction", "sol_red", 30, 10, 60, 1, P_NONE),
+    P("minLoops", "min_loops", 3, 1, 7, 1, P_NONE),
 };
 
 static const char* STATE_KEYS[(uint8_t)StateKey::Count] = {
@@ -126,13 +127,14 @@ void ParamStore::defaultZone(size_t i, ZoneRecord& z) {
     snprintf(z.name, sizeof(z.name), "Zone %u", (unsigned)(i + 1));
     z.relayPin = i < 3 ? DEFAULT_PINS[i] : 0;  // 0: no output (a slot beyond the zones in use)
     z.enabled = 0;
+    z.circuits = (i == 0) ? 3 : 2; // reference: 3 / 2 / 2 circuits (FR-63)
     z.targetC10 = (int16_t)lroundf(DEFAULT_SETPOINT_TEMP * 10);
 }
 
 bool ParamStore::validZone(const ZoneRecord& z) {
     return terminated(z.name, sizeof(z.name)) && terminated(z.sensorMac, sizeof(z.sensorMac)) &&
            terminated(z.sensorName, sizeof(z.sensorName)) && (validPin(z.relayPin) || (z.relayPin == 0 && z.enabled == 0)) && z.enabled <= 1 &&
-           z.solarGain <= 1 && z.offsetC10 >= -30 && z.offsetC10 <= 30 && z.targetC10 >= 50 && z.targetC10 <= 300;
+           z.solarGain <= 1 && z.circuits >= 1 && z.circuits <= 16 && z.offsetC10 >= -30 && z.offsetC10 <= 30 && z.targetC10 >= 50 && z.targetC10 <= 300;
 }
 
 bool ParamStore::validLocation(const char* coords) {
@@ -381,6 +383,27 @@ ZoneRecord ParamStore::zone(size_t i) const {
             } else {
                 netConsole.printf("[Params] zone %u record invalid, defaults used\n", (unsigned)(i + 1));
             }
+        } else if (len == sizeof(ZoneRecordV2)) {
+            ZoneRecordV2 v2;
+            if (prefs.getBytes(zoneKey(i), &v2, sizeof(v2)) == sizeof(v2)) {
+                memcpy(z.name, v2.name, sizeof(z.name));
+                memcpy(z.sensorMac, v2.sensorMac, sizeof(z.sensorMac));
+                memcpy(z.sensorName, v2.sensorName, sizeof(z.sensorName));
+                z.relayPin = v2.relayPin;
+                z.enabled = v2.enabled;
+                z.solarGain = v2.solarGain;
+                z.circuits = (i == 0) ? 3 : 2; // reference: 3 / 2 / 2 circuits (FR-63)
+                z.offsetC10 = v2.offsetC10;
+                z.targetC10 = v2.targetC10;
+                if (validZone(z)) {
+                    prefs.putBytes(zoneKey(i), &z, sizeof(ZoneRecord));
+                    netConsole.printf("[Params] zone %u migrated from v2 (%u B) to v3 (%u B)\n",
+                                       (unsigned)(i + 1), (unsigned)sizeof(ZoneRecordV2), (unsigned)sizeof(ZoneRecord));
+                } else {
+                    defaultZone(i, z);
+                    netConsole.printf("[Params] zone %u v2 record invalid, defaults used\n", (unsigned)(i + 1));
+                }
+            }
         } else if (len == sizeof(ZoneRecordV1)) {
             ZoneRecordV1 v1;
             if (prefs.getBytes(zoneKey(i), &v1, sizeof(v1)) == sizeof(v1)) {
@@ -390,11 +413,12 @@ ZoneRecord ParamStore::zone(size_t i) const {
                 z.relayPin = v1.relayPin;
                 z.enabled = v1.enabled;
                 z.solarGain = 0;
+                z.circuits = (i == 0) ? 3 : 2;
                 z.offsetC10 = v1.offsetC10;
                 z.targetC10 = v1.targetC10;
                 if (validZone(z)) {
                     prefs.putBytes(zoneKey(i), &z, sizeof(ZoneRecord));
-                    netConsole.printf("[Params] zone %u migrated from v1 (%u B) to v2 (%u B)\n",
+                    netConsole.printf("[Params] zone %u migrated from v1 (%u B) to v3 (%u B)\n",
                                        (unsigned)(i + 1), (unsigned)sizeof(ZoneRecordV1), (unsigned)sizeof(ZoneRecord));
                 } else {
                     defaultZone(i, z);

@@ -53,6 +53,7 @@ enum class Param : uint8_t {
     NoEffectRise,        // 0.1 C (0.1..1.0 C, default 0.2 C) FR-57
     SolarLimit,          // W/m2 (200..800 W/m2, default 400 W/m2) FR-70
     SolarReduction,      // % (10..60%, default 30%) FR-70
+    MinLoops,            // circuits (1..7, default 3) FR-63
     Count
 };
 
@@ -111,6 +112,18 @@ struct ZoneRecordV1 {
     int16_t targetC10;   // manual target, 0.1 C
 };
 
+// Legacy v2 record layout before circuits (90 bytes)
+struct ZoneRecordV2 {
+    char name[32];
+    char sensorMac[18];
+    char sensorName[32];
+    uint8_t relayPin;
+    uint8_t enabled;
+    uint8_t solarGain;   // FR-70: solar gain throttling enabled
+    int16_t offsetC10;   // sensor offset, 0.1 C (FR-49, -30..30)
+    int16_t targetC10;   // manual target, 0.1 C
+};
+
 // Installation data of one zone (FR-11.3, FR-11.4). Empty strings until commissioning (FR-11.1).
 struct ZoneRecord {
     char name[32];
@@ -119,6 +132,7 @@ struct ZoneRecord {
     uint8_t relayPin;
     uint8_t enabled;
     uint8_t solarGain;   // FR-70: solar gain throttling enabled
+    uint8_t circuits;    // FR-63: underfloor heating loops/circuits (1..16, default 1)
     int16_t offsetC10;   // sensor offset, 0.1 C (FR-49, -30..30)
     int16_t targetC10;   // manual target, 0.1 C
 };

@@ -141,6 +141,7 @@ void ThermalZoneManager::loadConfig() {
         _configs[i].relayPin = z.relayPin;
         _configs[i].enabled = z.enabled != 0;
         _configs[i].solarGain = z.solarGain != 0;
+        _configs[i].circuits = (z.circuits >= 1 && z.circuits <= 16) ? z.circuits : ((i == 0) ? 3 : 2);
         _configs[i].tempOffset = z.offsetC10 / 10.0f;
         _configs[i].targetTemp = z.targetC10 / 10.0f;
         _tpi[i].integral = _tpi[i].savedIntegral = paramStore.learned(i) / 1000.0f;
@@ -169,6 +170,7 @@ void ThermalZoneManager::persistConfig() {
         z.relayPin = _configs[i].relayPin;
         z.enabled = _configs[i].enabled ? 1 : 0;
         z.solarGain = _configs[i].solarGain ? 1 : 0;
+        z.circuits = _configs[i].circuits >= 1 && _configs[i].circuits <= 16 ? _configs[i].circuits : 1;
         z.offsetC10 = (int16_t)lroundf(_configs[i].tempOffset * 10);
         z.targetC10 = (int16_t)lroundf(_configs[i].targetTemp * 10);
         paramStore.saveZone(i, z);
@@ -528,6 +530,13 @@ bool ThermalZoneManager::setTempOffset(size_t index, float offset) {
 void ThermalZoneManager::setSolarGain(size_t index, bool enabled) {
     if (index < MAX_THERMAL_ZONES && _configs[index].solarGain != enabled) {
         _configs[index].solarGain = enabled;
+        persistConfig();
+    }
+}
+
+void ThermalZoneManager::setCircuits(size_t index, uint8_t circuits) {
+    if (index < MAX_THERMAL_ZONES && circuits >= 1 && circuits <= 16 && _configs[index].circuits != circuits) {
+        _configs[index].circuits = circuits;
         persistConfig();
     }
 }

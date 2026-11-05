@@ -17,6 +17,7 @@
 #include "PlantMonitor.h"
 #include "HeatUpModel.h"
 #include "SolarThrottle.h"
+#include "CycleAligner.h"
 #include <Arduino.h>
 #include <ArduinoJson.h>
 #include <WebServer.h>
@@ -511,9 +512,9 @@ void handleApiZones() {
     o.put("\"windowPauseRemainingSec\":%lu,\"windowDropThreshold\":%.1f,\"lastWindowEpoch\":%lu,\"lastWindowDurationSec\":%lu,",
           (unsigned long)thermalZones.getWindowPauseRemainingSec(i), (double)thermalZones.getWindowThreshold(),
           (unsigned long)thermalZones.getWindowLastDetectionEpoch(i), (unsigned long)thermalZones.getWindowLastDetectionDurationSec(i));
-    o.put("\"demand\":%s,\"relayEngaged\":%s,\"openSec\":%lu,\"isManualHold\":%s,\"duty\":%.2f,\"dutyPct\":%d,\"onTimeSec\":%lu,\"learnedDuty\":%.1f,\"tempOffset\":%.1f,\"solarGain\":%s,",
+    o.put("\"demand\":%s,\"relayEngaged\":%s,\"openSec\":%lu,\"isManualHold\":%s,\"duty\":%.2f,\"dutyPct\":%d,\"onTimeSec\":%lu,\"learnedDuty\":%.1f,\"tempOffset\":%.1f,\"solarGain\":%s,\"circuits\":%u,",
           tf(st.demand), tf(st.relayEngaged), (unsigned long)openSec, tf(st.isManualHold), (double)thermalZones.getDuty(i), (int)(thermalZones.getDuty(i) * 100),
-          (unsigned long)(thermalZones.getZoneOnMs(i) / 1000), (double)thermalZones.getLearnedDutyPct(i), (double)cfg.tempOffset, tf(cfg.solarGain));
+          (unsigned long)(thermalZones.getZoneOnMs(i) / 1000), (double)thermalZones.getLearnedDutyPct(i), (double)cfg.tempOffset, tf(cfg.solarGain), (unsigned)cfg.circuits);
     o.put("\"runtimeTodaySec\":%lu,\"runtimeYesterdaySec\":%lu,\"state\":\"%s\"}",
           (unsigned long)thermalZones.getZoneRuntimeTodaySec(i), (unsigned long)thermalZones.getZoneRuntimeYesterdaySec(i),
           thermalZones.getStateCode(i));
@@ -925,6 +926,10 @@ void handleApiSetupMapZone() {
   if (server.hasArg("solarGain")) {
     bool sg = (server.arg("solarGain") == "true" || server.arg("solarGain") == "1");
     thermalZones.setSolarGain(z, sg);
+  }
+  if (server.hasArg("circuits")) {
+    int c = server.arg("circuits").toInt();
+    if (c >= 1 && c <= 16) thermalZones.setCircuits(z, (uint8_t)c);
   }
   sendCorsHeaders();
   server.send(200, "application/json",
@@ -1442,12 +1447,12 @@ void handleApiConfigSystemGet() {
         pi(Param::BoilerFlowObserved), pf(Param::GasFlameRate), pi(Param::BoilerPowerKw));
   o.put("\"gasPrice\":%.2f,\"validMin\":%.1f,\"validMax\":%.1f,\"maxJump\":%.1f,\"manualTimeoutSec\":%ld,\"boostDurationSec\":%ld,",
         pf(Param::GasPrice), pf(Param::ValidMin), pf(Param::ValidMax), pf(Param::MaxJump), pi(Param::ManualTimeout), pi(Param::BoostDuration));
-  o.put("\"heatLimit\":%ld,\"seasonOnDays\":%ld,\"seasonOffDays\":%ld,\"heatingType\":%ld,\"boilerLinkType\":%ld,\"faultDuty\":%ld,\"faultFrostOutdoor\":%ld,\"adaptiveWindow\":%s,\"exerciseIdleDays\":%ld,\"selfTestBurn\":%ld,\"overheatMargin\":%.1f,\"overheatTime\":%ld,\"noEffectDuty\":%ld,\"noEffectTime\":%ld,\"noEffectRise\":%.1f,\"solarLimit\":%ld,\"solarReduction\":%ld,\"zones\":[", pi(Param::HeatLimit), pi(Param::SeasonOnDays),
-        pi(Param::SeasonOffDays), pi(Param::HeatingType), pi(Param::BoilerLinkType), pi(Param::FaultDuty), pi(Param::FaultFrostOutdoor), tf(thermalZones.getHeatingType() == HEATING_TYPE_FLOOR), pi(Param::ExerciseIdleDays), pi(Param::SelfTestBurn), pf(Param::OverheatMargin), pi(Param::OverheatTime), pi(Param::NoEffectDuty), pi(Param::NoEffectTime), pf(Param::NoEffectRise), pi(Param::SolarLimit), pi(Param::SolarReduction));
+  o.put("\"heatLimit\":%ld,\"seasonOnDays\":%ld,\"seasonOffDays\":%ld,\"heatingType\":%ld,\"boilerLinkType\":%ld,\"faultDuty\":%ld,\"faultFrostOutdoor\":%ld,\"adaptiveWindow\":%s,\"exerciseIdleDays\":%ld,\"selfTestBurn\":%ld,\"overheatMargin\":%.1f,\"overheatTime\":%ld,\"noEffectDuty\":%ld,\"noEffectTime\":%ld,\"noEffectRise\":%.1f,\"solarLimit\":%ld,\"solarReduction\":%ld,\"minLoops\":%ld,\"zones\":[", pi(Param::HeatLimit), pi(Param::SeasonOnDays),
+        pi(Param::SeasonOffDays), pi(Param::HeatingType), pi(Param::BoilerLinkType), pi(Param::FaultDuty), pi(Param::FaultFrostOutdoor), tf(thermalZones.getHeatingType() == HEATING_TYPE_FLOOR), pi(Param::ExerciseIdleDays), pi(Param::SelfTestBurn), pf(Param::OverheatMargin), pi(Param::OverheatTime), pi(Param::NoEffectDuty), pi(Param::NoEffectTime), pf(Param::NoEffectRise), pi(Param::SolarLimit), pi(Param::SolarReduction), pi(Param::MinLoops));
   for (size_t i = 0; i < thermalZones.getZoneCount(); i++) {
     const auto& z = thermalZones.getConfig(i);
-    o.put("%s{\"id\":%d,\"name\":\"%s\",\"mac\":\"%s\",\"relayPin\":%d,\"enabled\":%s}", i > 0 ? "," : "", (int)z.id, z.name,
-          z.sensorMac, (int)z.relayPin, tf(z.enabled));
+    o.put("%s{\"id\":%d,\"name\":\"%s\",\"mac\":\"%s\",\"relayPin\":%d,\"enabled\":%s,\"circuits\":%u}", i > 0 ? "," : "", (int)z.id, z.name,
+          z.sensorMac, (int)z.relayPin, tf(z.enabled), (unsigned)z.circuits);
   }
   o.put("]}");
   o.end();
@@ -1494,6 +1499,7 @@ static const ConfigArg CONFIG_ARGS[] = {
     {"noEffectRise", Param::NoEffectRise},
     {"solarLimit", Param::SolarLimit},
     {"solarReduction", Param::SolarReduction},
+    {"minLoops", Param::MinLoops},
 };
 static const char* CONFIG_FLAGS[] = {"openLoopBypass", "rfSafetyHeartbeatEnabled", "pumpControlEnabled",
                                      "actuatorNormallyClosed", "boilerLinkHeartbeat"};
@@ -1746,6 +1752,11 @@ void handleApiMaintExercise() {
   server.send(200, "application/json", F("{\"status\":\"ok\",\"message\":\"Valve exercise triggered (5 min)\"}"));
 }
 
+void handleApiCyclesStatus() {
+  sendCorsHeaders();
+  server.send(200, "application/json", cycleAligner.getStatusJson());
+}
+
 void registerWebRoutes() {
   static const char* headerKeys[] = {"Content-Type", "Authorization", "Origin"};  // FR-58, FR-65.7, FR-75.1
   server.collectHeaders(headerKeys, 2);
@@ -1822,4 +1833,5 @@ void registerWebRoutes() {
   server.on("/api/plant/status", HTTP_GET, handleApiPlantStatus);
   server.on("/api/heatup/status", HTTP_GET, handleApiHeatUpStatus);
   server.on("/api/solar/status", HTTP_GET, handleApiSolarStatus);
+  server.on("/api/cycles/status", HTTP_GET, handleApiCyclesStatus);
 }

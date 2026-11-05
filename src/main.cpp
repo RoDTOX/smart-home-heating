@@ -14,6 +14,7 @@
 #include "PlantMonitor.h"
 #include "HeatUpModel.h"
 #include "SolarThrottle.h"
+#include "CycleAligner.h"
 #include "Version.h"
 #include <Arduino.h>
 #include <ArduinoJson.h>
@@ -349,6 +350,7 @@ void loop() {
   plantMonitor.update();
   heatUpModel.update();
   solarThrottle.update();
+  cycleAligner.update();
   thermalZones.flushPendingNvs();
   updateWifiWatchdog();
   checkPhysicalResetButton();

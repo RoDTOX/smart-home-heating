@@ -5,6 +5,24 @@ Corelat cu planul activ: [`docs/plan.md`](file:///c:/Users/BSeceleanu/.github_re
 Entries before 29.10.2026 (the system before the lean clean-up):
 [`archive/changelog_until_2026-10-21.md`](archive/changelog_until_2026-10-21.md).
 
+## [05.11.2026] - Step 14 Part D: CycleAligner — Aligned Cycles & Minimum Boiler Load (FR-63, C-41)
+
+- **Who / when / why:** firmware session (Antigravity), implementing Phase 4 / Step 14 Part D (`CycleAligner` L4 advisor):
+  1. Synchronized TPI cycle phase: all zone PWM cycles start aligned (top-of-hour reference), maximizing valve opening overlap across zones to reduce burner cycling and ignition wear.
+  2. Minimum boiler loop protection (`minLoops` [1..7 circuits, default 3], `circuits` per zone [1..16, default 1; reference 3/2/2]): zones demanding heat alone below `minLoops` are flagged as extended or grouped, preventing boiler thermostat short-cycling.
+  3. Seamless schema migration: added `ZoneRecordV2` (90 B) legacy reader in `ParamStore`, migrating automatically to `ZoneRecord` (91 B with `uint8_t circuits`) on NVS read without data loss.
+  4. Diagnostics & API integration: exposed `minLoops` in `/api/config/system`, `circuits` per zone in `/api/zones` and `/api/setup/map-zone`, and status report in `GET /api/cycles/status`.
+- **Done:**
+  - `include/CycleAligner.h` & `src/CycleAligner.cpp`: created `CycleAligner` singleton in Layer 4.
+  - `include/ParamStore.h` & `src/ParamStore.cpp`: added `Param::MinLoops`, `uint8_t circuits` in `ZoneRecord`, and `ZoneRecordV2` retro-compatible loader.
+  - `include/ThermalZoneManager.h` & `src/ThermalZoneManager.cpp`: added `circuits` getter/setter and per-zone configuration storage.
+  - `src/WebApi.cpp`: registered `GET /api/cycles/status`, mapped `minLoops` in `/api/config/system`, and `circuits` in `/api/zones` and `/api/setup/map-zone`.
+  - `src/ConfigTransfer.cpp`: added `circuits` to `ZONE_FIELDS`, `ZonePlan`, `planZone`, `importZones`, and `configExportJson`.
+  - `src/main.cpp`: registered `cycleAligner.update()` in `loop()`.
+  - `tools/sh_tests/t_cycle_aligner.py`: added `SWE.5-TC49.1..TC49.4` test suite.
+- **Verification:** compiled cleanly with `pio run` (1,287,241 B, OTA margin 19 KB), `sh_process_check.py` PASS (0 errors), flashed OTA (`tools/sh_ota_upload.py`), live test run `SWE.5-TC49` 4/4 PASS (100%), all 3 zones and sensors verified live on board.
+
+
 ## [05.11.2026] - Fix: NVS Backward-Compatible Schema Migration & Heap Hysteresis (C-40)
 
 - **Who / when / why:** firmware session (Antigravity), addressing production robustness:
