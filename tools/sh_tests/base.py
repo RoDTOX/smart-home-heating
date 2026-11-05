@@ -117,11 +117,12 @@ class SuiteBase:
     def log_header(self, text):
         print(f"\n{'='*74}\n  {text}\n{'='*74}")
 
-    def log_test(self, test_id, name, status, latency_ms, details):
+    def log_test(self, test_id, name, status, latency_ms, details, idx=None, total=None):
         status_tag = f"[\033[92mPASS\033[0m]" if status == "PASS" else f"[\033[91mFAIL\033[0m]" if status == "FAIL" else f"[\033[93mSKIP\033[0m]"
-        print(f"  {status_tag} {test_id:<14} {name:<42} ({latency_ms:5.1f} ms)")
+        prefix = f"[{idx:>3}/{total}] " if idx is not None and total is not None else ""
+        print(f"  {prefix}{status_tag} {test_id:<14} {name:<42} ({latency_ms:5.1f} ms)", flush=True)
         if details:
-            print(f"         \033[90m-> {details}\033[0m")
+            print(f"         \033[90m-> {details}\033[0m", flush=True)
 
 
 # Step 9 (FR-58): Auto-supply credentials for protected endpoints called by existing test suites,

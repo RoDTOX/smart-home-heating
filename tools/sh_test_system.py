@@ -17,6 +17,12 @@ import time
 import argparse
 from datetime import datetime
 
+# Ensure unbuffered real-time output in background tasks and pipes
+try:
+    sys.stdout.reconfigure(line_buffering=True)
+except Exception:
+    pass
+
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from sh_tests.base import *  # noqa: E402,F401,F403
 from sh_tests.t_health import HealthTests
@@ -333,14 +339,15 @@ class SystemTestSuite(SuiteBase, HealthTests, HydraulicsTests, ControlTests, UiH
         # Announce test execution to ESP32 virtual console (1 clean line)
         self.notify_esp_console("[TEST-SUITE] >>> Automated Test Suite Started (SWE.5 Verification) <<<")
 
-        for t in tests:
+        total_tests = len(tests)
+        for i, t in enumerate(tests, 1):
             time.sleep(0.08)
             res = t()
             self.results.append(res)
             total_time_ms += res.latency_ms
             if res.status == "PASS":
                 passed_count += 1
-            self.log_test(res.test_id, res.name, res.status, res.latency_ms, res.details)
+            self.log_test(res.test_id, res.name, res.status, res.latency_ms, res.details, idx=i, total=total_tests)
 
         # Defuse any leftover state: cancel pending boiler actions, ensure boiler is OFF, restore auto mode
         try:
