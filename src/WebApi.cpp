@@ -1035,23 +1035,25 @@ void handleApiDiagMem() {
   char b[900];
   int n = snprintf(b, sizeof(b),
     "{\"free\":%u,\"minFreeEver\":%u,\"largestBlock\":%u,\"allocated\":%u,\"allocBlocks\":%u,\"freeBlocks\":%u,"
-    "\"internalFree\":%u,\"internalMin\":%u,\"internalLargest\":%u,\"heapSize\":%u,\"freeIram32\":%u,\"uptime\":%lu,\"fsTotal\":%u,\"fsUsed\":%u,\"tasks\":[",
+    "\"internalFree\":%u,\"internalMin\":%u,\"internalLargest\":%u,\"heapSize\":%u,\"freeIram32\":%u,\"uptime\":%lu,"
+    "\"fsTotal\":%u,\"fsUsed\":%u,\"controlStackFree\":%u,\"loopStackFree\":%u,\"tasks\":[",
     (unsigned)heap_caps_get_free_size(MALLOC_CAP_8BIT), (unsigned)heap_caps_get_minimum_free_size(MALLOC_CAP_8BIT),
     (unsigned)heap_caps_get_largest_free_block(MALLOC_CAP_8BIT), (unsigned)i8.total_allocated_bytes,
     (unsigned)i8.allocated_blocks, (unsigned)i8.free_blocks,
     (unsigned)heap_caps_get_free_size(MALLOC_CAP_INTERNAL), (unsigned)heap_caps_get_minimum_free_size(MALLOC_CAP_INTERNAL),
     (unsigned)heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL), (unsigned)ESP.getHeapSize(),
     (unsigned)heap_caps_get_free_size(MALLOC_CAP_IRAM_8BIT), (unsigned long)(millis() / 1000),
-    (unsigned)LittleFS.totalBytes(), (unsigned)LittleFS.usedBytes());
-  static const char *const names[] = {"loopTask", "wifi", "tiT", "btController", "nimble_host", "wx"};
+    (unsigned)LittleFS.totalBytes(), (unsigned)LittleFS.usedBytes(),
+    (unsigned)App::getControlStackFree(), (unsigned)App::getLoopStackFree());
+  static const char *const names[] = {"loopTask", "ctl", "wifi", "tiT", "btController", "nimble_host", "wx"};
   bool first = true;
   for (size_t k = 0; k < sizeof(names) / sizeof(names[0]) && n > 0 && n < (int)sizeof(b) - 64; k++) {
     TaskHandle_t h = xTaskGetHandle(names[k]);
     unsigned hw;
     if (h) hw = (unsigned)uxTaskGetStackHighWaterMark(h);
-    else if (k == 5 && g_wxStackFreeMin) hw = g_wxStackFreeMin;  // "wx" lives only while it fetches: report the last figure
+    else if (k == 6 && g_wxStackFreeMin) hw = g_wxStackFreeMin;  // "wx" lives only while it fetches: report the last figure
     else continue;
-    n += snprintf(b + n, sizeof(b) - n, "%s{\"name\":\"%s\",\"stackFreeMin\":%u}", first ? "" : ",", names[k], hw);
+    n += snprintf(b + n, sizeof(b) - n, "%s{\"name\":\"%s\",\"stackFree\":%u,\"stackFreeMin\":%u}", first ? "" : ",", names[k], hw, hw);
     first = false;
   }
   snprintf(b + n, sizeof(b) - n, "]}");
@@ -1156,8 +1158,10 @@ void handleApiStatus() {
   o.put("\"boiler\":\"%s\",\"boilerCooldownSec\":%lu,\"pendingAction\":\"%s\",\"pendingWaitSec\":%lu,\"lastTxMs\":%lu,",
         boilerRadio.isLastCommandOn() ? "ON" : "OFF", (unsigned long)bWaitSec, boilerRadio.getPendingActionStr(),
         (unsigned long)bWaitSec, (unsigned long)boilerRadio.getLastTransmissionTime());
-  o.put("\"freeHeap\":%lu,\"loopStackFree\":%u,\"rssi\":%d,\"uptimeSec\":%lu,\"wifiWatchdog\":\"active\",",  // FR-23: loopStackFree = bytes never used
-        (unsigned long)ESP.getFreeHeap(), (unsigned)uxTaskGetStackHighWaterMark(nullptr), (int)WiFi.RSSI(), (unsigned long)(millis() / 1000));
+  o.put("\"freeHeap\":%lu,\"loopStackFree\":%u,\"controlStackFree\":%u,\"longestTickDelayMs\":%lu,\"longestLoopPassMs\":%lu,\"rssi\":%d,\"uptimeSec\":%lu,\"wifiWatchdog\":\"active\",",  // FR-23: stack watermarks & timing
+        (unsigned long)ESP.getFreeHeap(), (unsigned)App::getLoopStackFree(), (unsigned)App::getControlStackFree(),
+        (unsigned long)App::getLongestTickDelayMs(), (unsigned long)App::getLongestLoopPassMs(),
+        (int)WiFi.RSSI(), (unsigned long)(millis() / 1000));
   o.put("\"time\":\"%s\",\"date\":\"%s\",\"season\":\"%s\",", timeAndWeather.getFormattedTime().c_str(),
         timeAndWeather.getFormattedDate().c_str(), timeAndWeather.getSeason().c_str());
   o.put("\"isHeatingSeason\":%s,\"seasonMode\":\"%s\",\"seasonState\":\"%s\",\"effectiveMode\":\"%s\",\"manualRemainingSec\":%lu,",

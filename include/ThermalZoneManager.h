@@ -152,6 +152,7 @@ public:
     // Persistence (ParamStore, NVS writes only on change)
     void loadConfig();
     void persistConfig();
+    void flushPendingNvs();
 
     // Getters
     size_t getZoneCount() const { return _zoneCount; }
@@ -391,8 +392,8 @@ private:
     uint32_t _lastBoilerOffTime;
     uint32_t _lastBoilerOnTime;
     uint32_t _lastEvaluationMs;
-    bool _nvsSavePending;
-    uint32_t _nvsSavePendingMs;
+    volatile bool _nvsSavePending;
+    volatile uint32_t _nvsSavePendingMs;
 
     void applyRelay(uint8_t pin, bool active, uint8_t reason = RS_NONE);
     bool valveOpen(size_t index, uint32_t now) const;  // energised for at least interlockDelay (FR-2)

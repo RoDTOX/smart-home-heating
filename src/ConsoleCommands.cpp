@@ -257,19 +257,24 @@ void handleSerialCommand(String cmd) {
 
     netConsole.println(F("[A. SYSTEM & CONTROLLER HARDWARE]"));
     netConsole.println(F("----------------------------------------------------------------------------------------------------"));
-    char fwBuf[48], procBuf[48], dieBuf[32], memBuf[48], flashBuf[48], imgBuf[48];
+    char fwBuf[48], procBuf[48], dieBuf[32], memBuf[48], flashBuf[48], imgBuf[48], timingBuf[48], stackBuf[48];
     snprintf(fwBuf, sizeof(fwBuf), "v%s (%s)", APP_VERSION, APP_BUILD_DATE);
     snprintf(procBuf, sizeof(procBuf), "%s (%u Cores)", ESP.getChipModel(), ESP.getChipCores());
     snprintf(dieBuf, sizeof(dieBuf), "%.1f \xC2\xB0""C (Internal)", chipTemp);
     snprintf(memBuf, sizeof(memBuf), "%u KB free / %u KB", ESP.getFreeHeap() / 1024, ESP.getHeapSize() / 1024);
     snprintf(flashBuf, sizeof(flashBuf), "%u MB @ %u MHz (NVS OK)", ESP.getFlashChipSize() / (1024 * 1024), ESP.getFlashChipSpeed() / 1000000);
     snprintf(imgBuf, sizeof(imgBuf), "%.2f MB (%.2f MB OTA)", ESP.getSketchSize() / 1048576.0f, ESP.getFreeSketchSpace() / 1048576.0f);
+    snprintf(timingBuf, sizeof(timingBuf), "Tick: %lu ms | Loop: %lu ms",
+             (unsigned long)App::getLongestTickDelayMs(), (unsigned long)App::getLongestLoopPassMs());
+    snprintf(stackBuf, sizeof(stackBuf), "Ctl: %u B | Loop: %u B",
+             App::getControlStackFree(), App::getLoopStackFree());
 
     printTwoCols("Firmware:", fwBuf, "Git Commit:", APP_GIT_COMMIT);
     printTwoCols("MAC Address:", WiFi.macAddress().c_str(), "Boot Cause:", getResetReasonStr(esp_reset_reason()));
     printTwoCols("Processor:", procBuf, "System Uptime:", uptimeBuf);
     printTwoCols("Silicon Die:", dieBuf, "Free Memory:", memBuf);
     printTwoCols("Flash Memory:", flashBuf, "Firmware Size:", imgBuf);
+    printTwoCols("Max Delays (FR-23):", timingBuf, "Stack Free (Min):", stackBuf);
     netConsole.println(F("----------------------------------------------------------------------------------------------------"));
     netConsole.println();
 

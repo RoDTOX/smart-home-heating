@@ -173,6 +173,15 @@ void ThermalZoneManager::persistConfig() {
     paramStore.saveState(StateKey::AntiSeizeEpoch, _lastAntiSeizeEpoch);
 }
 
+// Rule R-A8: debounced NVS writes run in loop(), not in the control task
+void ThermalZoneManager::flushPendingNvs() {
+    uint32_t now = millis();
+    if (_nvsSavePending && now >= _nvsSavePendingMs) {
+        _nvsSavePending = false;
+        persistConfig();
+    }
+}
+
 // The schedule as stored up to migration step 1: level temperatures for exactly three zones
 struct ScheduleConfigV1 {
     bool enabled;
@@ -1500,7 +1509,8 @@ void ThermalZoneManager::checkAntiSeizeSchedule(uint32_t now) {
     // First boot with NTP synchronized: record now to prevent immediate triggering
     if (_lastAntiSeizeEpoch == 0) {
         _lastAntiSeizeEpoch = (uint32_t)nowEpoch;
-        persistConfig();
+        _nvsSavePending = true;
+        _nvsSavePendingMs = now;
         return;
     }
     // If boiler/pumps ran within the last 7 days, defer anti-seize
@@ -1648,16 +1658,10 @@ void ThermalZoneManager::evaluateFrost(size_t index, bool found, float currentTe
 
 void ThermalZoneManager::update(BoilerRadioTrigger& boiler) {
     uint32_t now = millis();
-    if (now - _lastEvaluationMs < 1000) {
+    if (now - _lastEvaluationMs < 950) {
         return;
     }
     _lastEvaluationMs = now;
-
-    // Handle debounced NVS saving (3s after last slider change)
-    if (_nvsSavePending && now >= _nvsSavePendingMs) {
-        _nvsSavePending = false;
-        persistConfig();
-    }
 
     // Handle ongoing Anti-Seize Exercise (20s duration)
     if (_antiSeizeRunning) {
@@ -1667,7 +1671,8 @@ void ThermalZoneManager::update(BoilerRadioTrigger& boiler) {
             if (nowEpoch >= 1700000000) {
                 _lastAntiSeizeEpoch = (uint32_t)nowEpoch;
             }
-            persistConfig();
+            _nvsSavePending = true;
+            _nvsSavePendingMs = now;
 
             // Turn off pump
             if (_pumpControlEnabled) {

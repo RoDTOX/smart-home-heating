@@ -183,6 +183,7 @@ void setup() {
   Serial.begin(115200);
   delay(200);
 
+  App::init();
   eventLog.add(EV_BOOT, 0, RS_BOOT, 0, 0, (uint16_t)esp_reset_reason());  // FR-62.1: first entry of this run
   pinMode(PIN_STATUS_LED, OUTPUT);
   ledWrite(LOW, RS_BOOT); // Off (active HIGH)
@@ -250,6 +251,9 @@ void setup() {
   Serial.println(
       F("[System] Hardware Task Watchdog Timer (TWDT) armed: 90s."));
 
+  // AR-21: Start control task on Core 1 (priority 3, period 1s, TWDT registered)
+  App::startControlTask(&boilerRadio, &thermalZones);
+
   // Feed TWDT during OTA flash writes so watchdog never triggers
   Update.onProgress([](size_t progress, size_t total) {
     esp_task_wdt_reset();
@@ -267,7 +271,8 @@ void setup() {
 }
 
 void loop() {
-  esp_task_wdt_reset();
+  uint32_t loopStart = millis();
+  App::feedLoopWatchdog();
   server.handleClient();
   netConsole.update();
   bleScanner.update();
@@ -278,8 +283,7 @@ void loop() {
   }
   telemetryHistory.update();
   diagEngine.update();
-  boilerRadio.update();
-  thermalZones.update(boilerRadio);
+  thermalZones.flushPendingNvs();
   updateWifiWatchdog();
 
   // Non-blocking serial command reader
@@ -294,4 +298,6 @@ void loop() {
       serialBuffer += c;
     }
   }
+
+  App::recordLoopPass(millis() - loopStart);
 }
