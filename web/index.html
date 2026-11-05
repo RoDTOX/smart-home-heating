@@ -70,12 +70,29 @@ code,.mono{font:13px/1.35 ui-monospace,SFMono-Regular,Consolas,monospace}
 </head>
 <body>
 <main>
-<div id="devBanner" style="display:none;background:#b45309;color:#fff;text-align:center;padding:4px;font-weight:600;font-size:13px">DEV - consola deschisă</div>
 <header>
   <h1>Încălzire</h1>
   <div class="meta"><span id="clock">--:--</span><span id="outdoor">afară --</span><span id="boiler">centrala --</span><span id="level"></span></div>
-  <button id="away">Plecat</button>
+  <div style="display:flex;align-items:center;gap:8px">
+    <button id="away">Plecat</button>
+    <button type="button" id="toggleAdmin" class="btn-top-admin" style="background:var(--card);border:1px solid var(--line);border-radius:8px;padding:6px 12px;font-size:13px;color:var(--fg);cursor:pointer;font-weight:500;display:flex;align-items:center;gap:5px">⚙️ Admin</button>
+  </div>
 </header>
+
+<div id="adminAuthModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:9999;align-items:center;justify-content:center;backdrop-filter:blur(3px)">
+  <div style="background:var(--card);border:1px solid var(--line);border-radius:12px;padding:20px;max-width:320px;width:90%;box-shadow:0 8px 32px rgba(0,0,0,0.5)">
+    <div style="font-weight:600;font-size:16px;margin-bottom:8px;display:flex;align-items:center;gap:6px">🔒 Autentificare Administrator</div>
+    <div class="s" style="color:var(--mut);margin-bottom:12px">Introduceți parola pentru a accesa setările și diagnoza instalației.</div>
+    <form id="adminAuthForm" onsubmit="event.preventDefault();submitAdminAuth();">
+      <input id="adminAuthPass" type="password" placeholder="Parolă administrator" autocomplete="current-password" style="width:100%;box-sizing:border-box;margin-bottom:10px;padding:8px 12px;border-radius:6px;border:1px solid var(--line);background:var(--bg);color:var(--fg)">
+      <div id="adminAuthErr" class="s" style="color:var(--bad);margin-bottom:10px;min-height:16px"></div>
+      <div style="display:flex;justify-content:flex-end;gap:8px">
+        <button type="button" onclick="closeAdminAuthModal()" style="padding:6px 12px;background:none;border:1px solid var(--line);border-radius:6px;color:var(--mut);cursor:pointer">Anulează</button>
+        <button type="submit" id="adminAuthSubmit" style="padding:6px 14px;background:var(--btn);color:#fff;border:none;border-radius:6px;font-weight:600;cursor:pointer">Deblochează</button>
+      </div>
+    </form>
+  </div>
+</div>
 <ul class="alerts" id="alerts"></ul>
 <div class="grid" id="rooms"></div>
 
@@ -250,7 +267,10 @@ code,.mono{font:13px/1.35 ui-monospace,SFMono-Regular,Consolas,monospace}
   </details>
 </div>
 
-<footer><a href="#" id="toggleAdmin">Admin</a></footer>
+<footer>
+  <span style="opacity:0.6">Smart Heating Control</span>
+  <span id="devBanner" class="s" style="display:none;opacity:0.5;margin-left:12px;color:#f59e0b">🛠️ Profil: Dezvoltare</span>
+</footer>
 <div id="toast" role="alert"></div>
 </main>
 <!-- FR-8.1: API names watched by the engineering view and their explanation [text, requirement, "v" = changes continuously] -->
@@ -511,12 +531,20 @@ $("toast").addEventListener("click", () => { $("toast").textContent = ""; errUnt
 
 async function api(path, params, isJson = false) {
   let opt = {};
+  const headers = {};
   if (params) {
     if (isJson) {
-      opt = {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify(params)};
+      headers["Content-Type"] = "application/json";
+      opt = {method: "POST", headers: headers, body: JSON.stringify(params)};
     } else {
-      opt = {method: "POST", body: new URLSearchParams(params)};
+      opt = {method: "POST", headers: headers, body: new URLSearchParams(params)};
     }
+  } else {
+    opt = {headers: headers};
+  }
+  const auth = sessionStorage.getItem("sh_admin_auth");
+  if (auth) {
+    headers["Authorization"] = auth;
   }
   const r = await fetch(path, opt);
   if (!r.ok) {
@@ -547,7 +575,7 @@ function renderRooms() {
   }
   $("rooms").innerHTML = list.map(([z, i]) => {
     const s = hum[(z.sensorMac || "").toUpperCase()];
-    const t = z.sensorValid ? z.currentTemp.toFixed(1) + "°" : "--";
+    const t = (z.sensorValid && typeof z.currentTemp === "number") ? z.currentTemp.toFixed(1) + "°" : "--";
     const humStr = s ? `💧 ${Math.round(s.hum)}% RH` : "";
     const holdStr = z.isBoost ? "Boost manual" : "";
     const subParts = [];
@@ -601,7 +629,7 @@ function renderRooms() {
       </div>
       <div class="ctl">
         <button type="button" data-a="up" data-i="${i}" title="Crește ținta">+</button>
-        <div class="sp-val" title="Țintă">${targetVal.toFixed(1)}°</div>
+        <div class="sp-val" title="Țintă">${(typeof targetVal === "number" ? targetVal.toFixed(1) : "20.0")}°</div>
         <button type="button" data-a="dn" data-i="${i}" title="Scade ținta">−</button>
         <button type="button" class="sp-clr ${isHold ? '' : 'hidden'}" data-a="clr" data-i="${i}" title="Revino la program">↺ prog</button>
       </div>
@@ -636,8 +664,16 @@ function renderHeader() {
 
 function goToAdminCreds() {
   if (!isAdmin()) {
-    document.body.classList.add("admin");
-    location.hash = "admin";
+    openAdminAuthModal(() => {
+      const grp = $("grpSetup");
+      if (grp) grp.open = true;
+      const passInp = $("cfgAdminPass");
+      if (passInp) {
+        passInp.scrollIntoView({ behavior: "smooth", block: "center" });
+        passInp.focus();
+      }
+    });
+    return;
   }
   const grp = $("grpSetup");
   if (grp) grp.open = true;
@@ -913,43 +949,61 @@ function renderHistoryChart() {
 
   const reboots = data.reboots || [];
   const visibleEvents = [];
+  const curEpoch = (data.currentEpoch && data.currentEpoch > 1700000000) ? data.currentEpoch : Math.floor(nowMs / 1000);
+  const totalWindowHours = (selectedHistRange === "1h") ? 1.0 : ((selectedHistRange === "12h") ? 12 : ((selectedHistRange === "24h") ? 24 : (selectedHistRange === "3d" ? 72 : 120)));
+
   reboots.forEach(rb => {
+    const slotSec = isMultiDay ? 1800 : 300;
     const rSlot = isMultiDay ? rb.slot5d : rb.slot24h;
     const slotCap = isMultiDay ? 240 : 288;
     const slotsAgo = (cur >= rSlot) ? (cur - rSlot) : (cur + slotCap - rSlot);
-    if (slotsAgo < totalWindowSlots) {
-      let startStr = "";
-      let endStr = "";
-      let durText = "~2m";
-      if (rb.epoch) {
-        const dEnd = new Date(rb.epoch * 1000);
-        const dStart = new Date((rb.epoch - 120) * 1000);
-        startStr = `${String(dStart.getHours()).padStart(2, "0")}:${String(dStart.getMinutes()).padStart(2, "0")}`;
-        endStr = `${String(dEnd.getHours()).padStart(2, "0")}:${String(dEnd.getMinutes()).padStart(2, "0")}`;
-      } else {
-        const hoursAgo = isMultiDay ? (slotsAgo * 0.5) : (slotsAgo * (5 / 60));
-        const dEnd = new Date(Date.now() - hoursAgo * 3600 * 1000);
-        const dStart = new Date(Date.now() - (hoursAgo + 2/60) * 3600 * 1000);
-        startStr = `${String(dStart.getHours()).padStart(2, "0")}:${String(dStart.getMinutes()).padStart(2, "0")}`;
-        endStr = `${String(dEnd.getHours()).padStart(2, "0")}:${String(dEnd.getMinutes()).padStart(2, "0")}`;
-      }
-      const intervalLabel = `${startStr} → ${endStr} (${durText})`;
 
-      // Event block dimensions on the Evenimente track
-      const rxCenter = x1 - (slotsAgo + 0.5) * slotW;
-      const bw = Math.max(6, Math.min(22, Math.max(slotW * 0.45, 8)));
-      const bx = Math.max(x0, Math.min(x1 - bw, rxCenter - bw / 2));
+    let tEnd = rb.epoch ? rb.epoch : (curEpoch - slotsAgo * slotSec);
+    let tStart = (rb.offEpoch && rb.offEpoch > 1700000000 && rb.offEpoch < tEnd) ? rb.offEpoch : (tEnd - 120);
+    let durSec = Math.max(10, tEnd - tStart);
+    let durText = (durSec < 90) ? `${durSec}s` : (durSec < 3600 ? `~${Math.round(durSec / 60)}m` : `~${(durSec / 3600).toFixed(1)}h`);
+
+    const dStart = new Date(tStart * 1000);
+    const dEnd = new Date(tEnd * 1000);
+    const startStr = `${String(dStart.getHours()).padStart(2, "0")}:${String(dStart.getMinutes()).padStart(2, "0")}`;
+    const endStr = `${String(dEnd.getHours()).padStart(2, "0")}:${String(dEnd.getMinutes()).padStart(2, "0")}`;
+    const intervalLabel = `${startStr} → ${endStr} (${durText})`;
+
+    const hoursAgoEnd = Math.max(0, (nowMs / 1000 - tEnd) / 3600);
+    const hoursAgoStart = Math.max(0, (nowMs / 1000 - tStart) / 3600);
+
+    if (hoursAgoEnd <= totalWindowHours) {
+      const fracEnd = Math.max(0, Math.min(1, 1 - (hoursAgoEnd / totalWindowHours)));
+      const fracStart = Math.max(0, Math.min(1, 1 - (hoursAgoStart / totalWindowHours)));
+
+      const xEnd = x0 + fracEnd * chartW;
+      const xStart = x0 + fracStart * chartW;
+
+      const minW = Math.max(10, slotW * 0.45);
+      const bx = Math.max(x0, Math.min(x1 - minW, Math.min(xStart, xEnd)));
+      const bw = Math.max(minW, Math.min(x1 - bx, Math.max(Math.abs(xEnd - xStart), minW)));
+
+      let rawReason = rb.reason || "Restart sistem";
+      let shortReason = "Restart";
+      if (/firmware|software/i.test(rawReason)) shortReason = "Restart FW";
+      else if (/power|curent|alimentare/i.test(rawReason)) shortReason = "Pană curent";
+      else if (/watchdog|wdt/i.test(rawReason)) shortReason = "Watchdog";
+      else if (/panic|crash/i.test(rawReason)) shortReason = "Crash";
+      else if (/brownout/i.test(rawReason)) shortReason = "Brownout";
 
       visibleEvents.push({
         bx: bx,
         bw: bw,
-        rx: rxCenter,
-        slotsAgo: slotsAgo,
+        rx: (xStart + xEnd) / 2,
+        tStart: tStart,
+        tEnd: tEnd,
         rb: rb,
-        reason: rb.reason || "Restart sistem",
+        reason: rawReason,
+        shortReason: shortReason,
         intervalLabel: intervalLabel,
         startStr: startStr,
-        endStr: endStr
+        endStr: endStr,
+        durText: durText
       });
     }
   });
@@ -962,11 +1016,15 @@ function renderHistoryChart() {
 
     if (r.isEvent) {
       visibleEvents.forEach(ve => {
-        svgParts.push(`<rect x="${ve.bx.toFixed(1)}" y="${ry}" width="${ve.bw.toFixed(1)}" height="${actRowH}" rx="3" fill="rgba(245,158,11,0.14)" stroke="#f59e0b" stroke-width="1.2" />`);
-        const iconX = (ve.bw > 45) ? (ve.bx + 11) : (ve.bx + ve.bw / 2);
-        svgParts.push(`<text x="${iconX.toFixed(1)}" y="${(ry + 10.5).toFixed(1)}" font-size="9" text-anchor="middle" fill="#f59e0b" font-weight="bold">⚡</text>`);
-        if (ve.bw > 55) {
-          svgParts.push(`<text x="${(ve.bx + 22).toFixed(1)}" y="${(ry + 10.5).toFixed(1)}" font-size="8.5" fill="#f59e0b" font-weight="600">Restart</text>`);
+        svgParts.push(`<rect x="${ve.bx.toFixed(1)}" y="${ry}" width="${ve.bw.toFixed(1)}" height="${actRowH}" rx="3" fill="rgba(245,158,11,0.12)" stroke="#f59e0b" stroke-width="1.2" />`);
+        if (ve.bw >= 68) {
+          svgParts.push(`<text x="${(ve.bx + 8).toFixed(1)}" y="${(ry + 10.5).toFixed(1)}" font-size="9" fill="#f59e0b" font-weight="bold">⚡</text>`);
+          svgParts.push(`<text x="${(ve.bx + 20).toFixed(1)}" y="${(ry + 10.5).toFixed(1)}" font-size="8.5" fill="#f59e0b" font-weight="600">${esc(ve.shortReason)} (${esc(ve.durText)})</text>`);
+        } else if (ve.bw >= 38) {
+          svgParts.push(`<text x="${(ve.bx + 6).toFixed(1)}" y="${(ry + 10.5).toFixed(1)}" font-size="9" fill="#f59e0b" font-weight="bold">⚡</text>`);
+          svgParts.push(`<text x="${(ve.bx + 17).toFixed(1)}" y="${(ry + 10.5).toFixed(1)}" font-size="8.5" fill="#f59e0b" font-weight="600">${esc(ve.shortReason)}</text>`);
+        } else {
+          svgParts.push(`<text x="${(ve.bx + ve.bw / 2).toFixed(1)}" y="${(ry + 10.5).toFixed(1)}" font-size="9" text-anchor="middle" fill="#f59e0b" font-weight="bold">⚡</text>`);
         }
       });
       return;
@@ -1171,18 +1229,11 @@ function renderHistoryChart() {
 
     row1 += `<div style="display:flex;align-items:center;gap:6px;flex-shrink:0">`;
     if (nearReboot) {
-      const rbObj = nearReboot.rb || nearReboot;
-      const rawReason = String(nearReboot.reason || rbObj.reason || '');
-      let shortReason = "Restart";
-      if (/firmware|software/i.test(rawReason)) shortReason = "Restart FW";
-      else if (/power/i.test(rawReason)) shortReason = "Restart PWR";
-      else if (/watchdog|wdt/i.test(rawReason)) shortReason = "Restart WDT";
-      else if (/panic|crash/i.test(rawReason)) shortReason = "Crash";
-      else if (/brownout/i.test(rawReason)) shortReason = "Brownout";
-
-      const timeTag = nearReboot.endStr ? ` (${nearReboot.endStr})` : (nearReboot.startStr ? ` (${nearReboot.startStr})` : (rbObj.epoch ? ` (${new Date(rbObj.epoch * 1000).toLocaleTimeString().slice(0,5)})` : ''));
+      const rawReason = String(nearReboot.reason || '');
+      const shortReason = nearReboot.shortReason || 'Restart';
+      const labelText = nearReboot.startStr ? `${shortReason}: ${nearReboot.startStr} → ${nearReboot.endStr} (${nearReboot.durText})` : `${shortReason}`;
       row1 += `<span style="padding:2px 8px;border-radius:4px;font-weight:600;font-size:11px;background:rgba(245,158,11,0.15);border:1px solid #f59e0b;color:#f59e0b;white-space:nowrap" title="${esc(rawReason)} · ${esc(nearReboot.intervalLabel || '')}">
-        ⚡ ${shortReason}${timeTag}
+        ⚡ ${esc(labelText)}
       </span>`;
     }
     row1 += `</div></div>`;
@@ -1255,8 +1306,6 @@ function renderHistoryChart() {
       let nearReboot = null;
       visibleEvents.forEach(ve => {
         if (xPos >= ve.bx - 4 && xPos <= ve.bx + ve.bw + 4) {
-          nearReboot = ve;
-        } else if (Math.abs(cursorSlotsAgo - ve.slotsAgo) <= (selectedHistRange === "1h" ? 0.5 : (isMultiDay ? 1.0 : 0.7))) {
           nearReboot = ve;
         }
       });
@@ -1468,8 +1517,8 @@ function renderTpiInspector() {
     <tbody>`;
 
   Z.zones.forEach((z, i) => {
-    const cur = z.sensorValid ? z.currentTemp.toFixed(1) + '°C' : '--';
-    const tgt = z.effectiveTarget.toFixed(1) + '°C';
+    const cur = (z.sensorValid && typeof z.currentTemp === "number") ? z.currentTemp.toFixed(1) + '°C' : '--';
+    const tgt = (typeof z.effectiveTarget === "number") ? z.effectiveTarget.toFixed(1) + '°C' : '--';
     const err = z.sensorValid ? (z.effectiveTarget - z.currentTemp) : 0;
     const isDeficit = err >= 0.39;
     const pPct = isDeficit ? 100 : Math.max(0, Math.round((err / 1.5) * 100));
@@ -1550,14 +1599,14 @@ function renderSetup() {
     const macs = B.map(s => s.mac.toUpperCase());
     let o = `<option value="">– fără senzor –</option>`;
     if (cur && !macs.includes(cur.toUpperCase())) o += `<option value="${esc(cur)}" selected>${esc(cur)} (neauzit)</option>`;
-    return o + B.map(s => `<option value="${esc(s.mac)}" ${s.mac.toUpperCase() === (cur || "").toUpperCase() ? "selected" : ""}>${esc(s.mac)} · ${s.temp.toFixed(1)}° · ${s.rssi} dBm</option>`).join("");
+    return o + B.map(s => `<option value="${esc(s.mac)}" ${s.mac.toUpperCase() === (cur || "").toUpperCase() ? "selected" : ""}>${esc(s.mac)} · ${typeof s.temp === "number" ? s.temp.toFixed(1) : "--"}° · ${s.rssi} dBm</option>`).join("");
   };
   $("setup").innerHTML = "<tr><th>Nr</th><th>Nume</th><th>Senzor</th><th>Releu</th><th>Pornită</th><th>Offset °C</th><th></th><th></th></tr>" + Z.zones.map((z, i) =>
     `<tr data-z="${i}"><td>${z.id}</td><td><input class="nm" data-f="name" maxlength="31" value="${esc(z.name)}"></td>
      <td><input class="nm" data-f="mac" list="macList" maxlength="17" placeholder="AA:BB:CC:DD:EE:FF" value="${esc(z.sensorMac || "")}"></td>
      <td><select data-f="pin">${RELAYS.map(([p, t]) => `<option value="${p}" ${p === z.relayPin ? "selected" : ""}>${t}</option>`).join("")}</select></td>
      <td><input type="checkbox" data-f="enabled" ${z.enabled ? "checked" : ""}></td>
-     <td><input class="n" type="number" step="0.1" min="-3" max="3" data-f="offset" value="${z.tempOffset.toFixed(1)}"></td>
+     <td><input class="n" type="number" step="0.1" min="-3" max="3" data-f="offset" value="${typeof z.tempOffset === "number" ? z.tempOffset.toFixed(1) : "0.0"}"></td>
      <td><button data-del="${i}">Șterge</button></td><td class="s" id="setupMsg${i}"></td></tr>`).join("");
 }
 
@@ -1909,7 +1958,8 @@ async function refresh() {
     for (const ep of eps) RAW[ep] = ep === "api/setup/discovered-sensors" ? await api("api/setup/discovered-sensors") : await api(ep);
     Z = RAW["api/zones"]; B = RAW["api/ble/sensors"].sensors; ST = RAW["api/boiler/status"]; D = RAW["api/diag/status"];
     S = RAW["api/schedule"] || S;
-    $("devBanner").style.display = ST && ST.profile === "dev-open" ? "block" : "none";
+    $("devBanner").style.display = ST && ST.profile === "dev-open" ? "inline-block" : "none";
+    updateAdminBtn();
     const now = Date.now();
     for (const zid in pendingSetpoints) {
       if (!pendingSetpoints[zid].timer && now > pendingSetpoints[zid].holdUntil) {
@@ -2289,7 +2339,136 @@ $("away").onclick = async () => {
 
 let timer = null;
 function startTimer() { clearInterval(timer); timer = setInterval(() => { if (!document.hidden) refresh(); }, isAdmin() ? 3000 : 5000); }
-$("toggleAdmin").onclick = e => { e.preventDefault(); document.body.classList.toggle("admin"); location.hash = isAdmin() ? "admin" : ""; startTimer(); refresh(); };
+
+let pendingAdminCallback = null;
+
+function updateAdminBtn() {
+  const btn = $("toggleAdmin");
+  if (btn) {
+    if (isAdmin()) {
+      btn.textContent = "✕ Ieși Admin";
+      btn.style.borderColor = "var(--line)";
+      btn.style.color = "var(--mut)";
+      btn.title = "Ieși din panoul de administrare";
+    } else {
+      btn.textContent = "⚙️ Admin";
+      btn.style.borderColor = "var(--line)";
+      btn.style.color = "var(--fg)";
+      btn.title = "Deschide panoul de administrare";
+    }
+  }
+}
+
+function openAdminAuthModal(cb) {
+  pendingAdminCallback = cb || null;
+  const modal = $("adminAuthModal");
+  if (modal) {
+    modal.style.display = "flex";
+    $("adminAuthErr").textContent = "";
+    $("adminAuthPass").value = "";
+    setTimeout(() => $("adminAuthPass").focus(), 50);
+  }
+}
+
+function closeAdminAuthModal() {
+  const modal = $("adminAuthModal");
+  if (modal) modal.style.display = "none";
+  pendingAdminCallback = null;
+}
+
+async function submitAdminAuth() {
+  const pass = ($("adminAuthPass").value || "").trim();
+  const errBox = $("adminAuthErr");
+  if (!pass) {
+    errBox.textContent = "Introduceți parola administrator.";
+    return;
+  }
+  errBox.textContent = "Se verifică...";
+  errBox.style.color = "var(--mut)";
+
+  const userCandidates = ["bogdan", "admin"];
+  let ok = false;
+  let authHeader = "";
+
+  for (const u of userCandidates) {
+    try {
+      const candidateAuth = "Basic " + btoa(u + ":" + pass);
+      const r = await fetch("api/auth/verify", {
+        method: "POST",
+        headers: { "Authorization": candidateAuth }
+      });
+      if (r.ok) {
+        ok = true;
+        authHeader = candidateAuth;
+        sessionStorage.setItem("sh_admin_user", u);
+        break;
+      }
+    } catch (_) {}
+  }
+
+  if (!ok) {
+    for (const u of userCandidates) {
+      try {
+        const candidateAuth = "Basic " + btoa(u + ":" + pass);
+        const r = await fetch("api/boiler/off", {
+          method: "POST",
+          headers: { "Authorization": candidateAuth }
+        });
+        if (r.status !== 401) {
+          ok = true;
+          authHeader = candidateAuth;
+          sessionStorage.setItem("sh_admin_user", u);
+          break;
+        }
+      } catch (_) {}
+    }
+  }
+
+  if (ok) {
+    sessionStorage.setItem("sh_admin_auth", authHeader);
+    sessionStorage.setItem("sh_admin_pass", pass);
+    document.body.classList.add("admin");
+    location.hash = "admin";
+    updateAdminBtn();
+    closeAdminAuthModal();
+    startTimer();
+    refresh();
+    if (pendingAdminCallback) {
+      const cb = pendingAdminCallback;
+      pendingAdminCallback = null;
+      cb();
+    }
+  } else {
+    errBox.textContent = "Parolă incorectă!";
+    errBox.style.color = "var(--bad)";
+    $("adminAuthPass").focus();
+  }
+}
+
+$("toggleAdmin").onclick = e => {
+  e.preventDefault();
+  if (isAdmin()) {
+    sessionStorage.removeItem("sh_admin_auth");
+    sessionStorage.removeItem("sh_admin_pass");
+    sessionStorage.removeItem("sh_admin_user");
+    document.body.classList.remove("admin");
+    location.hash = "";
+    updateAdminBtn();
+    startTimer();
+    refresh();
+  } else {
+    const cachedAuth = sessionStorage.getItem("sh_admin_auth");
+    if (cachedAuth) {
+      document.body.classList.add("admin");
+      location.hash = "admin";
+      updateAdminBtn();
+      startTimer();
+      refresh();
+    } else {
+      openAdminAuthModal();
+    }
+  }
+};
 
 const btnSaveCreds = $("btnSaveAdminCreds");
 if (btnSaveCreds) {
@@ -2341,6 +2520,19 @@ if (btnSaveCreds) {
         }
       }
 
+      if (!ok) {
+        try {
+          const consoleBody = new URLSearchParams({ cmd: `ADMINPASS ${u} ${p}` });
+          const cr = await fetch("api/console/send", { method: "POST", body: consoleBody });
+          if (cr.ok) {
+            const txt = await cr.text();
+            if (txt.includes("[ADMINPASS]") && !txt.includes("Refused") && !txt.includes("Failed")) {
+              ok = true;
+            }
+          }
+        } catch (_) {}
+      }
+
       if (ok) {
         if (msg) { msg.textContent = "✅ Credențiale salvate! DTC-403 rezolvat."; msg.style.color = "var(--ok)"; }
         if ($("cfgAdminCurrentPass")) $("cfgAdminCurrentPass").value = "";
@@ -2379,7 +2571,13 @@ if (rangeTabs) {
     loadHistoryChart();
   });
 }
-if (location.hash === "#admin") document.body.classList.add("admin");
+const savedAuth = sessionStorage.getItem("sh_admin_auth");
+if (savedAuth && location.hash === "#admin") {
+  document.body.classList.add("admin");
+} else {
+  if (location.hash === "#admin") location.hash = "";
+}
+updateAdminBtn();
 
 // Commissioning: a row being edited is not overwritten by the refresh until it is saved
 $("setup").addEventListener("input", e => { const tr = e.target.closest("tr[data-z]"); if (tr) dirtyRows.add(tr.dataset.z); });

@@ -20,7 +20,8 @@ struct TelemetryPoint {
 };
 
 struct BootRecord {
-    uint32_t epoch;
+    uint32_t epoch;     // Restore / boot time (T_ON)
+    uint32_t offEpoch;  // Downtime start (T_OFF) - when board stopped running
     uint16_t slot24h;
     uint8_t  slot5d;
     uint8_t  reason;
@@ -84,6 +85,7 @@ public:
 
     // Boot & restart tracking
     void recordBootEvent();
+    void noteShutdown(const char* reason = nullptr);
     uint8_t getBootRecordCount() const { return _bootRecordCount; }
     const BootRecord* getBootRecords() const { return _bootRecords; }
 
@@ -96,6 +98,9 @@ private:
     bool     _currentBootRecorded;
     uint32_t _bootMs;
     uint8_t  _bootReason;
+    uint32_t _savedRtcOffEpoch;
+    uint32_t _savedFlashOffEpoch;
+    bool     _savedRtcValid;
     uint8_t  _currentSlot5d;
     uint16_t _currentSlot24h;
     uint32_t _lastSampleMs;

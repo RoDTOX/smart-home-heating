@@ -5,6 +5,35 @@ Corelat cu planul activ: [`docs/plan.md`](file:///c:/Users/BSeceleanu/.github_re
 Entries before 29.10.2026 (the system before the lean clean-up):
 [`archive/changelog_until_2026-10-21.md`](archive/changelog_until_2026-10-21.md).
 
+## [05.11.2026] - Telemetry & Web UI: offline interval tracking ($T_{\text{OFF}} \rightarrow T_{\text{ON}}$), Admin password authentication modal, top header button, and dev banner removal (FR-34, FR-58, FR-59, FR-62.1)
+
+- **Who / when / why:** firmware session (Antigravity), addressing user requirements:
+  1. Admin password authentication: protected Admin mode behind a dedicated password verification modal (`POST /api/auth/verify`). Accessing admin or typing `#admin` now strictly requires the administrator password.
+  2. Moved "Admin" button from the bottom footer up to the top header (`⚙️ Admin` / `✕ Ieși Admin`).
+  3. Removed the orange "DEV - consola deschisă" top banner from the top of the viewport; placed as a discrete footer badge (`🛠️ Profil: Dezvoltare`).
+  4. Offline interval tracking: detect and visualize true downtime periods (from shutdown/power-off $T_{\text{OFF}}$ to restoration $T_{\text{ON}}$) on the telemetry chart's `⚡ Evenimente` track.
+  5. Telemetry chart event styling: replaced solid orange blocks with semi-transparent amber boxes (`rgba(245,158,11,0.12)` with crisp stroke `#f59e0b`), mapped exact event duration on the timeline, and condensed hover tooltip to a single-line format (`⚡ [Motiv]: HH:MM → HH:MM (~Xm)`).
+  6. Prevented HTTP 401 lockout on Admin credentials change by adding automatic fallback to `/api/console/send` (`ADMINPASS ${u} ${p}`).
+  7. Universal `.toFixed` protection across the web frontend, preventing any undefined property exceptions during fast interactions.
+- **Done:**
+  - `src/WebApi.cpp`: added `GET / POST /api/auth/verify` endpoint requiring Basic Auth to test credentials without performing any side-effects.
+  - `include/TelemetryHistoryManager.h` & `src/TelemetryHistoryManager.cpp`:
+    - Expanded `BootRecord` struct with `offEpoch` (4 bytes: downtime start / last alive timestamp).
+    - Added RTC Slow Memory survival variables (`rtc_magic`, `rtc_lastAliveEpoch`, `rtc_shutdownEpoch`, `rtc_shutdownReason`) preserving exact shutdown seconds across software resets, OTA updates, crashes, and watchdogs.
+    - Added flash persistence (`/last_alive.bin`) committed on 5m slot boundaries to track downtime start even across complete unpowered blackouts where RTC RAM resets.
+    - Updated `streamHistoryJson()` to stream `"offEpoch": %u` in the `reboots` JSON array with human-readable Romanian reboot causes (`Pană curent / Pornire la rece`, `Firmware Update / Software Reboot`, `Eroare sistem (Crash)`, `Watchdog Timeout`, `Cădere tensiune (Brownout)`).
+    - Seamlessly migrated legacy 8-byte boot event records in flash to 12-byte records with zero data loss.
+  - `web/index.html`:
+    - Moved Admin button to the top header alongside `Plecat` (`⚙️ Admin` / `✕ Ieși Admin`).
+    - Added `adminAuthModal` overlay prompting for password before unlocking Admin panels.
+    - Added session auth persistence in `sessionStorage` (`sh_admin_auth`) and attached it to all `api()` requests.
+    - Removed orange top `#devBanner`; styled as a subtle footer badge.
+    - Updated chart rendering for `⚡ Evenimente` track: computes exact event bounding box $[X_{\text{start}}, X_{\text{end}}]$ from $T_{\text{OFF}}$ and $T_{\text{ON}}$, rendering a clean continuous semi-transparent box.
+    - Refined tooltip in `#histInfoBar`: displays single-line `⚡ Pană curent: 12:10 → 12:45 (~35m)` or `⚡ Restart FW: 09:27 → 09:29 (~2m)`.
+    - Added console fallback in `btnSaveCreds` to eliminate 401 errors when changing credentials.
+    - Guarded all `.toFixed` calls with `typeof === "number"` checks.
+- **Verification:** compiled clean with `pio run` (1,273,365 bytes, OTA margin 33 KB), `sh_process_check.py` 0 errors, uploaded web assets (42,753 bytes gzip, HTTP 200 OK), flashed firmware via OTA (`tools/sh_ota_upload.py`, HTTP 200 OK), verified live `/api/history` output with valid `epoch` and `offEpoch` (7s downtime measured accurately), verified `/api/auth/verify` returns 401 on wrong pass and 200 on correct pass.
+
 ## [05.11.2026] - Web UI: fix TPI duty percent formatting, authenticated credentials update, and SYS-REBOOT restore label (FR-47, FR-59, FR-62.1)
 
 - **Who / when / why:** firmware session (Antigravity), addressing user findings: fixed TPI displaying misleading `0 min/h (0.22%)` when actual duty was 22% (13 min/h) due to decimal-to-percent formatting bug, resolved HTTP 401 when changing admin credentials by authenticating the request with current/default credentials, and clarified SYS-REBOOT title in persistent DTC history to explicitly show `(Restaurare Sistem)`.

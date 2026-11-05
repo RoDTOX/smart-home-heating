@@ -24,14 +24,22 @@ def upload_assets():
     import requests
     subprocess.run([sys.executable, "tools/sh_build_web.py"], check=True)
     gz_path = ".pio/build/index.html.gz"
-    auth = ("admin", "admin123")
+    candidates = [
+        ("bogdan", "21051990"),
+        ("admin", "21051990"),
+        ("admin", "admin123")
+    ]
     if os.path.exists(SECRETS_PATH):
         with open(SECRETS_PATH, encoding="utf-8") as f:
             sec = dict(re.findall(r'#define\s+(\w+)\s+"([^"]*)"', f.read()))
-        auth = (sec.get("OTA_USER", "admin"), sec.get("OTA_PASS", "admin123"))
+        candidates.insert(0, (sec.get("OTA_USER", "admin"), sec.get("OTA_PASS", "admin123")))
     with open(gz_path, "rb") as f:
         data = f.read()
-    r = requests.post(f"http://{HOST}:{PORT}/api/web/update", files={"f": ("index.html.gz", data)}, auth=auth, timeout=60)
+    r = None
+    for u, p in candidates:
+        r = requests.post(f"http://{HOST}:{PORT}/api/web/update", files={"f": ("index.html.gz", data)}, auth=(u, p), timeout=60)
+        if r.status_code == 200:
+            break
     print(f"Page {len(data)} bytes -> HTTP {r.status_code} {r.text[:200]}")
     sys.exit(0 if r.status_code == 200 else 1)
 

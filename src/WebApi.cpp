@@ -1587,6 +1587,13 @@ void handleApiConfigCredentials() {
   }
 }
 
+// FR-58: Lightweight authentication verification endpoint
+void handleApiAuthVerify() {
+  if (!requireAuth()) return;
+  sendCorsHeaders();
+  server.send(200, "application/json", F("{\"status\":\"ok\",\"authenticated\":true}"));
+}
+
 // FR-43: only in MANUAL mode, only an output of a zone or the pump, respecting NC / NO (FR-15.1)
 void handleApiRelayTest() {
   if (!requireAuth()) return;
@@ -1709,5 +1716,7 @@ void registerWebRoutes() {
   server.on("/api/config/export", HTTP_GET, handleApiConfigExport);
   server.on("/api/config/import", HTTP_POST, handleApiConfigImport);
   server.on("/api/config/credentials", HTTP_POST, handleApiConfigCredentials);
+  server.on("/api/auth/verify", HTTP_POST, handleApiAuthVerify);
+  server.on("/api/auth/verify", HTTP_GET, handleApiAuthVerify);
 
 }

@@ -313,6 +313,7 @@ void setup() {
   // Feed TWDT during OTA flash writes so watchdog never triggers
   Update.onProgress([](size_t progress, size_t total) {
     esp_task_wdt_reset();
+    telemetryHistory.noteShutdown("OTA Update");
   });
 
   // Enable Web OTA on /update (admin / admin123)

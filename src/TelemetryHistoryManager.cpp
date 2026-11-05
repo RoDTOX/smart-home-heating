@@ -12,6 +12,18 @@
 static const char* FILE_24H = "/telemetry_24h.bin";
 static const char* FILE_5D  = "/telemetry_5d.bin";
 static const char* FILE_BOOT = "/boot_events.bin";
+static const char* FILE_LAST_ALIVE = "/last_alive.bin";
+
+RTC_DATA_ATTR static uint32_t rtc_magic = 0;
+RTC_DATA_ATTR static uint32_t rtc_lastAliveEpoch = 0;
+RTC_DATA_ATTR static uint32_t rtc_shutdownEpoch = 0;
+RTC_DATA_ATTR static uint8_t  rtc_shutdownReason = 0;
+static const uint32_t SH_RTC_MAGIC = 0x53484254; // 'SHBT'
+
+struct LastAliveRecord {
+    uint32_t magic;
+    uint32_t epoch;
+};
 
 TelemetryHistoryManager telemetryHistory;
 
@@ -21,6 +33,9 @@ TelemetryHistoryManager::TelemetryHistoryManager()
       _currentBootRecorded(false),
       _bootMs(millis()),
       _bootReason((uint8_t)esp_reset_reason()),
+      _savedRtcOffEpoch(0),
+      _savedFlashOffEpoch(0),
+      _savedRtcValid(false),
       _currentSlot5d(0),
       _currentSlot24h(0),
       _lastSampleMs(0),
@@ -35,6 +50,16 @@ TelemetryHistoryManager::TelemetryHistoryManager()
 }
 
 void TelemetryHistoryManager::begin() {
+    // Check RTC survival from previous run before resetting
+    if (rtc_magic == SH_RTC_MAGIC && rtc_lastAliveEpoch > 1700000000UL) {
+        _savedRtcValid = true;
+        _savedRtcOffEpoch = rtc_shutdownEpoch ? rtc_shutdownEpoch : rtc_lastAliveEpoch;
+        netConsole.printf("[HISTORY] RTC preserved: last alive %u\r\n", (unsigned)_savedRtcOffEpoch);
+    } else {
+        _savedRtcValid = false;
+        _savedRtcOffEpoch = 0;
+    }
+
     // Mount LittleFS with format-on-fail
     if (!LittleFS.begin(true)) {
         netConsole.println(F("[HISTORY][WARN] LittleFS mount failed!"));
@@ -49,6 +74,19 @@ void TelemetryHistoryManager::begin() {
 
 void TelemetryHistoryManager::loadFromFlash() {
     if (!_fsMounted) return;
+
+    // Load last alive timestamp from flash
+    if (LittleFS.exists(FILE_LAST_ALIVE)) {
+        File f = LittleFS.open(FILE_LAST_ALIVE, "r");
+        if (f) {
+            LastAliveRecord la;
+            if (f.read((uint8_t*)&la, sizeof(la)) == sizeof(la) && la.magic == SH_RTC_MAGIC) {
+                _savedFlashOffEpoch = la.epoch;
+                netConsole.printf("[HISTORY] Loaded flash last alive timestamp: %u\r\n", (unsigned)_savedFlashOffEpoch);
+            }
+            f.close();
+        }
+    }
 
     // Load 24h Ring Buffer
     if (LittleFS.exists(FILE_24H)) {
@@ -78,8 +116,30 @@ void TelemetryHistoryManager::loadFromFlash() {
     if (LittleFS.exists(FILE_BOOT)) {
         File f = LittleFS.open(FILE_BOOT, "r");
         if (f) {
-            size_t bytesRead = f.read((uint8_t*)_bootRecords, sizeof(_bootRecords));
-            _bootRecordCount = bytesRead / sizeof(BootRecord);
+            size_t sz = f.size();
+            if (sz % sizeof(BootRecord) == 0) {
+                size_t bytesRead = f.read((uint8_t*)_bootRecords, sizeof(_bootRecords));
+                _bootRecordCount = bytesRead / sizeof(BootRecord);
+            } else if (sz % 8 == 0) {
+                // Migration from legacy 8-byte struct (epoch, slot24h, slot5d, reason)
+                struct LegacyBootRecord {
+                    uint32_t epoch;
+                    uint16_t slot24h;
+                    uint8_t  slot5d;
+                    uint8_t  reason;
+                } leg[10];
+                size_t bytesRead = f.read((uint8_t*)leg, sizeof(leg));
+                size_t count = bytesRead / sizeof(LegacyBootRecord);
+                if (count > 10) count = 10;
+                _bootRecordCount = count;
+                for (size_t i = 0; i < count; i++) {
+                    _bootRecords[i].epoch = leg[i].epoch;
+                    _bootRecords[i].offEpoch = (leg[i].epoch > 120) ? (leg[i].epoch - 120) : 0;
+                    _bootRecords[i].slot24h = leg[i].slot24h;
+                    _bootRecords[i].slot5d = leg[i].slot5d;
+                    _bootRecords[i].reason = leg[i].reason;
+                }
+            }
             f.close();
             netConsole.printf("[HISTORY] Loaded %u boot event records\r\n", (unsigned int)_bootRecordCount);
         }
@@ -97,21 +157,55 @@ void TelemetryHistoryManager::recordBootEvent() {
         bootEpoch = (uint32_t)(millis() / 1000UL);
     }
 
+    uint32_t offEpoch = 0;
+    if (_savedRtcValid && _savedRtcOffEpoch > 0 && _savedRtcOffEpoch < bootEpoch) {
+        offEpoch = _savedRtcOffEpoch;
+    } else if (_savedFlashOffEpoch > 0 && _savedFlashOffEpoch < bootEpoch) {
+        offEpoch = _savedFlashOffEpoch;
+    }
+
     if (_bootRecordCount >= 10) {
         for (size_t i = 1; i < 10; i++) _bootRecords[i - 1] = _bootRecords[i];
         _bootRecordCount = 9;
     }
     BootRecord& rec = _bootRecords[_bootRecordCount++];
     rec.epoch = bootEpoch;
+    rec.offEpoch = offEpoch;
     rec.slot24h = _currentSlot24h;
     rec.slot5d = _currentSlot5d;
     rec.reason = _bootReason;
+
+    // Armed RTC tracking for current session
+    rtc_magic = SH_RTC_MAGIC;
+    rtc_lastAliveEpoch = (now > 1700000000UL) ? (uint32_t)now : bootEpoch;
+    rtc_shutdownEpoch = 0;
+    rtc_shutdownReason = 0;
 
     File f = LittleFS.open(FILE_BOOT, "w");
     if (f) {
         f.write((const uint8_t*)_bootRecords, _bootRecordCount * sizeof(BootRecord));
         f.close();
-        netConsole.printf("[HISTORY] Recorded boot event (reason: %u, slot24: %u, slot5d: %u)\r\n", rec.reason, rec.slot24h, rec.slot5d);
+        netConsole.printf("[HISTORY] Recorded boot event (reason: %u, off: %u, on: %u, slot24: %u, slot5d: %u)\r\n",
+                           rec.reason, (unsigned)rec.offEpoch, (unsigned)rec.epoch, rec.slot24h, rec.slot5d);
+    }
+}
+
+void TelemetryHistoryManager::noteShutdown(const char* reason) {
+    time_t now = time(nullptr);
+    if (now > 1700000000UL) {
+        rtc_magic = SH_RTC_MAGIC;
+        rtc_lastAliveEpoch = (uint32_t)now;
+        rtc_shutdownEpoch = (uint32_t)now;
+        rtc_shutdownReason = 1;
+        if (_fsMounted) {
+            File f = LittleFS.open(FILE_LAST_ALIVE, "w");
+            if (f) {
+                LastAliveRecord la = { SH_RTC_MAGIC, (uint32_t)now };
+                f.write((const uint8_t*)&la, sizeof(la));
+                f.close();
+            }
+        }
+        netConsole.printf("[HISTORY] Shutdown noted at %u: %s\r\n", (unsigned)now, reason ? reason : "reboot");
     }
 }
 
@@ -124,6 +218,15 @@ void TelemetryHistoryManager::saveToFlash() {
             f.write((const uint8_t*)_ring24h, sizeof(_ring24h));
             f.close();
             _dirty24h = false;
+        }
+        time_t now = time(nullptr);
+        if (now > 1700000000UL) {
+            File fla = LittleFS.open(FILE_LAST_ALIVE, "w");
+            if (fla) {
+                LastAliveRecord la = { SH_RTC_MAGIC, (uint32_t)now };
+                fla.write((const uint8_t*)&la, sizeof(la));
+                fla.close();
+            }
         }
     }
 
@@ -187,6 +290,8 @@ void TelemetryHistoryManager::updateLiveSample(bool forceNewSlot) {
         slot5m = (tmInfo.tm_hour * 60 + tmInfo.tm_min) / 5;
         slot30m = (uint8_t)((now / 1800UL) % TELEMETRY_5D_POINTS);
         _lastSampleEpoch = (uint32_t)now;
+        rtc_magic = SH_RTC_MAGIC;
+        rtc_lastAliveEpoch = (uint32_t)now;
     } else {
         // Fallback to uptime-based slot
         slot5m = (uint16_t)((millis() / 300000UL) % TELEMETRY_24H_POINTS);
@@ -341,14 +446,16 @@ void TelemetryHistoryManager::streamHistoryJson(WebServer& server, const String&
         const char* why;
         switch (_bootRecords[b].reason) {
             case ESP_RST_SW:       why = "Firmware Update / Software Reboot"; break;
-            case ESP_RST_POWERON:  why = "Pornire alimentare"; break;
+            case ESP_RST_POWERON:  why = "Pană curent / Pornire la rece"; break;
             case ESP_RST_PANIC:    why = "Eroare sistem (Crash)"; break;
             case ESP_RST_INT_WDT:
             case ESP_RST_TASK_WDT: why = "Watchdog Timeout"; break;
+            case ESP_RST_BROWNOUT: why = "Cădere tensiune (Brownout)"; break;
             default:               why = "Repornire sistem"; break;
         }
-        c.put("%s{\"epoch\":%u,\"slot24h\":%u,\"slot5d\":%u,\"reason\":\"%s\"}", b ? "," : "",
-              (unsigned)_bootRecords[b].epoch, (unsigned)_bootRecords[b].slot24h, (unsigned)_bootRecords[b].slot5d, why);
+        c.put("%s{\"epoch\":%u,\"offEpoch\":%u,\"slot24h\":%u,\"slot5d\":%u,\"reason\":\"%s\"}", b ? "," : "",
+              (unsigned)_bootRecords[b].epoch, (unsigned)_bootRecords[b].offEpoch,
+              (unsigned)_bootRecords[b].slot24h, (unsigned)_bootRecords[b].slot5d, why);
     }
     c.put("],\"windows\":[");
     size_t wWritten = 0;
