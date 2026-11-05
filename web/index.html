@@ -540,7 +540,7 @@ function renderRooms() {
       </div>
       <div class="ctl">
         <button type="button" data-a="up" data-i="${i}" title="Crește ținta">+</button>
-        <div class="sp-val" title="Țintă">${z.effectiveTarget.toFixed(1)}°</div>
+        <div class="sp-val" title="Țintă">${((z._pendingTarget !== undefined) ? z._pendingTarget : z.effectiveTarget).toFixed(1)}°</div>
         <button type="button" data-a="dn" data-i="${i}" title="Scade ținta">−</button>
         ${z.isManualHold ? `<button type="button" class="sp-clr" data-a="clr" data-i="${i}" title="Revino la program">↺ prog</button>` : ""}
       </div>
@@ -573,6 +573,20 @@ function renderHeader() {
   $("away").classList.toggle("on", Z.away);
 }
 
+function goToAdminCreds() {
+  if (!isAdmin()) {
+    document.body.classList.add("admin");
+    location.hash = "admin";
+  }
+  const grp = $("grpSetup");
+  if (grp) grp.open = true;
+  const passInp = $("cfgAdminPass");
+  if (passInp) {
+    passInp.scrollIntoView({ behavior: "smooth", block: "center" });
+    passInp.focus();
+  }
+}
+
 function renderAlerts() {
   const a = [];
   Z.zones.forEach(z => {
@@ -582,8 +596,17 @@ function renderAlerts() {
     if (z.state === "WINDOW") a.push(`${z.name}: fereastră deschisă – pauză ${Math.ceil(z.windowPauseRemainingSec / 60)} min`);
   });
   B.forEach(s => { if (s.bat > 0 && s.bat < 15) a.push(`Baterie slabă: ${s.name || s.mac} (${s.bat}%)`); });
-  (D && D.dtcs || []).forEach(d => a.push(`${d.code}: ${d.message}`));
-  $("alerts").innerHTML = a.map(x => `<li>${esc(x)}</li>`).join("");
+  (D && D.dtcs || []).forEach(d => {
+    if (d.code === "DTC-403") {
+      a.push(`<span style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap">` +
+             `<span>⚠️ <b>DTC-403</b>: Credențiale implicite active (schimbă parola)</span>` +
+             `<button type="button" class="s" style="padding:2px 8px;font-size:11px;background:#f59e0b;color:#000;border:none;border-radius:4px;cursor:pointer;font-weight:600" onclick="goToAdminCreds()">Schimbă Parola 🔐</button>` +
+             `</span>`);
+    } else {
+      a.push(esc(`${d.code}: ${d.message}`));
+    }
+  });
+  $("alerts").innerHTML = a.map(x => x.startsWith("<span") ? `<li>${x}</li>` : `<li>${x}</li>`).join("");
 }
 
 const busy = id => $(id).contains(document.activeElement);
@@ -1764,18 +1787,48 @@ async function refresh() {
   if (again) { again = false; refresh(); }
 }
 
+const setpointTimers = {};
 $("rooms").addEventListener("click", async e => {
   const b = e.target.closest("button");
   if (b && b.dataset.a) {
     const i = +b.dataset.i, z = Z.zones[i];
-    try {
-      if (b.dataset.a === "clr") await api("api/zones/hold/clear", {id: i + 1});
-      else {
-        const t = Math.min(MAX_T, Math.max(MIN_T, z.effectiveTarget + (b.dataset.a === "up" ? STEP : -STEP)));
-        await api("api/zones/setpoint", {id: i + 1, target: t.toFixed(1)});
+    if (b.dataset.a === "clr") {
+      try {
+        await api("api/zones/hold/clear", {id: i + 1});
+        refresh();
+      } catch (err) { showErr(err.message); }
+      return;
+    }
+
+    // 1. Calculate new target optimistically
+    const step = b.dataset.a === "up" ? STEP : -STEP;
+    const baseTarget = (z._pendingTarget !== undefined) ? z._pendingTarget : z.effectiveTarget;
+    const nextTarget = Math.min(MAX_T, Math.max(MIN_T, +(baseTarget + step).toFixed(1)));
+    z._pendingTarget = nextTarget;
+    z.effectiveTarget = nextTarget;
+
+    // 2. Instant DOM update (0 ms response!)
+    const card = b.closest(".room");
+    if (card) {
+      const spVal = card.querySelector(".sp-val");
+      if (spVal) spVal.textContent = nextTarget.toFixed(1) + "°";
+    }
+
+    // 3. Debounce network dispatch by 350 ms: user can click repeatedly, only the final value is sent
+    if (setpointTimers[i]) clearTimeout(setpointTimers[i]);
+    setpointTimers[i] = setTimeout(async () => {
+      delete setpointTimers[i];
+      const targetToSend = z._pendingTarget;
+      try {
+        await api("api/zones/setpoint", {id: i + 1, target: targetToSend.toFixed(1)});
+      } catch (err) {
+        showErr(err.message);
+      } finally {
+        delete z._pendingTarget;
+        refresh();
       }
-    } catch (err) { showErr(err.message); }
-    return refresh();
+    }, 350);
+    return;
   }
   if (e.target.closest(".ctl")) return;
 });
@@ -2061,11 +2114,48 @@ $("cfgFile").onchange = async e => {
   }
 };
 
-$("away").onclick = async () => { await api("api/schedule/enable", {away: Z.away ? 0 : 1}); refresh(); };
+$("away").onclick = async () => {
+  const nextAway = !Z.away;
+  Z.away = nextAway;
+  $("away").classList.toggle("on", nextAway);
+  try {
+    await api("api/schedule/enable", {away: nextAway ? 1 : 0});
+  } catch (err) {
+    showErr(err.message);
+  } finally {
+    refresh();
+  }
+};
 
 let timer = null;
-function startTimer() { clearInterval(timer); timer = setInterval(() => { if (!document.hidden) refresh(); }, isAdmin() ? 2000 : 5000); }
+function startTimer() { clearInterval(timer); timer = setInterval(() => { if (!document.hidden) refresh(); }, isAdmin() ? 3000 : 5000); }
 $("toggleAdmin").onclick = e => { e.preventDefault(); document.body.classList.toggle("admin"); location.hash = isAdmin() ? "admin" : ""; startTimer(); refresh(); };
+
+const btnSaveCreds = $("btnSaveAdminCreds");
+if (btnSaveCreds) {
+  btnSaveCreds.addEventListener("click", async () => {
+    const u = ($("cfgAdminUser").value || "").trim();
+    const p = ($("cfgAdminPass").value || "").trim();
+    const msg = $("cfgAdminCredMsg");
+    if (!u || u.length > 31) {
+      if (msg) { msg.textContent = "Utilizator invalid (1-31 caractere)"; msg.style.color = "var(--bad)"; }
+      return;
+    }
+    if (p.length < 8 || p.length > 63) {
+      if (msg) { msg.textContent = "Parolă invalidă (minim 8 caractere, FR-59)"; msg.style.color = "var(--bad)"; }
+      return;
+    }
+    if (msg) { msg.textContent = "Se salvează în NVS..."; msg.style.color = "var(--mut)"; }
+    try {
+      await api("api/config/credentials", { user: u, pass: p });
+      if (msg) { msg.textContent = "✅ Credențiale salvate! DTC-403 rezolvat."; msg.style.color = "var(--ok)"; }
+      $("cfgAdminPass").value = "";
+      refresh();
+    } catch (err) {
+      if (msg) { msg.textContent = "Eroare: " + err.message; msg.style.color = "var(--bad)"; }
+    }
+  });
+}
 const grpHist = $("grpHistory");
 if (grpHist) {
   grpHist.addEventListener("toggle", () => {
@@ -2386,10 +2476,10 @@ window.clearWindowPause = async function(id) {
 };
 
 // Firmware Live Console & Log Stream
-let consoleSeq = 0, consolePaused = false, consolePollTimer = null;
+let consoleSeq = 0, consolePaused = false, consolePollTimer = null, lastSecEventsFetch = 0;
 
 async function pollConsole() {
-  if (consolePaused) return;
+  if (consolePaused || document.hidden) return;
   const grpDbg = $("grpDebug");
   if (!grpDbg || !grpDbg.open) return;
 
@@ -2413,7 +2503,10 @@ async function pollConsole() {
       }
       if ($("consoleStatus")) $("consoleStatus").textContent = "● Conectat la stream";
     }
-    loadSecEvents();
+    if (Date.now() - lastSecEventsFetch > 12000) {
+      lastSecEventsFetch = Date.now();
+      loadSecEvents();
+    }
   } catch (err) {
     if ($("consoleStatus")) $("consoleStatus").textContent = "○ Rețea offline / reconectare...";
   }
