@@ -43,6 +43,13 @@ software is in [`docs/compliance.md`](docs/compliance.md) and becomes a requirem
   - safe boot: all valves closed, one boiler OFF, warm-up before any heating command (NFR-1.4)
 - **Resources:** NVS writes only on value change, no blocking calls that starve `loop()`,
   bounded buffers, no heap growth, firmware ≤ 1 306 624 B (board OTA slot, working margin 20 KB, NFR-2.8).
+- **Single Source of Truth / Zero orphan files:** Never create speculative or orphan markdown files
+  (e.g. `notes.md`, `todo.md`, `spec.md`, or `.scratch/`). All documentation, tasks, problems and decisions
+  must live strictly in the canonical files:
+  - Defects and bugs: append to [`docs/problems.md`](docs/problems.md) (`PB-n`).
+  - Tasks and migration steps: update [`docs/plan.md`](docs/plan.md) (session checklist in `.agent/plan.md`).
+  - Architectural decisions (ADRs): append to [`.agent/memory-bank/decisions.md`](.agent/memory-bank/decisions.md).
+  - History: append to [`docs/changelog.md`](docs/changelog.md).
 - **Tool naming:** every new project tool or script (in `tools/`, agents, skills, MCP servers) starts with
   `sh_` (smart home), e.g. `tools/sh_process_check.py`, so it is never confused with external MCPs or
   temporary scripts. Agents and skills use `sh-` (their names allow only hyphens), e.g. `sh-verify-firmware`.
@@ -119,3 +126,17 @@ The full process (requirement rules, requirements review, test review, decisions
 
 - Code, identifiers, API, logs, docs: **English**.
 - Conversation with the user: **Romanian**, concise.
+
+## 7. Agent skills
+
+### Issue tracker
+
+Issues and defects are tracked in `docs/problems.md` (PB-n) and migration tasks in `docs/plan.md`. No external tracker or `.scratch/`. See `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+Canonical triage mapped to native `docs/problems.md` statuses (`open`, `analysing`, `fixed`, `closed`, `rejected`). See `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+Single-context: domain concepts in `docs/requirements_and_features.md` §2 and architecture in `docs/architecture.md`; ADR decisions in `.agent/memory-bank/decisions.md`. See `docs/agents/domain.md`.
