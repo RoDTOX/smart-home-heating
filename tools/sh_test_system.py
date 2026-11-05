@@ -46,9 +46,10 @@ from sh_tests.t_zone_controller import ZoneControllerTests
 from sh_tests.t_control_task import ControlTaskTests
 from sh_tests.t_maintenance import MaintenanceTests
 from sh_tests.t_plant_monitor import PlantMonitorTests
+from sh_tests.t_heatup_model import HeatUpModelTests
 
 
-class SystemTestSuite(SuiteBase, HealthTests, HydraulicsTests, ControlTests, UiHistoryTests, SafetyFeatureTests, ExportImportTests, ZoneTests, ConsoleTests, SafetySupervisorTests, SensorHubTests, WeatherTests, ModeTests, HistoryStreamTests, WebAssetTests, EventLogTests, CommandsAuthTests, BoilerLinkTests, ZoneControllerTests, ControlTaskTests, MaintenanceTests, PlantMonitorTests):
+class SystemTestSuite(SuiteBase, HealthTests, HydraulicsTests, ControlTests, UiHistoryTests, SafetyFeatureTests, ExportImportTests, ZoneTests, ConsoleTests, SafetySupervisorTests, SensorHubTests, WeatherTests, ModeTests, HistoryStreamTests, WebAssetTests, EventLogTests, CommandsAuthTests, BoilerLinkTests, ZoneControllerTests, ControlTaskTests, MaintenanceTests, PlantMonitorTests, HeatUpModelTests):
     # ---------------------------------------------------------
     # Test Runner & Traceability Matrix Evaluation
     # ---------------------------------------------------------
@@ -340,6 +341,11 @@ class SystemTestSuite(SuiteBase, HealthTests, HydraulicsTests, ControlTests, UiH
             self.test_tc46_2_overheat_param_bounds,
             self.test_tc46_3_no_effect_param_bounds,
             self.test_tc46_4_plant_monitor_dtc_contract,
+            # Group 47: HeatUpModel (FR-48, FR-67) (step 14)
+            self.test_tc47_1_fr48_baseline_lead_formula,
+            self.test_tc47_2_heatup_status_contract,
+            self.test_tc47_3_learned_rate_bounds,
+            self.test_tc47_4_weather_lost_preheat_fallback,
         ]
         if self.only:   # --only TC34,TC35: run just these groups (name part after test_)
             tests = [t for t in tests if any(t.__name__.startswith("test_" + o.lower() + "_") for o in self.only)]

@@ -18,3 +18,4 @@ deschidem pasul 14.
 - [x] 3. Implement include/PlantMonitor.h and src/PlantMonitor.cpp
 - [x] 4. Register PlantMonitor in ControlTask / main.cpp loop & WebApi status
 - [x] 5. Run process check, build clean (pio run), flash OTA, and verify 100% PASS
+- [x] 6. Implement HeatUpModel (FR-48, FR-67) tests-first (SWE.5-TC47) and verify 100% PASS

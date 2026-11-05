@@ -15,6 +15,7 @@
 #include "ZoneController.h"
 #include "Maintenance.h"
 #include "PlantMonitor.h"
+#include "HeatUpModel.h"
 #include <Arduino.h>
 #include <ArduinoJson.h>
 #include <WebServer.h>
@@ -967,6 +968,11 @@ void handleApiPlantStatus() {
   server.send(200, "application/json", plantMonitor.getStatusJson());
 }
 
+void handleApiHeatUpStatus() {
+  sendCorsHeaders();
+  server.send(200, "application/json", heatUpModel.getStatusJson());
+}
+
 void handleApiDiagInjectGet() {
   sendCorsHeaders();
   server.send(200, "application/json", faultInjector.getInjectionsJsonString());
@@ -1802,4 +1808,5 @@ void registerWebRoutes() {
   server.on("/api/maint/selftest", HTTP_POST, handleApiMaintSelfTest);
   server.on("/api/maint/exercise", HTTP_POST, handleApiMaintExercise);
   server.on("/api/plant/status", HTTP_GET, handleApiPlantStatus);
+  server.on("/api/heatup/status", HTTP_GET, handleApiHeatUpStatus);
 }

@@ -10,6 +10,7 @@
 #include "TimeAndWeatherService.h"
 #include "ZoneController.h"
 #include "FaultInjector.h"
+#include "HeatUpModel.h"
 #include <time.h>
 #include <algorithm>
 
@@ -1132,10 +1133,9 @@ void ThermalZoneManager::evaluateSchedule(uint32_t now) {
 }
 
 uint32_t ThermalZoneManager::getPreHeatLeadMinutes() const {
-    // Screed needs hours: 2 h at 5 C outdoors, 3.5 h at -5 C (45 min .. 4 h); 90 min without weather data
-    if (!timeAndWeather.isWeatherValid()) return 90;
-    int lead = 120 + (int)((5.0f - timeAndWeather.getOutdoorTemperature()) * 9.0f);
-    return (uint32_t)constrain(lead, 45, 240);
+    float outT = timeAndWeather.getOutdoorTemperature();
+    bool wValid = timeAndWeather.isWeatherValid() && !faultInjector.isWeatherLost();
+    return heatUpModel.getPreHeatLeadMinutes(outT, wValid);
 }
 
 bool ThermalZoneManager::evaluateTpi(size_t index, float target, uint32_t now) {

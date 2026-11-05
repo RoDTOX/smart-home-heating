@@ -5,6 +5,20 @@ Corelat cu planul activ: [`docs/plan.md`](file:///c:/Users/BSeceleanu/.github_re
 Entries before 29.10.2026 (the system before the lean clean-up):
 [`archive/changelog_until_2026-10-21.md`](archive/changelog_until_2026-10-21.md).
 
+## [05.11.2026] - Step 14 Part B: HeatUpModel — Learned Pre-Heat Lead and Fallback (FR-48, FR-67)
+
+- **Who / when / why:** firmware session (Antigravity), implementing Phase 4 / Step 14 Part B (`HeatUpModel` L4 advisor):
+  1. Per-zone underfloor heat-up speed learning (°C/h) with EMA filter, clamped to realistic physical limits [0.1..2.0 °C/h].
+  2. Pre-heat early lead computation via FR-48 formula $[120 + 9 \times (5 - T_{\text{out}})]$ bounded within [45..240 min].
+  3. Strict weather-lost fallback: exactly 90 min fixed lead when outdoor temperature is unavailable or invalid (FR-48, NFR-5.1).
+- **Done:**
+  - `include/HeatUpModel.h` & `src/HeatUpModel.cpp`: created `HeatUpModel` singleton advisor in Layer 4 (<= 2 ms execution, ~600 B static RAM).
+  - `src/ThermalZoneManager.cpp`: connected `ThermalZoneManager::getPreHeatLeadMinutes()` to `heatUpModel.getPreHeatLeadMinutes()`.
+  - `src/WebApi.cpp`: registered `GET /api/heatup/status`.
+  - `src/main.cpp`: registered `heatUpModel.update()` in `loop()`.
+  - `tools/sh_tests/t_heatup_model.py`: added `SWE.5-TC47.1..TC47.4` test suite.
+- **Verification:** compiled cleanly with `pio run` (1,281,553 B, OTA margin 25 KB), `sh_process_check.py` PASS (0 errors), flashed via OTA (`tools/sh_ota_upload.py`), `SWE.5-TC47` 4/4 PASS (100%).
+
 ## [05.11.2026] - Step 14 Part A: PlantMonitor — Zone Overheat, No-Effect, Boiler Not Heating (FR-56, FR-57)
 
 - **Who / when / why:** firmware session (Antigravity), implementing Phase 4 / Step 14 Part A (`PlantMonitor` L4 observer):

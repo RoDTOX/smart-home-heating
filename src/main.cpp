@@ -12,6 +12,7 @@
 #include "TimeAndWeatherService.h"
 #include "Maintenance.h"
 #include "PlantMonitor.h"
+#include "HeatUpModel.h"
 #include "Version.h"
 #include <Arduino.h>
 #include <ArduinoJson.h>
@@ -345,6 +346,7 @@ void loop() {
   diagEngine.update();
   maintenance.update();
   plantMonitor.update();
+  heatUpModel.update();
   thermalZones.flushPendingNvs();
   updateWifiWatchdog();
   checkPhysicalResetButton();
