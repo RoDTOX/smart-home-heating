@@ -137,17 +137,17 @@ code,.mono{font:13px/1.35 ui-monospace,SFMono-Regular,Consolas,monospace}
   <details class="adm-card" id="grpHistory">
     <summary><h2>Istoric &amp; Grafic Telemetrie (TPI, Activitate, Temperaturi)</h2></summary>
     <div class="adm-body" id="histBody">
-      <div class="row" style="justify-content:space-between;align-items:center;margin-bottom:8px;flex-wrap:wrap;gap:8px">
-        <div class="row" id="histRangeTabs" style="gap:6px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;gap:8px;flex-wrap:nowrap">
+        <div id="histRangeTabs" style="display:flex;gap:6px;flex-shrink:0">
           <button type="button" class="sm hist-range-btn" data-range="1h">1 Oră</button>
           <button type="button" class="sm hist-range-btn" data-range="12h">12 Ore</button>
           <button type="button" class="sm hist-range-btn on" data-range="24h">24 Ore</button>
           <button type="button" class="sm hist-range-btn" data-range="3d">3 Zile</button>
           <button type="button" class="sm hist-range-btn" data-range="5d">5 Zile</button>
         </div>
-        <div class="row" style="gap:10px;align-items:center">
-          <div class="s" id="histSummary"></div>
-          <button type="button" id="btnRefreshHist" class="sm">🔄 Reîmprospătează</button>
+        <div style="display:flex;gap:8px;align-items:center;flex-shrink:0">
+          <span class="s" id="histSummary" style="font-size:11px;color:var(--mut);white-space:nowrap"></span>
+          <button type="button" id="btnRefreshHist" class="sm" style="white-space:nowrap">🔄 Reîmprospătează</button>
         </div>
       </div>
 
@@ -452,10 +452,35 @@ const DTC_INFO = {
   "101": {title: "Senzor pierdut", cause: "Nicio citire în sensorTimeout. Zona a trecut pe încălzire de siguranță (fallback duty)."},
   "102": {title: "Baterie descărcată", cause: "Nivel baterie senzor sub 20%. Înlocuiți bateria CR2032."},
   "103": {title: "Citire coruptă", cause: "Temperatura sau umiditatea citită depășește limitele plauzibile."},
+  "104": {title: "Senzor suspect", cause: "3 citiri aberante consecutive eliminate în decurs de 1 oră."},
+  "105": {title: "Semnal BLE slab", cause: "Semnalul senzorului BLE a scăzut sub -90 dBm timp de peste 1 oră."},
   "201": {title: "Ciclare rapidă cazan", cause: "Comenzi de comutare prea frecvente. A intervenit protecția anti-short-cycling."},
+  "202": {title: "Zonă fără efect termic", cause: "Cerere termică activă dar temperatura nu crește (posibil vană blocată sau circuit închis)."},
+  "203": {title: "Supraîncălzire zonă", cause: "Temperatura zonei crește peste țintă deși vana a fost comandată închisă."},
+  "204": {title: "Cazanul nu încălzește", cause: "Nicio zonă și niciun senzor de tur nu reacționează la comanda de pornire a cazanului."},
+  "205": {title: "Debit peste limită", cause: "Debitul agentului termic depășește limita maximă de siguranță timp de > 2 min."},
+  "206": {title: "Defecțiune debitmetru", cause: "Senzor de debit sau retur lipsă sau cu valori implauzibile."},
+  "207": {title: "Link cazan fără fail-safe", cause: "Semnalul de heartbeat către cazan este dezactivat."},
+  "208": {title: "Eroare modul extensie", cause: "Modulul de extensie ieșiri relee nu răspunde comenzilor I2C."},
   "301": {title: "Duty învățat resetat", cause: "Valoarea istorică de încălzire a depășit limitele și a fost reinițializată."},
+  "302": {title: "Ora nesincronizată", cause: "Ora de rețea (NTP) nu a putut fi sincronizată."},
+  "303": {title: "Rollback OTA eșuat", cause: "Noua imagine de firmware nu a trecut verificările de siguranță și s-a revenit la versiunea anterioară."},
+  "304": {title: "Autotestare eșuată", cause: "Unul din pașii de autotestare la pornire a raportat o eroare hardware."},
   "401": {title: "Semnal Wi-Fi slab", cause: "Semnalul Wi-Fi a scăzut sub -82 dBm sau conexiunea a fost pierdută temporar."},
-  "402": {title: "Memorie liberă redusă", cause: "Memoria RAM liberă a scăzut temporar sub 60 KB."}
+  "402": {title: "Memorie liberă redusă", cause: "Memoria RAM liberă a scăzut temporar sub 60 KB."},
+  "403": {title: "Credențiale implicite active", cause: "Dispozitivul rulează cu utilizatorul sau parola implicită din fabrică. Schimbați credențialele în configurare."}
+};
+
+const RESET_REASONS = {
+  1: {title: "Pornire la rece (Power-on Reset)", desc: "Alimentare deconectată și reconectată la rețea / panou."},
+  3: {title: "Repornire Software / OTA", desc: "Comandă software de restart sau finalizare actualizare firmware OTA."},
+  4: {title: "Panică Nucleu (Crash / Exception)", desc: "Eroare critică în execuția firmware-ului ESP32."},
+  5: {title: "Watchdog Întrerupere (IWDT)", desc: "Buclă blocată sau rutină de întrerupere fără cedare."},
+  6: {title: "Task Watchdog (TWDT)", desc: "Task-ul de control sau bucla principală nu a răspuns în limita de 90 secunde."},
+  7: {title: "Watchdog Software", desc: "Reset declanșat de cronometrul intern de veghe."},
+  8: {title: "Ieșire din Deep Sleep", desc: "Trezire din mod de consum redus."},
+  9: {title: "Cădere tensiune (Brownout)", desc: "Tensiunea pe linia de alimentare de 3.3V/5V a scăzut sub pragul sigur."},
+  10: {title: "Reset extern SDIO", desc: "Semnal extern de reset pe pinii de comunicație."}
 };
 const RELAYS = [[32, "Releu 1 (GPIO32)"], [33, "Releu 2 (GPIO33)"], [25, "Releu 3 (GPIO25)"], [26, "Releu 4 (GPIO26)"]];
 const DOC = JSON.parse(document.getElementById("doc").textContent);
@@ -1129,10 +1154,17 @@ function renderHistoryChart() {
     row1 += `<div style="display:flex;align-items:center;gap:6px;flex-shrink:0">`;
     if (nearReboot) {
       const rbObj = nearReboot.rb || nearReboot;
-      const rbReason = esc(nearReboot.reason || rbObj.reason || 'Sistem');
-      const timeInfo = nearReboot.intervalLabel ? ` (${nearReboot.intervalLabel})` : (nearReboot.startStr ? ` (${nearReboot.startStr})` : '');
-      row1 += `<span style="padding:2px 8px;border-radius:4px;font-weight:600;font-size:11px;background:rgba(245,158,11,0.15);border:1px solid #f59e0b;color:#f59e0b;white-space:nowrap">
-        ⚡ Restart: ${rbReason}${timeInfo}
+      const rawReason = String(nearReboot.reason || rbObj.reason || '');
+      let shortReason = "Restart";
+      if (/firmware|software/i.test(rawReason)) shortReason = "Restart FW";
+      else if (/power/i.test(rawReason)) shortReason = "Restart PWR";
+      else if (/watchdog|wdt/i.test(rawReason)) shortReason = "Restart WDT";
+      else if (/panic|crash/i.test(rawReason)) shortReason = "Crash";
+      else if (/brownout/i.test(rawReason)) shortReason = "Brownout";
+
+      const timeTag = nearReboot.startStr ? ` (${nearReboot.startStr})` : (rbObj.epoch ? ` (${new Date(rbObj.epoch * 1000).toLocaleTimeString().slice(0,5)})` : '');
+      row1 += `<span style="padding:2px 8px;border-radius:4px;font-weight:600;font-size:11px;background:rgba(245,158,11,0.15);border:1px solid #f59e0b;color:#f59e0b;white-space:nowrap" title="${esc(rawReason)}">
+        ⚡ ${shortReason}${timeTag}
       </span>`;
     }
     row1 += `</div></div>`;
@@ -1191,7 +1223,8 @@ function renderHistoryChart() {
       const dFull = daysFull[curDate.getDay()];
       const ch = String(curDate.getHours()).padStart(2, "0");
       const cm = String(curDate.getMinutes()).padStart(2, "0");
-      const timeStr = `${dFull} ${ch}:${cm} (acum ${hoursAgo < 1 ? Math.round(hoursAgo * 60) + 'm' : hoursAgo.toFixed(1) + 'h'})`;
+      const agoText = hoursAgo < 0.05 ? '' : (hoursAgo < 1 ? ` (-${Math.round(hoursAgo * 60)}m)` : ` (-${hoursAgo.toFixed(1)}h)`);
+      const timeStr = `${dFull} ${ch}:${cm}${agoText}`;
 
       // Find closest sample in ordered
       let closest = null, minDiff = 99999;
@@ -1466,7 +1499,7 @@ async function loadHistoryChart(force = false) {
   histLoading = true;
   lastHistFetch = Date.now();
   const summaryEl = $("histSummary");
-  if (summaryEl) summaryEl.textContent = "Se încarcă datele...";
+  if (summaryEl) summaryEl.textContent = "Se actualizează...";
 
   const isMultiDay = (selectedHistRange === "3d" || selectedHistRange === "5d");
   const ep = isMultiDay ? "api/history?range=5d" : "api/history?range=24h";
@@ -1483,18 +1516,8 @@ async function loadHistoryChart(force = false) {
     renderGasMeter();
 
     if (summaryEl) {
-      const pts = (j.points || []).length;
       const nowStr = (ST && ST.time) ? ST.time.slice(0, 5) : new Date().toLocaleTimeString().slice(0, 5);
-      const rangeText = (selectedHistRange === "1h") ? "1 Oră"
-        : (selectedHistRange === "12h") ? "12 Ore"
-        : ((selectedHistRange === "24h") ? "24 Ore"
-        : ((selectedHistRange === "3d") ? "3 Zile" : "5 Zile"));
-      const isMulti = (selectedHistRange === "3d" || selectedHistRange === "5d");
-      const ptsCount = (selectedHistRange === "1h") ? Math.min(12, pts)
-        : ((selectedHistRange === "12h") ? Math.min(144, pts) : pts);
-      const hRec = (selectedHistRange === "1h") ? (ptsCount * 5 / 60).toFixed(1)
-        : (isMulti ? (pts * 0.5).toFixed(1) : (pts * 5 / 60).toFixed(1));
-      summaryEl.textContent = `${rangeText} (${ptsCount} eșantioane · ~${hRec}h înregistrate) · Actualizat la ${nowStr}`;
+      summaryEl.textContent = `Actualizat ${nowStr}`;
     }
   } catch(e) {
     if (summaryEl) summaryEl.textContent = "Eroare la încărcare: " + e.message;
@@ -2645,22 +2668,44 @@ async function loadDtcEvents(force = false) {
       return;
     }
     const typeMap = {
-      "dtc-raised": '<span style="color:var(--err);font-weight:600">🔴 Ridicat</span>',
+      "dtc-raised": '<span style="color:var(--bad);font-weight:600">🔴 Ridicat</span>',
       "dtc-cleared": '<span style="color:var(--ok);font-weight:600">🟢 Curățat</span>',
-      "restart": '<span style="color:#38bdf8;font-weight:600">⚡ Restart</span>'
+      "restart": '<span style="color:#f59e0b;font-weight:600">⚡ Restart</span>'
     };
-    box.innerHTML = `<div class="scroll" style="margin-top:6px;max-height:220px;overflow-y:auto"><table style="font-size:11px;width:100%">
-      <thead><tr><th>Dată / Timp</th><th>Tip</th><th>Cod</th><th>Zonă / Valoare</th></tr></thead>
+    box.innerHTML = `<div class="scroll" style="margin-top:6px;max-height:260px;overflow-y:auto"><table style="font-size:11px;width:100%;border-collapse:collapse">
+      <thead><tr>
+        <th style="padding:4px 6px">Dată / Oră</th>
+        <th style="padding:4px 6px">Stare</th>
+        <th style="padding:4px 6px">Cod</th>
+        <th style="padding:4px 6px">Descriere &amp; Cauză</th>
+        <th style="padding:4px 6px">Zonă / Țintă</th>
+      </tr></thead>
       <tbody>` +
       d.events.map(e => {
         const timeStr = (e.time > 1700000000) ? new Date(e.time * 1000).toLocaleString('ro-RO') : `+${e.time}s uptime`;
-        const codeStr = e.code ? `<code><b>${esc(e.code)}</b></code>` : (e.type === 'restart' ? `Reset reason ${e.value}` : '—');
-        const zoneStr = e.zone ? `Zona ${e.zone}` : (e.type === 'restart' ? 'Sistem' : 'Global');
+        let codeStr = '—';
+        let descStr = '';
+        let targetStr = 'Global';
+
+        if (e.type === 'restart') {
+          const rInfo = RESET_REASONS[e.value] || {title: "Repornire sistem (motiv " + e.value + ")", desc: "Reset placă ESP32"};
+          codeStr = '<code style="color:#f59e0b;font-weight:bold">SYS-REBOOT</code>';
+          descStr = `<b>${esc(rInfo.title)}</b><div class="s" style="color:var(--mut);margin-top:2px">${esc(rInfo.desc)}</div>`;
+          targetStr = 'Sistem';
+        } else {
+          const cleanCode = String(e.code || '').replace("DTC-", "");
+          const info = DTC_INFO[cleanCode] || {title: "Cod eroare diagnostic", cause: "Eveniment înregistrat de DiagnosticEngine."};
+          codeStr = e.code ? `<code><b>${esc(e.code)}</b></code>` : '—';
+          descStr = `<b>${esc(info.title)}</b><div class="s" style="color:var(--mut);margin-top:2px">${esc(info.cause)}</div>`;
+          targetStr = e.zone ? `Zona ${e.zone}` : 'Global';
+        }
+
         return `<tr>
-          <td style="white-space:nowrap">${esc(timeStr)}</td>
-          <td>${typeMap[e.type] || esc(e.type)}</td>
-          <td>${codeStr}</td>
-          <td>${esc(zoneStr)}</td>
+          <td style="white-space:nowrap;padding:5px 6px"><b>${esc(timeStr)}</b></td>
+          <td style="white-space:nowrap;padding:5px 6px">${typeMap[e.type] || esc(e.type)}</td>
+          <td style="white-space:nowrap;padding:5px 6px">${codeStr}</td>
+          <td style="padding:5px 6px">${descStr}</td>
+          <td style="white-space:nowrap;padding:5px 6px">${esc(targetStr)}</td>
         </tr>`;
       }).join("") +
       `</tbody></table></div>`;

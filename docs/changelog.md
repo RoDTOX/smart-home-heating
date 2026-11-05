@@ -5,6 +5,18 @@ Corelat cu planul activ: [`docs/plan.md`](file:///c:/Users/BSeceleanu/.github_re
 Entries before 29.10.2026 (the system before the lean clean-up):
 [`archive/changelog_until_2026-10-21.md`](archive/changelog_until_2026-10-21.md).
 
+## [05.11.2026] - Web UI: DTC & reboot history descriptions, compact single-line refresh status, and concise event chips (FR-8.4, FR-10.2, FR-34)
+
+- **Who / when / why:** firmware session (Antigravity), addressing user feedback on UI clarity, compactness, and readability. Added comprehensive titles and causes for all DTCs (101..403) and ESP32 reboot reasons in the LittleFS persistent history table, shortened the telemetry refresh indicator to prevent header row wrapping/jitter, and condensed the `#histInfoBar` reboot badge to a clean short chip.
+- **Done:**
+  - `web/index.html`:
+    - Expanded `DTC_INFO` to all 20 system DTCs and introduced `RESET_REASONS` mapping ESP32 reset reasons (1=power-on, 3=software/OTA, 4=crash, 5/6=watchdog, 9=brownout).
+    - Upgraded `loadDtcEvents()` table to 5 structured columns: `Dată / Oră`, `Stare`, `Cod` (`DTC-nnn` or `SYS-REBOOT`), `Descriere & Cauză` (detailed explanation), and `Zonă / Țintă`.
+    - Shortened telemetry loading and update indicator from verbose string to compact `Actualizat 10:29` and `Se actualizează...`, styled in a `nowrap` flex header alongside range buttons to permanently eliminate row-wrap bouncing.
+    - Shortened `#histInfoBar` reboot badge from 65-character description to concise chip: `⚡ Restart FW (09:36)` or `⚡ Restart PWR (09:36)` with full description preserved in tooltip.
+    - Compressed hover time display to `${dFull} ${ch}:${cm} (-${m}m)` to keep Row 1 clean and spacious.
+- **Verification:** built web assets (`tools/sh_build_web.py`, 40,267 B gzip), uploaded to LittleFS on board (`192.168.1.20`, HTTP 200 OK), live serving verified, `sh_process_check.py` 0 errors.
+
 ## [05.11.2026] - Fix: Web UI dropdown arrows, OTA popup navigation, zero-jitter telemetry info bar, and test schedule restore (FR-8.4, FR-29, FR-34)
 
 - **Who / when / why:** firmware session (Antigravity), addressing user findings regarding Web UI behavior and test suite configuration preservation. Fixed dropdown arrows sticking in reversed/open direction (▲) on closed details, resolved OTA button click doing nothing on browsers blocking window popups, fixed layout shift causing the page to bounce up and down during telemetry updates, redesigned system event visualization with semi-transparent boxes and immediate hover synchronization, and fixed `SWE.5-TC16.6` test overwriting the user's "Constant 24/7" schedule mode and Away setpoints without restoring them.
