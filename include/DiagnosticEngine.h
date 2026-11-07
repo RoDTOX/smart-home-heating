@@ -82,6 +82,7 @@ public:
     // zone 1..32 for the per-zone codes (DTC-101 ... DTC-105, DTC-202, DTC-203), 0 = no zone / all zones
     void raiseDtc(Dtc dtc, const char* message, DtcSeverity severity, uint8_t zone = 0);
     void clearDtc(Dtc dtc, uint8_t zone = 0);
+    void removeZone(uint8_t zoneId);
     void clearAllDtcs();
 
     size_t getDtcCount() const { return DTC_COUNT; }

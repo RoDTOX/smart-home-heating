@@ -230,6 +230,30 @@ void DiagnosticEngine::clearDtc(Dtc dtc, uint8_t zone) {
   netConsole.printf("[DIAG] Cleared code %s\n", t.code);
 }
 
+void DiagnosticEngine::removeZone(uint8_t zoneId) {
+  if (zoneId == 0 || zoneId > 32)
+    return;
+  uint32_t lowerMask = (1UL << (zoneId - 1)) - 1;
+  uint32_t upperMask = ~((1UL << zoneId) - 1);
+  uint32_t deletedBit = 1UL << (zoneId - 1);
+
+  for (size_t i = 0; i < DTC_COUNT; i++) {
+    if (!DTC_TABLE[i].perZone || !_dtcRecords[i].active)
+      continue;
+    DtcRecord &t = _dtcRecords[i];
+    if (t.zoneMask & deletedBit) {
+      addEvent(EVT_DTC_CLEARED, (uint8_t)i, zoneId, 0);
+    }
+    // Shift down all zones above the deleted one (FR-74)
+    uint32_t newMask = (t.zoneMask & lowerMask) | ((t.zoneMask & upperMask) >> 1);
+    t.zoneMask = newMask;
+    if (t.zoneMask == 0) {
+      t.active = false;
+      netConsole.printf("[DIAG] Cleared code %s (zone %u deleted)\n", t.code, zoneId);
+    }
+  }
+}
+
 void DiagnosticEngine::clearAllDtcs() {
   for (size_t i = 0; i < DTC_COUNT; i++) {
     clearDtc((Dtc)i);

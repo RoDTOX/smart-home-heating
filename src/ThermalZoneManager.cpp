@@ -650,7 +650,7 @@ ThermalZoneManager::ZoneResult ThermalZoneManager::deleteZone(size_t index) {
     for (uint8_t l = 0; l < LEVEL_COUNT; l++) _scheduleConfig.levelTemps[l][last] = f.levelTemps[l][last];
     paramStore.saveLearned(last, 0);
     _zoneCount--;
-    diagEngine.clearDtc(Dtc::ERR_SENSOR_TIMEOUT);  // a DTC of the deleted zone (FR-74); a zone still without a reading raises it again
+    diagEngine.removeZone((uint8_t)(index + 1));  // clears bit and shifts remaining zones (FR-74, PB-116)
     persistConfig();
     saveSchedule();
     netConsole.printf("[Thermal] Zone %u deleted\n", (unsigned)(index + 1));
