@@ -20,7 +20,9 @@ Only what holds now and what comes next. A line that no longer holds is replaced
     - Added instant auto-save on setup toggles (solar orientation, heating type, offset).
   - **Live Verification**: `pio run` clean, `sh_ota_upload.py` and `assets` flashed to `192.168.1.20`. 22/22 SWE.5-TC21 & TC46 atomic tests PASS (100%). `sh_process_check.py board` PASS (0 errors).
 - **Cost, Token & Runaway Guard Hook (C-44, D-61)**: Added deterministic lifecycle hooks (`tools/sh_cost_guard.py`) in Claude Code (`.claude/settings.json`) and Antigravity (`.agent/hooks.json`). Enforces mandatory micro-plan + owner approval before non-trivial execution and blocks runaway execution loops exceeding 10 consecutive tool calls or 10 minutes.
-- **Accepted Steps (1–12)**: All validated on board. Step 13 (probes) deferred with owner confirmation.
+- **Accepted Steps (1–12 & 14)**: All validated on board. Step 13 (probes) deferred with owner confirmation. Step 14 (all 6 advisors + PB-125 underfloor lag & PB-126 night gas/DHW telemetry) accepted and fully aligned with SW/System Requirements (`docs/requirements_and_features.md`) and Architecture (`docs/architecture.md`).
+- **Live Board Status (`192.168.1.20`)**: FW `v1.11.05.24`, LittleFS UI `v1.11.07.01`. All zones nominal at 23.5°C target, 0 DTCs active, 42/42 regression tests (TC21, TC46–TC51) PASS. `sh_process_check.py` 0 errors.
 
 ## Next
-1. **Migration Review & Final Release Gate**: Assess whole system status, verify process checks, and complete handoff documentation for Step 14.
+1. **Repository Synchronization & Push**: Display git diff status and await explicit owner confirmation for `git push origin <branch>` per invariant.
+2. **Night Observation**: Monitor the first autonomous overnight night-only gas calibration run on the board.

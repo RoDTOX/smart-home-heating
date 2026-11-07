@@ -80,7 +80,7 @@ zones and sensors the user sets up (C-10, C-11), then step 2; the rest in the or
 | 11 | `History` in LittleFS, `StatusModel` static buffer | done: rings moved from RAM to LittleFS (5.28 KB RAM saved), StatusModel static buffer implemented (fragmentation eliminated, largestBlock 86 KB); tests SWE.5-TC37 100% PASS | 81ada91 | owner OK 05.11.2026 |
 | 12 | `Maintenance`: OTA quiet gate and rollback, full self-test, valve exercise | done: QuietGate (FR-60, NFR-1.8), automatic rollback verification (FR-60), valve exercise weekly (FR-19), self-test diagnostics (/api/maint/selftest); tests SWE.5-TC45 100% PASS | in step 12 | owner OK 05.11.2026 |
 | 13 | `FlowInput` + `FlowLimit` | deferred (owner 05.11.2026: without physical probes; documentation for hardware selection provided; boiler setpoint <= 45 C is protection) | — | owner deferred 05.11.2026 |
-| 14 | Phase 4, one advisor per step: `PlantMonitor` (FR-56, FR-57), `HeatUpModel` (FR-67), `SmartWindow` (FR-40.2), `CycleAligner` (FR-63), `SolarThrottle` (FR-70), `HumidityComp` (FR-71) | done: all 6 advisors implemented and verified on board (`PlantMonitor` TC46 PASS, `HeatUpModel` TC47 PASS, `SolarThrottle` TC48 PASS, `CycleAligner` TC49 PASS, `HumidityComp` TC50 PASS, `SmartWindow` TC51 PASS) | step 14 complete | — |
+| 14 | Phase 4, one advisor per step: `PlantMonitor` (FR-56, FR-57), `HeatUpModel` (FR-67), `SmartWindow` (FR-40.2), `CycleAligner` (FR-63), `SolarThrottle` (FR-70), `HumidityComp` (FR-71) | done: all 6 advisors implemented and verified on board (`PlantMonitor` TC46 PASS, `HeatUpModel` TC47 PASS, `SolarThrottle` TC48 PASS, `CycleAligner` TC49 PASS, `HumidityComp` TC50 PASS, `SmartWindow` TC51 PASS) | cf8b1cd | owner OK 07.11.2026 |
 
 ## Work outside the chain (03.11.2026)
 
