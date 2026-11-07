@@ -345,6 +345,7 @@ class SystemTestSuite(SuiteBase, HealthTests, HydraulicsTests, ControlTests, UiH
             self.test_tc46_2_overheat_param_bounds,
             self.test_tc46_3_no_effect_param_bounds,
             self.test_tc46_4_plant_monitor_dtc_contract,
+            self.test_tc46_5_cross_zone_heat_misdirection,
             # Group 47: HeatUpModel (FR-48, FR-67) (step 14)
             self.test_tc47_1_fr48_baseline_lead_formula,
             self.test_tc47_2_heatup_status_contract,

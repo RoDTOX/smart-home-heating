@@ -143,6 +143,7 @@ void ThermalZoneManager::loadConfig() {
         _configs[i].solarGain = z.solarGain != 0;
         _configs[i].circuits = (z.circuits >= 1 && z.circuits <= 16) ? z.circuits : ((i == 0) ? 3 : 2);
         _configs[i].humidityComp = z.humidityComp != 0;
+        _configs[i].heatingType = z.heatingType <= 1 ? z.heatingType : 0;
         _configs[i].tempOffset = z.offsetC10 / 10.0f;
         _configs[i].targetTemp = z.targetC10 / 10.0f;
         _tpi[i].integral = _tpi[i].savedIntegral = paramStore.learned(i) / 1000.0f;
@@ -173,6 +174,7 @@ void ThermalZoneManager::persistConfig() {
         z.solarGain = _configs[i].solarGain ? 1 : 0;
         z.circuits = _configs[i].circuits >= 1 && _configs[i].circuits <= 16 ? _configs[i].circuits : 1;
         z.humidityComp = _configs[i].humidityComp ? 1 : 0;
+        z.heatingType = _configs[i].heatingType <= 1 ? _configs[i].heatingType : 0;
         z.offsetC10 = (int16_t)lroundf(_configs[i].tempOffset * 10);
         z.targetC10 = (int16_t)lroundf(_configs[i].targetTemp * 10);
         paramStore.saveZone(i, z);
@@ -546,6 +548,13 @@ void ThermalZoneManager::setCircuits(size_t index, uint8_t circuits) {
 void ThermalZoneManager::setHumidityComp(size_t index, bool enabled) {
     if (index < MAX_THERMAL_ZONES && _configs[index].humidityComp != enabled) {
         _configs[index].humidityComp = enabled;
+        persistConfig();
+    }
+}
+
+void ThermalZoneManager::setHeatingType(size_t index, uint8_t type) {
+    if (index < MAX_THERMAL_ZONES && type <= 1 && _configs[index].heatingType != type) {
+        _configs[index].heatingType = type;
         persistConfig();
     }
 }

@@ -758,6 +758,150 @@ bool TelemetryHistoryManager::gasReadingAdd(uint32_t epoch, uint32_t indexMilli,
     return true;
 }
 
+bool TelemetryHistoryManager::gasReadingDelete(uint32_t epoch) {
+    if (!_fsMounted) return false;
+    uint32_t count = gasReadingCount();
+    if (count == 0) return false;
+    File in = LittleFS.open(FILE_GAS_LOG, "r");
+    if (!in) return false;
+    File out = LittleFS.open(FILE_GAS_LOG_TMP, "w");
+    if (!out) { in.close(); return false; }
+
+    uint32_t rec[3];
+    uint32_t lastEpoch = 0, lastIndex = 0, lastSec = 0;
+    bool deleted = false;
+    while (in.read((uint8_t*)rec, GAS_REC) == GAS_REC) {
+        if (!deleted && rec[0] == epoch) {
+            deleted = true;
+            continue; // drop this record
+        }
+        if (out.write((const uint8_t*)rec, GAS_REC) == GAS_REC) {
+            lastEpoch = rec[0];
+            lastIndex = rec[1];
+            lastSec = rec[2];
+        }
+    }
+    in.close();
+    out.close();
+
+    if (!deleted) {
+        LittleFS.remove(FILE_GAS_LOG_TMP);
+        return false;
+    }
+
+    if (!LittleFS.rename(FILE_GAS_LOG_TMP, FILE_GAS_LOG)) {
+        LittleFS.remove(FILE_GAS_LOG_TMP);
+        return false;
+    }
+
+    // Re-anchor ParamStore base values to last remaining reading
+    paramStore.saveState(StateKey::GasMeterBaseEpoch, lastEpoch);
+    paramStore.saveState(StateKey::GasMeterBaseIndex, lastIndex);
+    paramStore.saveState(StateKey::GasMeterBaseSec, lastSec != GAS_NO_RUNTIME ? lastSec : boilerRadio.getRuntimeTotalSec());
+
+    return true;
+}
+
+bool TelemetryHistoryManager::gasReadingUpdate(uint32_t epoch, uint32_t newIndexMilli) {
+    if (!_fsMounted) return false;
+    uint32_t count = gasReadingCount();
+    if (count == 0) return false;
+    File in = LittleFS.open(FILE_GAS_LOG, "r");
+    if (!in) return false;
+    File out = LittleFS.open(FILE_GAS_LOG_TMP, "w");
+    if (!out) { in.close(); return false; }
+
+    uint32_t rec[3];
+    uint32_t lastEpoch = 0, lastIndex = 0, lastSec = 0;
+    bool updated = false;
+    while (in.read((uint8_t*)rec, GAS_REC) == GAS_REC) {
+        if (!updated && rec[0] == epoch) {
+            rec[1] = newIndexMilli;
+            updated = true;
+        }
+        if (out.write((const uint8_t*)rec, GAS_REC) == GAS_REC) {
+            lastEpoch = rec[0];
+            lastIndex = rec[1];
+            lastSec = rec[2];
+        }
+    }
+    in.close();
+    out.close();
+
+    if (!updated) {
+        LittleFS.remove(FILE_GAS_LOG_TMP);
+        return false;
+    }
+
+    if (!LittleFS.rename(FILE_GAS_LOG_TMP, FILE_GAS_LOG)) {
+        LittleFS.remove(FILE_GAS_LOG_TMP);
+        return false;
+    }
+
+    // Re-anchor ParamStore base values to last remaining reading
+    paramStore.saveState(StateKey::GasMeterBaseEpoch, lastEpoch);
+    paramStore.saveState(StateKey::GasMeterBaseIndex, lastIndex);
+    paramStore.saveState(StateKey::GasMeterBaseSec, lastSec != GAS_NO_RUNTIME ? lastSec : boilerRadio.getRuntimeTotalSec());
+
+    return true;
+}
+
+static uint32_t gasDayKey(uint32_t epoch) {
+    time_t t = (time_t)epoch;
+    struct tm tmv;
+    localtime_r(&t, &tmv);
+    return (uint32_t)(tmv.tm_year * 1000 + tmv.tm_yday);
+}
+
+struct GasDayCtx {
+    uint32_t targetDay;
+    uint32_t startIdx;
+    uint32_t startEpoch;
+    uint32_t startRt;
+    uint32_t endIdx;
+    uint32_t endEpoch;
+    uint32_t endRt;
+    bool haveStart;
+    bool haveEnd;
+};
+
+bool TelemetryHistoryManager::gasDayFromReadings(uint32_t dayEpoch, uint32_t currentTotalSec, float flameRate, float& m3) const {
+    uint32_t targetDay = gasDayKey(dayEpoch);
+
+    GasDayCtx c;
+    memset(&c, 0, sizeof(c));
+    c.targetDay = targetDay;
+
+    gasReadingsForEach([](uint32_t epoch, uint32_t idx, uint32_t rt, void* p) {
+        GasDayCtx* x = (GasDayCtx*)p;
+        uint32_t d = gasDayKey(epoch);
+        if (d == x->targetDay) {
+            if (!x->haveStart) {
+                x->startIdx = idx;
+                x->startEpoch = epoch;
+                x->startRt = rt;
+                x->haveStart = true;
+            } else {
+                x->endIdx = idx;
+                x->endEpoch = epoch;
+                x->endRt = rt;
+                x->haveEnd = true;
+            }
+        }
+    }, &c);
+
+    if (!c.haveStart || !c.haveEnd || c.endIdx < c.startIdx) return false;
+
+    float deltaM3 = (float)(c.endIdx - c.startIdx) / 1000.0f;
+    time_t nowT = time(nullptr);
+    if (nowT >= 1700000000 && gasDayKey((uint32_t)nowT) == targetDay && c.endRt != GAS_NO_RUNTIME && currentTotalSec >= c.endRt) {
+        uint32_t extraSec = currentTotalSec - c.endRt;
+        deltaM3 += ((float)extraSec / 3600.0f) * flameRate;
+    }
+    m3 = deltaM3;
+    return true;
+}
+
 struct GasMonthCtx {
     uint32_t thisKey, prevKey;
     bool haveThis, havePrev;
@@ -786,6 +930,10 @@ bool TelemetryHistoryManager::boilerOnSeconds(uint32_t t1, uint32_t t2, uint32_t
     if (!use24 && age1 >= 5UL * 86400UL) return false;
     uint32_t step = use24 ? 300UL : 1800UL;
     uint32_t on = 0;
+    if (!_fsMounted) return false;
+    File f = use24 ? LittleFS.open(FILE_24H, "r") : LittleFS.open(FILE_5D, "r");
+    if (!f) return false;
+    bool success = true;
     for (uint32_t tt = t1 - (t1 % step); tt <= t2; tt += step) {
         uint16_t slot;
         if (use24) {
@@ -797,22 +945,50 @@ bool TelemetryHistoryManager::boilerOnSeconds(uint32_t t1, uint32_t t2, uint32_t
             slot = (uint16_t)((tt / 1800UL) % TELEMETRY_5D_POINTS);
         }
         TelemetryPoint pt;
-        bool ok = use24 ? readPoint24h(slot, pt) : readPoint5d((uint8_t)slot, pt);
-        if (!ok || !(pt.flags & 0x80)) return false;  // a step that was not recorded: the history does not cover the interval
+        bool ok = false;
+        if (use24 && slot == _currentSlot24h && (_livePoint24h.flags & 0x80)) {
+            pt = _livePoint24h;
+            ok = true;
+        } else {
+            if (f.seek(slot * sizeof(TelemetryPoint)) && f.read((uint8_t*)&pt, sizeof(TelemetryPoint)) == sizeof(TelemetryPoint)) {
+                ok = true;
+            }
+        }
+        if (!ok || !(pt.flags & 0x80)) { success = false; break; }  // a step that was not recorded: the history does not cover the interval
         if (pt.flags & 0x01) on += step;
     }
+    f.close();
+    if (!success) return false;
     onSec = on;
     fiveDay = !use24;
     return true;
+}
+
+static bool isNightCalibrationInterval(uint32_t t1, uint32_t t2) {
+    if (t2 <= t1) return false;
+    uint32_t dur = t2 - t1;
+    // Night interval: between 4h and 14h duration
+    if (dur < 4UL * 3600UL || dur > 14UL * 3600UL) return false;
+    time_t time1 = (time_t)t1, time2 = (time_t)t2;
+    struct tm tm1, tm2;
+    localtime_r(&time1, &tm1);
+    localtime_r(&time2, &tm2);
+    // Evening start (20:00 .. 02:00) and Morning end (06:00 .. 11:00)
+    bool startEvening = (tm1.tm_hour >= 20 || tm1.tm_hour <= 2);
+    bool endMorning = (tm2.tm_hour >= 6 && tm2.tm_hour <= 11);
+    return startEvening && endMorning;
 }
 
 struct GasFlowCtx {
     const TelemetryHistoryManager* self;
     bool havePrev;
     uint32_t prevEpoch, prevIdx, prevRt;
-    uint32_t dIdx[10];  // last 10 qualifying intervals: rise in 1/1000 m3 and boiler ON seconds
-    uint32_t dSec[10];
-    uint8_t n;
+    uint32_t dIdxNight[10];
+    uint32_t dSecNight[10];
+    uint8_t nNight;
+    uint32_t dIdxAll[10];
+    uint32_t dSecAll[10];
+    uint8_t nAll;
 };
 
 bool TelemetryHistoryManager::gasFlowMeasured(float& m3PerHour) const {
@@ -831,14 +1007,25 @@ bool TelemetryHistoryManager::gasFlowMeasured(float& m3PerHour) const {
                 ok = x->self->boilerOnSeconds(x->prevEpoch, epoch, sec, five);
             }
             if (ok && sec >= (five ? 14400UL : 3600UL)) {
-                if (x->n == 10) {
-                    memmove(x->dIdx, x->dIdx + 1, 9 * sizeof(uint32_t));
-                    memmove(x->dSec, x->dSec + 1, 9 * sizeof(uint32_t));
-                    x->n = 9;
+                bool night = isNightCalibrationInterval(x->prevEpoch, epoch);
+                if (night) {
+                    if (x->nNight == 10) {
+                        memmove(x->dIdxNight, x->dIdxNight + 1, 9 * sizeof(uint32_t));
+                        memmove(x->dSecNight, x->dSecNight + 1, 9 * sizeof(uint32_t));
+                        x->nNight = 9;
+                    }
+                    x->dIdxNight[x->nNight] = idx - x->prevIdx;
+                    x->dSecNight[x->nNight] = sec;
+                    x->nNight++;
                 }
-                x->dIdx[x->n] = idx - x->prevIdx;
-                x->dSec[x->n] = sec;
-                x->n++;
+                if (x->nAll == 10) {
+                    memmove(x->dIdxAll, x->dIdxAll + 1, 9 * sizeof(uint32_t));
+                    memmove(x->dSecAll, x->dSecAll + 1, 9 * sizeof(uint32_t));
+                    x->nAll = 9;
+                }
+                x->dIdxAll[x->nAll] = idx - x->prevIdx;
+                x->dSecAll[x->nAll] = sec;
+                x->nAll++;
             }
         }
         x->havePrev = true;
@@ -846,13 +1033,75 @@ bool TelemetryHistoryManager::gasFlowMeasured(float& m3PerHour) const {
         x->prevIdx = idx;
         x->prevRt = rt;
     }, &c);
-    if (c.n == 0) return false;
+
+    // Prioritize clean night calibration (zero domestic hot water)
+    uint8_t useCount = c.nNight > 0 ? c.nNight : c.nAll;
+    const uint32_t* useIdx = c.nNight > 0 ? c.dIdxNight : c.dIdxAll;
+    const uint32_t* useSec = c.nNight > 0 ? c.dSecNight : c.dSecAll;
+
+    if (useCount == 0) return false;
     double sumM3 = 0, sumH = 0;
-    for (uint8_t i = 0; i < c.n; i++) {
-        sumM3 += c.dIdx[i] / 1000.0;
-        sumH += c.dSec[i] / 3600.0;
+    for (uint8_t i = 0; i < useCount; i++) {
+        sumM3 += useIdx[i] / 1000.0;
+        sumH += useSec[i] / 3600.0;
     }
     if (sumH <= 0) return false;
-    m3PerHour = (float)(sumM3 / sumH);
+    float flow = (float)(sumM3 / sumH);
+    // Range defined by FR-35.1 for burner flow rate: 0.10 .. 4.00 m3/h
+    if (flow < 0.10f || flow > 4.00f) return false;
+    m3PerHour = flow;
+    return true;
+}
+
+struct DhwCtx {
+    const TelemetryHistoryManager* self;
+    float flameRate;
+    bool havePrev;
+    uint32_t prevEpoch, prevIdx, prevRt;
+    float dhwToday;
+    float dhwTotal;
+};
+
+bool TelemetryHistoryManager::gasDhwFromReadings(float flameRate, float& dhwToday, float& dhwTotal) const {
+    if (flameRate <= 0.05f) return false;
+    DhwCtx c;
+    memset(&c, 0, sizeof(c));
+    c.self = this;
+    c.flameRate = flameRate;
+
+    time_t nowT = time(nullptr);
+    uint32_t todayKey = nowT >= 1700000000 ? gasDayKey((uint32_t)nowT) : 0;
+
+    gasReadingsForEach([](uint32_t epoch, uint32_t idx, uint32_t rt, void* p) {
+        DhwCtx* x = (DhwCtx*)p;
+        if (x->havePrev && idx > x->prevIdx) {
+            uint32_t sec = 0;
+            bool ok = false, five = false;
+            if (rt != GAS_NO_RUNTIME && x->prevRt != GAS_NO_RUNTIME) {
+                ok = rt >= x->prevRt;
+                sec = ok ? rt - x->prevRt : 0;
+            } else {
+                ok = x->self->boilerOnSeconds(x->prevEpoch, epoch, sec, five);
+            }
+            if (ok) {
+                float deltaM3 = (float)(idx - x->prevIdx) / 1000.0f;
+                float heatingM3 = ((float)sec / 3600.0f) * x->flameRate;
+                if (deltaM3 > heatingM3) {
+                    float dhw = deltaM3 - heatingM3;
+                    x->dhwTotal += dhw;
+                    if (x->prevEpoch > 0 && gasDayKey(epoch) == gasDayKey((uint32_t)time(nullptr))) {
+                        x->dhwToday += dhw;
+                    }
+                }
+            }
+        }
+        x->havePrev = true;
+        x->prevEpoch = epoch;
+        x->prevIdx = idx;
+        x->prevRt = rt;
+    }, &c);
+
+    dhwToday = c.dhwToday;
+    dhwTotal = c.dhwTotal;
     return true;
 }

@@ -83,11 +83,13 @@ The full process (requirement rules, requirements review, test review, decisions
 - On task completion update [`docs/changelog.md`](docs/changelog.md) and `.agent/memory-bank/activeContext.md`.
 - **The owner's chain.** When the owner tells what they see on the heating or asks for a change (or for the next
   migration step), run skill `sh-change`: log → requirement → tests first → code → gates → commit → board.
-  The owner is asked only to decide a requirement change and to test on the board; everything else runs without
-  asking. Two modes (owner, 02.11.2026: tokens): **light** by default - the chat does everything itself, with one
-  `sh-safety-reviewer` run only when the change touches the §3 safety list; **full** - all agents, and
-  `sh-assessor` with `sh-compliance-reviewer` at the end of a step - only when the owner asks for it and before a
-  release.
+  The owner decides requirement changes, approves the initial micro-plan before non-trivial execution, and tests
+  on the board. Autonomous runs are strictly bounded: a concise micro-plan (3-5 bullet points) + explicit owner
+  approval is required before executing changes, with checkpoint gates every ~10 tool calls (enforced by
+  `tools/sh_cost_guard.py`). Two modes (owner, 02.11.2026: tokens): **light** by default - the chat does everything
+  itself, with one `sh-safety-reviewer` run only when the change touches the §3 safety list; **full** - all agents,
+  and `sh-assessor` with `sh-compliance-reviewer` at the end of a step - only when the owner asks for it and before
+  a release.
 - **A test or a requirement that looks wrong or unclear goes to the owner** for clarification; never change a test
   to make it pass. A hook (`sh_chain_guard.py`) closes the code until the tests are written and the tests once
   frozen (`tools/sh_chain.py`), without spending tokens.
@@ -101,13 +103,17 @@ The full process (requirement rules, requirements review, test review, decisions
   `Safety-Reviewed:` line, or with a `Co-Authored-By` / "Generated with" line. Enable once per clone:
   `git config core.hooksPath .githooks`. Owner-only bypass: `SH_HOOK_SKIP=owner`. Without Claude Code the agents and
   skills do not exist: run §4 and the `sh-change` order by hand (`.claude/skills/sh-change/SKILL.md` is plain markdown).
-- **Steps stay visible, waits stay short** (owner, 04.11.2026). Every shell call has a `description` that says in
-  plain words what it does and why; a source file is changed with `Edit`, not with an inline python patch; a script
-  that is run twice goes to `tools/sh_*.py`, a one-off to the scratchpad with a name that says its purpose.
-  A background agent's result arrives as a message: never poll its `.output` file or sleep in a loop for it - end
-  the turn and wait. A long command (system test with a real burn, OTA, `pio run`) runs in the background and the
-  turn ends or one `Monitor` watches it; say before it starts what it runs and how long it takes. A tool that
-  flashes or writes is never called with `--help` to see its options: read the script.
+- **Steps stay visible, waits stay short, costs bounded** (owner, 04.11.2026, 07.11.2026). Every shell call has
+  a `description` that says in plain words what it does and why; a source file is changed with `Edit`, not with
+  an inline python patch; a script that is run twice goes to `tools/sh_*.py`, a one-off to the scratchpad with
+  a name that says its purpose. Autonomous execution without user interaction is capped at 10 consecutive tool calls
+  or 10 minutes (enforced by `tools/sh_cost_guard.py` in Claude Code `.claude/settings.json` and Antigravity
+  `.agent/hooks.json`). At the threshold, the agent must stop, summarize progress, provide a remaining micro-plan,
+  and request owner approval to continue. A background agent's result arrives as a message: never poll its `.output`
+  file or sleep in a loop for it - end the turn and wait. A long command (system test with a real burn, OTA,
+  `pio run`) runs in the background and the turn ends or one `Monitor` watches it; say before it starts what it
+  runs and how long it takes. A tool that flashes or writes is never called with `--help` to see its options:
+  read the script.
 - Logs (`docs/changelog.md`, `docs/problems.md`, `docs/acceptance.md`, `.agent/memory-bank/decisions.md`) are
   append-only: add an entry, never rewrite an old one. Old entries may move unchanged to `docs/archive/` (owner,
   02.11.2026). `activeContext.md` holds only what holds now and what comes next.

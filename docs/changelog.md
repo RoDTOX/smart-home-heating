@@ -5,6 +5,26 @@ Corelat cu planul activ: [`docs/plan.md`](file:///c:/Users/BSeceleanu/.github_re
 Entries before 29.10.2026 (the system before the lean clean-up):
 [`archive/changelog_until_2026-10-21.md`](archive/changelog_until_2026-10-21.md).
 
+## [07.11.2026] - System Internals, Night Gas Calibration & Hardware Health (Section 5.2, PB-125, PB-126)
+
+- **Who / when / why:** firmware & Web UI session requested by owner:
+  1. Section 5.2 Hardware, Memory & I/O dashboard: extended `/api/diag/mem` and UI to display native chip internals (CPU frequency 240 MHz, internal core temperature ~64°C, silicon revision 3, 2 cores), Flash details (4 MB, 40 MHz, running partition `app1`/`ota_0` vs inactive partition `app0`/`ota_1`), LittleFS usage, and live physical I/O pin levels (Relays 1..4, Radio TX 433 MHz, Status LED).
+  2. Night-only gas flow calibration: heating flow rate is calibrated exclusively during sleep intervals (20:00-02:00 to 06:00-11:00) with zero domestic hot water (ACM), yielding `0.132 m³/h`.
+  3. Domestic hot water (ACM) separation: estimated upon new meter reading entry as physical index delta minus heating runtime consumption; UI displays today's gas broken down into Heating vs ACM.
+  4. Underfloor thermal lag: 3.5h threshold in `PlantMonitor` with non-resetting timers during TPI cycling, cross-zone misdirection detection (DTC-202), and physical manifold relay alignment.
+- **Verification:** PlatformIO build clean, firmware & LittleFS flashed via OTA to `192.168.1.20`. 22/22 SWE.5 tests PASS (100%), `sh_process_check.py board` PASS (0 errors).
+
+## [07.11.2026] - Cost, Token & Runaway Loop Guard Hook (C-44, D-61)
+
+- **Who / when / why:** developer tooling update requested by owner: long-running sessions (e.g. 27 minutes) consumed excessive tokens and thinking time without user checkpoints or approval requests, caused by legacy instructions stating "everything else runs without asking".
+- **Done:**
+  - `tools/sh_cost_guard.py`: created unified cost and runaway loop guard with subcommands for Claude Code (`claude-prompt`, `claude-tool`) and Antigravity (`agy-pre-invocation`, `agy-pre-tool`), plus `reset` and `status`.
+  - `.claude/hooks/sh_cost_guard.py` & `.claude/settings.json`: integrated `UserPromptSubmit` prompt guidance injection and `PreToolUse` tool call counter (exit code 2 when exceeding 10 consecutive tool calls or 10 minutes without user checkpoint).
+  - `.agent/hooks.json`: integrated `PreInvocation` guidance and `PreToolUse` approval gating (`"decision": "ask"`).
+  - `AGENTS.md` & `.claude/skills/sh-change/SKILL.md`: updated workflow rules to mandate a concise micro-plan (3-5 points) and explicit owner approval before non-trivial execution, eliminating unconstrained runaway loops.
+  - `.agent/memory-bank/decisions.md`: appended C-44 (D-61).
+- **Verification:** tested `status`, `claude-prompt`, `agy-pre-invocation`, `claude-tool` consecutive burst blocking (exits 2 at call 11), `agy-pre-tool` approval gating, and `reset`.
+
 ## [05.11.2026] - Step 14 Part F: SmartWindow — Slope & Absolute Humidity Detection Skeleton (FR-40.2, C-43)
 
 - **Who / when / why:** firmware session (Antigravity), implementing Phase 4 / Step 14 Part F (`SmartWindow` L4 advisor):
@@ -1245,4 +1265,16 @@ efresh() guarded, ocusout debounced).
 - **What:** new `EventLog` (`src/EventLog.cpp`): 16 B entries with time, type, subject, reason, old / new value and the boiler-side state; every relay level change (`OutputBank`), every boiler frame, refusal and pending action (`BoilerRadioTrigger`), interlock start / end, overrun start / hold / end, frost, sensor loss, mode, boot, warm-up end, time sync, DTC raise / clear, status LED. RAM queue of 24, appended to two LittleFS files of 2048 entries (newest 2048-4096 kept) from `loop()`; `GET /api/diag/log?n=`.
 - **Measured before:** the board's LittleFS is 1 441 792 B (default partition table of the board, not the 128 KB of `min_spiffs`); 84 KB used.
 - **Safety review:** no blocker; note: `n=4096` streams about 780 KB inside `loop()` (a diagnostic call, the control timers only get longer).
+
+## [07.11.2026] - Gas meter corrections, per-zone emitter type, and cross-zone heat misdirection detection (PB-125, PB-126)
+
+- **What:**
+  - **Relay and Zone Inversion (PB-125):** Swapped Relay 2 and 3 so Living is Relay 1 (GPIO32), Kids is Relay 3 (GPIO25), Adults is Relay 2 (GPIO33).
+  - **Per-Zone Heating Type (FR-69, PB-125):** Added `heatingType` (0 = Floor, 1 = Radiators) per zone in `ThermalZoneConfig`, `ParamStore` (migrated layout), NVS, Web API, and UI Section 4.1.
+  - **Underfloor Thermal Stagnation & Cross-Zone DTC (PB-125):** Underfloor heating sets stagnation floor to 3.5h (radiators 45 min). Added cross-zone heat misdirection detection in `PlantMonitor` raising DTC when demanding zone has no rise after threshold while an uncommanded zone overheats.
+  - **Gas Meter Deletion & Editing (PB-126):** Added endpoints `POST /api/boiler/gas-meter/delete` and `POST /api/boiler/gas-meter/update`. UI provides both delete and inline edit buttons per reading.
+  - **Gas Consumption Recalculation (PB-126):** Calculated `gasTodayM3` and `gasYesterdayM3` directly from physical index deltas between start and end of day plus remaining boiler burn time, resolving discrepancy where pure runtime formula computed 1.21 m³ instead of physical 1.00 m³.
+  - **Dual Versioning Footer:** Standardized footer to `Smart Heating · FW v1.11.05.24 (f3e6287) · UI v1.11.07.01 (LittleFS)`.
+  - **UI TPI Table Bug:** Fixed duty percent normalization in `renderTpiInspector` so 100% duty is displayed as `100% continuu / 60 min deschis` instead of `1% / 1 min deschis`.
+- **Verified:** 22/22 atomic SWE.5 tests PASS; `sh_process_check.py board` PASS (0 errors); firmware and LittleFS web UI flashed to board (`192.168.1.20`).
 

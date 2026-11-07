@@ -8,12 +8,13 @@
 PlantMonitor plantMonitor;
 
 PlantMonitor::PlantMonitor()
-    : _boilerNotHeating(false), _boilerDemandingSinceMs(0), _boilerResendAttempted(false), _lastCheckMs(0) {
+    : _boilerNotHeating(false), _misdirectionDetected(false), _boilerDemandingSinceMs(0), _boilerResendAttempted(false), _lastCheckMs(0) {
     memset(_zones, 0, sizeof(_zones));
 }
 
 void PlantMonitor::begin() {
     _boilerNotHeating = false;
+    _misdirectionDetected = false;
     _boilerDemandingSinceMs = 0;
     _boilerResendAttempted = false;
     _lastCheckMs = millis();
@@ -78,14 +79,19 @@ void PlantMonitor::update() {
         }
 
         // --- 2. FR-57: Zone No Effect Check (Duty >= noEffectDuty, time >= noEffectTime, rise < noEffectRise) ---
-        if (duty >= noEffectDutyMin && valveOpen) {
+        // For underfloor heating, slab thermal inertia requires 3.5h before concluding no effect.
+        uint32_t effectiveNoEffectTimeMs = (cfg.heatingType == HEATING_TYPE_FLOOR)
+            ? (noEffectTimeMs >= 12600000UL ? noEffectTimeMs : 12600000UL)  // 3.5 hours for floor
+            : (noEffectTimeMs >= 2700000UL ? noEffectTimeMs : 2700000UL);   // 45 min for radiators
+
+        if (duty >= noEffectDutyMin) {
             anyDemandActive = true;
             demandingCount++;
 
             if (tr.highDutySinceMs == 0) {
                 tr.highDutySinceMs = now;
                 tr.highDutyStartTemp = curTemp;
-            } else if (now - tr.highDutySinceMs >= noEffectTimeMs) {
+            } else if (now - tr.highDutySinceMs >= effectiveNoEffectTimeMs) {
                 float rise = curTemp - tr.highDutyStartTemp;
                 if (rise < noEffectRiseMin) {
                     if (tr.noEffectDetectedMs == 0) {
@@ -117,14 +123,26 @@ void PlantMonitor::update() {
             _boilerResendAttempted = false;
         } else {
             uint32_t elapsed = now - _boilerDemandingSinceMs;
-            // Floor heating feedback wait: 30 min initial check
-            if (elapsed >= 30UL * 60UL * 1000UL && !_boilerResendAttempted) {
+            // Check if any demanding zone is underfloor heating
+            bool hasFloorDemand = false;
+            for (size_t z = 0; z < zoneCount; z++) {
+                if (thermalZones.getConfig(z).enabled && thermalZones.getDuty(z) >= noEffectDutyMin) {
+                    if (thermalZones.getConfig(z).heatingType == HEATING_TYPE_FLOOR) {
+                        hasFloorDemand = true;
+                        break;
+                    }
+                }
+            }
+            uint32_t resendWaitMs = hasFloorDemand ? (3UL * 3600UL * 1000UL) : (20UL * 60UL * 1000UL);
+            uint32_t dtcWaitMs = hasFloorDemand ? (12600000UL) : (45UL * 60UL * 1000UL); // 3.5h floor vs 45m rad
+
+            if (elapsed >= resendWaitMs && !_boilerResendAttempted) {
                 if (allDemandingZonesStagnant) {
                     // Re-send ON once
                     boilerRadio.sendBoilerOn(false, RS_DEMAND);
                     _boilerResendAttempted = true;
                 }
-            } else if (elapsed >= 60UL * 60UL * 1000UL && _boilerResendAttempted) {
+            } else if (elapsed >= dtcWaitMs && _boilerResendAttempted) {
                 if (allDemandingZonesStagnant && !_boilerNotHeating) {
                     _boilerNotHeating = true;
                     diagEngine.raiseDtc(Dtc::ERR_BOILER_NOT_HEATING, "Boiler not heating under demand", SEV_CRITICAL, 0);
@@ -137,6 +155,49 @@ void PlantMonitor::update() {
         if (_boilerNotHeating) {
             _boilerNotHeating = false;
             diagEngine.clearDtc(Dtc::ERR_BOILER_NOT_HEATING, 0);
+        }
+    }
+
+    // --- 4. FR-56 / FR-57 (PB-125): Cross-Zone Heat Misdirection Check ---
+    // At underfloor heating, slab thermal inertia takes 2-3 hours to propagate.
+    // Misdirection threshold: zone demanding heat continuously for >= misdirectionMinMs (3.5h for floor, 45 min for radiators)
+    // without temperature rise, while an uncommanded closed zone overheats >= 0.5 C above target.
+    bool crossMisdirection = false;
+    for (size_t d = 0; d < zoneCount; d++) {
+        const auto& cfgD = thermalZones.getConfig(d);
+        uint32_t misdirectionMinMs = (cfgD.heatingType == HEATING_TYPE_FLOOR)
+            ? (noEffectTimeMs >= 12600000UL ? noEffectTimeMs : 12600000UL) // 3.5 hours for floor
+            : (noEffectTimeMs >= 2700000UL ? noEffectTimeMs : 2700000UL);  // 45 min for radiators
+        if (_zones[d].highDutySinceMs > 0 && (now - _zones[d].highDutySinceMs >= misdirectionMinMs)) {
+            const auto& stD = thermalZones.getStatus(d);
+            if (stD.currentTemp - _zones[d].highDutyStartTemp < noEffectRiseMin) {
+                // Demanding zone is not heating; check if another uncommanded zone is heating
+                for (size_t u = 0; u < zoneCount; u++) {
+                    if (u == d) continue;
+                    const auto& cfgU = thermalZones.getConfig(u);
+                    const auto& stU = thermalZones.getStatus(u);
+                    if (cfgU.enabled && stU.sensorValid && !stU.relayEngaged) {
+                        float targetU = thermalZones.getEffectiveTargetTemp(u);
+                        if (stU.currentTemp >= targetU + 0.5f) {
+                            crossMisdirection = true;
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+        if (crossMisdirection) break;
+    }
+
+    if (crossMisdirection) {
+        if (!_misdirectionDetected) {
+            _misdirectionDetected = true;
+            diagEngine.raiseDtc(Dtc::ERR_ZONE_OVERHEAT, "Cross-zone misdirection / inverted circuit", SEV_ERROR, 0);
+        }
+    } else {
+        if (_misdirectionDetected) {
+            _misdirectionDetected = false;
+            diagEngine.clearDtc(Dtc::ERR_ZONE_OVERHEAT, 0);
         }
     }
 }
@@ -166,6 +227,8 @@ String PlantMonitor::getStatusJson() const {
     }
     out += "],\"boilerMonitor\":{\"boilerNotHeating\":";
     out += _boilerNotHeating ? "true" : "false";
-    out += "}}";
+    out += "},\"misdirection\":";
+    out += _misdirectionDetected ? "true" : "false";
+    out += "}";
     return out;
 }

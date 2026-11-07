@@ -677,4 +677,17 @@ Owner: "timpul in loc de unix, sa fie yymmddhhmmss". `time` in `/api/diag/log` i
 **Affects**: `ParamStore.h`, `ParamStore.cpp`, `DiagnosticEngine.cpp`, FR-11.3, NFR-2.2, NFR-2.9.
 **Consequences**: Seamless zero-data-loss OTA updates for all legacy client installations.
 
+## 2026-11-07 — Cost, Token & Runaway Loop Guard Hook (D-61, C-44)
+
+**Context**: Long autonomous sessions (e.g. 27 minutes) consumed excessive tokens and thinking time without user checkpoints or approval requests, caused by legacy instructions stating "everything else runs without asking".
+**Decision**:
+- Implement `tools/sh_cost_guard.py` to bound autonomous bursts and inject micro-plan + approval requirements:
+  - Claude Code: hooked in `.claude/settings.json` via `UserPromptSubmit` (guidance prompt injection) and `PreToolUse` (blocking after 10 consecutive tool calls or 10 minutes with exit code 2).
+  - Antigravity: hooked in `.agent/hooks.json` via `PreInvocation` (ephemeral micro-plan requirement) and `PreToolUse` (returns decision `"ask"` at threshold).
+- Update `AGENTS.md` and `.claude/skills/sh-change/SKILL.md` to establish the micro-plan approval gate before non-trivial execution and cap autonomous loops at 10 consecutive tool calls.
+**Decided by**: owner feedback (2026-11-07).
+**Affects**: `tools/sh_cost_guard.py`, `.claude/hooks/sh_cost_guard.py`, `.claude/settings.json`, `.agent/hooks.json`, `AGENTS.md`, `.claude/skills/sh-change/SKILL.md`.
+**Consequences**: Eliminates 20+ minute runaway token burn and guarantees owner sees a micro-plan and gives explicit approval before substantial autonomous execution begins.
+
+
 

@@ -26,6 +26,7 @@ public:
     bool isZoneOverheating(size_t zoneIndex) const;
     bool isZoneNoEffect(size_t zoneIndex) const;
     bool isBoilerNotHeating() const { return _boilerNotHeating; }
+    bool isMisdirectionDetected() const { return _misdirectionDetected; }
 
     String getStatusJson() const;
 
@@ -42,6 +43,7 @@ private:
 
     ZoneTracking _zones[32];
     bool _boilerNotHeating;
+    bool _misdirectionDetected;
     uint32_t _boilerDemandingSinceMs;
     bool _boilerResendAttempted;
     uint32_t _lastCheckMs;

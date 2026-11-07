@@ -31,7 +31,7 @@ const NumParam NUM_PARAMS[] = {
 };
 const char* const FLAG_PARAMS[] = {"rfSafetyHeartbeatEnabled", "openLoopBypass", "actuatorNormallyClosed",
                                    "pumpControlEnabled"};
-const char* const ZONE_FIELDS[] = {"id", "name", "mac", "sensorName", "relayPin", "enabled", "offset", "solarGain", "circuits", "humidityComp"};
+const char* const ZONE_FIELDS[] = {"id", "name", "mac", "sensorName", "relayPin", "enabled", "offset", "solarGain", "circuits", "humidityComp", "heatingType"};
 const char* const SCHEDULE_KEYS[] = {"enabled", "preheat", "window", "weekday", "weekend", "levels"};
 const char* const TOP_KEYS[] = {"format", "firmwareVersion", "params", "zones", "schedule", "location",
                                 "learnedDuty"};
@@ -194,6 +194,7 @@ struct ZonePlan {
     bool solarGain = false;
     uint8_t circuits = 1;
     bool humidityComp = false;
+    uint8_t heatingType = 0;
     float offset = 0, target = 0;
 };
 
@@ -208,6 +209,7 @@ void planZone(size_t i, ZonePlan& zp, Report& rep) {
     zp.solarGain = cur.solarGain;
     zp.circuits = cur.circuits;
     zp.humidityComp = cur.humidityComp;
+    zp.heatingType = cur.heatingType;
     zp.offset = cur.tempOffset;
     zp.target = cur.targetTemp;
 
@@ -264,6 +266,11 @@ void planZone(size_t i, ZonePlan& zp, Report& rep) {
     if (zp.obj.containsKey("humidityComp")) {
         v = zp.obj["humidityComp"];
         if (v.is<bool>()) zp.humidityComp = v.as<bool>();
+        else bad = true;
+    }
+    if (zp.obj.containsKey("heatingType")) {
+        v = zp.obj["heatingType"];
+        if (inRange(v, 0, 1)) zp.heatingType = (uint8_t)v.as<int>();
         else bad = true;
     }
     if (bad) { zp.reason = "invalid"; return; }
@@ -356,6 +363,7 @@ void importZones(JsonVariantConst zv, Report& rep) {
         thermalZones.setSolarGain(i, zp.solarGain);
         thermalZones.setCircuits(i, zp.circuits);
         thermalZones.setHumidityComp(i, zp.humidityComp);
+        thermalZones.setHeatingType(i, zp.heatingType);
         rep.ok(zoneName(i + 1), String("name '") + zp.name + "', mac '" + zp.mac + "', sensorName '" + zp.sensorName +
                                     "', relayPin " + zp.pin + ", enabled " + (zp.enabled ? "true" : "false") +
                                     ", offset " + String(zp.offset, 1));
@@ -504,6 +512,8 @@ String configExportJson() {
         z["solarGain"] = c.solarGain;
         z["circuits"] = c.circuits;
         z["humidityComp"] = c.humidityComp;
+        z["heatingType"] = c.heatingType;
+        z["heatingTypeStr"] = c.heatingType == 0 ? "floor" : "radiators";
     }
 
     JsonObject s = d["schedule"].to<JsonObject>();

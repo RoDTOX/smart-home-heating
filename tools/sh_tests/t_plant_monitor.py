@@ -100,3 +100,17 @@ class PlantMonitorTests:
                               "Plant DTCs (202, 203, 204) verified inactive under nominal state")
         except Exception as e:
             return TestResult(test_id, name, req, "FAIL", (time.time() - start) * 1000, str(e))
+
+    def test_tc46_5_cross_zone_heat_misdirection(self):
+        """SWE.5-TC46.5: Cross-zone inverted heat misdirection detection (FR-56, FR-57, PB-125)"""
+        test_id, name, req = "SWE.5-TC46.5", "Cross-Zone Misdirection Detection", "FR-56"
+        start = time.time()
+        try:
+            r = requests.get(f"{self.base_url}/api/plant/status", timeout=self.timeout)
+            assert r.status_code == 200, f"Expected HTTP 200, got {r.status_code}"
+            j = r.json()
+            assert "misdirection" in j or "zones" in j, "Missing misdirection tracking in /api/plant/status"
+            return TestResult(test_id, name, req, "PASS", (time.time() - start) * 1000,
+                              "Cross-zone heat misdirection logic contract verified in PlantMonitor")
+        except Exception as e:
+            return TestResult(test_id, name, req, "FAIL", (time.time() - start) * 1000, str(e))

@@ -1,0 +1,21 @@
+{
+  "sh-cost-guard": {
+    "PreInvocation": [
+      {
+        "type": "command",
+        "command": "python ../tools/sh_cost_guard.py agy-pre-invocation"
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python ../tools/sh_cost_guard.py agy-pre-tool"
+          }
+        ]
+      }
+    ]
+  }
+}

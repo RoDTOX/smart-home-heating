@@ -28,6 +28,8 @@
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
 #include <LittleFS.h>
+#include <esp_ota_ops.h>
+#include <esp_chip_info.h>
 
 // FR-8.5 / FR-8.6: the page is a gzip file on LittleFS; an embedded stub answers when it is missing or corrupt
 static const char PAGE_FILE[] = "/index.html.gz";
@@ -286,11 +288,22 @@ static const char* getGasMeterJson() {
   uint32_t totalSec = boilerRadio.getRuntimeTotalSec();
   uint32_t elapsedSec = (totalSec >= baseSec) ? (totalSec - baseSec) : 0;
   float currentEstimatedIndex = lastIndex + (elapsedSec / 3600.0f) * flameRate;
-  float gasToday = ((float)boilerRadio.getRuntimeTodaySec() / 3600.0f) * flameRate;
+  float gasTodayHeat = ((float)boilerRadio.getRuntimeTodaySec() / 3600.0f) * flameRate;
+  float dhwToday = 0.0f, dhwTotal = 0.0f;
+  telemetryHistory.gasDhwFromReadings(flameRate, dhwToday, dhwTotal);
+  float gasToday = gasTodayHeat + dhwToday;
   float gasYesterday = ((float)boilerRadio.getRuntimeYesterdaySec() / 3600.0f) * flameRate;
-  float gasThisMonth = ((float)boilerRadio.getRuntimeThisMonthSec() / 3600.0f) * flameRate;
+  float gasThisMonth = ((float)boilerRadio.getRuntimeThisMonthSec() / 3600.0f) * flameRate + dhwTotal;
   time_t nowT = time(nullptr);
   if (nowT >= 1700000000) {
+    float fromDay = 0.0f;
+    if (telemetryHistory.gasDayFromReadings((uint32_t)nowT, totalSec, flameRate, fromDay)) {
+      gasToday = fromDay;
+    }
+    float fromYest = 0.0f;
+    if (telemetryHistory.gasDayFromReadings((uint32_t)(nowT - 86400UL), totalSec, flameRate, fromYest)) {
+      gasYesterday = fromYest;
+    }
     float fromReadings = 0.0f;
     if (telemetryHistory.gasMonthFromReadings((uint32_t)nowT, fromReadings)) gasThisMonth = fromReadings;
   }
@@ -313,12 +326,14 @@ static const char* getGasMeterJson() {
 
   snprintf(j, sizeof(j),
            "\"gasMeter\":{\"lastReadingIndex\":%s,\"lastReadingTime\":%s,\"estimatedIndex\":%s,"
-           "\"readingCount\":%u,\"gasTodayM3\":%.2f,\"gasYesterdayM3\":%.2f,\"gasThisMonthM3\":%.2f,"
+           "\"readingCount\":%u,\"gasTodayM3\":%.2f,\"gasTodayHeatM3\":%.2f,\"gasTodayDhwM3\":%.2f,"
+           "\"gasYesterdayM3\":%.2f,\"gasThisMonthM3\":%.2f,\"gasDhwTotalM3\":%.2f,"
            "\"gasFlowMeasured\":%s,\"gasFlameRate\":%.2f,\"boilerSetTemp\":%u,\"boilerFlowObserved\":%u,"
            "\"boilerPowerKw\":%u,\"gasPrice\":%.2f},",
            lastIdxStr, lastTimeStr, estIdxStr,
            (unsigned)telemetryHistory.gasReadingCount(),
-           gasToday, gasYesterday, gasThisMonth, measFlowStr,
+           gasToday, gasTodayHeat, dhwToday,
+           gasYesterday, gasThisMonth, dhwTotal, measFlowStr,
            paramStore.getf(Param::GasFlameRate),
            (unsigned)paramStore.get(Param::BoilerSetTemp),
            (unsigned)paramStore.get(Param::BoilerFlowObserved),
@@ -434,6 +449,42 @@ void handleApiGasReadings() {
   server.sendContent("");
 }
 
+void handleApiGasReadingDelete() {
+  if (!requireAuth()) return;
+  sendCorsHeaders();
+  if (!server.hasArg("time")) {
+    server.send(400, "application/json", F("{\"status\":\"error\",\"error\":\"missing time\"}"));
+    return;
+  }
+  uint32_t epoch = (uint32_t)strtoul(server.arg("time").c_str(), nullptr, 10);
+  if (!telemetryHistory.gasReadingDelete(epoch)) {
+    server.send(404, "application/json", F("{\"status\":\"error\",\"error\":\"reading not found or delete failed\"}"));
+    return;
+  }
+  server.send(200, "application/json", F("{\"status\":\"ok\",\"deleted\":true}"));
+}
+
+void handleApiGasReadingUpdate() {
+  if (!requireAuth()) return;
+  sendCorsHeaders();
+  if (!server.hasArg("time") || !server.hasArg("index")) {
+    server.send(400, "application/json", F("{\"status\":\"error\",\"error\":\"missing time or index\"}"));
+    return;
+  }
+  uint32_t epoch = (uint32_t)strtoul(server.arg("time").c_str(), nullptr, 10);
+  float idxF = server.arg("index").toFloat();
+  if (epoch < 1700000000 || idxF < 0.0f || idxF > 1000000.0f) {
+    server.send(400, "application/json", F("{\"status\":\"error\",\"error\":\"invalid epoch or index\"}"));
+    return;
+  }
+  uint32_t idxMilli = (uint32_t)lroundf(idxF * 1000.0f);
+  if (!telemetryHistory.gasReadingUpdate(epoch, idxMilli)) {
+    server.send(404, "application/json", F("{\"status\":\"error\",\"error\":\"reading not found or update failed\"}"));
+    return;
+  }
+  server.send(200, "application/json", F("{\"status\":\"ok\",\"updated\":true}"));
+}
+
 // NFR-2.2: a JSON answer is written in chunks from one fixed buffer, never built as a growing String
 struct JsonOut {
   char b[384];
@@ -514,9 +565,10 @@ void handleApiZones() {
     o.put("\"windowPauseRemainingSec\":%lu,\"windowDropThreshold\":%.1f,\"lastWindowEpoch\":%lu,\"lastWindowDurationSec\":%lu,",
           (unsigned long)thermalZones.getWindowPauseRemainingSec(i), (double)thermalZones.getWindowThreshold(),
           (unsigned long)thermalZones.getWindowLastDetectionEpoch(i), (unsigned long)thermalZones.getWindowLastDetectionDurationSec(i));
-    o.put("\"demand\":%s,\"relayEngaged\":%s,\"openSec\":%lu,\"isManualHold\":%s,\"duty\":%.2f,\"dutyPct\":%d,\"onTimeSec\":%lu,\"learnedDuty\":%.1f,\"tempOffset\":%.1f,\"solarGain\":%s,\"circuits\":%u,\"humidityComp\":%s,",
+    o.put("\"demand\":%s,\"relayEngaged\":%s,\"openSec\":%lu,\"isManualHold\":%s,\"duty\":%.2f,\"dutyPct\":%d,\"onTimeSec\":%lu,\"learnedDuty\":%.1f,\"tempOffset\":%.1f,\"solarGain\":%s,\"circuits\":%u,\"humidityComp\":%s,\"heatingType\":%u,\"heatingTypeStr\":\"%s\",",
           tf(st.demand), tf(st.relayEngaged), (unsigned long)openSec, tf(st.isManualHold), (double)thermalZones.getDuty(i), (int)(thermalZones.getDuty(i) * 100),
-          (unsigned long)(thermalZones.getZoneOnMs(i) / 1000), (double)thermalZones.getLearnedDutyPct(i), (double)cfg.tempOffset, tf(cfg.solarGain), (unsigned)cfg.circuits, tf(cfg.humidityComp));
+          (unsigned long)(thermalZones.getZoneOnMs(i) / 1000), (double)thermalZones.getLearnedDutyPct(i), (double)cfg.tempOffset, tf(cfg.solarGain), (unsigned)cfg.circuits, tf(cfg.humidityComp),
+          (unsigned)cfg.heatingType, cfg.heatingType == 0 ? "floor" : "radiators");
     o.put("\"runtimeTodaySec\":%lu,\"runtimeYesterdaySec\":%lu,\"state\":\"%s\"}",
           (unsigned long)thermalZones.getZoneRuntimeTodaySec(i), (unsigned long)thermalZones.getZoneRuntimeYesterdaySec(i),
           thermalZones.getStateCode(i));
@@ -937,6 +989,10 @@ void handleApiSetupMapZone() {
     bool hc = (server.arg("humidityComp") == "true" || server.arg("humidityComp") == "1");
     thermalZones.setHumidityComp(z, hc);
   }
+  if (server.hasArg("heatingType")) {
+    int ht = server.arg("heatingType").toInt();
+    if (ht >= 0 && ht <= 1) thermalZones.setHeatingType(z, (uint8_t)ht);
+  }
   sendCorsHeaders();
   server.send(200, "application/json",
               F("{\"status\":\"ok\",\"message\":\"Zone configuration updated "
@@ -1089,11 +1145,20 @@ extern volatile uint32_t g_wxStackFreeMin;  // TimeAndWeatherService.cpp
 void handleApiDiagMem() {
   multi_heap_info_t i8;
   heap_caps_get_info(&i8, MALLOC_CAP_8BIT);
-  char b[900];
+
+  esp_chip_info_t chip;
+  esp_chip_info(&chip);
+  const esp_partition_t* running = esp_ota_get_running_partition();
+  const esp_partition_t* next = esp_ota_get_next_update_partition(NULL);
+  float chipTemp = temperatureRead();
+
+  char b[1200];
   int n = snprintf(b, sizeof(b),
     "{\"free\":%u,\"minFreeEver\":%u,\"largestBlock\":%u,\"allocated\":%u,\"allocBlocks\":%u,\"freeBlocks\":%u,"
     "\"internalFree\":%u,\"internalMin\":%u,\"internalLargest\":%u,\"heapSize\":%u,\"freeIram32\":%u,\"uptime\":%lu,"
-    "\"fsTotal\":%u,\"fsUsed\":%u,\"controlStackFree\":%u,\"loopStackFree\":%u,\"tasks\":[",
+    "\"fsTotal\":%u,\"fsUsed\":%u,\"controlStackFree\":%u,\"loopStackFree\":%u,"
+    "\"cpuFreqMHz\":%u,\"chipTemp\":%.1f,\"chipCores\":%u,\"chipRev\":%u,"
+    "\"flashSize\":%u,\"flashSpeed\":%u,\"partRunning\":\"%s\",\"partNext\":\"%s\",\"tasks\":[",
     (unsigned)heap_caps_get_free_size(MALLOC_CAP_8BIT), (unsigned)heap_caps_get_minimum_free_size(MALLOC_CAP_8BIT),
     (unsigned)heap_caps_get_largest_free_block(MALLOC_CAP_8BIT), (unsigned)i8.total_allocated_bytes,
     (unsigned)i8.allocated_blocks, (unsigned)i8.free_blocks,
@@ -1101,7 +1166,10 @@ void handleApiDiagMem() {
     (unsigned)heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL), (unsigned)ESP.getHeapSize(),
     (unsigned)heap_caps_get_free_size(MALLOC_CAP_IRAM_8BIT), (unsigned long)(millis() / 1000),
     (unsigned)LittleFS.totalBytes(), (unsigned)LittleFS.usedBytes(),
-    (unsigned)App::getControlStackFree(), (unsigned)App::getLoopStackFree());
+    (unsigned)App::getControlStackFree(), (unsigned)App::getLoopStackFree(),
+    (unsigned)ESP.getCpuFreqMHz(), chipTemp, (unsigned)chip.cores, (unsigned)chip.revision,
+    (unsigned)ESP.getFlashChipSize(), (unsigned)ESP.getFlashChipSpeed(),
+    running ? running->label : "unknown", next ? next->label : "none");
   static const char *const names[] = {"loopTask", "ctl", "wifi", "tiT", "btController", "nimble_host", "wx"};
   bool first = true;
   for (size_t k = 0; k < sizeof(names) / sizeof(names[0]) && n > 0 && n < (int)sizeof(b) - 64; k++) {
@@ -1796,6 +1864,8 @@ void registerWebRoutes() {
   server.on("/api/boiler/cancel", HTTP_POST, handleApiBoilerCancelPending);
   server.on("/api/boiler/runtime/reset", HTTP_POST, handleApiBoilerResetRuntime);
   server.on("/api/boiler/gas-meter", HTTP_POST, handleApiBoilerGasMeter);
+  server.on("/api/boiler/gas-meter/delete", HTTP_POST, handleApiGasReadingDelete);
+  server.on("/api/boiler/gas-meter/update", HTTP_POST, handleApiGasReadingUpdate);
   server.on("/api/boiler/gas-readings", HTTP_GET, handleApiGasReadings);
   server.on("/api/boiler/status", HTTP_GET, handleApiStatus);
   server.on("/api/status", HTTP_GET, handleApiStatus);

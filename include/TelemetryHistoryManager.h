@@ -74,14 +74,20 @@ public:
     uint32_t gasReadingCount() const;
     uint32_t gasReadingsReplaced() const;
     bool gasReadingAdd(uint32_t epoch, uint32_t indexMilli, uint32_t runtimeSec);
+    bool gasReadingDelete(uint32_t epoch);
+    bool gasReadingUpdate(uint32_t epoch, uint32_t newIndexMilli);
     void gasReadingsForEach(void (*cb)(uint32_t epoch, uint32_t indexMilli, uint32_t runtimeSec, void* ctx), void* ctx) const;
+    // Calibrated flow rate from night intervals (zero DHW during sleep) with fallback to all intervals
+    bool gasFlowMeasured(float& m3PerHour) const;
+    // Estimated DHW (Apa Calda Menajera) from reading deltas minus heating runtime consumption
+    bool gasDhwFromReadings(float flameRate, float& dhwToday, float& dhwTotal) const;
     // Gas of the month of `epoch` from readings: last reading of that month minus last reading of the month before
     bool gasMonthFromReadings(uint32_t epoch, float& m3) const;
+    // Gas of the day of `epoch` from readings
+    bool gasDayFromReadings(uint32_t dayEpoch, uint32_t currentTotalSec, float flameRate, float& m3) const;
     // Boiler ON seconds between two times from the history (FR-35.1, FR-34): 24 h ring while t1 is under 24 h old,
     // else the 5 day ring while under 5 days; false when a step of the interval was not recorded or t1 is older.
     bool boilerOnSeconds(uint32_t t1, uint32_t t2, uint32_t& onSec, bool& fiveDay) const;
-    // Measured flow in m3 per boiler ON hour: last 10 intervals of >= 1 h with a rising index, weighted by hours
-    bool gasFlowMeasured(float& m3PerHour) const;
 
     // Boot & restart tracking
     void recordBootEvent();

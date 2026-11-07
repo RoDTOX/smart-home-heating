@@ -25,6 +25,7 @@ def upload_assets():
     subprocess.run([sys.executable, "tools/sh_build_web.py"], check=True)
     gz_path = ".pio/build/index.html.gz"
     candidates = [
+        ("bogdan", "bogdan123"),
         ("bogdan", "21051990"),
         ("admin", "21051990"),
         ("admin", "admin123")
@@ -63,7 +64,19 @@ if not os.path.exists(SECRETS_PATH):
 
 with open(SECRETS_PATH, encoding="utf-8") as f:
     secrets = dict(re.findall(r'#define\s+(\w+)\s+"([^"]*)"', f.read()))
-ota_auth = base64.b64encode(f"{secrets.get('OTA_USER', 'admin')}:{secrets.get('OTA_PASS', 'admin123')}".encode()).decode()
+ota_user, ota_pass = None, None
+for u, p in [("bogdan", "bogdan123"), ("bogdan", "21051990"), ("admin", "21051990"), ("admin", "admin123")]:
+    try:
+        import requests
+        if requests.get(f"http://{HOST}:{PORT}/api/auth/verify", auth=(u, p), timeout=2).status_code == 200:
+            ota_user, ota_pass = u, p
+            break
+    except Exception:
+        pass
+if not ota_user:
+    ota_user = secrets.get('OTA_USER', 'admin')
+    ota_pass = secrets.get('OTA_PASS', 'admin123')
+ota_auth = base64.b64encode(f"{ota_user}:{ota_pass}".encode()).decode()
 
 bin_size = os.path.getsize(BIN_PATH)
 print(f"Firmware binary: {bin_size} bytes ({bin_size / 1024:.1f} KB)")

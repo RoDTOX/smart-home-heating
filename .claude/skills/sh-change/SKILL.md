@@ -1,15 +1,16 @@
 ---
 name: sh-change
-description: The owner's chain - use whenever the owner tells what they see on the heating (a cold room, the boiler starting too often, something odd on the page, "nu merge") or asks for a change in behaviour, and when they say to go on with the next migration step. Always from the requirement down - log, requirement, tests first, code, gates, commit, board, owner test. The owner only describes, decides requirement changes and tests on the board; everything else runs here without asking.
+description: The owner's chain - use whenever the owner tells what they see on the heating (a cold room, the boiler starting too often, something odd on the page, "nu merge") or asks for a change in behaviour, and when they say to go on with the next migration step. Always from the requirement down - log, requirement, micro-plan approval, tests first, code, gates, commit, board, owner test. The owner describes, approves the micro-plan, decides requirement changes and tests on the board.
 ---
 
 # sh-change
 
-The owner has three moments; everything else runs without asking:
+The owner has four moments:
 
 1. **Tell** - what they see or want (this skill starts here).
-2. **Decide** - only when a requirement has to change: one question, plain Romanian, options.
-3. **Test** - on the board, OK / NOK.
+2. **Approve micro-plan** - before any code or tests are written, a 3-5 bullet micro-plan with estimated impact is presented to the owner for approval.
+3. **Decide** - only when a requirement has to change: one question, plain Romanian, options.
+4. **Test** - on the board, OK / NOK.
 
 Always top-down, in this order. Never start at the code, never skip a level, never change a test to make it pass.
 
@@ -98,5 +99,6 @@ Push, PR and `main` only when the owner asks (`docs/process.md` §5 release gate
 
 ## While working
 
-Short plain Romanian, the house first, at most one ID per point. No questions outside the three moments; an
-owner decision the chain cannot make (a BLOCKER, a safety value) is moment 2.
+Short plain Romanian, the house first, at most one ID per point. Before non-trivial execution, present the micro-plan
+and request approval. Autonomous loops are capped at 10 consecutive tool calls without a checkpoint (enforced by
+`tools/sh_cost_guard.py`). An owner decision the chain cannot make (a BLOCKER, a safety value) is moment 3.
