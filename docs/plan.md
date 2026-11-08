@@ -101,7 +101,29 @@ records and findings: [`review_agy_03_11.md`](review_agy_03_11.md), rows C-14 ..
 | R-4 | Flow-probe library approval: the FR-54 sensor type is open; DS18B20 would need `OneWire` and `DallasTemperature`, new libraries (AGENTS.md §3, D30) | step 13 cannot start | until the owner decides, the boiler flow setpoint ≤ 45 °C is the protection (requirements §2) | open — owner decision |
 | R-5 | Recorded window traces needed for FR-40.2: `windowK`, `windowAhDrop` and the acceptance criteria need 2–3 weeks of traces with hand-marked window openings (D33) | `SmartWindow` (step 14) cannot be tuned or accepted; FR-40 stays the rule | log traces to the PC with a `tools/sh_*` script (not written yet) during the heating season, before step 14 | open |
 
-## Out of scope
+## Phase 5 — Commercial Product Preparation, Ecosystem & Extended Hardware
 
-Cloud, SaaS, fleet, shop, Home Assistant, kiosk / wall tablet (AGENTS.md §2, requirements §1). Sale in the EU
-under the owner's brand is in scope as conformity work only ([`compliance.md`](compliance.md), owner 02.11.2026).
+Approved by owner (08.11.2026). Strategic expansion beyond the initial 14 migration steps towards commercial deployment, modern user experience, and industrial interoperability.
+
+### 5.1 Quality, Security & Embedded Optimization
+1. **Traceability & Coverage Audit**: Bidirectional SWE.1 ↔ SWE.5 audit across all 149 requirements, identifying and closing gaps.
+2. **Code & Security Review**: Static analysis, memory leak detection, heap profiling, and elimination of unauthenticated development flags (CRA / RED compliance, PB-104).
+3. **Embedded Footprint Optimization**: Maximize free internal RAM (>100 KB steady), move residual static buffers and web assets to LittleFS, verify OTA headroom.
+4. **Gas Telemetry UI**: Highlight calibrated consumption factor (`gasFlowMeasured`) prominently in Card 3.3.
+
+### 5.2 Extended Hardware & Communications
+1. **Dedicated Boiler Transceiver**: Fail-safe hardware transceiver with bidirectional ACK/heartbeat and autonomous timeout (resolving R-3, FR-55).
+2. **OpenTherm Interface**: Hardware galvanic isolation bridge for direct flame modulation and flow temperature control (Tier B/C integration).
+3. **Long-Range Sensor Technology**: Evaluation and integration of Sub-1GHz / Zigbee / LoRaWAN sensors for multi-story residential penetration.
+4. **Industrial Open RF Actuation**: Support for open-protocol RF switches, smart plugs, and actuators (433/868 MHz, Tuya RF, Sonoff, Shelly) for secondary pumps/valves.
+
+### 5.3 Modern User Interface (Lovable UI)
+1. **Unified Dual Interface**: High-performance local device UI + hosted cloud/server web dashboard.
+2. **Client Onboarding & Provisioning**: Guided startup wizard covering account registration, device pairing, WiFi provisioning, and initial zone calibration.
+
+### 5.4 Ecosystem Integrations
+1. **Home Assistant Integration**: Native MQTT Discovery and REST HVAC entity integration for smart home interoperability.
+
+## Out of scope (historical)
+
+Third-party cloud subscriptions, paid fleet monetization, kiosk hardware. Home Assistant and Cloud Onboarding brought into scope under Phase 5 (owner decision 08.11.2026).

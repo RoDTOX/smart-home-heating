@@ -1471,6 +1471,11 @@ function renderGasMeter() {
     $("gasSetT").textContent = `${setT}°C `;
     $("gasFlowT").textContent = `(livrează ~${flowT}°C)`;
     $("gasSubRate").textContent = `${flowLabel}: ${flameRate} m³/h`;
+    if ($("gasCalibRate")) $("gasCalibRate").textContent = flameRate;
+    if ($("gasCalibType")) {
+      $("gasCalibType").textContent = measured ? '✓ Calibrat nocturn (fără ACM)' : '⚠️ Necalibrat (estimare implicită)';
+      $("gasCalibType").style.color = measured ? 'var(--ok, #22c55e)' : 'var(--warn, #f59e0b)';
+    }
     $("gasBurnTimeStr").textContent = `Timp ardere azi: ${burnTodayH}h (centrală pornită)`;
     if (!gasFormOpen) {
       if ($("cfgGasSetTemp")) $("cfgGasSetTemp").value = setT;
@@ -1507,6 +1512,11 @@ function renderGasMeter() {
       <div class="s" style="color:var(--mut)">Temperatură tur centrală</div>
       <div style="font-size:22px;font-weight:700;color:var(--fg);margin:2px 0"><span id="gasSetT">${setT}°C </span><span id="gasFlowT" style="font-size:13px;font-weight:400;color:var(--heat)">(livrează ~${flowT}°C)</span></div>
       <div class="s" id="gasSubRate" style="color:var(--mut)">${flowLabel}: ${flameRate} m³/h</div>
+    </div>
+    <div style="background:var(--card);border:1px solid var(--line);border-radius:8px;padding:10px">
+      <div class="s" style="color:var(--mut)">Factor consum (calibrare)</div>
+      <div style="font-size:22px;font-weight:700;color:var(--fg);margin:2px 0"><span id="gasCalibRate">${flameRate}</span> <span style="font-size:14px;font-weight:400">m³/h</span></div>
+      <div class="s" id="gasCalibType" style="color:${measured ? 'var(--ok, #22c55e)' : 'var(--warn, #f59e0b)'}">${measured ? '✓ Calibrat nocturn (fără ACM)' : '⚠️ Necalibrat (estimare implicită)'}</div>
     </div>
   </div>
   <div id="gasReadForm" style="display:none;background:var(--card);border:1px solid var(--line);border-radius:8px;padding:12px;margin-top:10px">
