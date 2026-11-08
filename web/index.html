@@ -2729,38 +2729,6 @@ $("zonesSave").onclick = async () => {
   if (!dirtyRows.size) refresh();
 };
 
-$("setup").addEventListener("change", async e => {
-  const tr = e.target.closest("tr[data-z]");
-  if (!tr) return;
-  const idx = +tr.dataset.z;
-  const f = n => tr.querySelector(`[data-f="${n}"]`);
-  const msgEl = $("setupMsg" + idx);
-  if (e.target.dataset.f === "solarGain" || e.target.dataset.f === "heatingType" || e.target.dataset.f === "offset") {
-    try {
-      const sg = f("solarGain").checked ? 1 : 0;
-      const ht = +f("heatingType").value;
-      const ofs = +(+f("offset").value).toFixed(1);
-      const res = await fetch("api/setup/map-zone", {
-        method: "POST",
-        headers: { "Content-Type": "application/x-www-form-urlencoded" },
-        body: `zone=${idx}&solarGain=${sg}&heatingType=${ht}&offset=${ofs}`
-      });
-      if (res.ok) {
-        if (msgEl) {
-          msgEl.textContent = "✓ Salvat";
-          setTimeout(() => { if (msgEl.textContent === "✓ Salvat") msgEl.textContent = ""; }, 3000);
-        }
-        refresh();
-      } else {
-        const err = await res.json().catch(() => ({}));
-        if (msgEl) msgEl.textContent = "Respins: " + (err.error || res.status);
-      }
-    } catch (err) {
-      if (msgEl) msgEl.textContent = "Eroare: " + err.message;
-    }
-  }
-});
-
 // While the schedule form is being edited, refreshes must not overwrite the inputs (PB-66, C-14)
 const schedForm = $("saveSched") ? $("saveSched").closest("details, section") : document;
 function markSchedDirty() {
