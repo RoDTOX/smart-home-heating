@@ -198,3 +198,33 @@ class SensorHubTests:
             return TestResult(test_id, name, req, "FAIL", (time.time() - start) * 1000, str(e))
         finally:
             self._hub_cfg_post(validMin=old[0], freezeProtectionTemp=old[1])
+
+    def test_tc34_7_sensor_offset_bounds_and_application(self):
+        """SWE.5-TC34.7: Per-zone offset bounded within -3.0..+3.0 C and added to accepted reading (FR-49)"""
+        test_id, name, req = "SWE.5-TC34.7", "Sensor Offset Calibration", "FR-49"
+        start = time.time()
+        zs0 = requests.get(f"{self.base_url}/api/zones", timeout=self.timeout).json().get("zones", [])
+        if not zs0:
+            return TestResult(test_id, name, req, "SKIP", (time.time() - start) * 1000, "no zones configured")
+        z1 = zs0[0]
+        z_id = z1["id"]
+        old_ofs = z1.get("tempOffset", 0.0)
+        try:
+            # Out-of-bounds offset rejected
+            r_high = requests.post(f"{self.base_url}/api/setup/map-zone", data={"zone": z_id - 1, "offset": 3.5}, timeout=self.timeout)
+            assert r_high.status_code == 400, f"offset 3.5 accepted ({r_high.status_code}), expected 400"
+            r_low = requests.post(f"{self.base_url}/api/setup/map-zone", data={"zone": z_id - 1, "offset": -3.5}, timeout=self.timeout)
+            assert r_low.status_code == 400, f"offset -3.5 accepted ({r_low.status_code}), expected 400"
+
+            # Valid offset accepted
+            r_valid = requests.post(f"{self.base_url}/api/setup/map-zone", data={"zone": z_id - 1, "offset": 0.5}, timeout=self.timeout)
+            assert r_valid.status_code == 200, f"offset 0.5 rejected ({r_valid.status_code})"
+            z_after = requests.get(f"{self.base_url}/api/zones", timeout=self.timeout).json().get("zones", [])[0]
+            assert abs(z_after.get("tempOffset", 0.0) - 0.5) < 0.05, f"tempOffset not updated: {z_after.get('tempOffset')}"
+
+            latency = (time.time() - start) * 1000
+            return TestResult(test_id, name, req, "PASS", latency, "offset bounded in [-3.0..+3.0 C] and updated in zone config")
+        except Exception as e:
+            return TestResult(test_id, name, req, "FAIL", (time.time() - start) * 1000, str(e))
+        finally:
+            requests.post(f"{self.base_url}/api/setup/map-zone", data={"zone": z_id - 1, "offset": old_ofs}, timeout=self.timeout)

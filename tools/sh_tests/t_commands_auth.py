@@ -60,14 +60,19 @@ class CommandsAuthTests:
             # 1. Clear window pause
             r1 = requests.post(f"{self.base_url}/api/zones/window/clear", data={"id": "all"}, timeout=self.timeout)
             assert r1.status_code == 200, f"/api/zones/window/clear answered {r1.status_code}"
+            j1 = r1.json()
+            assert j1.get("status") == "ok" and j1.get("cleared") == "all", f"unexpected body: {r1.text}"
 
             # 2. Zone setpoint (comfort level)
             r2 = requests.post(f"{self.base_url}/api/zones/setpoint", data={"zone": 1, "target": 21.5}, timeout=self.timeout)
             assert r2.status_code in (200, 400), f"/api/zones/setpoint answered {r2.status_code}"
+            assert r2.json() is not None, "empty response on setpoint"
 
             # 3. Schedule endpoint read
             r3 = requests.get(f"{self.base_url}/api/schedule", timeout=self.timeout)
             assert r3.status_code == 200, f"/api/schedule answered {r3.status_code}"
+            j3 = r3.json()
+            assert "scheduleMode" in j3 and "zones" in j3, f"invalid schedule schema: {r3.text}"
 
             latency = (time.time() - start) * 1000
             return TestResult(test_id, name, req, "PASS", latency, "Comfort actions succeed without authentication")
