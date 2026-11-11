@@ -26,7 +26,8 @@ Only what holds now and what comes next. A line that no longer holds is replaced
 ## Next
 0. **Improvement plan (D-62, 10.11.2026)**:
    - **I-1 (Host test bench)**: **DONE (11.11.2026)** (`8ed7142`).
-   - **I-2 (Time passed into 5 advisors + `PlantMonitor`)**: **DONE (11.11.2026)** locally — `0` `millis()` / `Arduino.h`, `pio test -e native` 19/19 PASS (7 suites), `pio run` (`1299649 B`), `sh_process_check.py` (0 errors PASS), `tc46`–`tc51` 25/25 PASS on board.
-   - **Next step: I-3 (Simulated house)** in [`docs/plan.md`](../../docs/plan.md) (`test/sim/` thermal model + fake clock, 7-day winter run < 5 s). Also optional OTA flash / `git push` when owner decides. Safety-list code (I-4, review of I-5) only by the strong model.
+   - **I-2 (Time passed into 5 advisors + `PlantMonitor`)**: **DONE (11.11.2026)** (`923d812`).
+   - **I-3 (Simulated house)**: **DONE (11.11.2026)** locally — `test/sim/SimulatedHouse.h` + `test/test_sim/test_sim.cpp` (4/4 PASS in `1.66 s`, 7-day winter NFR-4.1 within `±0.3 C`).
+   - **Next step: I-4 (`SafetySupervisor` as its own module)** in [`docs/plan.md`](../../docs/plan.md) — **safety list (strong model + `sh-safety-reviewer` + safety tests first)**! I-5..I-10 follow after I-4. Also optional OTA flash / `git push` when owner decides.
 1. **Repository Synchronization & Push**: Display git diff status and await explicit owner confirmation for `git push origin <branch>` per invariant.
 2. **Night Observation**: Monitor the first autonomous overnight night-only gas calibration run on the board.

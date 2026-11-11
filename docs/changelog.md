@@ -5,6 +5,13 @@ Corelat cu planul activ: [`docs/plan.md`](file:///c:/Users/BSeceleanu/.github_re
 Entries before 29.10.2026 (the system before the lean clean-up):
 [`archive/changelog_until_2026-10-21.md`](archive/changelog_until_2026-10-21.md).
 
+## [11.11.2026] - Step I-3 Simulated House Host Harness (D-62)
+
+- **Who / when / why:** Step I-3 of the Improvement plan in [`docs/plan.md`](plan.md): create a fast PC-only 2-node thermal house simulation to exercise control and upcoming `SafetySupervisor` invariants over multi-day runs.
+- **Changed:**
+  - `test/sim/SimulatedHouse.h`, `test/test_sim/test_sim.cpp`: added 2-node thermal room/screed model, 1 s simulated clock loop with `ZoneController`, and 4 scenario tests (`cold_start`, `winter_7_days`, `sensor_silent`, `open_window`).
+- **Verified:** `pio test -e native -f test_sim -v` -> 4/4 PASS (`1.66 s` total, including 7-day winter run staying within `±0.3 C` NFR-4.1 after day 1).
+
 ## [11.11.2026] - Step I-2 Pass Time Into Advisors & PlantMonitor (D-62)
 
 - **Who / when / why:** Step I-2 of the Improvement plan in [`docs/plan.md`](plan.md): eliminate `millis()` and `Arduino.h` headers from all 5 advisors (`HeatUpModel`, `SolarThrottle`, `CycleAligner`, `SmartWindow`, `HumidityComp`) and `PlantMonitor`, enabling pure host unit tests.
