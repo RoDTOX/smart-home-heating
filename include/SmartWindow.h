@@ -1,7 +1,6 @@
 #ifndef SMART_WINDOW_H
 #define SMART_WINDOW_H
 
-#include <Arduino.h>
 #include <stddef.h>
 #include <stdint.h>
 
@@ -20,15 +19,15 @@ public:
 
     SmartWindow();
 
-    void begin();
-    void update();
+    void begin(uint32_t now = 0);
+    void update(uint32_t now);
 
     // Magnus formula calculation of absolute humidity (g/m3) from T (deg C) and RH (%)
     // AH = (6.112 * exp((17.67 * T) / (T + 243.5)) * RH * 2.1674) / (273.15 + T)
     static float calculateAbsoluteHumidity(float tempC, float humidityRh);
 
-    // Get JSON status report for /api/window/status
-    String getStatusJson() const;
+    // FR-40.2: detection is suspended when weather is missing or (room - outdoor) < 5.0 C
+    static bool isDetectionSuspended(bool weatherValid, float roomTempC, float outdoorTempC);
 
 private:
     uint32_t _lastUpdateMs;

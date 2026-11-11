@@ -1,29 +1,48 @@
 #include "CycleAligner.h"
+
+#ifdef ARDUINO
+#include <Arduino.h>
 #include "ParamStore.h"
 #include "ThermalZoneManager.h"
 #include "ZoneController.h"
 #include <time.h>
+#endif
 
 CycleAligner cycleAligner;
 
 CycleAligner::CycleAligner()
     : _cycleStartEpoch(0), _lastUpdateMs(0) {}
 
-void CycleAligner::begin() {
-    _lastUpdateMs = millis();
+void CycleAligner::begin(uint32_t now) {
+    _lastUpdateMs = now;
 }
 
-void CycleAligner::update() {
-    _lastUpdateMs = millis();
+void CycleAligner::update(uint32_t now) {
+    _lastUpdateMs = now;
 }
 
-uint32_t CycleAligner::getCycleElapsedSec() const {
-    time_t now = time(nullptr);
-    if (now > 100000) {
+uint32_t CycleAligner::computeCycleElapsedSec(uint32_t nowMs, int64_t epochNow) {
+    if (epochNow > 100000) {
         // Aligned to top-of-hour
-        return (uint32_t)(now % 3600);
+        return (uint32_t)(epochNow % 3600);
     }
-    return (millis() / 1000UL) % 3600UL;
+    return (nowMs / 1000UL) % 3600UL;
+}
+
+bool CycleAligner::computeZoneExtended(bool activeDemandOrRelay, uint8_t circuits, uint8_t minLoops) {
+    if (!activeDemandOrRelay) return false;
+    return circuits < minLoops;
+}
+
+bool CycleAligner::isZoneAligned(size_t zoneIndex) const {
+    (void)zoneIndex;
+    return true; // All TPI zones follow the synchronized top-of-hour cycle (FR-63)
+}
+
+#ifdef ARDUINO
+uint32_t CycleAligner::getCycleElapsedSec(uint32_t nowMs) const {
+    time_t epochNow = time(nullptr);
+    return computeCycleElapsedSec(nowMs != 0 ? nowMs : _lastUpdateMs, (int64_t)epochNow);
 }
 
 uint8_t CycleAligner::getMinLoops() const {
@@ -42,27 +61,20 @@ uint8_t CycleAligner::getActiveCircuits() const {
     return total;
 }
 
-bool CycleAligner::isZoneAligned(size_t zoneIndex) const {
-    return true; // All TPI zones follow the synchronized top-of-hour cycle (FR-63)
-}
-
 bool CycleAligner::isZoneExtended(size_t zoneIndex) const {
     if (zoneIndex >= thermalZones.getZoneCount()) return false;
     const auto& st = thermalZones.getStatus(zoneIndex);
-    if (!st.demand && !st.relayEngaged) return false;
-
-    uint8_t circuits = thermalZones.getCircuits(zoneIndex);
-    uint8_t minL = getMinLoops();
-    // If zone circuits alone are below minLoops and total active circuits are limited, it is extended
-    return circuits < minL;
+    return computeZoneExtended(st.demand || st.relayEngaged,
+                               thermalZones.getCircuits(zoneIndex),
+                               getMinLoops());
 }
 
-String CycleAligner::getStatusJson() const {
+String getCycleAlignerStatusJson(uint32_t nowMs) {
     String out = "{";
-    out += "\"cycleLengthSec\":" + String(getCycleLengthSec()) + ",";
-    out += "\"cycleElapsedSec\":" + String(getCycleElapsedSec()) + ",";
-    out += "\"minLoops\":" + String((unsigned)getMinLoops()) + ",";
-    out += "\"activeCircuits\":" + String((unsigned)getActiveCircuits()) + ",";
+    out += "\"cycleLengthSec\":" + String(cycleAligner.getCycleLengthSec()) + ",";
+    out += "\"cycleElapsedSec\":" + String(cycleAligner.getCycleElapsedSec(nowMs)) + ",";
+    out += "\"minLoops\":" + String((unsigned)cycleAligner.getMinLoops()) + ",";
+    out += "\"activeCircuits\":" + String((unsigned)cycleAligner.getActiveCircuits()) + ",";
     out += "\"zones\":[";
 
     size_t count = thermalZones.getZoneCount();
@@ -71,11 +83,23 @@ String CycleAligner::getStatusJson() const {
         out += "{";
         out += "\"index\":" + String((unsigned)i) + ",";
         out += "\"circuits\":" + String((unsigned)thermalZones.getCircuits(i)) + ",";
-        out += "\"aligned\":" + String(isZoneAligned(i) ? "true" : "false") + ",";
-        out += "\"extended\":" + String(isZoneExtended(i) ? "true" : "false");
+        out += "\"aligned\":" + String(cycleAligner.isZoneAligned(i) ? "true" : "false") + ",";
+        out += "\"extended\":" + String(cycleAligner.isZoneExtended(i) ? "true" : "false");
         out += "}";
     }
 
     out += "]}";
     return out;
 }
+#else
+uint32_t CycleAligner::getCycleElapsedSec(uint32_t nowMs) const {
+    return computeCycleElapsedSec(nowMs != 0 ? nowMs : _lastUpdateMs, 0);
+}
+
+uint8_t CycleAligner::getMinLoops() const { return 3; }
+uint8_t CycleAligner::getActiveCircuits() const { return 0; }
+bool CycleAligner::isZoneExtended(size_t zoneIndex) const {
+    (void)zoneIndex;
+    return false;
+}
+#endif

@@ -1036,18 +1036,21 @@ void handleApiDiagStatus() {
 }
 
 void handleApiPlantStatus() {
+  extern String getPlantStatusJson();
   sendCorsHeaders();
-  server.send(200, "application/json", plantMonitor.getStatusJson());
+  server.send(200, "application/json", getPlantStatusJson());
 }
 
 void handleApiHeatUpStatus() {
+  extern String getHeatUpStatusJson();
   sendCorsHeaders();
-  server.send(200, "application/json", heatUpModel.getStatusJson());
+  server.send(200, "application/json", getHeatUpStatusJson());
 }
 
 void handleApiSolarStatus() {
+  extern String getSolarStatusJson();
   sendCorsHeaders();
-  server.send(200, "application/json", solarThrottle.getStatusJson());
+  server.send(200, "application/json", getSolarStatusJson());
 }
 
 void handleApiDiagInjectGet() {
@@ -1827,18 +1830,21 @@ void handleApiMaintExercise() {
 }
 
 void handleApiCyclesStatus() {
+  extern String getCycleAlignerStatusJson(uint32_t nowMs);
   sendCorsHeaders();
-  server.send(200, "application/json", cycleAligner.getStatusJson());
+  server.send(200, "application/json", getCycleAlignerStatusJson(millis()));
 }
 
 void handleApiHumidityStatus() {
+  extern String getHumidityStatusJson();
   sendCorsHeaders();
-  server.send(200, "application/json", humidityComp.getStatusJson());
+  server.send(200, "application/json", getHumidityStatusJson());
 }
 
 void handleApiWindowStatus() {
+  extern String getSmartWindowStatusJson();
   sendCorsHeaders();
-  server.send(200, "application/json", smartWindow.getStatusJson());
+  server.send(200, "application/json", getSmartWindowStatusJson());
 }
 
 void registerWebRoutes() {

@@ -1,7 +1,6 @@
 #ifndef HUMIDITY_COMP_H
 #define HUMIDITY_COMP_H
 
-#include <Arduino.h>
 #include <stddef.h>
 #include <stdint.h>
 
@@ -18,13 +17,15 @@ public:
 
     HumidityComp();
 
-    void begin();
-    void update();
+    void begin(uint32_t now = 0);
+    void update(uint32_t now);
+
+    // Pure calculation helper (host-testable without hardware/BLE)
+    static float computeTargetReduction(bool enabled, bool sensorValid,
+                                        bool sensorFault, float humidityRh);
 
     // Query compensation reduction for zone (0.0 .. 0.5 C)
     float getTargetReduction(size_t zoneIndex) const;
-
-    String getStatusJson() const;
 
 private:
     uint32_t _lastUpdateMs;

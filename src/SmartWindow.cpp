@@ -1,13 +1,17 @@
 #include "SmartWindow.h"
+#include <math.h>
+
+#ifdef ARDUINO
+#include <Arduino.h>
 #include "ThermalZoneManager.h"
 #include "BleSensorScanner.h"
 #include "TimeAndWeatherService.h"
 #include <ArduinoJson.h>
-#include <math.h>
 
 extern ThermalZoneManager thermalZones;
 extern BleSensorScanner bleScanner;
 extern TimeAndWeatherService timeAndWeather;
+#endif
 
 SmartWindow smartWindow;
 
@@ -15,12 +19,11 @@ SmartWindow::SmartWindow()
     : _lastUpdateMs(0) {
 }
 
-void SmartWindow::begin() {
-    _lastUpdateMs = millis();
+void SmartWindow::begin(uint32_t now) {
+    _lastUpdateMs = now;
 }
 
-void SmartWindow::update() {
-    uint32_t now = millis();
+void SmartWindow::update(uint32_t now) {
     if (now - _lastUpdateMs < 10000UL) {
         return;
     }
@@ -41,7 +44,13 @@ float SmartWindow::calculateAbsoluteHumidity(float tempC, float humidityRh) {
     return (ah > 0.0f) ? ah : 0.0f;
 }
 
-String SmartWindow::getStatusJson() const {
+bool SmartWindow::isDetectionSuspended(bool weatherValid, float roomTempC, float outdoorTempC) {
+    if (!weatherValid) return true;
+    return (roomTempC - outdoorTempC) < 5.0f;
+}
+
+#ifdef ARDUINO
+String getSmartWindowStatusJson() {
     JsonDocument doc;
     float outdoor = timeAndWeather.getOutdoorTemperature();
     bool wxValid = timeAndWeather.isWeatherValid();
@@ -68,7 +77,7 @@ String SmartWindow::getStatusJson() const {
         float rh = (sens && sens->valid) ? sens->humidity : 0.0f;
         z["humidity"] = serialized(String(rh, 1));
 
-        float ah = calculateAbsoluteHumidity(roomTemp, rh);
+        float ah = SmartWindow::calculateAbsoluteHumidity(roomTemp, rh);
         z["absoluteHumidity"] = serialized(String(ah, 1));
 
         // Temperature slope (°C/min) - currently 0.0 before trace-based model tuning
@@ -82,11 +91,11 @@ String SmartWindow::getStatusJson() const {
         z["windowOpen"] = isOpen;
 
         // dT < 5.0 C suspension rule (FR-40.2)
-        bool suspended = (!wxValid) || (deltaOutdoor < 5.0f);
-        z["suspended"] = suspended;
+        z["suspended"] = SmartWindow::isDetectionSuspended(wxValid, roomTemp, outdoor);
     }
 
     String out;
     serializeJson(doc, out);
     return out;
 }
+#endif

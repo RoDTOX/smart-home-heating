@@ -5,6 +5,15 @@ Corelat cu planul activ: [`docs/plan.md`](file:///c:/Users/BSeceleanu/.github_re
 Entries before 29.10.2026 (the system before the lean clean-up):
 [`archive/changelog_until_2026-10-21.md`](archive/changelog_until_2026-10-21.md).
 
+## [11.11.2026] - Step I-2 Pass Time Into Advisors & PlantMonitor (D-62)
+
+- **Who / when / why:** Step I-2 of the Improvement plan in [`docs/plan.md`](plan.md): eliminate `millis()` and `Arduino.h` headers from all 5 advisors (`HeatUpModel`, `SolarThrottle`, `CycleAligner`, `SmartWindow`, `HumidityComp`) and `PlantMonitor`, enabling pure host unit tests.
+- **Changed:**
+  - `include/{HeatUpModel,SolarThrottle,CycleAligner,SmartWindow,HumidityComp,PlantMonitor}.h` and `src/*.cpp`: removed `#include <Arduino.h>` and `String getStatusJson() const;` from headers; switched `begin(uint32_t now)` and `update(uint32_t now)` to caller-provided time; added pure static/zone evaluation helpers alongside `#ifdef ARDUINO` JSON status helpers; updated `src/main.cpp` and `src/WebApi.cpp`.
+  - `platformio.ini`: added all 6 `.cpp` modules to `[env:native]` `build_src_filter`.
+  - `test/test_{heatup_model,solar_throttle,humidity_comp,cycle_aligner,smart_window,plant_monitor}/`: added 11 Unity host tests (total 19 host tests) covering FR-48/FR-67, FR-70, FR-71, FR-63, FR-40.2, and FR-56/FR-57.
+- **Verified:** `git grep` shows 0 `millis()` across the 6 `.h`/`.cpp` pairs and 0 `Arduino.h` in headers; `pio test -e native -v` -> 19/19 PASS (`11.51 s`, 7 suites); `pio run` (`esp32dev`) -> `1299649 B` (`+212 B` vs I-1, limit `1306624 B`); `python tools/sh_process_check.py` -> 0 errors PASS (`arch` warnings down 29 -> 28); `python tools/sh_test_system.py --only tc46,tc47,tc48,tc49,tc50,tc51` -> 25/25 PASS (run on existing board image pending optional OTA flash).
+
 ## [11.11.2026] - Step I-1 Host Test Bench (D-62)
 
 - **Who / when / why:** Step I-1 of the Improvement plan in [`docs/plan.md`](plan.md): establish a host C++ unit test bench (`[env:native]` + Unity) and decouple `ZoneController` from `Arduino.h` / `ParamStore.h` so TPI and AR-12 rules run on PC.

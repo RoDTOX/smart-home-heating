@@ -1,7 +1,6 @@
 #ifndef PLANT_MONITOR_H
 #define PLANT_MONITOR_H
 
-#include <Arduino.h>
 #include <stddef.h>
 #include <stdint.h>
 
@@ -12,6 +11,15 @@
 // - FR-57: Boiler not heating (all demanding zones stagnant) -> DTC-204
 class PlantMonitor {
 public:
+    struct ZoneEvalResult {
+        bool raiseOverheat = false;
+        bool clearOverheat = false;
+        bool raiseNoEffect = false;
+        bool clearNoEffect = false;
+        bool demandActive = false;
+        bool zoneStagnant = true;
+    };
+
     static PlantMonitor& instance() {
         static PlantMonitor s_inst;
         return s_inst;
@@ -19,16 +27,22 @@ public:
 
     PlantMonitor();
 
-    void begin();
-    void update(); // Called from ControlTask or loop() periodically
+    void begin(uint32_t now = 0);
+    void update(uint32_t now); // Called from ControlTask or loop() periodically
+
+    // Pure per-zone evaluation (host-testable without DiagEngine/ParamStore/ThermalZoneManager)
+    ZoneEvalResult evaluateZone(size_t zoneIndex, uint32_t now, bool enabled, bool sensorValid,
+                                float curTemp, float target, bool valveOpen, float duty,
+                                bool isFloor, float overheatMargin, uint32_t overheatTimeMs,
+                                float noEffectDutyMin, uint32_t noEffectTimeMs, float noEffectRiseMin);
+
+    static uint32_t effectiveNoEffectTimeMs(bool isFloor, uint32_t configuredNoEffectTimeMs);
 
     // Status queries
     bool isZoneOverheating(size_t zoneIndex) const;
     bool isZoneNoEffect(size_t zoneIndex) const;
     bool isBoilerNotHeating() const { return _boilerNotHeating; }
     bool isMisdirectionDetected() const { return _misdirectionDetected; }
-
-    String getStatusJson() const;
 
 private:
     struct ZoneTracking {

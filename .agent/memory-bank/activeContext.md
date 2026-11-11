@@ -25,7 +25,8 @@ Only what holds now and what comes next. A line that no longer holds is replaced
 
 ## Next
 0. **Improvement plan (D-62, 10.11.2026)**:
-   - **I-1 (Host test bench)**: **DONE (11.11.2026)** locally — `pio test -e native` (8/8 PASS), `pio run` (`1299437 B`, +180 B), `sh_process_check.py` (0 errors PASS), `TC43` 4/4 PASS on board. Pending optional OTA flash / `git push` for CI verification.
-   - **Next step: I-2 (Time passed into 5 advisors + `PlantMonitor`)** … through I-10 in [`docs/plan.md`](../../docs/plan.md). Safety-list code (I-4, review of I-5) only by the strong model.
+   - **I-1 (Host test bench)**: **DONE (11.11.2026)** (`8ed7142`).
+   - **I-2 (Time passed into 5 advisors + `PlantMonitor`)**: **DONE (11.11.2026)** locally — `0` `millis()` / `Arduino.h`, `pio test -e native` 19/19 PASS (7 suites), `pio run` (`1299649 B`), `sh_process_check.py` (0 errors PASS), `tc46`–`tc51` 25/25 PASS on board.
+   - **Next step: I-3 (Simulated house)** in [`docs/plan.md`](../../docs/plan.md) (`test/sim/` thermal model + fake clock, 7-day winter run < 5 s). Also optional OTA flash / `git push` when owner decides. Safety-list code (I-4, review of I-5) only by the strong model.
 1. **Repository Synchronization & Push**: Display git diff status and await explicit owner confirmation for `git push origin <branch>` per invariant.
 2. **Night Observation**: Monitor the first autonomous overnight night-only gas calibration run on the board.

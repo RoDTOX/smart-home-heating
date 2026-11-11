@@ -1,9 +1,14 @@
 #include "PlantMonitor.h"
+#include <string.h>
+
+#ifdef ARDUINO
+#include <Arduino.h>
 #include "ThermalZoneManager.h"
 #include "BoilerRadioTrigger.h"
 #include "DiagnosticEngine.h"
 #include "ParamStore.h"
 #include "EventLog.h"
+#endif
 
 PlantMonitor plantMonitor;
 
@@ -12,20 +17,99 @@ PlantMonitor::PlantMonitor()
     memset(_zones, 0, sizeof(_zones));
 }
 
-void PlantMonitor::begin() {
+void PlantMonitor::begin(uint32_t now) {
     _boilerNotHeating = false;
     _misdirectionDetected = false;
     _boilerDemandingSinceMs = 0;
     _boilerResendAttempted = false;
-    _lastCheckMs = millis();
+    _lastCheckMs = now;
 }
 
-void PlantMonitor::update() {
-    uint32_t now = millis();
+uint32_t PlantMonitor::effectiveNoEffectTimeMs(bool isFloor, uint32_t configuredNoEffectTimeMs) {
+    // For underfloor heating, slab thermal inertia requires 3.5h before concluding no effect.
+    return isFloor
+        ? (configuredNoEffectTimeMs >= 12600000UL ? configuredNoEffectTimeMs : 12600000UL) // 3.5 hours for floor
+        : (configuredNoEffectTimeMs >= 2700000UL ? configuredNoEffectTimeMs : 2700000UL);  // 45 min for radiators
+}
+
+PlantMonitor::ZoneEvalResult PlantMonitor::evaluateZone(
+    size_t zoneIndex, uint32_t now, bool enabled, bool sensorValid,
+    float curTemp, float target, bool valveOpen, float duty,
+    bool isFloor, float overheatMargin, uint32_t overheatTimeMs,
+    float noEffectDutyMin, uint32_t noEffectTimeMs, float noEffectRiseMin) {
+    ZoneEvalResult res;
+    if (zoneIndex >= 32) return res;
+
+    ZoneTracking& tr = _zones[zoneIndex];
+    if (!enabled || !sensorValid) {
+        tr.closedSinceMs = 0;
+        tr.highDutySinceMs = 0;
+        return res;
+    }
+
+    // --- 1. FR-56: Zone Overheat Check (Valve closed, temp > target + margin, and still rising) ---
+    if (!valveOpen && curTemp > (target + overheatMargin)) {
+        if (tr.closedSinceMs == 0) {
+            tr.closedSinceMs = now;
+            tr.closedStartTemp = curTemp;
+        } else if (now - tr.closedSinceMs >= overheatTimeMs) {
+            if (curTemp >= tr.closedStartTemp + 0.1f) {
+                if (tr.overheatDetectedMs == 0) {
+                    tr.overheatDetectedMs = now;
+                    res.raiseOverheat = true;
+                }
+            }
+        }
+    } else {
+        tr.closedSinceMs = 0;
+        if (tr.overheatDetectedMs != 0 && curTemp <= target) {
+            tr.overheatDetectedMs = 0;
+            res.clearOverheat = true;
+        }
+    }
+
+    // --- 2. FR-57: Zone No Effect Check (Duty >= noEffectDuty, time >= effectiveNoEffectTime, rise < noEffectRise) ---
+    uint32_t effTimeMs = effectiveNoEffectTimeMs(isFloor, noEffectTimeMs);
+    if (duty >= noEffectDutyMin) {
+        res.demandActive = true;
+
+        if (tr.highDutySinceMs == 0) {
+            tr.highDutySinceMs = now;
+            tr.highDutyStartTemp = curTemp;
+            res.zoneStagnant = false;
+        } else if (now - tr.highDutySinceMs >= effTimeMs) {
+            float rise = curTemp - tr.highDutyStartTemp;
+            if (rise < noEffectRiseMin) {
+                if (tr.noEffectDetectedMs == 0) {
+                    tr.noEffectDetectedMs = now;
+                    res.raiseNoEffect = true;
+                }
+                res.zoneStagnant = true;
+            } else {
+                res.zoneStagnant = false;
+            }
+        } else {
+            res.zoneStagnant = false;
+        }
+    } else {
+        tr.highDutySinceMs = 0;
+        if (tr.noEffectDetectedMs != 0) {
+            if (curTemp >= tr.highDutyStartTemp + noEffectRiseMin) {
+                tr.noEffectDetectedMs = 0;
+                res.clearNoEffect = true;
+            }
+        }
+    }
+
+    return res;
+}
+
+void PlantMonitor::update(uint32_t now) {
     // Run evaluation every 5 seconds (lightweight observer, <= 2 ms)
     if (now - _lastCheckMs < 5000) return;
     _lastCheckMs = now;
 
+#ifdef ARDUINO
     size_t zoneCount = thermalZones.getZoneCount();
     if (zoneCount > 32) zoneCount = 32;
 
@@ -43,87 +127,31 @@ void PlantMonitor::update() {
     for (size_t i = 0; i < zoneCount; i++) {
         const auto& cfg = thermalZones.getConfig(i);
         const auto& st = thermalZones.getStatus(i);
-        ZoneTracking& tr = _zones[i];
 
-        if (!cfg.enabled || !st.sensorValid) {
-            tr.closedSinceMs = 0;
-            tr.highDutySinceMs = 0;
-            continue;
-        }
+        ZoneEvalResult ev = evaluateZone(
+            i, now, cfg.enabled, st.sensorValid,
+            st.currentTemp, thermalZones.getEffectiveTargetTemp(i), st.relayEngaged, thermalZones.getDuty(i),
+            cfg.heatingType == HEATING_TYPE_FLOOR, overheatMargin, overheatTimeMs,
+            noEffectDutyMin, noEffectTimeMs, noEffectRiseMin);
 
-        float curTemp = st.currentTemp;
-        float target = thermalZones.getEffectiveTargetTemp(i);
-        bool valveOpen = st.relayEngaged;
-        float duty = thermalZones.getDuty(i);
-
-        // --- 1. FR-56: Zone Overheat Check (Valve closed, temp > target + margin, and still rising) ---
-        if (!valveOpen && curTemp > (target + overheatMargin)) {
-            if (tr.closedSinceMs == 0) {
-                tr.closedSinceMs = now;
-                tr.closedStartTemp = curTemp;
-            } else if (now - tr.closedSinceMs >= overheatTimeMs) {
-                // If temperature is still rising
-                if (curTemp >= tr.closedStartTemp + 0.1f) {
-                    if (tr.overheatDetectedMs == 0) {
-                        tr.overheatDetectedMs = now;
-                        diagEngine.raiseDtc(Dtc::ERR_ZONE_OVERHEAT, "Zone overheat with closed valve", SEV_ERROR, i + 1);
-                    }
-                }
-            }
-        } else {
-            tr.closedSinceMs = 0;
-            if (tr.overheatDetectedMs != 0 && curTemp <= target) {
-                tr.overheatDetectedMs = 0;
-                diagEngine.clearDtc(Dtc::ERR_ZONE_OVERHEAT, i + 1);
-            }
-        }
-
-        // --- 2. FR-57: Zone No Effect Check (Duty >= noEffectDuty, time >= noEffectTime, rise < noEffectRise) ---
-        // For underfloor heating, slab thermal inertia requires 3.5h before concluding no effect.
-        uint32_t effectiveNoEffectTimeMs = (cfg.heatingType == HEATING_TYPE_FLOOR)
-            ? (noEffectTimeMs >= 12600000UL ? noEffectTimeMs : 12600000UL)  // 3.5 hours for floor
-            : (noEffectTimeMs >= 2700000UL ? noEffectTimeMs : 2700000UL);   // 45 min for radiators
-
-        if (duty >= noEffectDutyMin) {
+        if (ev.raiseOverheat) diagEngine.raiseDtc(Dtc::ERR_ZONE_OVERHEAT, "Zone overheat with closed valve", SEV_ERROR, i + 1);
+        if (ev.clearOverheat) diagEngine.clearDtc(Dtc::ERR_ZONE_OVERHEAT, i + 1);
+        if (ev.raiseNoEffect) diagEngine.raiseDtc(Dtc::ERR_ZONE_NO_EFFECT, "Zone heating without effect", SEV_ERROR, i + 1);
+        if (ev.clearNoEffect) diagEngine.clearDtc(Dtc::ERR_ZONE_NO_EFFECT, i + 1);
+        if (ev.demandActive) {
             anyDemandActive = true;
             demandingCount++;
-
-            if (tr.highDutySinceMs == 0) {
-                tr.highDutySinceMs = now;
-                tr.highDutyStartTemp = curTemp;
-            } else if (now - tr.highDutySinceMs >= effectiveNoEffectTimeMs) {
-                float rise = curTemp - tr.highDutyStartTemp;
-                if (rise < noEffectRiseMin) {
-                    if (tr.noEffectDetectedMs == 0) {
-                        tr.noEffectDetectedMs = now;
-                        diagEngine.raiseDtc(Dtc::ERR_ZONE_NO_EFFECT, "Zone heating without effect", SEV_ERROR, i + 1);
-                    }
-                } else {
-                    allDemandingZonesStagnant = false;
-                }
-            } else {
-                allDemandingZonesStagnant = false;
-            }
-        } else {
-            tr.highDutySinceMs = 0;
-            if (tr.noEffectDetectedMs != 0) {
-                if (curTemp >= tr.highDutyStartTemp + noEffectRiseMin) {
-                    tr.noEffectDetectedMs = 0;
-                    diagEngine.clearDtc(Dtc::ERR_ZONE_NO_EFFECT, i + 1);
-                }
-            }
+            if (!ev.zoneStagnant) allDemandingZonesStagnant = false;
         }
     }
 
     // --- 3. FR-57: Boiler Not Heating Check ---
-    // If all demanding zones show no rise after boiler active
     if (anyDemandActive && demandingCount > 0 && boilerRadio.isLastCommandOn()) {
         if (_boilerDemandingSinceMs == 0) {
             _boilerDemandingSinceMs = now;
             _boilerResendAttempted = false;
         } else {
             uint32_t elapsed = now - _boilerDemandingSinceMs;
-            // Check if any demanding zone is underfloor heating
             bool hasFloorDemand = false;
             for (size_t z = 0; z < zoneCount; z++) {
                 if (thermalZones.getConfig(z).enabled && thermalZones.getDuty(z) >= noEffectDutyMin) {
@@ -134,11 +162,10 @@ void PlantMonitor::update() {
                 }
             }
             uint32_t resendWaitMs = hasFloorDemand ? (3UL * 3600UL * 1000UL) : (20UL * 60UL * 1000UL);
-            uint32_t dtcWaitMs = hasFloorDemand ? (12600000UL) : (45UL * 60UL * 1000UL); // 3.5h floor vs 45m rad
+            uint32_t dtcWaitMs = hasFloorDemand ? (12600000UL) : (45UL * 60UL * 1000UL);
 
             if (elapsed >= resendWaitMs && !_boilerResendAttempted) {
                 if (allDemandingZonesStagnant) {
-                    // Re-send ON once
                     boilerRadio.sendBoilerOn(false, RS_DEMAND);
                     _boilerResendAttempted = true;
                 }
@@ -159,19 +186,13 @@ void PlantMonitor::update() {
     }
 
     // --- 4. FR-56 / FR-57 (PB-125): Cross-Zone Heat Misdirection Check ---
-    // At underfloor heating, slab thermal inertia takes 2-3 hours to propagate.
-    // Misdirection threshold: zone demanding heat continuously for >= misdirectionMinMs (3.5h for floor, 45 min for radiators)
-    // without temperature rise, while an uncommanded closed zone overheats >= 0.5 C above target.
     bool crossMisdirection = false;
     for (size_t d = 0; d < zoneCount; d++) {
         const auto& cfgD = thermalZones.getConfig(d);
-        uint32_t misdirectionMinMs = (cfgD.heatingType == HEATING_TYPE_FLOOR)
-            ? (noEffectTimeMs >= 12600000UL ? noEffectTimeMs : 12600000UL) // 3.5 hours for floor
-            : (noEffectTimeMs >= 2700000UL ? noEffectTimeMs : 2700000UL);  // 45 min for radiators
+        uint32_t misdirectionMinMs = effectiveNoEffectTimeMs(cfgD.heatingType == HEATING_TYPE_FLOOR, noEffectTimeMs);
         if (_zones[d].highDutySinceMs > 0 && (now - _zones[d].highDutySinceMs >= misdirectionMinMs)) {
             const auto& stD = thermalZones.getStatus(d);
             if (stD.currentTemp - _zones[d].highDutyStartTemp < noEffectRiseMin) {
-                // Demanding zone is not heating; check if another uncommanded zone is heating
                 for (size_t u = 0; u < zoneCount; u++) {
                     if (u == d) continue;
                     const auto& cfgU = thermalZones.getConfig(u);
@@ -200,6 +221,7 @@ void PlantMonitor::update() {
             diagEngine.clearDtc(Dtc::ERR_ZONE_OVERHEAT, 0);
         }
     }
+#endif
 }
 
 bool PlantMonitor::isZoneOverheating(size_t zoneIndex) const {
@@ -212,7 +234,8 @@ bool PlantMonitor::isZoneNoEffect(size_t zoneIndex) const {
     return _zones[zoneIndex].noEffectDetectedMs != 0;
 }
 
-String PlantMonitor::getStatusJson() const {
+#ifdef ARDUINO
+String getPlantStatusJson() {
     String out = "{\"zones\":[";
     size_t count = thermalZones.getZoneCount();
     for (size_t i = 0; i < count; i++) {
@@ -220,15 +243,16 @@ String PlantMonitor::getStatusJson() const {
         out += "{\"zone\":";
         out += String(i + 1);
         out += ",\"overheating\":";
-        out += isZoneOverheating(i) ? "true" : "false";
+        out += plantMonitor.isZoneOverheating(i) ? "true" : "false";
         out += ",\"noEffect\":";
-        out += isZoneNoEffect(i) ? "true" : "false";
+        out += plantMonitor.isZoneNoEffect(i) ? "true" : "false";
         out += "}";
     }
     out += "],\"boilerMonitor\":{\"boilerNotHeating\":";
-    out += _boilerNotHeating ? "true" : "false";
+    out += plantMonitor.isBoilerNotHeating() ? "true" : "false";
     out += "},\"misdirection\":";
-    out += _misdirectionDetected ? "true" : "false";
+    out += plantMonitor.isMisdirectionDetected() ? "true" : "false";
     out += "}";
     return out;
 }
+#endif

@@ -1,7 +1,6 @@
 #ifndef SOLAR_THROTTLE_H
 #define SOLAR_THROTTLE_H
 
-#include <Arduino.h>
 #include <stddef.h>
 #include <stdint.h>
 
@@ -18,16 +17,21 @@ public:
 
     SolarThrottle();
 
-    void begin();
-    void update();
+    void begin(uint32_t now = 0);
+    void update(uint32_t now);
+
+    // Pure calculation helpers (host-testable without hardware/NVS)
+    static bool computeThrottlingActive(bool solarGain, bool weatherValid,
+                                        float forecastIrradiance, float solarLimit);
+    static float computeThrottleFactor(bool solarGain, bool weatherValid,
+                                       float forecastIrradiance, float solarLimit,
+                                       float solarReductionPct);
 
     // Queries
     float getForecastIrradiance() const { return _forecastIrradiance; }
     void setForecastIrradiance(float w_m2) { _forecastIrradiance = w_m2; }
     bool isThrottlingActive(size_t zoneIndex) const;
     float getThrottleFactor(size_t zoneIndex) const; // 1.0 = normal, 0.7 = 30% reduction
-
-    String getStatusJson() const;
 
 private:
     float _forecastIrradiance; // W/m2 direct/global solar radiation

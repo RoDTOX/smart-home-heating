@@ -1,7 +1,6 @@
 #ifndef HEATUP_MODEL_H
 #define HEATUP_MODEL_H
 
-#include <Arduino.h>
 #include <stddef.h>
 #include <stdint.h>
 
@@ -17,15 +16,18 @@ public:
 
     HeatUpModel();
 
-    void begin();
-    void update(); // Evaluates learning transitions periodically
+    void begin(uint32_t now = 0);
+    void update(uint32_t now); // Evaluates learning transitions periodically
+
+    // Pure calculation & per-zone evaluation (host-testable without hardware/NVS)
+    static uint32_t computePreHeatLeadMinutes(float outdoorTemp, bool weatherValid);
+    void evaluateZone(size_t zoneIndex, bool enabled, bool sensorValid,
+                      bool heating, float curTemp, uint32_t now);
 
     uint32_t getPreHeatLeadMinutes(float outdoorTemp, bool weatherValid) const;
     float getZoneRateDegPerHour(size_t zoneIndex) const;
     bool isZoneLearned(size_t zoneIndex) const;
     uint16_t getZoneSamples(size_t zoneIndex) const;
-
-    String getStatusJson() const;
 
 private:
     struct ZoneHeatRate {
