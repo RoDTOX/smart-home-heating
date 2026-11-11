@@ -5,6 +5,27 @@ Corelat cu planul activ: [`docs/plan.md`](file:///c:/Users/BSeceleanu/.github_re
 Entries before 29.10.2026 (the system before the lean clean-up):
 [`archive/changelog_until_2026-10-21.md`](archive/changelog_until_2026-10-21.md).
 
+## [11.11.2026] - Step I-1 Host Test Bench (D-62)
+
+- **Who / when / why:** Step I-1 of the Improvement plan in [`docs/plan.md`](plan.md): establish a host C++ unit test bench (`[env:native]` + Unity) and decouple `ZoneController` from `Arduino.h` / `ParamStore.h` so TPI and AR-12 rules run on PC.
+- **Changed:**
+  - `platformio.ini`: refactored shared ESP32 config into `[esp32_base]`, kept `[env:esp32dev]` / `[env:esp32release]` via `extends`, added `[env:native]` (`platform = native`, Unity, `ZoneController.cpp`).
+  - `include/ZoneController.h`, `src/ZoneController.cpp`: replaced `Arduino.h`/`ParamStore.h` header dependency with `<stddef.h>`/`<stdint.h>` and `ILearnedDutyStore` injected in `begin()`, keeping `#ifdef ARDUINO` default `ParamStoreLearnedAdapter` and leaving FR-47/FR-51 logic/timers untouched.
+  - `test/test_zone_controller/test_zone_controller.cpp`: added 8 Unity host tests covering AR-12 outdoor bands and FR-47 / NFR-2.9 duty rules.
+  - `.github/workflows/build.yml`: added `pio test -e native` before `pio run`.
+- **Verified:** WinLibs `g++` 16.2.0 installed; `pio test -e native` -> 8/8 PASS; `pio run` (`esp32dev`) -> `1299437 B` (+180 B vs `1299257 B` baseline, limit `1306624 B`); `pio run -e esp32release` -> `1299453 B`; `python tools/sh_process_check.py` -> 0 errors PASS; `python tools/sh_test_system.py --only TC43` -> 4/4 PASS (note: board still runs previous firmware until OTA flash; CI run pending push).
+
+## [10.11.2026] - Improvement plan: testable core first (D-62)
+
+- **Who / when / why:** main chat (Claude Code), requested by the owner: a plan another agent (Antigravity, Gemini
+  Flash) can execute to improve the state of the project.
+- **Changed:** `docs/plan.md` gets the section "Improvement plan — testable core first" (steps I-1 … I-10, before
+  Phase 5): host test bench, time passed into the advisors, simulated house, `SafetySupervisor` / `Schedule` /
+  `ModeManager` as modules of their own, the 27 hollow tests, no `String` in the control path, checker rules, page
+  from parts. Decision D-62 in `.agent/memory-bank/decisions.md`.
+- **Verified:** documents only, no code, no flash. Facts in the plan measured on `501d9ac` (line counts, `millis()`
+  and `String` greps, missing `test/`).
+
 ## [07.11.2026] - System Internals, Night Gas Calibration & Hardware Health (Section 5.2, PB-125, PB-126)
 
 - **Who / when / why:** firmware & Web UI session requested by owner:

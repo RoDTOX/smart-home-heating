@@ -24,5 +24,8 @@ Only what holds now and what comes next. A line that no longer holds is replaced
 - **Live Board Status (`192.168.1.20`)**: FW `v1.11.05.24`, LittleFS UI `v1.11.07.01`. All zones nominal at 23.5°C target, 0 DTCs active, 42/42 regression tests (TC21, TC46–TC51) PASS. `sh_process_check.py` 0 errors.
 
 ## Next
+0. **Improvement plan (D-62, 10.11.2026)**:
+   - **I-1 (Host test bench)**: **DONE (11.11.2026)** locally — `pio test -e native` (8/8 PASS), `pio run` (`1299437 B`, +180 B), `sh_process_check.py` (0 errors PASS), `TC43` 4/4 PASS on board. Pending optional OTA flash / `git push` for CI verification.
+   - **Next step: I-2 (Time passed into 5 advisors + `PlantMonitor`)** … through I-10 in [`docs/plan.md`](../../docs/plan.md). Safety-list code (I-4, review of I-5) only by the strong model.
 1. **Repository Synchronization & Push**: Display git diff status and await explicit owner confirmation for `git push origin <branch>` per invariant.
 2. **Night Observation**: Monitor the first autonomous overnight night-only gas calibration run on the board.

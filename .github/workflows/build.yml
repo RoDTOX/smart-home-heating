@@ -19,6 +19,7 @@ jobs:
           path: ~/.platformio
           key: pio-${{ hashFiles('platformio.ini') }}
       - run: pip install platformio
+      - run: pio test -e native
       - run: pio run
       # trace + reqs + arch + process. Fails only on new ERRORs: an ERROR explained by an open or rejected PB-n
       # (Checker column of docs/problems.md) is printed as KNOWN and does not fail the job (docs/process.md §8).

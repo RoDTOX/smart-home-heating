@@ -691,3 +691,15 @@ Owner: "timpul in loc de unix, sa fie yymmddhhmmss". `time` in `/api/diag/log` i
 
 
 
+## 2026-11-10 — Improvement plan: testable core first (D-62)
+
+**Context**: Project review on `501d9ac` (10.11.2026): steps 1–12 and 14 are accepted on the board, but no test runs on the PC, `ThermalZoneManager.cpp` (2054 lines) still holds schedule, modes, season and the safety arbitration, the advisors call `millis()` themselves (against P9), the audit lists 27 hollow tests, and `web/index.html` is one file of 3170 lines. The owner works with Antigravity (Gemini Flash) and asked for a plan that such an agent can execute.
+**Decision** (owner answers 1a, 2a, 3a, 4a in the `sh-grill` round):
+- The plan is a section of `docs/plan.md` ("Improvement plan — testable core first", steps I-1 … I-10), not a separate file.
+- Scope: only work possible on the board of today; new hardware stays in Phase 5.2. No rewrite from zero.
+- Order: host tests and a simulated house first (I-1 … I-3), then code moves under their protection.
+- Each step is marked for the fast model or for the strong model; code of the AGENTS.md §3 safety list (I-4, and the safety review of I-5) is never done by the fast model alone.
+**Decided by**: owner (2026-11-10).
+**Affects**: `docs/plan.md`; later, per step: `platformio.ini`, `test/`, `src/ThermalZoneManager.cpp`, new `SafetySupervisor`, `Schedule`, `ModeManager` modules, `tools/sh_tests/`, `tools/sh_process_check.py`, `web/`.
+**Consequences**: The plan runs before Phase 5 and adds no feature. No requirement changes. Architecture §3.2 already allocates the modules, so it needs no edit until I-8 changes the rule text of §3.3.
+

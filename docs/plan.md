@@ -101,6 +101,68 @@ records and findings: [`review_agy_03_11.md`](review_agy_03_11.md), rows C-14 ..
 | R-4 | Flow-probe library approval: the FR-54 sensor type is open; DS18B20 would need `OneWire` and `DallasTemperature`, new libraries (AGENTS.md §3, D30) | step 13 cannot start | until the owner decides, the boiler flow setpoint ≤ 45 °C is the protection (requirements §2) | open — owner decision |
 | R-5 | Recorded window traces needed for FR-40.2: `windowK`, `windowAhDrop` and the acceptance criteria need 2–3 weeks of traces with hand-marked window openings (D33) | `SmartWindow` (step 14) cannot be tuned or accepted; FR-40 stays the rule | log traces to the PC with a `tools/sh_*` script (not written yet) during the heating season, before step 14 | open |
 
+## Improvement plan — testable core first (10.11.2026)
+
+Owner decision D-62 (10.11.2026). Runs **before** Phase 5, on the board of today, and adds no feature: it makes the
+code match [`architecture.md`](architecture.md) (P1, P5, P9, §3.2) and makes every later change cheap to verify.
+Written so that a fast, low-cost agent (Antigravity, Gemini Flash) can execute it step by step. New hardware
+(bigger board, boiler receiver with timeout, OpenTherm) stays in Phase 5.2 and is not part of this plan.
+
+### Why (measured on `501d9ac`, 10.11.2026)
+
+| Finding | Measured | Target of this plan |
+|---|---|---|
+| No test runs on the PC: every test needs the board, many need a real burn | 0 host tests, no `test/` directory | host suite runs in < 10 s with `pio test -e native`, also in CI |
+| Logic reads the clock and Arduino itself, against P9 | `millis()` in 5 advisors; every header in `include/` includes `Arduino.h` | the pure modules (I-1, I-2, I-4) compile without `Arduino.h` |
+| One file still holds zones, schedule, modes, season, frost and the safety arbitration | `src/ThermalZoneManager.cpp` 2054 lines; `SafetySupervisor` exists only "in place" inside it | `Schedule`, `ModeManager`, `SafetySupervisor` are modules of their own (§3.2); `ThermalZoneManager.cpp` < 700 lines |
+| Tests that cannot fail on what they promise | 27 hollow tests ([`audit_traceability_step14.md`](audit_traceability_step14.md) §3) | 0 hollow WARN in `sh_process_check.py trace` |
+| `String` in the control path, against R-A7 | `getScheduleJson`, `getSlotsString` in `ThermalZoneManager`; `PlantMonitor`; free heap dips to 91 KB (risk R-1) | no `String` in L2–L4; free heap ≥ 100 KB during the weather fetch |
+| The page is one source file | `web/index.html` 3170 lines, `renderHistoryChart` about 750 lines | sources of ≤ 400 lines each, built into the same single `index.html.gz` |
+
+### Rules for the agent that executes a step
+
+1. **One step at a time, in the order below.** Before a step: a micro-plan of 3–5 lines and the owner's approval
+   (AGENTS.md §5). After a step: stop and report; the owner tests on the board where the step says so.
+2. **No behaviour change** unless the step says so. A step that moves code moves it unchanged; a fix found on the way
+   becomes a `PB-n` row in [`problems.md`](problems.md), not part of the move.
+3. **Tests follow the requirements.** A test asserts the value written in
+   [`requirements_and_features.md`](requirements_and_features.md) §6, never a number copied from the code. A test or
+   requirement that looks wrong goes to the owner; a test is never changed to make it pass.
+4. **Safety list (AGENTS.md §3) is not for the fast model.** Steps marked **strong model** are done by the strongest
+   model with `sh-safety-reviewer`. In any other step: if the commit hook asks for a `Safety-Reviewed:` line, or the
+   diff changes a condition or a timer of interlock, overrun, burner guard, frost, sensor loss or safe boot — stop and
+   hand the step over. Do not add the line yourself and do not use `SH_HOOK_SKIP`.
+5. **No new library, no new framework, no `npm`.** Unity comes with PlatformIO (architecture P9). Anything else needs
+   the owner (AGENTS.md §3).
+6. Gate of every step: `pio run` clean, `pio test -e native` green (from I-1 on), `python tools/sh_process_check.py`
+   without ERROR, firmware size within NFR-2.8. Commit on the work branch; no push without the owner's request.
+
+### Steps
+
+| Step | Change | Files | Done when | Who |
+|---|---|---|---|---|
+| I-1 | **Host test bench.** Add `[env:native]` (platform `native`, Unity) and `test/`. Make the TPI part of `ZoneController` compile on the PC: no `Arduino.h` in its header, `ParamStore` access only in `begin()` behind a small interface. First tests: outdoor band limits and the duty rules of FR-47, values from requirements §6. Add `pio test -e native` to `.github/workflows/build.yml`. Needs a host C++ compiler on the owner's PC (say so if it is missing). **DONE (11.11.2026):** `[env:native]` + `test_zone_controller` (8/8 PASS), `esp32dev` +180 B (`1299437 B`), `TC43` 4/4 PASS on board, `sh_process_check` 0 errors (CI run pending push). | `platformio.ini`, `test/test_zone_controller/`, `include/ZoneController.h`, `src/ZoneController.cpp`, `.github/workflows/build.yml` | `pio test -e native` passes locally and in CI; `pio run` image size unchanged within 1 KB; board tests of `t_zone_controller.py` still pass | fast model; `ZoneController` holds the FR-51 fault duty — rule 4 applies |
+| I-2 | **Time is passed in.** The five advisors (`HeatUpModel`, `SolarThrottle`, `CycleAligner`, `SmartWindow`, `HumidityComp`) and `PlantMonitor` get `now` as an argument instead of calling `millis()`; no `Arduino.h` in their headers. One host test file per module, values from FR-67, FR-70, FR-63, FR-40.2, FR-71, FR-56, FR-57. | the six `src/` + `include/` pairs, their callers, `test/test_<module>/` | `grep -n "millis()" ` finds nothing in the six modules; host tests pass; board tests `t_heatup_model.py` … `t_plant_monitor.py` pass | fast model |
+| I-3 | **Simulated house** (test code only, never in the firmware image). A small thermal model: room air, floor screed with hours of lag, outdoor temperature, valve open → heat in; a fake clock; a loop that calls the control logic once per simulated second. Scenario helpers: cold start, steady winter day, sensor silent, open window. | `test/sim/` | a simulated 7-day winter run finishes in < 5 s on the PC and keeps each room within the NFR-4.1 band after the first day | fast model |
+| I-4 | **`SafetySupervisor` as its own module.** First write the safety tests on the PC from the requirements (FR-2, FR-3, FR-3.2, FR-4, FR-16.1, FR-51, FR-37, NFR-1.4), as invariants checked on **every** simulated second of I-3 (examples: boiler never ON before `interlockDelay` after the first valve opened; the last open valve never closes while the boiler is ON or pending OFF). They must pass on the code as it is. Then move `arbitrateValves`, `trackBoilerState`, `evaluateFrost`, `boilerOnPermitted` and the valve state out of `ThermalZoneManager` into `SafetySupervisor`, unchanged, pure (time and inputs passed in). | `include/SafetySupervisor.h`, `src/SafetySupervisor.cpp`, `src/ThermalZoneManager.cpp`, `test/test_safety/` | invariants pass before and after the move; R-A3 holds by grep; full `sh_test_system.py` on the board; owner hands-on test and acceptance row | **strong model** + `sh-safety-reviewer`; tests by `sh-test-writer` |
+| I-5 | **Split the rest of `ThermalZoneManager`** into the modules of architecture §3.2, one move per commit: `Schedule` (levels, slots, moments, pre-heat lead, `evaluateSchedule`), then `ModeManager` (mode, manual timeout, away, season). Host tests for each from FR-29, FR-30, FR-31, FR-39, FR-48, FR-61, FR-12.2, FR-52, FR-64. | `include/Schedule.h`, `src/Schedule.cpp`, `include/ModeManager.h`, `src/ModeManager.cpp`, `src/ThermalZoneManager.cpp` | `ThermalZoneManager.cpp` < 700 lines; host and board tests pass; owner checks schedule and modes on the page | fast model for the move (the file is on the safety list: the commit needs the strong model's safety review, rule 4) |
+| I-6 | **No hollow test left.** For each of the 27 tests of the audit: assert the value the requirement states. Where requirement, test and firmware disagree, do not choose — report the three values to the owner as a `PB-n` row. An edited test line cites its `PB-n` in the commit message (hook). | `tools/sh_tests/t_*.py`, `docs/problems.md` | `python tools/sh_process_check.py trace` prints no "hollow test" WARN; `sh-test-reviewer` without FINDING | fast model; safety tests (TC07.x, TC24.1, TC36.x) by `sh-test-writer` |
+| I-7 | **No `String` in the control path** (R-A7). Schedule status goes out through `StatusModel` into the static buffer; `getScheduleJson` and `getSlotsString` disappear; `PlantMonitor` texts use fixed buffers. Record free heap (steady and during the weather fetch) before and after in [`changelog.md`](changelog.md). | `src/ThermalZoneManager.cpp` or `src/Schedule.cpp`, `src/StatusModel.cpp`, `src/PlantMonitor.cpp`, `src/WebApi.cpp` | `/api/schedule` answer unchanged byte for byte for the same state (compare before / after); R-A7 WARN gone for L2–L4; heap minimum reported | fast model |
+| I-8 | **The checker keeps it that way.** In `tools/sh_process_check.py arch`: R-A7 and a new rule "no `millis()` and no `Arduino.h` in the pure modules" become ERROR (the module list lives in one place in the tool). The default run fails when `test/` has no test for a pure module. | `tools/sh_process_check.py`, `docs/architecture.md` §3.3 (rule text), `docs/process.md` | a deliberately added `millis()` in a pure module makes the checker fail; removed again, it passes | fast model |
+| I-9 | **Page from parts.** Split `web/index.html` into `web/src/` (one file per card: rooms, schedule, history chart, diagnostics, gas, setup, console; one stylesheet; one file with all user-visible texts per language, NFR-3.1). `tools/sh_build_web.py` joins them into the same single `index.html.gz`. Split `renderHistoryChart` into data preparation and drawing. No framework. | `web/src/*`, `tools/sh_build_web.py`, `tools/sh_dev_server.py` | built page within 2 KB of today's gzip size; `t_webassets.py` and `t_ui_history.py` pass; owner looks at every card on the board | fast model |
+| I-10 | **One parameter table feeds everything** (architecture P4, optional, owner decides after I-9). Generate the parameter section of [`api_reference.md`](api_reference.md) and the setup form metadata of the page from the table of `ParamStore`, so ranges and defaults are written once. | `tools/sh_gen_params.py` (new), `src/ParamStore.cpp`, `docs/api_reference.md`, `web/src/` | a changed range in the table changes the document and the form after one build, with no hand edit | fast model |
+
+Order and reasons: I-1 … I-3 build the bench that protects everything after them; I-4 is the only step that moves
+safety code and must not start before the invariants run on the old code; I-5 … I-7 shrink the big file under that
+protection; I-8 stops the drift from coming back; I-9 and I-10 are independent of the firmware steps and may run in
+between when the board is busy.
+
+Relation to Phase 5.1: I-6 delivers the test half of item 1, I-7 and I-8 deliver the heap and static-analysis part of
+items 2 and 3. The security part of item 2 (release profile, PB-104, compliance rows) is not covered here.
+
+Status: every step `open`. The agent that finishes a step sets its row to `done` with the commit and the owner's
+acceptance, as in the migration table above.
+
 ## Phase 5 — Commercial Product Preparation, Ecosystem & Extended Hardware
 
 Approved by owner (08.11.2026). Strategic expansion beyond the initial 14 migration steps towards commercial deployment, modern user experience, and industrial interoperability.

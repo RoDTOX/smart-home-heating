@@ -1,6 +1,22 @@
 #include "ZoneController.h"
-#include "ParamStore.h"
 #include <math.h>
+
+#ifdef ARDUINO
+#include "ParamStore.h"
+
+namespace {
+class ParamStoreLearnedAdapter final : public ILearnedDutyStore {
+public:
+    int16_t learned(size_t index) const override { return paramStore.learned(index); }
+    void saveLearned(size_t index, int16_t perMille) override { paramStore.saveLearned(index, perMille); }
+};
+ParamStoreLearnedAdapter s_defaultLearnedStore;
+}  // namespace
+#endif
+
+static inline float clampf(float v, float lo, float hi) {
+    return (v < lo) ? lo : ((v > hi) ? hi : v);
+}
 
 ZoneController zoneController;
 
@@ -17,10 +33,15 @@ ZoneController::ZoneController() {
     }
 }
 
-void ZoneController::begin() {
+void ZoneController::begin(ILearnedDutyStore* store) {
+#ifdef ARDUINO
+    _store = store ? store : &s_defaultLearnedStore;
+#else
+    _store = store;
+#endif
     for (size_t i = 0; i < MAX_ZONES; i++) {
-        // Load initial learned base duty from ParamStore into default band (band 3: 0..5 C)
-        int16_t saved = paramStore.learned(i);
+        // Load initial learned base duty from store into default band (band 3: 0..5 C)
+        int16_t saved = _store ? _store->learned(i) : 0;
         if (saved > 0 && saved <= 600) {
             float base = (float)saved / 1000.0f;
             _zones[i].savedIntegral = base;
@@ -63,16 +84,16 @@ bool ZoneController::evaluateTpi(size_t index, float currentTemp, float target, 
     // Start a new cycle every 60 min, when leaving deficit, or when target moves > 0.4 C
     if (z.cycleStartMs == 0 || cycleDone || z.duty >= 1.0f || fabsf(target - z.target) > 0.4f) {
         if (cycleDone && fabsf(err) < 1.0f) {
-            z.learnedBands[band] = constrain(z.learnedBands[band] + KI * err, 0.0f, MAX_INTEGRAL);
+            z.learnedBands[band] = clampf(z.learnedBands[band] + KI * err, 0.0f, MAX_INTEGRAL);
             if (fabsf(z.learnedBands[band] - z.savedIntegral) >= 0.05f) {
-                paramStore.saveLearned(index, (int16_t)lroundf(z.learnedBands[band] * 1000));
+                if (_store) _store->saveLearned(index, (int16_t)lroundf(z.learnedBands[band] * 1000));
                 z.savedIntegral = z.learnedBands[band];
             }
         }
 
         float outdoorComp = 0.0f;
         if (weatherValid && outdoorTemp < 15.0f) {
-            outdoorComp = constrain((15.0f - outdoorTemp) * 0.015f, 0.0f, 0.30f);
+            outdoorComp = clampf((15.0f - outdoorTemp) * 0.015f, 0.0f, 0.30f);
         }
 
         float baseDuty = z.learnedBands[band];
@@ -90,7 +111,7 @@ bool ZoneController::evaluateTpi(size_t index, float currentTemp, float target, 
             }
         }
 
-        z.duty = constrain(err / BAND_C + outdoorComp + baseDuty, 0.0f, 1.0f);
+        z.duty = clampf(err / BAND_C + outdoorComp + baseDuty, 0.0f, 1.0f);
         uint32_t onMs = (uint32_t)(z.duty * CYCLE_MS);
         if (onMs < MIN_ON_MS) onMs = 0;
         else if (CYCLE_MS - onMs < MIN_ON_MS) onMs = CYCLE_MS;
@@ -128,7 +149,7 @@ bool ZoneController::evaluateFaultDuty(size_t index, uint32_t now, float outdoor
     uint8_t band = weatherValid ? getOutdoorBand(outdoorTemp) : 3;
     float learned = z.learnedBands[band];
     float duty = (learned > 0.05f) ? learned : (faultDutyPct / 100.0f);
-    duty = constrain(duty, 0.0f, 0.30f); // Bounded by NFR-5.3 (max 30% fault duty)
+    duty = clampf(duty, 0.0f, 0.30f); // Bounded by NFR-5.3 (max 30% fault duty)
 
     if (z.cycleStartMs == 0 || now - z.cycleStartMs >= CYCLE_MS) {
         z.cycleStartMs = now;
@@ -178,5 +199,5 @@ float ZoneController::getLearnedDuty(size_t index, uint8_t band) const {
 
 void ZoneController::setLearnedDuty(size_t index, uint8_t band, float duty) {
     if (index >= MAX_ZONES || band >= NUM_OUTDOOR_BANDS) return;
-    _zones[index].learnedBands[band] = constrain(duty, 0.0f, MAX_INTEGRAL);
+    _zones[index].learnedBands[band] = clampf(duty, 0.0f, MAX_INTEGRAL);
 }

@@ -1,8 +1,6 @@
 #pragma once
-#include <Arduino.h>
+#include <stddef.h>
 #include <stdint.h>
-#include "Config.h"
-#include "ParamStore.h"
 
 /**
  * ZoneController (L4 Control Layer, Step 7, FR-47, FR-51, AR-12)
@@ -22,9 +20,16 @@ enum class ZoneControlState : uint8_t {
     Window
 };
 
+// Small persistence hook injected at begin() so ZoneController has no direct NVS/ParamStore dependency.
+struct ILearnedDutyStore {
+    virtual ~ILearnedDutyStore() = default;
+    virtual int16_t learned(size_t index) const = 0;
+    virtual void saveLearned(size_t index, int16_t perMille) = 0;
+};
+
 class ZoneController {
 public:
-    static constexpr size_t MAX_ZONES = PARAM_ZONES;
+    static constexpr size_t MAX_ZONES = 32;  // matches PARAM_ZONES (FR-69)
     static constexpr size_t NUM_OUTDOOR_BANDS = 7;
     static constexpr uint32_t CYCLE_MS = 3600000UL;      // 60 min
     static constexpr uint32_t MIN_ON_MS = 600000UL;       // 10 min min valve ON time
@@ -34,7 +39,7 @@ public:
 
     ZoneController();
 
-    void begin();
+    void begin(ILearnedDutyStore* store = nullptr);
 
     // Map outdoor temperature to band index 0..6 (AR-12)
     static uint8_t getOutdoorBand(float outdoorTemp);
@@ -67,6 +72,7 @@ private:
     };
 
     ZoneTpiData _zones[MAX_ZONES];
+    ILearnedDutyStore* _store = nullptr;
 };
 
 extern ZoneController zoneController;
