@@ -5,6 +5,16 @@ Corelat cu planul activ: [`docs/plan.md`](file:///c:/Users/BSeceleanu/.github_re
 Entries before 29.10.2026 (the system before the lean clean-up):
 [`archive/changelog_until_2026-10-21.md`](archive/changelog_until_2026-10-21.md).
 
+## [12.11.2026] - Replace `HTTPClient` with plain `WiFiClient` in `TimeAndWeatherService`
+
+- **Who / when / why:** Flash & heap optimization requested by owner: `src/TimeAndWeatherService.cpp` was the sole caller of `HTTPClient` (which pulls `WiFiClientSecure` / mbedTLS into the link). Replaced it with plain `WiFiClient` over HTTP/1.0 (`api.open-meteo.com:80`) and fixed `char` buffers (`lat[20]`, `lon[20]`) instead of `String`.
+- **Changed:** `src/TimeAndWeatherService.cpp`.
+- **Verified:**
+  - `pio run -e esp32dev` -> `1 285 744 B` (`-17 424 B` vs `1 303 168 B`, `20 880 B` margin under `1 306 624 B` OTA slot).
+  - `pio run -e esp32release` -> `1 285 776 B` (`-17 424 B` vs `1 303 200 B`, `20 848 B` margin).
+  - `python tools/sh_process_check.py` -> `0` errors (`1` known `PB-12`, `PASS`); `python tools/sh_process_check.py board` -> `0` errors (`PASS`).
+  - Board (`192.168.1.20`, `v1.11.12.11`): `/api/status` `outdoorTemp = 13.7`; `SWE.5-TC35.1` PASS (`13.7 C`, `previous-day mean 8.4 C`); `SWE.5-TC35.3` PASS on re-run (`slowest page answer 673 ms`; initial post-boot run saw a `1701 ms` spike); `/api/diag/mem` steady `free = 86 256 B` / after poll `85 376 B`, `minFreeEver = 65 092 B`, `largestBlock = 77 812 B`, `wx.stackFreeMin = 1 972 B`.
+
 ## [12.11.2026] - Step I-8 (Part 2) Promote `R-A7` to ERROR (`PB-131`)
 
 - **Who / when / why:** Step I-8 (part 2) of [`docs/plan.md`](plan.md): enforce `R-A7` (no `String` / `new` / growing containers in L2–L4) as ERROR in `tools/sh_process_check.py arch`, with explicit per-file `R_A7_EXCEPTIONS` for external library boundaries (`PB-131`: `BleSensorScanner.cpp`, `TimeAndWeatherService.h/.cpp`).

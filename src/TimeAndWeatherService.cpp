@@ -1,7 +1,6 @@
 #include "TimeAndWeatherService.h"
 #include "NetworkConsole.h"
 #include "ParamStore.h"
-#include <HTTPClient.h>
 #include <WiFi.h>
 #include <ArduinoJson.h>
 #include <time.h>
@@ -194,38 +193,51 @@ void TimeAndWeatherService::fetchTask(void* arg) {
 void TimeAndWeatherService::fetchWeather() {
     if (WiFi.status() != WL_CONNECTED) { _lastPollOk = false; return; }
 
-    String lat = "45.6579";
-    String lon = "25.6012";
+    char lat[20] = "45.6579";
+    char lon[20] = "25.6012";
 
     if (strlen(_location) > 3) {
-        String s = String(_location);
-        int comma = s.indexOf(',');
-        if (comma > 0) {
-            lat = s.substring(0, comma);
-            lon = s.substring(comma + 1);
-            lat.trim();
-            lon.trim();
+        const char* comma = strchr(_location, ',');
+        if (comma && comma > _location) {
+            size_t l1 = (size_t)(comma - _location);
+            if (l1 >= sizeof(lat)) l1 = sizeof(lat) - 1;
+            memcpy(lat, _location, l1);
+            lat[l1] = '\0';
+            const char* p2 = comma + 1;
+            while (*p2 == ' ' || *p2 == '\t') p2++;
+            strlcpy(lon, p2, sizeof(lon));
+            for (int k = (int)strlen(lat) - 1; k >= 0 && (lat[k] == ' ' || lat[k] == '\t'); k--) lat[k] = '\0';
+            for (int k = (int)strlen(lon) - 1; k >= 0 && (lon[k] == ' ' || lon[k] == '\t'); k--) lon[k] = '\0';
         }
     }
 
-    String url = "http://api.open-meteo.com/v1/forecast?latitude=" + lat +
-                 "&longitude=" + lon +
-                 "&current=temperature_2m,relative_humidity_2m"
-                 "&daily=temperature_2m_mean&past_days=1&forecast_days=1&timezone=auto";
-
     WiFiClient client;
-    HTTPClient http;
-    http.setTimeout(4000);
-    if (!http.begin(client, url)) {
+    client.setTimeout(4000);
+    if (!client.connect("api.open-meteo.com", 80)) {
         _lastPollOk = false;
         return;
     }
 
-    int httpCode = http.GET();
-    if (httpCode == 200) {
-        String payload = http.getString();
+    client.printf(
+        "GET /v1/forecast?latitude=%s&longitude=%s"
+        "&current=temperature_2m,relative_humidity_2m"
+        "&daily=temperature_2m_mean&past_days=1&forecast_days=1&timezone=auto HTTP/1.0\r\n"
+        "Host: api.open-meteo.com\r\n"
+        "Connection: close\r\n\r\n",
+        lat, lon);
+
+    char statusLine[64];
+    size_t slen = client.readBytesUntil('\n', statusLine, sizeof(statusLine) - 1);
+    statusLine[slen] = '\0';
+    int httpCode = 0;
+    if (strncmp(statusLine, "HTTP/", 5) == 0) {
+        const char* sp = strchr(statusLine, ' ');
+        if (sp) httpCode = atoi(sp + 1);
+    }
+
+    if (httpCode == 200 && client.find("\r\n\r\n")) {
         JsonDocument doc;
-        DeserializationError err = deserializeJson(doc, payload);
+        DeserializationError err = deserializeJson(doc, client);
         if (!err && doc.containsKey("current")) {
             JsonObject current = doc["current"];
             float t = _outdoorTemp, h = _outdoorHumidity;
@@ -263,7 +275,7 @@ void TimeAndWeatherService::fetchWeather() {
     } else {
         _lastPollOk = false;
     }
-    http.end();
+    client.stop();
 }
 
 void TimeAndWeatherService::update() {
