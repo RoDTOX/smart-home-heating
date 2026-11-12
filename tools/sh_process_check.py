@@ -1116,8 +1116,15 @@ def code_lines(path):
             yield n, line.split("//", 1)[0]
 
 
+R_A7_EXCEPTIONS = {
+    "src/BleSensorScanner.cpp": "PB-131 (NimBLE-Arduino API returns std::string)",
+    "include/TimeAndWeatherService.h": "PB-131 (HTTPClient::getString() / legacy String API)",
+    "src/TimeAndWeatherService.cpp": "PB-131 (HTTPClient::getString() / legacy String API)",
+}
+
+
 def check_arch(rep):
-    """Dependency rules R-A1...R-A7 (WARN) and R-A9 pure-module isolation (ERROR)."""
+    """Dependency rules R-A1...R-A6 (WARN), R-A7 (ERROR with PB-131 exceptions) and R-A9 (ERROR)."""
     rep.section("Architecture rules (SWE.2 dependency rules R-A1...R-A7, R-A9, architecture.md §3.3)", "arch")
     layers = {r["Module"].strip("`"): r.get("Layer", "")[:2] for r in module_rows(read(ARCH_DOC))}
     lower = [m for m, layer in layers.items() if layer in ("L2", "L3", "L4")]
@@ -1141,7 +1148,13 @@ def check_arch(rep):
                     hits.setdefault((rid, what), []).append(n)
         for (rid, what), lines in sorted(hits.items()):
             more = f" (+{len(lines) - 1} more)" if len(lines) > 1 else ""
-            rep.warn(f"{rid} {what}: {rel}:{lines[0]}{more}")
+            if rid == "R-A7":
+                if rel in R_A7_EXCEPTIONS:
+                    rep.warn(f"{rid} {what} [{R_A7_EXCEPTIONS[rel]}]: {rel}:{lines[0]}{more}")
+                else:
+                    rep.error(f"{rid} {what}: {rel}:{lines[0]}{more}")
+            else:
+                rep.warn(f"{rid} {what}: {rel}:{lines[0]}{more}")
             findings += 1
     pure_findings = check_pure_modules(rep)
     rep.info(f"{len(files)} files, {findings} rule findings, {len(PURE_MODULES)} pure modules ({pure_findings} R-A9 errors) "

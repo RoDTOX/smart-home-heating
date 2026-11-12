@@ -5,6 +5,12 @@ Corelat cu planul activ: [`docs/plan.md`](file:///c:/Users/BSeceleanu/.github_re
 Entries before 29.10.2026 (the system before the lean clean-up):
 [`archive/changelog_until_2026-10-21.md`](archive/changelog_until_2026-10-21.md).
 
+## [12.11.2026] - Step I-8 (Part 2) Promote `R-A7` to ERROR (`PB-131`)
+
+- **Who / when / why:** Step I-8 (part 2) of [`docs/plan.md`](plan.md): enforce `R-A7` (no `String` / `new` / growing containers in L2–L4) as ERROR in `tools/sh_process_check.py arch`, with explicit per-file `R_A7_EXCEPTIONS` for external library boundaries (`PB-131`: `BleSensorScanner.cpp`, `TimeAndWeatherService.h/.cpp`).
+- **Changed:** `tools/sh_process_check.py`, `docs/problems.md` (`PB-131`), `docs/plan.md`.
+- **Verified:** Negative test (temporary `String` in `src/PlantMonitor.cpp`) -> `ERROR R-A7`, exit code 1; clean tree -> `0` errors (`PASS`).
+
 ## [12.11.2026] - Step I-7 Eliminate `String` in Control Path (`R-A7`)
 
 - **Who / when / why:** Step I-7 of [`docs/plan.md`](plan.md): remove dynamic `String` heap allocations from L3–L4 (`ThermalZoneManager`, `PlantMonitor`) by formatting `/api/schedule` and `/api/plant/status` directly into `StatusModel`'s static `4 096 B` buffer.
