@@ -36,14 +36,17 @@ TelemetryHistoryManager::TelemetryHistoryManager()
       _savedRtcOffEpoch(0),
       _savedFlashOffEpoch(0),
       _savedRtcValid(false),
+      _currentSlot1h(0),
       _currentSlot5d(0),
       _currentSlot24h(0),
       _lastSampleMs(0),
       _lastSampleEpoch(0),
+      _lastRecorded1mSlot(255),
       _lastRecorded5mSlot(0xFFFF),
       _lastRecorded30mSlot(255),
       _dirty24h(false),
       _dirty5d(false) {
+    memset(_ring1h, 0, sizeof(_ring1h));
     memset(&_livePoint24h, 0, sizeof(_livePoint24h));
     memset(&_livePoint5d, 0, sizeof(_livePoint5d));
     memset(_bootRecords, 0, sizeof(_bootRecords));
@@ -299,6 +302,8 @@ void TelemetryHistoryManager::saveToFlash() {
 }
 
 void TelemetryHistoryManager::clearHistory() {
+    memset(_ring1h, 0, sizeof(_ring1h));
+    _lastRecorded1mSlot = 255;
     memset(&_livePoint24h, 0, sizeof(_livePoint24h));
     memset(&_livePoint5d, 0, sizeof(_livePoint5d));
     _dirty24h = false;
@@ -349,12 +354,14 @@ void TelemetryHistoryManager::captureSample() {
 
 void TelemetryHistoryManager::updateLiveSample(bool forceNewSlot) {
     time_t now = time(nullptr);
+    uint8_t slot1m = 0;
     uint16_t slot5m = 0;
     uint8_t slot30m = 0;
 
     if (now > 1700000000UL) {
         struct tm tmInfo;
         localtime_r(&now, &tmInfo);
+        slot1m = (uint8_t)((now / 60UL) % TELEMETRY_1H_POINTS);
         slot5m = (tmInfo.tm_hour * 60 + tmInfo.tm_min) / 5;
         slot30m = (uint8_t)((now / 1800UL) % TELEMETRY_5D_POINTS);
         _lastSampleEpoch = (uint32_t)now;
@@ -362,11 +369,13 @@ void TelemetryHistoryManager::updateLiveSample(bool forceNewSlot) {
         rtc_lastAliveEpoch = (uint32_t)now;
     } else {
         // Fallback to uptime-based slot
+        slot1m = (uint8_t)((millis() / 60000UL) % TELEMETRY_1H_POINTS);
         slot5m = (uint16_t)((millis() / 300000UL) % TELEMETRY_24H_POINTS);
         slot30m = (uint8_t)((millis() / 1800000UL) % TELEMETRY_5D_POINTS);
         _lastSampleEpoch = (uint32_t)(millis() / 1000);
     }
 
+    _currentSlot1h = slot1m;
     _currentSlot24h = slot5m;
     _currentSlot5d = slot30m;
 
@@ -445,6 +454,18 @@ void TelemetryHistoryManager::updateLiveSample(bool forceNewSlot) {
     p.flags = f;
     p.reserved = 0;
 
+    // 0. Update 1h high-res RAM ring (1 sample/minute, zero flash wear)
+    bool isNew1mSlot = (slot1m != _lastRecorded1mSlot);
+    TelemetryPoint p1m = p;
+    if (!isNew1mSlot && !forceNewSlot && (_ring1h[slot1m].flags & 0x80)) {
+        p1m.flags |= (_ring1h[slot1m].flags & 0x7F);
+    } else {
+        p1m.flags = f;
+    }
+    p1m.reserved = 0;
+    _ring1h[slot1m] = p1m;
+    _lastRecorded1mSlot = slot1m;
+
     // 1. Update 24h live slot
     _livePoint24h = p;
     _dirty24h = true;
@@ -505,20 +526,26 @@ struct Chunker {
 void TelemetryHistoryManager::streamHistoryJson(WebServer& server, const String& range) {
     updateLiveSample(false);  // RAM live slot reflects the ongoing state before the export
 
-    bool is5d = (range == "5d");
-    size_t count = is5d ? TELEMETRY_5D_POINTS : TELEMETRY_24H_POINTS;
+    bool is1h = (range == "1h");
+    bool is5d = (!is1h && range == "5d");
+    size_t count = is1h ? TELEMETRY_1H_POINTS : (is5d ? TELEMETRY_5D_POINTS : TELEMETRY_24H_POINTS);
+    uint16_t curSlot = is1h ? _currentSlot1h : (is5d ? _currentSlot5d : _currentSlot24h);
     server.setContentLength(CONTENT_LENGTH_UNKNOWN);
     server.send(200, "application/json", "");
     Chunker c(server);
-    c.put("{\"range\":\"%s\",\"stepSec\":%u,\"currentSlot\":%u,\"points\":[", is5d ? "5d" : "24h",
-          is5d ? 1800u : 300u, (unsigned)(is5d ? _currentSlot5d : _currentSlot24h));
+    c.put("{\"range\":\"%s\",\"stepSec\":%u,\"currentSlot\":%u,\"points\":[",
+          is1h ? "1h" : (is5d ? "5d" : "24h"),
+          is1h ? 60u : (is5d ? 1800u : 300u), (unsigned)curSlot);
 
-    File f = _fsMounted ? LittleFS.open(is5d ? FILE_5D : FILE_24H, "r") : File();
+    File f = (!is1h && _fsMounted) ? LittleFS.open(is5d ? FILE_5D : FILE_24H, "r") : File();
     size_t written = 0;
     for (size_t i = 0; i < count; i++) {
         TelemetryPoint pt;
         bool ok = false;
-        if (i == (is5d ? _currentSlot5d : _currentSlot24h)) {
+        if (is1h) {
+            pt = _ring1h[i];
+            ok = (pt.flags & 0x80);
+        } else if (i == curSlot) {
             pt = is5d ? _livePoint5d : _livePoint24h;
             ok = (pt.flags & 0x80);
             if (f) f.seek((i + 1) * sizeof(TelemetryPoint));

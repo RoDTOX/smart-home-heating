@@ -5,6 +5,18 @@ Corelat cu planul activ: [`docs/plan.md`](file:///c:/Users/BSeceleanu/.github_re
 Entries before 29.10.2026 (the system before the lean clean-up):
 [`archive/changelog_until_2026-10-21.md`](archive/changelog_until_2026-10-21.md).
 
+## [12.11.2026] - 1h 1-minute telemetry ring & cleaner history chart rendering
+
+- **Who / when / why:** Owner request to make the 1h history chart high-resolution and clean up dense chart rendering/axis alignment across all ranges.
+- **Changed:**
+  - `include/TelemetryHistoryManager.h`, `src/TelemetryHistoryManager.cpp`: added 60-slot 1-minute RAM ring (`_ring1h[60]`, `600 B`, zero LittleFS wear) and `/api/history?range=1h` (`stepSec=60`). Kept `24h` (`300s`) and `5d` (`1800s`) LittleFS rings unchanged.
+  - `web/src/core.js`, `web/src/history.js`: wired `histData1h` / `range=1h`, omitted permanent `<circle>` markers when `ordered.length > 35` (clean continuous curves, isolated points still drawn), and aligned X-axis grid labels to rounded local clock marks (`15m`, `2h`, `4h`, `12h`, `24h`).
+- **Verified:**
+  - `python tools/sh_build_web.py` -> `.pio\build\index.html.gz` `44 432 B` (`fsFree = 1 282 048 B` after `sh_ota_upload.py assets`).
+  - `pio run -e esp32dev` -> `1 286 208 B` (`20 416 B` margin); `esp32release` -> `1 286 240 B`.
+  - `python tools/sh_process_check.py` -> `0` errors (`1` known `PB-12`, `PASS`); `python tools/sh_process_check.py board` -> `0` errors (`PASS`).
+  - Board (`192.168.1.20`, `v1.11.12.12`): `GET /api/history?range=1h` returns `range: "1h", stepSec: 60`; `TC20.1`, `TC20.2`, `TC20.3`, `TC37.1` -> `4/4 PASS` (100%).
+
 ## [12.11.2026] - Replace `HTTPClient` with plain `WiFiClient` in `TimeAndWeatherService`
 
 - **Who / when / why:** Flash & heap optimization requested by owner: `src/TimeAndWeatherService.cpp` was the sole caller of `HTTPClient` (which pulls `WiFiClientSecure` / mbedTLS into the link). Replaced it with plain `WiFiClient` over HTTP/1.0 (`api.open-meteo.com:80`) and fixed `char` buffers (`lat[20]`, `lon[20]`) instead of `String`.

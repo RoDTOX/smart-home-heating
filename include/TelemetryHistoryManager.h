@@ -3,6 +3,8 @@
 
 #include <Arduino.h>
 
+// 60 points for 1 hour (1 sample every 1 minute, RAM ring)
+#define TELEMETRY_1H_POINTS  60
 // 288 points for 24 hours (1 sample every 5 minutes: 24 * 12)
 #define TELEMETRY_24H_POINTS 288
 // 240 points for 5 days (1 sample every 30 minutes: 5 * 48)
@@ -60,6 +62,7 @@ public:
     // Diagnostics
     bool isFsMounted() const { return _fsMounted; }
     uint32_t getLastSampleTime() const { return _lastSampleEpoch; }
+    uint8_t  getCurrentSlot1h() const { return _currentSlot1h; }
     uint16_t getCurrentSlot24h() const { return _currentSlot24h; }
     uint8_t  getCurrentSlot5d() const { return _currentSlot5d; }
 
@@ -97,6 +100,7 @@ public:
 
 private:
     bool _fsMounted;
+    TelemetryPoint _ring1h[TELEMETRY_1H_POINTS];
     TelemetryPoint _livePoint24h;
     TelemetryPoint _livePoint5d;
     BootRecord _bootRecords[10];
@@ -107,10 +111,12 @@ private:
     uint32_t _savedRtcOffEpoch;
     uint32_t _savedFlashOffEpoch;
     bool     _savedRtcValid;
+    uint8_t  _currentSlot1h;
     uint8_t  _currentSlot5d;
     uint16_t _currentSlot24h;
     uint32_t _lastSampleMs;
     uint32_t _lastSampleEpoch;
+    uint8_t  _lastRecorded1mSlot;
     uint16_t _lastRecorded5mSlot;
     uint8_t  _lastRecorded30mSlot;
     bool     _dirty24h;

@@ -5,7 +5,7 @@ const $ = id => document.getElementById(id);
 const esc = s => String(s).replace(/[&<>"]/g, c => ({"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;"}[c]));
 const isAdmin = () => document.body.classList.contains("admin");
 let Z = null, S = null, B = [], ST = null, D = null, openRoom = -1, editing = false, dtcHistory = [];
-let histData24h = null, histData5d = null, histLoading = false, lastHistFetch = 0;
+let histData1h = null, histData24h = null, histData5d = null, histLoading = false, lastHistFetch = 0;
 let selectedHistRange = "24h";
 let again = false, lastFound = [];
 let RAW = {}, prevFlat = {}, changed = new Set(), trace = [], openSig = null;
@@ -99,7 +99,10 @@ async function refresh() {
       if ($("grpHistory") && $("grpHistory").open) {
         renderTpiInspector();
         renderGasMeter();
-        if (!histData24h || (Date.now() - lastHistFetch > 60000)) loadHistoryChart();
+        const needHist = (selectedHistRange === "1h") ? !histData1h
+          : (selectedHistRange === "3d" || selectedHistRange === "5d") ? !histData5d
+          : !histData24h;
+        if (needHist || (Date.now() - lastHistFetch > 60000)) loadHistoryChart();
       }
       if (debugOpen) { renderPins(); renderMem(); updateWatch(); }
       if (!busy("loc") && RAW["api/setup/location"]) $("loc").value = RAW["api/setup/location"].coords;

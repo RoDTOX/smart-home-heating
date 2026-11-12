@@ -52,10 +52,11 @@ function prepareHistoryChartData(range, data, zonesData, nowMs = Date.now()) {
     return {ready: false, emptyHtml: `<div class="s" style="padding:20px;text-align:center">Nicio înregistrare disponibilă pentru intervalul selectat (${esc(range)}).</div>`};
   }
 
+  const is1h = (range === "1h");
   const isMultiDay = (range === "3d" || range === "5d");
   const cur = (data.currentSlot !== undefined) ? data.currentSlot : 0;
-  const slotCapacity = isMultiDay ? 240 : 288;
-  const totalWindowSlots = (range === "1h") ? 12
+  const slotCapacity = is1h ? 60 : (isMultiDay ? 240 : 288);
+  const totalWindowSlots = is1h ? 60
     : (range === "12h") ? 144
     : (range === "24h") ? 288
     : (range === "3d") ? 144 : 240;
@@ -118,27 +119,48 @@ function prepareHistoryChartData(range, data, zonesData, nowMs = Date.now()) {
   const tempToY = t => tempBot - ((t - minT) / (maxT - minT)) * tempH;
   const outTempToY = t => tempBot - ((t - minOutT) / (maxOutT - minOutT)) * tempH;
 
-  const timeStepMarks = (range === "5d") ? 5 : 6;
-  const totalWindowHours = (range === "1h") ? 1.0 : (range === "12h") ? 12 : (range === "24h") ? 24 : (range === "3d") ? 72 : 120;
+  const totalWindowHours = is1h ? 1.0 : (range === "12h") ? 12 : (range === "24h") ? 24 : (range === "3d") ? 72 : 120;
+  const totalWindowMs = totalWindowHours * 3600 * 1000;
+  const startMs = nowMs - totalWindowMs;
   const todayDate = new Date(nowMs).getDate();
   const timeMarks = [];
-  for (let m = 0; m <= timeStepMarks; m++) {
-    const frac = m / timeStepMarks;
-    const gx = x0 + frac * chartW;
-    const markDate = new Date(nowMs - (1 - frac) * totalWindowHours * 3600 * 1000);
-    const hh = String(markDate.getHours()).padStart(2, "0");
-    const mm = String(markDate.getMinutes()).padStart(2, "0");
-    let label = `${hh}:${mm}`;
-    if (m === timeStepMarks) label = `Acum (${hh}:${mm})`;
-    else if (isMultiDay) label = `${DAYS_SHORT[markDate.getDay()]} ${hh}:${mm}`;
-    else if (range !== "1h" && markDate.getDate() !== todayDate) label = `Ieri ${hh}:${mm}`;
-    timeMarks.push({gx, label});
+
+  const stepMin = is1h ? 15 : (range === "12h") ? 120 : (range === "24h") ? 240 : (range === "3d") ? 720 : 1440;
+  const dCursor = new Date(startMs);
+  dCursor.setSeconds(0, 0);
+  if (stepMin < 60) {
+    dCursor.setMinutes(Math.ceil(dCursor.getMinutes() / stepMin) * stepMin);
+  } else {
+    dCursor.setMinutes(0);
+    const stepHr = stepMin / 60;
+    if (stepHr >= 24) {
+      dCursor.setHours(0);
+      if (dCursor.getTime() < startMs) dCursor.setDate(dCursor.getDate() + 1);
+    } else {
+      dCursor.setHours(Math.ceil(dCursor.getHours() / stepHr) * stepHr);
+    }
   }
+  for (let tMs = dCursor.getTime(); tMs < nowMs; tMs += stepMin * 60 * 1000) {
+    const frac = (tMs - startMs) / totalWindowMs;
+    if (frac < 0.04 || frac > 0.91) continue;
+    const md = new Date(tMs);
+    const hh = String(md.getHours()).padStart(2, "0");
+    const mm = String(md.getMinutes()).padStart(2, "0");
+    let label = `${hh}:${mm}`;
+    if (isMultiDay) label = `${DAYS_SHORT[md.getDay()]} ${hh}:${mm}`;
+    else if (range !== "1h" && md.getDate() !== todayDate) label = `Ieri ${hh}:${mm}`;
+    timeMarks.push({gx: x0 + frac * chartW, label});
+  }
+  const nowDate = new Date(nowMs);
+  timeMarks.push({
+    gx: x1,
+    label: `Acum (${String(nowDate.getHours()).padStart(2, "0")}:${String(nowDate.getMinutes()).padStart(2, "0")})`
+  });
 
   const curEpoch = (data.currentEpoch && data.currentEpoch > 1700000000) ? data.currentEpoch : Math.floor(nowMs / 1000);
   const visibleEvents = [];
   (data.reboots || []).forEach(rb => {
-    const slotSec = isMultiDay ? 1800 : 300;
+    const slotSec = is1h ? 60 : (isMultiDay ? 1800 : 300);
     const rSlot = isMultiDay ? rb.slot5d : rb.slot24h;
     const slotsAgo = (cur >= rSlot) ? (cur - rSlot) : (cur + slotCapacity - rSlot);
     const tEnd = rb.epoch ? rb.epoch : (curEpoch - slotsAgo * slotSec);
@@ -183,7 +205,7 @@ function prepareHistoryChartData(range, data, zonesData, nowMs = Date.now()) {
     return {r, ry, blocks, winBlocks};
   });
 
-  const maxGapSlots = (range === "1h") ? 2 : (isMultiDay ? 3 : 4);
+  const maxGapSlots = is1h ? 4 : (isMultiDay ? 3 : 4);
   const outPoints = [];
   ordered.forEach(item => {
     const v = item.p[4];
@@ -205,7 +227,7 @@ function prepareHistoryChartData(range, data, zonesData, nowMs = Date.now()) {
   });
 
   return {
-    ready: true, range, isMultiDay, ordered, latestItem: ordered[ordered.length - 1],
+    ready: true, range, is1h, isMultiDay, ordered, latestItem: ordered[ordered.length - 1],
     zones, zoneColors, visibleEvents, tracks, timeMarks,
     W, totalH, x0, x1, chartW, slotW, totalWindowSlots,
     topActY, actRowH, tempHeaderY, tempTop, tempH, tempBot,
@@ -267,9 +289,12 @@ function drawCurveSvg(svgParts, curve, color, isDashed, dotRadius) {
       const dashAttr = isDashed ? ' stroke-dasharray="3,3"' : '';
       svgParts.push(`<polyline fill="none" stroke="${color}" stroke-width="1.3" stroke-linejoin="round" stroke-linecap="round"${dashAttr} points="${ptsStr}" />`);
     }
-    seg.forEach(p => {
-      svgParts.push(`<circle cx="${p.px.toFixed(1)}" cy="${p.py.toFixed(1)}" r="${dotRadius}" fill="${color}" />`);
-    });
+    if (dotRadius > 0 || seg.length === 1) {
+      const r = dotRadius > 0 ? dotRadius : 1.8;
+      seg.forEach(p => {
+        svgParts.push(`<circle cx="${p.px.toFixed(1)}" cy="${p.py.toFixed(1)}" r="${r}" fill="${color}" />`);
+      });
+    }
   });
 }
 
@@ -334,7 +359,7 @@ function drawHistoryChart(container, m) {
     svgParts.push(`<text x="${(m.x1 + 8).toFixed(1)}" y="${(gy + 3.5).toFixed(1)}" font-size="10" fill="#94a3b8" text-anchor="start">${t}°</text>`);
   }
 
-  const dotRadius = m.range === "1h" ? 2.5 : 1.5;
+  const dotRadius = (m.ordered.length <= 35) ? 2.2 : 0;
   drawCurveSvg(svgParts, m.outCurve, "#94a3b8", true, dotRadius);
   m.zoneCurves.forEach(zc => drawCurveSvg(svgParts, zc, zc.color, false, dotRadius));
 
@@ -357,7 +382,7 @@ function drawHistoryChart(container, m) {
         curLine.setAttribute("x2", xPos.toFixed(1));
         curLine.style.display = "block";
       }
-      const hoursAgo = m.isMultiDay ? (cursorSlotsAgo * 0.5) : (cursorSlotsAgo * (5 / 60));
+      const hoursAgo = m.is1h ? (cursorSlotsAgo / 60) : (m.isMultiDay ? (cursorSlotsAgo * 0.5) : (cursorSlotsAgo * (5 / 60)));
       const curDate = new Date(Date.now() - hoursAgo * 3600 * 1000);
       const ch = String(curDate.getHours()).padStart(2, "0"), cm = String(curDate.getMinutes()).padStart(2, "0");
       const agoText = hoursAgo < 0.05 ? "" : (hoursAgo < 1 ? ` (-${Math.round(hoursAgo * 60)}m)` : ` (-${hoursAgo.toFixed(1)}h)`);
@@ -372,7 +397,7 @@ function drawHistoryChart(container, m) {
       m.visibleEvents.forEach(ve => {
         if (xPos >= ve.bx - 4 && xPos <= ve.bx + ve.bw + 4) nearReboot = ve;
       });
-      const maxTipDist = (m.range === "1h") ? 1.5 : (m.isMultiDay ? 3 : 5);
+      const maxTipDist = m.is1h ? 3 : (m.isMultiDay ? 3 : 5);
       renderHistoryInfoBar((closest && minDiff <= maxTipDist) ? closest : null, timeStr, false, nearReboot, m.zones, m.zoneColors);
     };
     overlay.onmouseleave = () => {
@@ -385,8 +410,9 @@ function drawHistoryChart(container, m) {
 function renderHistoryChart() {
   const container = $("histSvgContainer");
   if (!container) return;
+  const is1h = (selectedHistRange === "1h");
   const isMultiDay = (selectedHistRange === "3d" || selectedHistRange === "5d");
-  const data = isMultiDay ? histData5d : histData24h;
+  const data = is1h ? histData1h : (isMultiDay ? histData5d : histData24h);
   const model = prepareHistoryChartData(selectedHistRange, data, Z);
   drawHistoryChart(container, model);
 }
@@ -471,14 +497,16 @@ async function loadHistoryChart(force = false) {
   const summaryEl = $("histSummary");
   if (summaryEl) summaryEl.textContent = "Se actualizează...";
 
+  const is1h = (selectedHistRange === "1h");
   const isMultiDay = (selectedHistRange === "3d" || selectedHistRange === "5d");
-  const ep = isMultiDay ? "api/history?range=5d" : "api/history?range=24h";
+  const ep = is1h ? "api/history?range=1h" : (isMultiDay ? "api/history?range=5d" : "api/history?range=24h");
 
   try {
     const r = await fetch(ep);
     if (!r.ok) throw new Error("HTTP " + r.status);
     const j = await r.json();
-    if (isMultiDay) histData5d = j;
+    if (is1h) histData1h = j;
+    else if (isMultiDay) histData5d = j;
     else histData24h = j;
 
     renderHistoryChart();
@@ -499,7 +527,8 @@ async function loadHistoryChart(force = false) {
 const grpHist = $("grpHistory");
 if (grpHist) {
   grpHist.addEventListener("toggle", () => {
-    if (grpHist.open && (!histData24h || !histData5d)) loadHistoryChart();
+    const need = (selectedHistRange === "1h") ? !histData1h : ((selectedHistRange === "3d" || selectedHistRange === "5d") ? !histData5d : !histData24h);
+    if (grpHist.open && need) loadHistoryChart();
   });
 }
 const btnRefHist = $("btnRefreshHist");
