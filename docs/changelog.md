@@ -5,6 +5,13 @@ Corelat cu planul activ: [`docs/plan.md`](file:///c:/Users/BSeceleanu/.github_re
 Entries before 29.10.2026 (the system before the lean clean-up):
 [`archive/changelog_until_2026-10-21.md`](archive/changelog_until_2026-10-21.md).
 
+## [12.11.2026] - Board Verification Fixes (`PB-128`, `PB-129`)
+
+- **Changed:**
+  - `tools/sh_tests/t_safety_supervisor.py`: closed all zone valves at `TC33.2`/`TC33.3` baseline before opening `pins[0]` (`PB-128`), proving `FR-3` overrun holds `pins[0]` reliably.
+  - `tools/sh_tests/base.py`: added `"/api/web/"` to `_auto_auth_post` (`PB-129`) so `t_webassets.py` sends Basic Auth to `/api/web/update` and `/api/web/remove`.
+- **Verified on board (`192.168.1.20`, `337a9a5`):** `python tools/sh_test_system.py --only tc33,tc38` -> **8/8 PASS** (`TC33.1`–`TC33.3`, `TC38.1`–`TC38.5`).
+
 ## [12.11.2026] - Drop Legacy `web/index.html` (Owner Confirmed)
 
 - **Changed:** Removed `web/index.html` (`git rm`) after owner confirmation; `web/src/*` is now the single source of truth built into `.pio/build/index.html.gz` by `tools/sh_build_web.py`.

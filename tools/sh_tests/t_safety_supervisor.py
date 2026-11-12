@@ -99,6 +99,8 @@ class SafetySupervisorTests:
             assert pins, "no zone on the board"
             self._ss_mode("manual")
             self._ss_baseline_off()
+            for pin in pins:
+                self._ss_valve(pin, False)
             self._ss_valve(pins[0], True)
             time.sleep(5)
             r = requests.post(f"{self.base_url}/api/boiler/on", timeout=self.timeout)
@@ -133,6 +135,8 @@ class SafetySupervisorTests:
             assert pins, "no zone on the board"
             self._ss_mode("manual")
             self._ss_baseline_off()
+            for pin in pins:
+                self._ss_valve(pin, False)
             self._ss_valve(pins[0], True)
             t_valve = time.time()
             time.sleep(122 - 0)  # interlockDelay 120 s + margin

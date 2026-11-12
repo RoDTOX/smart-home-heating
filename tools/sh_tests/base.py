@@ -147,7 +147,8 @@ def _auto_auth_post(url, *args, **kwargs):
     if "auth" not in kwargs:
         for ep in ("/api/boiler/", "/api/mode", "/api/relay/test", "/api/diag/clear",
                   "/api/diag/exercise", "/api/config/import", "/api/setup/actuator",
-                  "/api/setup/pump", "/api/setup/sensor-timeout", "/api/config/system"):
+                  "/api/setup/pump", "/api/setup/sensor-timeout", "/api/config/system",
+                  "/api/web/"):
             if ep in url:
                 kwargs["auth"] = SuiteBase().api_auth()
                 break
