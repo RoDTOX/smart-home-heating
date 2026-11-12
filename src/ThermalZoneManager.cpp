@@ -1407,116 +1407,126 @@ uint32_t ThermalZoneManager::getWindowLastDetectionDurationSec(size_t index) con
     return _windowStates[index].lastDetectionDurationSec;
 }
 
+static void appendBoolField(String& out, const char* key, bool val) {
+    out += '"';
+    out += key;
+    out += "\":";
+    out += val ? "true," : "false,";
+}
+
+static void appendDayMomentsJson(String& out, const ScheduleConfig& sched,
+                                 const ThermalZoneConfig* configs, size_t zoneCount,
+                                 size_t dayIdx) {
+    out += '[';
+    for (size_t m = 0; m < MAX_SCHEDULE_MOMENTS; m++) {
+        if (m > 0) out += ',';
+        char buf[48];
+        snprintf(buf, sizeof(buf), "{\"moment\":%u,\"time\":\"%02u:%02u\",\"temps\":{",
+                 (unsigned)(m + 1), sched.days[dayIdx][m].hour, sched.days[dayIdx][m].minute);
+        out += buf;
+        for (size_t z = 0; z < zoneCount; z++) {
+            if (z > 0) out += ',';
+            float t = sched.days[dayIdx][m].temps[z] > 0
+                ? decodeTempByte(sched.days[dayIdx][m].temps[z])
+                : sched.levelTemps[m == 3 ? LEVEL_NIGHT : LEVEL_DAY][z];
+            snprintf(buf, sizeof(buf), "\"%u\":%.1f", (unsigned)configs[z].id, (double)t);
+            out += buf;
+        }
+        out += "}}";
+    }
+    out += ']';
+}
+
 String ThermalZoneManager::getScheduleJson() const {
     String json;
     json.reserve(2560);
-    json = "{";
-    json += "\"status\":\"ok\",";
-    json += "\"enabled\":" + String(_scheduleConfig.enabled ? "true" : "false") + ",";
-    json += "\"away\":" + String(_scheduleConfig.away ? "true" : "false") + ",";
-    json += "\"scheduleMode\":\"" + String(getScheduleModeName()) + "\",";
-    json += "\"activeMoment\":" + String((unsigned)(_activeMomentIdx + 1)) + ",";
-    json += "\"nextMoment\":" + String((unsigned)(_nextMomentIdx + 1)) + ",";
-    json += "\"preHeatEnabled\":" + String(_scheduleConfig.preHeatEnabled ? "true" : "false") + ",";
-    json += "\"windowDetectionEnabled\":" + String(_scheduleConfig.windowDetectionEnabled ? "true" : "false") + ",";
-    json += "\"activeLevel\":\"" + String(getLevelName(_activeLevel)) + "\",";
-    json += "\"nextLevel\":\"" + String(getLevelName(_nextLevel)) + "\",";
-    json += "\"minsToNextSlot\":" + String(_minsToNextSlot) + ",";
-    json += "\"preHeatActive\":" + String(_preHeatActive ? "true" : "false") + ",";
-    json += "\"isWeekend\":" + String(timeAndWeather.isWeekend() ? "true" : "false") + ",";
-    json += "\"dayOfWeek\":" + String(timeAndWeather.getDayOfWeekIndex()) + ",";
-    json += "\"weekday\":\"" + getSlotsString(false) + "\",";
-    json += "\"weekend\":\"" + getSlotsString(true) + "\",";
-    json += "\"openLoopBypass\":" + String(_openLoopBypass ? "true" : "false") + ",";
-    json += "\"interlockDelaySec\":" + String(_interlockDelayMs / 1000) + ",";
-    json += "\"pumpOverrunSec\":" + String(_pumpOverrunMs / 1000) + ",";
-    json += "\"pumpControlEnabled\":" + String(_pumpControlEnabled ? "true" : "false") + ",";
+    json = "{\"status\":\"ok\",";
+    appendBoolField(json, "enabled", _scheduleConfig.enabled);
+    appendBoolField(json, "away", _scheduleConfig.away);
+    json += "\"scheduleMode\":\"";
+    json += getScheduleModeName();
+    json += "\",\"activeMoment\":";
+    json += (unsigned)(_activeMomentIdx + 1);
+    json += ",\"nextMoment\":";
+    json += (unsigned)(_nextMomentIdx + 1);
+    json += ',';
+    appendBoolField(json, "preHeatEnabled", _scheduleConfig.preHeatEnabled);
+    appendBoolField(json, "windowDetectionEnabled", _scheduleConfig.windowDetectionEnabled);
+    json += "\"activeLevel\":\"";
+    json += getLevelName(_activeLevel);
+    json += "\",\"nextLevel\":\"";
+    json += getLevelName(_nextLevel);
+    json += "\",\"minsToNextSlot\":";
+    json += _minsToNextSlot;
+    json += ',';
+    appendBoolField(json, "preHeatActive", _preHeatActive);
+    appendBoolField(json, "isWeekend", timeAndWeather.isWeekend());
+    json += "\"dayOfWeek\":";
+    json += timeAndWeather.getDayOfWeekIndex();
+    json += ",\"weekday\":\"";
+    json += getSlotsString(false);
+    json += "\",\"weekend\":\"";
+    json += getSlotsString(true);
+    json += "\",";
+    appendBoolField(json, "openLoopBypass", _openLoopBypass);
+    json += "\"interlockDelaySec\":";
+    json += _interlockDelayMs / 1000;
+    json += ",\"pumpOverrunSec\":";
+    json += _pumpOverrunMs / 1000;
+    json += ',';
+    appendBoolField(json, "pumpControlEnabled", _pumpControlEnabled);
     json += "\"momentNames\":[";
     for (size_t m = 0; m < MAX_SCHEDULE_MOMENTS; m++) {
-        if (m > 0) json += ",";
-        json += "\"" + String(getMomentName((uint8_t)m)) + "\"";
+        if (m > 0) json += ',';
+        json += '"';
+        json += getMomentName((uint8_t)m);
+        json += '"';
     }
-    json += "],";
-
-    // Weekday moments (Monday index 1)
-    json += "\"weekday_moments\":[";
-    for (size_t m = 0; m < MAX_SCHEDULE_MOMENTS; m++) {
-        if (m > 0) json += ",";
-        char tBuf[8];
-        snprintf(tBuf, sizeof(tBuf), "%02u:%02u", _scheduleConfig.days[1][m].hour, _scheduleConfig.days[1][m].minute);
-        json += "{\"moment\":" + String(m + 1) + ",\"time\":\"" + String(tBuf) + "\",\"temps\":{";
-        for (size_t z = 0; z < _zoneCount; z++) {
-            if (z > 0) json += ",";
-            float t = _scheduleConfig.days[1][m].temps[z] > 0 ? decodeTempByte(_scheduleConfig.days[1][m].temps[z]) : _scheduleConfig.levelTemps[m == 3 ? LEVEL_NIGHT : LEVEL_DAY][z];
-            json += "\"" + String(_configs[z].id) + "\":" + String(t, 1);
-        }
-        json += "}}";
-    }
-    json += "],";
-
-    // Weekend moments (Sunday index 0)
-    json += "\"weekend_moments\":[";
-    for (size_t m = 0; m < MAX_SCHEDULE_MOMENTS; m++) {
-        if (m > 0) json += ",";
-        char tBuf[8];
-        snprintf(tBuf, sizeof(tBuf), "%02u:%02u", _scheduleConfig.days[0][m].hour, _scheduleConfig.days[0][m].minute);
-        json += "{\"moment\":" + String(m + 1) + ",\"time\":\"" + String(tBuf) + "\",\"temps\":{";
-        for (size_t z = 0; z < _zoneCount; z++) {
-            if (z > 0) json += ",";
-            float t = _scheduleConfig.days[0][m].temps[z] > 0 ? decodeTempByte(_scheduleConfig.days[0][m].temps[z]) : _scheduleConfig.levelTemps[m == 3 ? LEVEL_NIGHT : LEVEL_DAY][z];
-            json += "\"" + String(_configs[z].id) + "\":" + String(t, 1);
-        }
-        json += "}}";
-    }
-    json += "],";
-
-    // awayTemps
-    json += "\"awayTemps\":{";
+    json += "],\"weekday_moments\":";
+    appendDayMomentsJson(json, _scheduleConfig, _configs, _zoneCount, 1);
+    json += ",\"weekend_moments\":";
+    appendDayMomentsJson(json, _scheduleConfig, _configs, _zoneCount, 0);
+    json += ",\"awayTemps\":{";
     for (size_t z = 0; z < _zoneCount; z++) {
-        if (z > 0) json += ",";
-        float t = _scheduleConfig.awayTemps[z] > 0 ? decodeTempByte(_scheduleConfig.awayTemps[z]) : _scheduleConfig.levelTemps[LEVEL_AWAY][z];
-        json += "\"" + String(_configs[z].id) + "\":" + String(t, 1);
+        if (z > 0) json += ',';
+        float t = _scheduleConfig.awayTemps[z] > 0
+            ? decodeTempByte(_scheduleConfig.awayTemps[z])
+            : _scheduleConfig.levelTemps[LEVEL_AWAY][z];
+        char zBuf[24];
+        snprintf(zBuf, sizeof(zBuf), "\"%u\":%.1f", (unsigned)_configs[z].id, (double)t);
+        json += zBuf;
     }
-    json += "},";
-
-    // days (0..6)
-    json += "\"days\":[";
+    json += "},\"days\":[";
     for (size_t d = 0; d < 7; d++) {
-        if (d > 0) json += ",";
-        json += "[";
-        for (size_t m = 0; m < MAX_SCHEDULE_MOMENTS; m++) {
-            if (m > 0) json += ",";
-            char tBuf[8];
-            snprintf(tBuf, sizeof(tBuf), "%02u:%02u", _scheduleConfig.days[d][m].hour, _scheduleConfig.days[d][m].minute);
-            json += "{\"moment\":" + String(m + 1) + ",\"time\":\"" + String(tBuf) + "\",\"temps\":{";
-            for (size_t z = 0; z < _zoneCount; z++) {
-                if (z > 0) json += ",";
-                float t = _scheduleConfig.days[d][m].temps[z] > 0 ? decodeTempByte(_scheduleConfig.days[d][m].temps[z]) : _scheduleConfig.levelTemps[m == 3 ? LEVEL_NIGHT : LEVEL_DAY][z];
-                json += "\"" + String(_configs[z].id) + "\":" + String(t, 1);
-            }
-            json += "}}";
-        }
-        json += "]";
+        if (d > 0) json += ',';
+        appendDayMomentsJson(json, _scheduleConfig, _configs, _zoneCount, d);
     }
-    json += "],";
-
-    json += "\"zones\":[";
+    json += "],\"zones\":[";
     for (size_t i = 0; i < _zoneCount; i++) {
-        if (i > 0) json += ",";
-        json += "{";
-        json += "\"id\":" + String(_configs[i].id) + ",";
-        json += "\"name\":\"" + String(_configs[i].name) + "\",";
+        if (i > 0) json += ',';
+        json += "{\"id\":";
+        json += _configs[i].id;
+        json += ",\"name\":\"";
+        json += _configs[i].name;
+        json += "\",";
         for (uint8_t l = 0; l < LEVEL_COUNT; l++) {
             float lvVal = _scheduleConfig.levelTemps[l][i];
             if (l == LEVEL_AWAY && _scheduleConfig.awayTemps[i] > 0) lvVal = decodeTempByte(_scheduleConfig.awayTemps[i]);
-            json += "\"" + String(getLevelName(l)) + "\":" + String(lvVal, 1) + ",";
+            json += '"';
+            json += getLevelName(l);
+            json += "\":";
+            json += String(lvVal, 1);
+            json += ',';
         }
-        json += "\"effectiveTarget\":" + String(getEffectiveTargetTemp(i), 1) + ",";
-        json += "\"isManualHold\":" + String(_statuses[i].isManualHold ? "true" : "false") + ",";
-        json += "\"windowDetected\":" + String(isWindowDetected(i) ? "true" : "false") + ",";
-        json += "\"windowPauseActive\":" + String(isWindowPauseActive(i) ? "true" : "false") + ",";
-        json += "\"windowPauseRemainingSec\":" + String(getWindowPauseRemainingSec(i));
-        json += "}";
+        json += "\"effectiveTarget\":";
+        json += String(getEffectiveTargetTemp(i), 1);
+        json += ',';
+        appendBoolField(json, "isManualHold", _statuses[i].isManualHold);
+        appendBoolField(json, "windowDetected", isWindowDetected(i));
+        appendBoolField(json, "windowPauseActive", isWindowPauseActive(i));
+        json += "\"windowPauseRemainingSec\":";
+        json += getWindowPauseRemainingSec(i);
+        json += '}';
     }
     json += "]}";
     return json;

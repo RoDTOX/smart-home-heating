@@ -1328,9 +1328,13 @@ void handleApiStatus() {
   o.end();
 }
 
+static void sendScheduleJson() {
+  server.send(200, "application/json", thermalZones.getScheduleJson());
+}
+
 void handleApiScheduleGet() {
   sendCorsHeaders();
-  server.send(200, "application/json", thermalZones.getScheduleJson());
+  sendScheduleJson();
 }
 
 void handleApiScheduleEnable() {
@@ -1349,7 +1353,7 @@ void handleApiScheduleEnable() {
   if (server.hasArg("away")) {
     thermalZones.setAway(server.arg("away") == "true" || server.arg("away") == "1");
   }
-  server.send(200, "application/json", thermalZones.getScheduleJson());
+  sendScheduleJson();
 }
 
 void handleApiScheduleLevel() {
@@ -1361,7 +1365,7 @@ void handleApiScheduleLevel() {
     server.send(400, "application/json", F("{\"status\":\"error\",\"error\":\"Use zone=1..3, level=day|night|away, temp=5..28\"}"));
     return;
   }
-  server.send(200, "application/json", thermalZones.getScheduleJson());
+  sendScheduleJson();
 }
 
 void handleApiScheduleSlots() {
@@ -1371,13 +1375,13 @@ void handleApiScheduleSlots() {
     server.send(400, "application/json", F("{\"status\":\"error\",\"error\":\"Use slots=HH:MM=day|night|away,... (max 8)\"}"));
     return;
   }
-  server.send(200, "application/json", thermalZones.getScheduleJson());
+  sendScheduleJson();
 }
 
 void handleApiScheduleReset() {
   sendCorsHeaders();
   thermalZones.resetScheduleToDefault();
-  server.send(200, "application/json", thermalZones.getScheduleJson());
+  sendScheduleJson();
 }
 
 void handleApiScheduleMode() {
@@ -1395,7 +1399,7 @@ void handleApiScheduleMode() {
       return;
     }
   }
-  server.send(200, "application/json", thermalZones.getScheduleJson());
+  sendScheduleJson();
 }
 
 void handleApiScheduleMoment() {
@@ -1424,7 +1428,7 @@ void handleApiScheduleMoment() {
         int h = 0, m = 0;
         if (sscanf(timeStr.c_str(), "%d:%d", &h, &m) == 2 && moment >= 1 && moment <= 4 && h >= 0 && h <= 23 && m >= 0 && m <= 59) {
           if (thermalZones.setMomentForGroup(day.c_str(), (uint8_t)(moment - 1), (uint8_t)h, (uint8_t)m, tArr)) {
-            server.send(200, "application/json", thermalZones.getScheduleJson());
+            sendScheduleJson();
             return;
           }
         }
@@ -1441,7 +1445,7 @@ void handleApiScheduleMoment() {
         tArr[i] = server.hasArg(key) ? server.arg(key).toFloat() : -1.0f;
       }
       if (thermalZones.setMomentForGroup(day.c_str(), (uint8_t)(moment - 1), (uint8_t)h, (uint8_t)m, tArr)) {
-        server.send(200, "application/json", thermalZones.getScheduleJson());
+        sendScheduleJson();
         return;
       }
     }
@@ -1460,13 +1464,13 @@ void handleApiScheduleNames() {
         for (size_t i = 0; i < arr.size() && i < MAX_SCHEDULE_MOMENTS; i++) {
           thermalZones.setMomentName((uint8_t)i, arr[i].as<const char*>());
         }
-        server.send(200, "application/json", thermalZones.getScheduleJson());
+        sendScheduleJson();
         return;
       } else if (doc.containsKey("moment") && doc.containsKey("name")) {
         int m = doc["moment"].as<int>();
         if (m >= 1 && m <= MAX_SCHEDULE_MOMENTS) {
           thermalZones.setMomentName((uint8_t)(m - 1), doc["name"].as<const char*>());
-          server.send(200, "application/json", thermalZones.getScheduleJson());
+          sendScheduleJson();
           return;
         }
       }
@@ -1484,7 +1488,7 @@ void handleApiScheduleNames() {
       thermalZones.setMomentName((uint8_t)(m - 1), server.arg("name").c_str());
     }
   }
-  server.send(200, "application/json", thermalZones.getScheduleJson());
+  sendScheduleJson();
 }
 
 void handleApiHistory() {
