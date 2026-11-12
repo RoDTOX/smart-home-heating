@@ -8,6 +8,7 @@
 #include "BoilerRadioTrigger.h"
 #include "SafetySupervisor.h"
 #include "Schedule.h"
+#include "ModeManager.h"
 
 #define MAX_THERMAL_ZONES 32  // zone slots reserved statically (FR-69); the zones in use are getZoneCount()
 
@@ -111,13 +112,13 @@ public:
     bool isBoilerDemanded() const { return _boilerDemand; }
     // FR-2: Boiler ON only after a valve has been energised for interlockDelay (MANUAL with openLoopBypass: always)
     bool boilerOnPermitted() const;
-    bool isAutoMode() const { return _autoMode; }
+    bool isAutoMode() const { return _mode.isAutoMode(); }
     // Operating mode and season (architecture 7.5, 7.6): MANUAL while a manual session runs, else AUTO in season
     // HEATING and OFF (global OFF, FR-64) in season SUMMER
-    enum class EffMode : uint8_t { Auto, Manual, Off };
-    EffMode effectiveMode() const { return !_autoMode ? EffMode::Manual : (_seasonHeating ? EffMode::Auto : EffMode::Off); }
+    using EffMode = ::EffMode;
+    EffMode effectiveMode() const { return _mode.effectiveMode(); }
     uint32_t manualRemainingSec() const;   // FR-52, 0 when not in MANUAL
-    bool isSeasonHeating() const { return _seasonHeating; }
+    bool isSeasonHeating() const { return _mode.isSeasonHeating(); }
     void setSeasonMode(uint8_t mode);      // 0 AUTO, 1 ON, 2 OFF (FR-12.2)
     void seasonNewDay(float prevDayMean);  // a new previous-day mean arrived (FR-12.2)
     bool setTargetTemperatureChecked(size_t index, float target);  // false: not a valid boost step (FR-1.2)
@@ -302,12 +303,8 @@ private:
     void clearZoneSlot(size_t index);
     uint32_t _lastScheduleEvalMs;
 
-    bool _autoMode;
-    bool _seasonHeating = true;
-    uint8_t _daysOn = 0, _daysOff = 0;
-    uint32_t _manualStartMs = 0;
-    uint32_t _coldSinceMs = 0;       // season safety net: some zone below its night level since then (FR-12.2)
-    void seasonSet(bool heating, const char* why);
+    ModeManager _mode;
+    void applySeasonChange(const SeasonChange& sc);
     void modeTick(uint32_t now);
     bool _boilerDemand;
     bool _pumpControlEnabled;

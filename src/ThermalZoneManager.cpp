@@ -19,7 +19,6 @@ ThermalZoneManager thermalZones;
 
 ThermalZoneManager::ThermalZoneManager()
     : _lastScheduleEvalMs(0),
-      _autoMode(true),
       _boilerDemand(false),
       _pumpControlEnabled(false),
       _pumpActive(false),
@@ -108,16 +107,11 @@ void ThermalZoneManager::loadConfig() {
     _openLoopBypass = paramStore.get(Param::OpenLoopBypass) != 0;
     outputBank.setNormallyClosed(paramStore.get(Param::ActuatorType) == 0);
     _pumpControlEnabled = paramStore.get(Param::PumpOutput) != 0;
-    _autoMode = paramStore.state(StateKey::AutoMode) != 0;
-    _manualStartMs = millis();
-    _seasonHeating = paramStore.state(StateKey::SeasonHeating) != 0;
-    _daysOn = (uint8_t)paramStore.state(StateKey::SeasonDaysOn);
-    _daysOff = (uint8_t)paramStore.state(StateKey::SeasonDaysOff);
-    {
-        uint8_t sm = (uint8_t)paramStore.get(Param::SeasonMode);
-        if (sm == 1) _seasonHeating = true;
-        if (sm == 2) _seasonHeating = false;
-    }
+    _mode.loadState(paramStore.state(StateKey::AutoMode) != 0, millis(),
+                    paramStore.state(StateKey::SeasonHeating) != 0,
+                    (uint8_t)paramStore.state(StateKey::SeasonDaysOn),
+                    (uint8_t)paramStore.state(StateKey::SeasonDaysOff),
+                    (uint8_t)paramStore.get(Param::SeasonMode));
     _lastAntiSeizeEpoch = paramStore.state(StateKey::AntiSeizeEpoch);
 
     uint32_t stored = paramStore.state(StateKey::ZoneCount);
@@ -168,7 +162,7 @@ void ThermalZoneManager::persistConfig() {
         z.targetC10 = (int16_t)lroundf(_configs[i].targetTemp * 10);
         paramStore.saveZone(i, z);
     }
-    paramStore.saveState(StateKey::AutoMode, _autoMode ? 1 : 0);
+    paramStore.saveState(StateKey::AutoMode, _mode.isAutoMode() ? 1 : 0);
     paramStore.saveState(StateKey::AntiSeizeEpoch, _lastAntiSeizeEpoch);
 }
 
@@ -267,7 +261,7 @@ uint8_t ThermalZoneManager::eventContext() const {
     if (_safety.isOverrunActive()) c |= EVCTX_OVERRUN;
     if (boilerRadio.getPendingAction() == PENDING_OFF) c |= EVCTX_PENDING_OFF;
     if (boilerRadio.getPendingAction() == PENDING_ON) c |= EVCTX_PENDING_ON;
-    if (_autoMode) c |= EVCTX_AUTO;
+    if (_mode.isAutoMode()) c |= EVCTX_AUTO;
     return c;
 }
 
@@ -648,63 +642,69 @@ void ThermalZoneManager::setOpenLoopBypass(bool en) {
 }
 
 void ThermalZoneManager::setAutoMode(bool autoMode) {
-    if (!autoMode && _autoMode) _manualStartMs = millis();  // FR-52: the session starts here (uptime based)
-    if (autoMode != _autoMode) eventLog.add(EV_MODE, 0, RS_USER, 0, _autoMode ? 1 : 0, autoMode ? 1 : 0);
-    _autoMode = autoMode;
+    bool prev = _mode.isAutoMode();
+    if (_mode.setAutoMode(autoMode, millis())) {
+        eventLog.add(EV_MODE, 0, RS_USER, 0, prev ? 1 : 0, autoMode ? 1 : 0);
+    }
     if (!autoMode) _boilerDemand = false;  // MANUAL: a running boiler is the user's, only frost (FR-16.1) starts or stops it
     persistConfig();
-    netConsole.printf("[Thermal] Operation mode switched to: %s\n", _autoMode ? "AUTO" : "MANUAL");
+    netConsole.printf("[Thermal] Operation mode switched to: %s\n", _mode.isAutoMode() ? "AUTO" : "MANUAL");
 }
 
 uint32_t ThermalZoneManager::manualRemainingSec() const {
-    if (_autoMode) return 0;
-    uint32_t total = (uint32_t)paramStore.get(Param::ManualTimeout);
-    uint32_t used = (millis() - _manualStartMs) / 1000UL;
-    return used >= total ? 0 : total - used;
+    return _mode.manualRemainingSec(millis(), (uint32_t)paramStore.get(Param::ManualTimeout));
 }
 
-void ThermalZoneManager::seasonSet(bool heating, const char* why) {
-    if (heating == _seasonHeating) return;
-    _seasonHeating = heating;
-    _daysOn = _daysOff = 0;
-    paramStore.saveState(StateKey::SeasonHeating, heating ? 1 : 0);
+void ThermalZoneManager::applySeasonChange(const SeasonChange& sc) {
+    if (!sc.changed) return;
+    paramStore.saveState(StateKey::SeasonHeating, sc.heating ? 1 : 0);
     paramStore.saveState(StateKey::SeasonDaysOn, 0);
     paramStore.saveState(StateKey::SeasonDaysOff, 0);
-    netConsole.printf("[Season] %s (%s)\n", heating ? "HEATING" : "SUMMER (global OFF)", why);
+    netConsole.printf("[Season] %s (%s)\n", sc.heating ? "HEATING" : "SUMMER (global OFF)", sc.reason ? sc.reason : "");
 }
 
 void ThermalZoneManager::setSeasonMode(uint8_t mode) {
     paramStore.set(Param::SeasonMode, mode);
-    if (mode == 1) seasonSet(true, "season mode ON");
-    else if (mode == 2) seasonSet(false, "season mode OFF");
-    else { _daysOn = _daysOff = 0; }
-    _coldSinceMs = 0;
+    applySeasonChange(_mode.setSeasonMode(mode));
 }
 
 // FR-12.2: ON after seasonOnDays days in a row below heatLimit, OFF after seasonOffDays days in a row above
 // heatLimit + 2 C; season mode ON / OFF ignore the weather
 void ThermalZoneManager::seasonNewDay(float mean) {
-    if (paramStore.get(Param::SeasonMode) != 0) return;
-    float limit = paramStore.getf(Param::HeatLimit);
-    if (!_seasonHeating) {
-        _daysOn = (mean < limit) ? _daysOn + 1 : 0;
-        if (_daysOn >= paramStore.get(Param::SeasonOnDays)) seasonSet(true, "cold days");
-    } else {
-        _daysOff = (mean > limit + 2.0f) ? _daysOff + 1 : 0;
-        if (_daysOff >= paramStore.get(Param::SeasonOffDays)) seasonSet(false, "warm days");
-    }
-    paramStore.saveState(StateKey::SeasonDaysOn, _daysOn);
-    paramStore.saveState(StateKey::SeasonDaysOff, _daysOff);
+    uint8_t mode = (uint8_t)paramStore.get(Param::SeasonMode);
+    if (mode != 0) return;
+    applySeasonChange(_mode.seasonNewDay(mean, mode, paramStore.getf(Param::HeatLimit),
+                                         (uint8_t)paramStore.get(Param::SeasonOnDays),
+                                         (uint8_t)paramStore.get(Param::SeasonOffDays)));
+    paramStore.saveState(StateKey::SeasonDaysOn, _mode.daysOn());
+    paramStore.saveState(StateKey::SeasonDaysOff, _mode.daysOff());
 }
 
 // Once per tick: MANUAL timeout (FR-52), a new previous-day mean, the season safety net (FR-12.2)
 void ThermalZoneManager::modeTick(uint32_t now) {
-    if (!_autoMode && manualRemainingSec() == 0) {
-        netConsole.println(F("[Thermal] MANUAL timeout (manualTimeout), back to AUTO."));
-        setAutoMode(true);
+    bool cold = false;
+    uint8_t seasonMode = (uint8_t)paramStore.get(Param::SeasonMode);
+    if (!_mode.isSeasonHeating() && seasonMode == 0) {
+        for (size_t i = 0; i < MAX_THERMAL_ZONES; i++) {
+            if (_configs[i].enabled && _statuses[i].sensorValid &&
+                _statuses[i].currentTemp < fminf(_schedule.getConfig().levelTemps[LEVEL_NIGHT][i], TARGET_MAX_C)) {
+                cold = true;
+                break;
+            }
+        }
     }
+    ModeTickResult mt = _mode.tick({now, (uint32_t)paramStore.get(Param::ManualTimeout), seasonMode, cold});
+    if (mt.manualTimedOut) {
+        netConsole.println(F("[Thermal] MANUAL timeout (manualTimeout), back to AUTO."));
+        eventLog.add(EV_MODE, 0, RS_USER, 0, 0, 1);
+        persistConfig();
+        netConsole.printf("[Thermal] Operation mode switched to: %s\n", "AUTO");
+    }
+    applySeasonChange(mt.seasonChanged);
+
+    uint32_t boostDur = (uint32_t)paramStore.get(Param::BoostDuration);
     for (size_t i = 0; i < MAX_THERMAL_ZONES; i++) {  // FR-39: a boost also ends after boostDuration, with or without time
-        if (_statuses[i].isManualHold && now - _statuses[i].holdStartMs >= (uint32_t)paramStore.get(Param::BoostDuration) * 1000UL) {
+        if (ModeManager::isBoostExpired(_statuses[i].isManualHold, _statuses[i].holdStartMs, now, boostDur)) {
             _statuses[i].isManualHold = false;
             netConsole.printf("[Thermal] Zone %u (%s) boost ended after boostDuration.\n",
                 (unsigned int)_configs[i].id, _configs[i].name);
@@ -712,20 +712,10 @@ void ThermalZoneManager::modeTick(uint32_t now) {
     }
     float mean;
     if (timeAndWeather.takeNewDayMean(mean)) seasonNewDay(mean);
-    if (!_seasonHeating && paramStore.get(Param::SeasonMode) == 0) {
-        bool cold = false;
-        for (size_t i = 0; i < MAX_THERMAL_ZONES; i++)
-            if (_configs[i].enabled && _statuses[i].sensorValid && _statuses[i].currentTemp < fminf(_schedule.getConfig().levelTemps[LEVEL_NIGHT][i], TARGET_MAX_C)) cold = true;
-        if (!cold) _coldSinceMs = 0;
-        else if (_coldSinceMs == 0) _coldSinceMs = now ? now : 1;
-        else if (now - _coldSinceMs >= 12UL * 3600UL * 1000UL) seasonSet(true, "zone below night level for 12 h");
-    } else {
-        _coldSinceMs = 0;
-    }
 }
 
 void ThermalZoneManager::setRelayManual(size_t index, bool on) {
-    if (index >= MAX_THERMAL_ZONES || _autoMode) return;
+    if (index >= MAX_THERMAL_ZONES || _mode.isAutoMode()) return;
     uint32_t now = millis();
     ThermalZoneStatus& st = _statuses[index];
     if (on) {
@@ -753,7 +743,7 @@ void ThermalZoneManager::setRelayManual(size_t index, bool on) {
 
 void ThermalZoneManager::setPumpManual(bool on) {
     // Relay 4 is the pump only with pump control on; otherwise it may be a zone output (FR-11.3)
-    if (!_autoMode && _pumpControlEnabled) {
+    if (!_mode.isAutoMode() && _pumpControlEnabled) {
         if (on && !anyValveOpen(millis())) {  // FR-14.2, FR-14.5: not before a valve has been open for interlockDelay
             netConsole.println(F("[Thermal][MANUAL] Pump ON refused: no valve open for interlockDelay (FR-14.5)"));
             return;
@@ -765,7 +755,7 @@ void ThermalZoneManager::setPumpManual(bool on) {
 }
 
 void ThermalZoneManager::setBoilerManual(BoilerRadioTrigger& boiler, bool on) {
-    if (!_autoMode) {
+    if (!_mode.isAutoMode()) {
         if (on) {
             if (boiler.sendBoilerOn(false, RS_MANUAL)) {
                 _lastBoilerOnTime = millis();
@@ -1334,7 +1324,7 @@ void ThermalZoneManager::checkAntiSeizeSchedule(uint32_t now) {
 }
 
 bool ThermalZoneManager::boilerOnPermitted() const {
-    return _safety.boilerOnPermitted(millis(), _autoMode, _openLoopBypass);  // FR-2 & FR-1.3
+    return _safety.boilerOnPermitted(millis(), _mode.isAutoMode(), _openLoopBypass);  // FR-2 & FR-1.3
 }
 
 // FR-3: the overrun starts with the OFF of a lit flame (a start cancelled before the ON never lit it, FR-3.2) and
@@ -1374,7 +1364,7 @@ void ThermalZoneManager::arbitrateValves(uint32_t now, bool& anyReady, bool& any
         if (act.has(SafetySupervisor::VA_OPEN_CHANGED)) {
             bool open = act.has(SafetySupervisor::VA_OPEN_TARGET);
             if (open) {
-                applyRelay(_configs[i].relayPin, true, st.frostActive ? RS_FROST : (_autoMode ? RS_DEMAND : RS_MANUAL));
+                applyRelay(_configs[i].relayPin, true, st.frostActive ? RS_FROST : (_mode.isAutoMode() ? RS_DEMAND : RS_MANUAL));
                 st.relayEngaged = true;
                 st.stateChangedMs = now;
                 eventLog.add(EV_INTERLOCK, 0, RS_NONE, _configs[i].id, _safety.getInterlockDelayMs() / 1000, 1);
@@ -1385,7 +1375,7 @@ void ThermalZoneManager::arbitrateValves(uint32_t now, bool& anyReady, bool& any
                 bool wasHeld = act.has(SafetySupervisor::VA_OVERRUN_END);
                 applyRelay(_configs[i].relayPin, false,
                            wasHeld ? RS_OVERRUN_END
-                                   : (st.state == ZONE_FAULT_TIMEOUT ? RS_SENSOR_LOSS : (_autoMode ? RS_NO_DEMAND : RS_MANUAL)));
+                                   : (st.state == ZONE_FAULT_TIMEOUT ? RS_SENSOR_LOSS : (_mode.isAutoMode() ? RS_NO_DEMAND : RS_MANUAL)));
                 st.relayEngaged = false;
                 st.stateChangedMs = now;
                 if (st.state == ZONE_HEATING || st.state == ZONE_WARMING_UP || st.state == ZONE_FROST_GUARD) st.state = ZONE_IDLE;
@@ -1548,13 +1538,13 @@ void ThermalZoneManager::update(BoilerRadioTrigger& boiler) {
             evaluateFrost(i, found, currentTemp);  // FR-16.1
 
             // Time-proportional control (only if autoMode and not forced by frost guard)
-            if (_autoMode && !_statuses[i].frostActive) {
+            if (_mode.isAutoMode() && !_statuses[i].frostActive) {
                 if (_windowStates[i].pauseActive && _heatingType == HEATING_TYPE_RADIATORS) {
                     _statuses[i].demand = false;
                     _statuses[i].state = ZONE_WINDOW_PAUSE;
                 } else {
                     if (_statuses[i].state == ZONE_WINDOW_PAUSE) { _statuses[i].state = ZONE_IDLE; _statuses[i].stateChangedMs = now; } // pause over: leave the stale state (FR-8.4)
-                    _statuses[i].demand = _seasonHeating && evaluateTpi(i, getEffectiveTargetTemp(i), now);  // global OFF: no heat (FR-64)
+                    _statuses[i].demand = _mode.isSeasonHeating() && evaluateTpi(i, getEffectiveTargetTemp(i), now);  // global OFF: no heat (FR-64)
                 }
             }
         } else {
@@ -1578,13 +1568,13 @@ void ThermalZoneManager::update(BoilerRadioTrigger& boiler) {
                 }
 
                 // FR-51: In AUTO mode, zone in FAULT keeps heating with learned duty or faultDuty
-                if (_autoMode && !_statuses[i].frostActive) {
+                if (_mode.isAutoMode() && !_statuses[i].frostActive) {
                     float outT = timeAndWeather.getOutdoorTemperature();
                     bool weatherValid = timeAndWeather.isWeatherValid() && !faultInjector.isWeatherLost();
                     float faultDutyPct = (float)paramStore.get(Param::FaultDuty);
                     float faultFrostOutdoor = (float)paramStore.get(Param::FaultFrostOutdoor);
                     _statuses[i].demand = zoneController.evaluateFaultDuty(i, now, outT, weatherValid,
-                                                                         _seasonHeating, faultDutyPct, faultFrostOutdoor);
+                                                                         _mode.isSeasonHeating(), faultDutyPct, faultFrostOutdoor);
                     _tpi[i].duty = zoneController.getDuty(i);
                     _tpi[i].onMs = zoneController.getOnMs(i);
                 }
@@ -1628,7 +1618,7 @@ void ThermalZoneManager::update(BoilerRadioTrigger& boiler) {
     arbitrateValves(now, anyZoneReadyForBoiler, anyFrostZoneReady);
 
     // Self-check (FR-3, FR-4): the boiler never burns with every valve closed; a violation ends the run at once
-    if (boiler.isLastCommandOn() && !(!_autoMode && _openLoopBypass)) {
+    if (boiler.isLastCommandOn() && !(!_mode.isAutoMode() && _openLoopBypass)) {
         bool anyEnergised = false;
         for (size_t i = 0; i < MAX_THERMAL_ZONES; i++) anyEnergised = anyEnergised || _statuses[i].relayEngaged;
         if (!anyEnergised) {
@@ -1640,7 +1630,7 @@ void ThermalZoneManager::update(BoilerRadioTrigger& boiler) {
     // 3. Pump guard (FR-14.2, FR-14.3, FR-14.5): ON only while a valve is open, the held overrun valve included
     if (_pumpControlEnabled) {
         bool pumpWanted = anyValveOpen(now);
-        if (pumpWanted != _pumpActive && (_autoMode || !pumpWanted || anyFrostZoneReady || _safety.isOverrunActive())) {
+        if (pumpWanted != _pumpActive && (_mode.isAutoMode() || !pumpWanted || anyFrostZoneReady || _safety.isOverrunActive())) {
             applyRelay(PIN_RELAY_SPARE, pumpWanted, RS_PUMP_GUARD);
             _pumpActive = pumpWanted;
             netConsole.printf("[Thermal] Circulation Pump (Relay 4) %s.\n", pumpWanted ? "STARTED" : "STOPPED");
@@ -1648,14 +1638,14 @@ void ThermalZoneManager::update(BoilerRadioTrigger& boiler) {
     }
 
     // 4. Boiler (FR-2, FR-4): AUTO follows the zones; MANUAL only frost (FR-16.1) starts or stops it
-    bool wantOn = _autoMode ? anyZoneReadyForBoiler : anyFrostZoneReady;
+    bool wantOn = _mode.isAutoMode() ? anyZoneReadyForBoiler : anyFrostZoneReady;
     if (wantOn) {
         _boilerDemand = true;
         if (boiler.getPendingAction() == PENDING_OFF) boiler.cancelPendingAction(RS_DEMAND);  // desired ON again (FR-32)
         if (!boiler.isLastCommandOn()) {
             uint8_t guardWhy = RS_NONE;
             if (boiler.canTransmit(true, nullptr, nullptr, &guardWhy)) {
-                if (boiler.sendBoilerOn(false, _autoMode ? RS_DEMAND : RS_FROST)) {
+                if (boiler.sendBoilerOn(false, _mode.isAutoMode() ? RS_DEMAND : RS_FROST)) {
                     _lastBoilerOnTime = now;
                     netConsole.println(F("[Thermal] BOILER START commanded via RF 433MHz!"));
                 }
@@ -1664,7 +1654,7 @@ void ThermalZoneManager::update(BoilerRadioTrigger& boiler) {
                 netConsole.println(F("[Thermal] BOILER START queued (Anti-short-cycling guard active)..."));
             }
         }
-    } else if (_autoMode ? (_boilerDemand || boiler.isLastCommandOn()) : _boilerDemand) {
+    } else if (_mode.isAutoMode() ? (_boilerDemand || boiler.isLastCommandOn()) : _boilerDemand) {
         bool flameWasActive = boiler.isLastCommandOn();
         _boilerDemand = false;
         _lastBoilerOffTime = now;

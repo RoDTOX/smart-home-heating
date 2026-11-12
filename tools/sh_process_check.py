@@ -1040,6 +1040,7 @@ ARCH_RULES = [
 PURE_MODULES = {
     "SafetySupervisor": "test_safety",
     "Schedule": "test_schedule",
+    "ModeManager": "test_mode_manager",
     "ZoneController": "test_zone_controller",
     "HeatUpModel": "test_heatup_model",
     "SolarThrottle": "test_solar_throttle",

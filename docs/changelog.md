@@ -5,6 +5,16 @@ Corelat cu planul activ: [`docs/plan.md`](file:///c:/Users/BSeceleanu/.github_re
 Entries before 29.10.2026 (the system before the lean clean-up):
 [`archive/changelog_until_2026-10-21.md`](archive/changelog_until_2026-10-21.md).
 
+## [12.11.2026] - Step I-5 (Part 2) Pure `ModeManager` Extraction
+
+- **Who / when / why:** Step I-5 (part 2) of [`docs/plan.md`](plan.md): extract operating mode (`AUTO`/`MANUAL` + `manualRemainingSec`), season switching (`seasonMode`, `seasonNewDay`, 12 h safety net), and boost expiration helper from `ThermalZoneManager` into a pure host-testable module (`R-A9`).
+- **Changed:**
+  - `include/ModeManager.h`, `src/ModeManager.cpp` (new): pure `ModeManager` module (`0` `Arduino.h`, `0` `millis()`, `0` `String`) with `EffMode`, `loadState()`, `setAutoMode()`, `manualRemainingSec()`, `setSeasonMode()`, `seasonNewDay()`, `tick()`, and `isBoostExpired()`.
+  - `test/test_mode_manager/test_mode_manager.cpp` (new): 4 host tests covering `FR-52`, `FR-64`, `FR-12.2`, `FR-39`.
+  - `include/ThermalZoneManager.h`, `src/ThermalZoneManager.cpp`: delegated mode/season state and `modeTick()` to `_mode` (`1 770` lines remaining; `< 700` target deferred for re-evaluation after `I-7`).
+  - `platformio.ini`, `tools/sh_process_check.py`: added `ModeManager` to `[env:native]` and `PURE_MODULES`.
+- **Verified:** `pio test -e native` -> **37/37 PASSED** across 11 suites; `pio run -e esp32dev` -> `1 303 744 B` (`2 880 B` margin under `1 306 624 B`); `pio run -e esp32release` -> `1 303 760 B` (`2 864 B` margin); `python tools/sh_process_check.py` -> `0` errors (`10` pure modules, `0` `R-A9` errors, `1` known `PB-12`); `claude-opus-4-6` safety review -> `VERDICT: PASS`.
+
 ## [12.11.2026] - Step I-5 (Part 1) Pure `Schedule` Extraction
 
 - **Who / when / why:** Step I-5 (part 1) of [`docs/plan.md`](plan.md): extract schedule levels, slots, moment matrix, pre-heat lead, and evaluation from `ThermalZoneManager` into a pure host-testable module (`R-A9`), keeping `ThermalZoneManager` focused on zone orchestration.
