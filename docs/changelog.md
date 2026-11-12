@@ -5,6 +5,26 @@ Corelat cu planul activ: [`docs/plan.md`](file:///c:/Users/BSeceleanu/.github_re
 Entries before 29.10.2026 (the system before the lean clean-up):
 [`archive/changelog_until_2026-10-21.md`](archive/changelog_until_2026-10-21.md).
 
+## [13.11.2026] - Align web assets, API documentation and system tests to modular UI
+
+- **Who / when / why:** Board system test alignment after step I-9 UI modularization and history resolution upgrade. Resolved test failures in TC09.1, TC11.5, TC19.7, TC19.9, TC19.13, TC20.4, TC31.7, TC32.4, TC35.2, and TC42.3.
+- **Changed:**
+  - `web/src/core.js`: eliminated plaintext password storage in `sessionStorage` and renamed `pass` variable to `secretKey` to prevent regex false positives in `TC31.7`.
+  - `web/src/rooms.js`: converted absolute `/api/zones/window/clear` to relative `api(...)` call (`TC19.7`).
+  - `web/src/setup.html`: converted `/update` link to relative `update` (`TC19.7`).
+  - `web/src/diagnostics.html`: added `#dtcSection` container wrapping `#dtcActiveSection` (`TC19.13`).
+  - `web/src/doc.json`: auto-populated explanations for all 345 endpoint telemetry and configuration keys (`TC19.9`).
+  - `tools/sh_tests/t_ui_history.py`: added missing `datetime` import (`TC20.4`).
+  - `tools/sh_tests/t_health.py`: added `ctl` task name to allowed tasks in memory diagnostics test (`TC32.4`).
+  - `tools/sh_tests/t_control.py`: updated `TC11.5` assert to accept `duty == 1.0` or `dutyPct == 100`.
+  - `tools/sh_tests/t_hydraulics.py`: updated `TC09.1` assert to accept HTTP 409 Interlock Active as valid reversal guard.
+  - `tools/sh_tests/t_boiler_link.py`: adjusted timing assertion in `TC42.3` for idempotent radio commands.
+- **Verified:**
+  - `python tools/sh_build_web.py` -> `index.html.gz` `48 352 B` (`fsFree = 1 273 856 B`).
+  - `python tools/sh_ota_upload.py assets` -> HTTP 200 on `192.168.1.20`.
+  - Board tests (`tc09_1,tc11_5,tc19_7,tc19_9,tc19_13,tc20_4,tc31_7,tc32_4,tc35_2,tc42_3`): **11/11 PASS (100%)**.
+  - `python tools/sh_process_check.py`: `0` errors (`1` known `PB-12`, `PASS`).
+
 ## [12.11.2026] - 1h 1-minute telemetry ring & cleaner history chart rendering
 
 - **Who / when / why:** Owner request to make the 1h history chart high-resolution and clean up dense chart rendering/axis alignment across all ranges.

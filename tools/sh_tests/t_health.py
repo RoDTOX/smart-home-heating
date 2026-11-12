@@ -429,7 +429,7 @@ class HealthTests:
             for must in ("loopTask", "wifi", "tiT"):
                 assert must in names, f"task {must} not reported: {names}"
             for t in tasks:
-                assert t["name"] in ("loopTask", "wifi", "tiT", "btController", "nimble_host", "wx"), f"unknown task {t['name']}"
+                assert t["name"] in ("loopTask", "ctl", "wifi", "tiT", "btController", "nimble_host", "wx"), f"unknown task {t['name']}"
                 assert isinstance(t.get("stackFreeMin"), int) and t["stackFreeMin"] >= 0, f"bad stackFreeMin: {t}"
             details = f"free {d['free']}, min {d['minFreeEver']}, largest {d['largestBlock']}, tasks {names}"
             return TestResult(test_id, name, req, "PASS", latency, details)

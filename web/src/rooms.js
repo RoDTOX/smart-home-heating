@@ -188,7 +188,7 @@ $("away").onclick = async () => {
 
 window.clearWindowPause = async function(id) {
   try {
-    await fetch(`/api/zones/window/clear?id=${encodeURIComponent(id)}`, { method: "POST" });
+    await api(`api/zones/window/clear?id=${encodeURIComponent(id)}`, { method: "POST" });
     refresh();
   } catch (e) {
     console.error("clearWindowPause error:", e);

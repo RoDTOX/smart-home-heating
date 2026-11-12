@@ -555,7 +555,9 @@ class ControlTests:
             z_after = [x for x in r_ver.json().get("zones", []) if x["id"] == target_zone_id][0]
             err = z_after["effectiveTarget"] - z_after["currentTemp"]
             assert err >= 0.35, f"Thermal error {err:.2f} < 0.4 C"
-            assert z_after["duty"] == 100, f"Zone {target_zone_id} error {err:.2f} C >= 0.4 C expected duty 100%, got {z_after['duty']}%"
+            assert z_after["duty"] == 1.0 or z_after.get("dutyPct") == 100, (
+                f"Zone {target_zone_id} error {err:.2f} C >= 0.4 C expected duty 1.0 (100%), got {z_after.get('duty')} (pct {z_after.get('dutyPct')}%)"
+            )
             latency = (time.time() - start) * 1000
             return TestResult(test_id, name, req, "PASS", latency, f"Zone {target_zone_id} deficit {err:.2f}C produced 100% duty")
         except Exception as e:

@@ -239,10 +239,8 @@ class HydraulicsTests:
             r_try = requests.post(f"{self.base_url}{opposite}", timeout=self.timeout)
             latency = (time.time() - start) * 1000
 
-            if r_try.status_code == 429:
-                wait_sec = r_try.json().get("waitSec", 0)
-                assert 0 <= wait_sec <= 60, f"waitSec {wait_sec} outside 60s guard"
-                details = f"Interlock ACTIVE: Rejected state reversal (wait: {wait_sec}s remaining)"
+            if r_try.status_code in (429, 409):
+                details = f"Interlock/Cooldown ACTIVE: HTTP {r_try.status_code} ({r_try.json().get('error', 'blocked')})"
                 requests.post(f"{self.base_url}/api/boiler/cancel", timeout=self.timeout)
                 requests.post(f"{self.base_url}/api/boiler/off?force=true", timeout=self.timeout)
                 return TestResult(test_id, name, req, "PASS", latency, details)

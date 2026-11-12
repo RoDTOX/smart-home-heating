@@ -1,183 +1,1190 @@
-{"endpoints": ["api/zones", "api/boiler/status", "api/ble/sensors", "api/diag/status", "api/config/system", "api/config/export", "api/setup/discovered-sensors", "api/schedule", "api/setup/time", "api/setup/location", "api/diag/mem"],
-"doc": {
-"minFreeEver": ["Cea mai mică memorie liberă (heap) de la pornire, octeți", "FR-10.6"],
-"largestBlock": ["Cel mai mare bloc liber de memorie, octeți", "FR-10.6"],
-"tasks[].stackFreeMin": ["Stiva liberă minimă a task-ului, octeți", "FR-10.6"],
-"status": ["Răspunsul API: ok", "FR-42"],
-"autoMode": ["true = automat (program și reglaj), false = manual", "FR-1.3"],
-"boiler": ["Ultima comandă trimisă centralei: ON / OFF", "FR-17.1"],
-"boilerCooldownSec": ["Secunde până se poate trimite următorul cadru radio", "FR-17.2"],
-"pendingAction": ["Comandă de centrală amânată (NONE = nimic în așteptare)", "FR-32"],
-"pendingWaitSec": ["Secunde până la comanda amânată", "FR-32"],
-"boilerDemand": ["Cel puțin o zonă cere căldură", "FR-37"],
-"actuatorType": ["Tipul robineților: NC = închis fără curent, NO = deschis fără curent", "FR-15.1"],
-"pumpEnabled": ["Pompa de circulație e configurată (releul 4)", "FR-14.1"],
-"pumpActive": ["Pompa e pornită acum", "FR-14.2"],
-"frostGuardActive": ["Protecția la îngheț încălzește cel puțin o zonă", "FR-16.1"],
-"sensorTimeoutSec": ["sensorTimeout: după atâtea secunde fără citire senzorul e pierdut", "FR-18"],
-"lastAntiSeizeEpoch": ["Ultimul exercițiu al robineților (timp Unix)", "FR-19"],
-"scheduleEnabled": ["Programul e pornit", "FR-31"],
-"away": ["Mod Plecat pentru toată casa", "FR-44"],
-"activeLevel": ["Treapta programului acum: day = zi, night = noapte, away = plecat", "FR-29"],
-"nextLevel": ["Treapta următoare din program", "FR-31"],
-"minsToNextSlot": ["Minute până la următoarea oră din program", "FR-31", "v"],
-"preHeatActive": ["Preîncălzire înaintea unei trepte mai calde", "FR-48"],
-"boilerRuntime.totalSec": ["Ardere totală (s)", "FR-35"],
-"boilerRuntime.todaySec": ["Ardere azi (s)", "FR-35"],
-"boilerRuntime.yesterdaySec": ["Ardere ieri (s)", "FR-35"],
-"boilerRuntime.thisMonthSec": ["Ardere luna aceasta (s)", "FR-35"],
-"boilerRuntime.lastMonthSec": ["Ardere luna trecută (s)", "FR-35"],
-"boilerRuntime.currentBurnSec": ["Durata arderii curente (s), 0 = flacără oprită", "FR-35", "v"],
-"zones[].id": ["Numărul zonei", "FR-11.3"],
-"zones[].name": ["Numele zonei", "FR-11.3"],
-"zones[].sensor": ["Alias senzor (gol = după MAC)", "FR-11.3"],
-"zones[].sensorMac": ["MAC-ul senzorului zonei (gol = fără senzor)", "FR-11.3"],
-"zones[].mac": ["MAC-ul senzorului zonei (gol = fără senzor)", "FR-11.3"],
-"zones[].relayPin": ["Ieșirea zonei: GPIO 32 = releu 1, 33 = releu 2, 25 = releu 3, 26 = releu 4", "FR-11.3"],
-"zones[].targetTemp": ["Ținta setată a zonei (°C)", "FR-29"],
-"zones[].effectiveTarget": ["Ținta folosită acum: program, boost sau plecat (°C)", "FR-29"],
-"zones[].hysteresis": ["Robinetul se închide la țintă + histerezis (°C)", "FR-47"],
-"zones[].enabled": ["Zona e pornită (punere în funcțiune)", "FR-11.3"],
-"zones[].currentTemp": ["Temperatura camerei cu offset (°C); valabilă doar cu sensorValid = true", "FR-6.2"],
-"zones[].sensorValid": ["Citire primită în ultimul sensorTimeout", "FR-16.2"],
-"zones[].sensorFault": ["Senzor pierdut (timeout), DTC-101", "FR-16.2"],
-"zones[].frostActive": ["Protecția la îngheț încălzește zona", "FR-16.1"],
-"zones[].windowPauseActive": ["Pauză pentru fereastră deschisă", "FR-40"],
-"zones[].windowPauseRemainingSec": ["Secunde rămase din pauza de fereastră", "FR-40", "v"],
-"zones[].windowDropThreshold": ["Scăderea de temperatură care înseamnă fereastră (windowThreshold, °C)", "FR-40"],
-"zones[].lastWindowEpoch": ["Ultima fereastră detectată (timp Unix, 0 = niciuna)", "FR-40"],
-"zones[].lastWindowDurationSec": ["Durata ultimei pauze de fereastră (s)", "FR-40"],
-"zones[].demand": ["Zona cere căldură acum", "FR-47"],
-"zones[].relayEngaged": ["Releul robinetului e alimentat: robinet deschis sau se deschide", "FR-37"],
-"zones[].openSec": ["Estimare deschidere robinet 0–120 s: crește alimentat, scade oprit", "FR-2", "v"],
-"zones[].isBoost": ["Boost activ: ținta de mână este peste nivelul din program (°C)", "FR-1.2"],
-"zones[].scheduleTarget": ["Nivelul cerut acum de program, fără boost (°C)", "FR-1.2"],
-"pins[].level": ["Nivelul real al pinului citit de pe cip (0 sau 1)", "FR-10.5"],
-"zones[].isManualHold": ["Boost: țintă pusă de mână până la următoarea oră din program", "FR-1.2"],
-"zones[].duty": ["Duty acum (%): cât din ciclu stă robinetul deschis", "FR-47"],
-"zones[].learnedDuty": ["Duty de bază învățat (%)", "FR-47"],
-"zones[].tempOffset": ["Corecția senzorului, adăugată la citire (°C)", "FR-49"],
-"zones[].runtimeTodaySec": ["Timpul cât robinetul a fost deschis azi (s)", "FR-35"],
-"zones[].runtimeYesterdaySec": ["Timpul cât robinetul a fost deschis ieri (s)", "FR-35"],
-"zones[].state": ["Starea zonei", "FR-8.4"],
-"zones[].day": ["Temperatura treptei zi (°C)", "FR-29"],
-"zones[].night": ["Temperatura treptei noapte (°C)", "FR-29"],
-"zones[].away": ["Temperatura treptei plecat (°C)", "FR-29"],
-"format": ["Versiunea formatului fișierului de setări (1)", "FR-65.1"],
-"location": ["Locația pentru vreme, lat,lon (apare doar dacă e setată)", "FR-65.1"],
-"params.actuatorDelaySec": ["interlockDelay: secunde de la deschiderea unui robinet până la pornirea centralei", "FR-2"],
-"params.pumpOverrunSec": ["overrun: secunde cât rămâne deschis ultimul robinet după oprirea flăcării", "FR-3"],
-"params.burnerMinRunSec": ["burnerMinRun: timp minim de ardere (s)", "FR-4"],
-"params.burnerMinPauseSec": ["burnerMinPause: pauză minimă între două porniri (s)", "FR-4"],
-"params.rfSafetyHeartbeatSec": ["hbInterval: la câte secunde se retrimite starea centralei", "FR-17.7"],
-"params.rfSafetyHeartbeatEnabled": ["boilerLinkHeartbeat: starea centralei se retrimite periodic", "FR-55"],
-"params.freezeProtectionTemp": ["frostTemp: sub această temperatură camera se încălzește oricum (°C)", "FR-16.1"],
-"params.sensorTimeoutSec": ["sensorTimeout: secunde fără citire până la eroare de senzor", "FR-16.2"],
-"params.hysteresis": ["hysteresis: robinetul se închide la țintă + histerezis (°C)", "FR-47"],
-"params.windowThreshold": ["windowThreshold: scăderea care înseamnă fereastră deschisă (°C)", "FR-40"],
-"params.openLoopBypass": ["openLoopBypass: pornire centrală fără robinet deschis (doar mentenanță)", "FR-1.3"],
-"params.actuatorNormallyClosed": ["actuatorType: true = robineți NC (închiși fără curent)", "FR-15.1"],
-"params.pumpControlEnabled": ["pumpOutput: releul 4 comandă pompa", "FR-14.1"],
-"zones[].sensorName": ["Alias senzor al zonei (gol = după MAC)", "FR-11.3"],
-"zones[].offset": ["Corecția senzorului zonei (°C)", "FR-49"],
-"zones[].target": ["Ținta setată a zonei (°C)", "FR-29"],
-"schedule.enabled": ["Programul e activ", "FR-31"],
-"schedule.preheat": ["Pornire anticipată activă", "FR-48"],
-"schedule.window": ["Detectarea ferestrei deschise activă", "FR-40"],
-"schedule.weekday": ["Intervalele de luni până vineri, HH:MM=nivel", "FR-31"],
-"schedule.weekend": ["Intervalele de weekend, HH:MM=nivel", "FR-31"],
-"schedule.levels[].id": ["Numărul zonei", "FR-29"],
-"schedule.levels[].day": ["Temperatura de zi a zonei (°C)", "FR-29"],
-"schedule.levels[].night": ["Temperatura de noapte a zonei (°C)", "FR-29"],
-"schedule.levels[].away": ["Temperatura pentru plecat a zonei (°C)", "FR-29"],
-"learnedDuty[].id": ["Numărul zonei", "FR-47"],
-"learnedDuty[].duty": ["Duty de bază învățat al zonei (%)", "FR-47"],
-"boilerSetTemp": ["boilerSetTemp: temperatura de tur setată pe centrală (°C)", "FR-35.1"],
-"boilerFlowObserved": ["boilerFlowObserved: temperatura de tur observată (°C)", "FR-35.1"],
-"gasFlameRate": ["gasFlameRate: debitul de gaz al arzătorului (m³/h)", "FR-35.1"],
-"boilerPowerKw": ["boilerPowerKw: puterea centralei (kW)", "FR-35.1"],
-"gasPrice": ["gasPrice: prețul gazului (Lei/m³)", "FR-35.1"],
-"gasMeter.lastReadingIndex": ["Ultima citire de contor tastată de utilizator (m³, null = nicio citire)", "FR-35.1"],
-"gasMeter.lastReadingTime": ["Momentul ultimei citiri (timp Unix, null = nicio citire)", "FR-35.1"],
-"gasMeter.estimatedIndex": ["Index estimat acum: ultima citire + gazul ars de atunci (m³)", "FR-35.1"],
-"gasMeter.readingCount": ["Câte citiri de contor sunt păstrate", "FR-35.1"],
-"gasMeter.gasTodayM3": ["Gaz estimat azi (m³)", "FR-35.1"],
-"gasMeter.gasYesterdayM3": ["Gaz estimat ieri (m³)", "FR-35.1"],
-"gasMeter.gasThisMonthM3": ["Gaz în luna aceasta (m³): din citiri, altfel estimat", "FR-35.1"],
-"gasMeter.gasFlameRate": ["gasFlameRate: debitul de pornire al estimării, până se măsoară unul (m³/h; nu se setează)", "FR-35.1"],
-"gasMeter.gasFlowMeasured": ["Debit măsurat din citiri și orele de centrală pornită (m³/h, null = încă nemăsurat)", "FR-35.1"],
-"gasMeter.boilerSetTemp": ["boilerSetTemp: temperatura de tur setată pe centrală (°C)", "FR-35.1"],
-"gasMeter.boilerFlowObserved": ["boilerFlowObserved: temperatura de tur observată (°C)", "FR-35.1"],
-"gasMeter.boilerPowerKw": ["boilerPowerKw: puterea centralei (kW)", "FR-35.1"],
-"gasMeter.gasPrice": ["gasPrice: prețul gazului (Lei/m³)", "FR-35.1"],
-"firmwareVersion": ["Versiunea firmware 1.LL.ZZ.NN (luna, ziua, al câtelea commit al zilei)", "FR-21"],
-"buildDate": ["Data și ora build-ului", "FR-21"],
-"gitCommit": ["Commit-ul firmware-ului (-dirty = modificări necomise)", "FR-21"],
-"resetReason": ["Motivul ultimei reporniri", "FR-21"],
-"lastTxMs": ["Ultimul cadru radio (ms de la pornire, 0 = niciunul)", "FR-17.6"],
-"freeHeap": ["Memorie liberă (octeți); sub 60 KB = DTC-402", "NFR-2.2", "v"],
-"rssi": ["Semnal Wi-Fi (dBm); sub −82 = DTC-401", "FR-41", "v"],
-"uptimeSec": ["Secunde de la pornire", "FR-23", "v"],
-"wifiWatchdog": ["Supraveghetorul Wi-Fi", "FR-41"],
-"time": ["Ora plăcii", "FR-12.1", "v"],
-"date": ["Data plăcii", "FR-12.1"],
-"season": ["Anotimpul după dată", "FR-12.2"],
-"isHeatingSeason": ["Sezon de încălzire", "FR-12.2"],
-"outdoorTemp": ["Temperatura de afară (°C), Open-Meteo", "FR-9"],
-"outdoorHumidity": ["Umiditatea de afară (%)", "FR-9"],
-"bleScanning": ["Scanarea Bluetooth rulează", "FR-6.3"],
-"scanning": ["Scanarea Bluetooth rulează", "FR-6.3"],
-"count": ["Senzori auziți de la pornire", "FR-6.3"],
-"sensors[].name": ["Numele senzorului din reclama Bluetooth", "FR-6.1"],
-"sensors[].mac": ["MAC-ul senzorului", "FR-6.1"],
-"sensors[].temp": ["Temperatura citită, fără offset (°C)", "FR-6.2"],
-"sensors[].hum": ["Umiditatea citită (%)", "FR-6.2"],
-"sensors[].bat": ["Bateria senzorului (%); sub 20 = DTC-102", "FR-6.2"],
-"sensors[].rssi": ["Semnal Bluetooth (dBm)", "FR-20", "v"],
-"sensors[].packets": ["Pachete primite de la pornire", "FR-6.3", "v"],
-"sensors[].source": ["De unde vine citirea", "FR-6.3"],
-"sensors[].ageSec": ["Secunde de la ultima citire", "FR-16.2", "v"],
-"checks[].id": ["Numele verificării", "FR-10.4"],
-"checks[].result": ["OK / FAIL, sau INFO când placa nu poate verifica", "FR-10.4"],
-"checks[].value": ["Valoarea măsurată", "FR-10.4", "v"],
-"checks[].rule": ["Regula verificării", "FR-10.4"],
-"dtcCount": ["Coduri de eroare active", "FR-10.2"],
-"dtcs[].code": ["Codul de eroare", "FR-10.2"],
-"dtcs[].severity": ["Gravitate", "FR-10.2"],
-"dtcs[].message": ["Mesajul codului", "FR-10.2"],
-"dtcs[].count": ["De câte ori a apărut", "FR-10.2"],
-"dtcs[].ageSec": ["Secunde de la ultima apariție", "FR-10.2", "v"],
-"zonesCount": ["Numărul de zone (adăugate de utilizator)", "FR-69"],
-"active": ["Căutarea de senzori rulează", "FR-11.5"],
-"remainingSec": ["Secunde până se oprește căutarea de senzori (max 600)", "FR-11.5", "v"],
-"sensors[].zone": ["Numărul zonei care folosește senzorul (0 = niciuna)", "FR-11.5"],
-"openLoopBypass": ["Ocolirea buclei închise (doar test), false = normal", "FR-1.3"],
-"actuatorDelaySec": ["interlockDelay: robinetul se deschide atâtea s înainte de centrală", "FR-2"],
-"interlockDelaySec": ["interlockDelay: robinetul se deschide atâtea s înainte de centrală", "FR-2"],
-"pumpOverrunSec": ["overrun: ultimul robinet rămâne deschis atâtea s după flacără", "FR-3"],
-"burnerMinRunSec": ["burnerMinRun: ardere minimă (s)", "FR-4"],
-"burnerMinPauseSec": ["burnerMinPause: pauză minimă între arderi (s)", "FR-4"],
-"rfMinCooldownSec": ["Pauza minimă între cadre radio (s)", "FR-17.2"],
-"rfSafetyHeartbeatSec": ["hbInterval: repetarea stării către centrală (s)", "FR-17.7"],
-"rfSafetyHeartbeatEnabled": ["Repetarea stării către centrală e pornită", "FR-17.7"],
-"pumpControlEnabled": ["Pompa de circulație e configurată", "FR-14.1"],
-"pumpRelayPin": ["Releul pompei (GPIO 26 = releu 4)", "FR-14.1"],
-"actuatorNormallyClosed": ["Robineți NC (închis fără curent)", "FR-15.1"],
-"freezeProtectionTemp": ["frostTemp: pragul protecției la îngheț (°C)", "FR-16.1"],
-"hysteresis": ["Histerezis global (°C)", "FR-47"],
-"windowThreshold": ["windowThreshold: scăderea care înseamnă fereastră (°C)", "FR-40"],
-"enabled": ["Programul e pornit", "FR-31"],
-"preHeatEnabled": ["Preîncălzirea e permisă", "FR-48"],
-"windowDetectionEnabled": ["Detecția ferestrei e pornită", "FR-40"],
-"isWeekend": ["Azi se folosește programul de weekend", "FR-31"],
-"weekday": ["Program luni–vineri (ora=treaptă)", "FR-31"],
-"weekend": ["Program de weekend (ora=treaptă)", "FR-31"],
-"timeSynced": ["Ora e sincronizată", "FR-12.1"],
-"year": ["Anul", "FR-12.1"],
-"month": ["Luna", "FR-12.1"],
-"day": ["Ziua", "FR-12.1"],
-"dayOfWeek": ["Ziua săptămânii", "FR-12.1"],
-"weatherValid": ["Există date meteo", "FR-9"],
-"weatherAgeSec": ["Vechimea datelor meteo (s); peste 6 h = FAIL", "FR-9", "v"],
-"coords": ["Locația pentru vreme (lat,lon)", "FR-9.2"]
-}}
+{
+  "endpoints": [
+    "api/zones",
+    "api/boiler/status",
+    "api/ble/sensors",
+    "api/diag/status",
+    "api/config/system",
+    "api/config/export",
+    "api/setup/discovered-sensors",
+    "api/schedule",
+    "api/setup/time",
+    "api/setup/location",
+    "api/diag/mem"
+  ],
+  "doc": {
+    "minFreeEver": [
+      "Cea mai mică memorie liberă (heap) de la pornire, octeți",
+      "FR-10.6"
+    ],
+    "largestBlock": [
+      "Cel mai mare bloc liber de memorie, octeți",
+      "FR-10.6"
+    ],
+    "tasks[].stackFreeMin": [
+      "Stiva liberă minimă a task-ului, octeți",
+      "FR-10.6"
+    ],
+    "status": [
+      "Răspunsul API: ok",
+      "FR-42"
+    ],
+    "autoMode": [
+      "true = automat (program și reglaj), false = manual",
+      "FR-1.3"
+    ],
+    "boiler": [
+      "Ultima comandă trimisă centralei: ON / OFF",
+      "FR-17.1"
+    ],
+    "boilerCooldownSec": [
+      "Secunde până se poate trimite următorul cadru radio",
+      "FR-17.2"
+    ],
+    "pendingAction": [
+      "Comandă de centrală amânată (NONE = nimic în așteptare)",
+      "FR-32"
+    ],
+    "pendingWaitSec": [
+      "Secunde până la comanda amânată",
+      "FR-32"
+    ],
+    "boilerDemand": [
+      "Cel puțin o zonă cere căldură",
+      "FR-37"
+    ],
+    "actuatorType": [
+      "Tipul robineților: NC = închis fără curent, NO = deschis fără curent",
+      "FR-15.1"
+    ],
+    "pumpEnabled": [
+      "Pompa de circulație e configurată (releul 4)",
+      "FR-14.1"
+    ],
+    "pumpActive": [
+      "Pompa e pornită acum",
+      "FR-14.2"
+    ],
+    "frostGuardActive": [
+      "Protecția la îngheț încălzește cel puțin o zonă",
+      "FR-16.1"
+    ],
+    "sensorTimeoutSec": [
+      "sensorTimeout: după atâtea secunde fără citire senzorul e pierdut",
+      "FR-18"
+    ],
+    "lastAntiSeizeEpoch": [
+      "Ultimul exercițiu al robineților (timp Unix)",
+      "FR-19"
+    ],
+    "scheduleEnabled": [
+      "Programul e pornit",
+      "FR-31"
+    ],
+    "away": [
+      "Mod Plecat pentru toată casa",
+      "FR-44"
+    ],
+    "activeLevel": [
+      "Treapta programului acum: day = zi, night = noapte, away = plecat",
+      "FR-29"
+    ],
+    "nextLevel": [
+      "Treapta următoare din program",
+      "FR-31"
+    ],
+    "minsToNextSlot": [
+      "Minute până la următoarea oră din program",
+      "FR-31",
+      "v"
+    ],
+    "preHeatActive": [
+      "Preîncălzire înaintea unei trepte mai calde",
+      "FR-48"
+    ],
+    "boilerRuntime.totalSec": [
+      "Ardere totală (s)",
+      "FR-35"
+    ],
+    "boilerRuntime.todaySec": [
+      "Ardere azi (s)",
+      "FR-35"
+    ],
+    "boilerRuntime.yesterdaySec": [
+      "Ardere ieri (s)",
+      "FR-35"
+    ],
+    "boilerRuntime.thisMonthSec": [
+      "Ardere luna aceasta (s)",
+      "FR-35"
+    ],
+    "boilerRuntime.lastMonthSec": [
+      "Ardere luna trecută (s)",
+      "FR-35"
+    ],
+    "boilerRuntime.currentBurnSec": [
+      "Durata arderii curente (s), 0 = flacără oprită",
+      "FR-35",
+      "v"
+    ],
+    "zones[].id": [
+      "Numărul zonei",
+      "FR-11.3"
+    ],
+    "zones[].name": [
+      "Numele zonei",
+      "FR-11.3"
+    ],
+    "zones[].sensor": [
+      "Alias senzor (gol = după MAC)",
+      "FR-11.3"
+    ],
+    "zones[].sensorMac": [
+      "MAC-ul senzorului zonei (gol = fără senzor)",
+      "FR-11.3"
+    ],
+    "zones[].mac": [
+      "MAC-ul senzorului zonei (gol = fără senzor)",
+      "FR-11.3"
+    ],
+    "zones[].relayPin": [
+      "Ieșirea zonei: GPIO 32 = releu 1, 33 = releu 2, 25 = releu 3, 26 = releu 4",
+      "FR-11.3"
+    ],
+    "zones[].targetTemp": [
+      "Ținta setată a zonei (°C)",
+      "FR-29"
+    ],
+    "zones[].effectiveTarget": [
+      "Ținta folosită acum: program, boost sau plecat (°C)",
+      "FR-29"
+    ],
+    "zones[].hysteresis": [
+      "Robinetul se închide la țintă + histerezis (°C)",
+      "FR-47"
+    ],
+    "zones[].enabled": [
+      "Zona e pornită (punere în funcțiune)",
+      "FR-11.3"
+    ],
+    "zones[].currentTemp": [
+      "Temperatura camerei cu offset (°C); valabilă doar cu sensorValid = true",
+      "FR-6.2"
+    ],
+    "zones[].sensorValid": [
+      "Citire primită în ultimul sensorTimeout",
+      "FR-16.2"
+    ],
+    "zones[].sensorFault": [
+      "Senzor pierdut (timeout), DTC-101",
+      "FR-16.2"
+    ],
+    "zones[].frostActive": [
+      "Protecția la îngheț încălzește zona",
+      "FR-16.1"
+    ],
+    "zones[].windowPauseActive": [
+      "Pauză pentru fereastră deschisă",
+      "FR-40"
+    ],
+    "zones[].windowPauseRemainingSec": [
+      "Secunde rămase din pauza de fereastră",
+      "FR-40",
+      "v"
+    ],
+    "zones[].windowDropThreshold": [
+      "Scăderea de temperatură care înseamnă fereastră (windowThreshold, °C)",
+      "FR-40"
+    ],
+    "zones[].lastWindowEpoch": [
+      "Ultima fereastră detectată (timp Unix, 0 = niciuna)",
+      "FR-40"
+    ],
+    "zones[].lastWindowDurationSec": [
+      "Durata ultimei pauze de fereastră (s)",
+      "FR-40"
+    ],
+    "zones[].demand": [
+      "Zona cere căldură acum",
+      "FR-47"
+    ],
+    "zones[].relayEngaged": [
+      "Releul robinetului e alimentat: robinet deschis sau se deschide",
+      "FR-37"
+    ],
+    "zones[].openSec": [
+      "Estimare deschidere robinet 0–120 s: crește alimentat, scade oprit",
+      "FR-2",
+      "v"
+    ],
+    "zones[].isBoost": [
+      "Boost activ: ținta de mână este peste nivelul din program (°C)",
+      "FR-1.2"
+    ],
+    "zones[].scheduleTarget": [
+      "Nivelul cerut acum de program, fără boost (°C)",
+      "FR-1.2"
+    ],
+    "pins[].level": [
+      "Nivelul real al pinului citit de pe cip (0 sau 1)",
+      "FR-10.5"
+    ],
+    "zones[].isManualHold": [
+      "Boost: țintă pusă de mână până la următoarea oră din program",
+      "FR-1.2"
+    ],
+    "zones[].duty": [
+      "Duty acum (%): cât din ciclu stă robinetul deschis",
+      "FR-47"
+    ],
+    "zones[].learnedDuty": [
+      "Duty de bază învățat (%)",
+      "FR-47"
+    ],
+    "zones[].tempOffset": [
+      "Corecția senzorului, adăugată la citire (°C)",
+      "FR-49"
+    ],
+    "zones[].runtimeTodaySec": [
+      "Timpul cât robinetul a fost deschis azi (s)",
+      "FR-35"
+    ],
+    "zones[].runtimeYesterdaySec": [
+      "Timpul cât robinetul a fost deschis ieri (s)",
+      "FR-35"
+    ],
+    "zones[].state": [
+      "Starea zonei",
+      "FR-8.4"
+    ],
+    "zones[].day": [
+      "Temperatura treptei zi (°C)",
+      "FR-29"
+    ],
+    "zones[].night": [
+      "Temperatura treptei noapte (°C)",
+      "FR-29"
+    ],
+    "zones[].away": [
+      "Temperatura treptei plecat (°C)",
+      "FR-29"
+    ],
+    "format": [
+      "Versiunea formatului fișierului de setări (1)",
+      "FR-65.1"
+    ],
+    "location": [
+      "Locația pentru vreme, lat,lon (apare doar dacă e setată)",
+      "FR-65.1"
+    ],
+    "params.actuatorDelaySec": [
+      "interlockDelay: secunde de la deschiderea unui robinet până la pornirea centralei",
+      "FR-2"
+    ],
+    "params.pumpOverrunSec": [
+      "overrun: secunde cât rămâne deschis ultimul robinet după oprirea flăcării",
+      "FR-3"
+    ],
+    "params.burnerMinRunSec": [
+      "burnerMinRun: timp minim de ardere (s)",
+      "FR-4"
+    ],
+    "params.burnerMinPauseSec": [
+      "burnerMinPause: pauză minimă între două porniri (s)",
+      "FR-4"
+    ],
+    "params.rfSafetyHeartbeatSec": [
+      "hbInterval: la câte secunde se retrimite starea centralei",
+      "FR-17.7"
+    ],
+    "params.rfSafetyHeartbeatEnabled": [
+      "boilerLinkHeartbeat: starea centralei se retrimite periodic",
+      "FR-55"
+    ],
+    "params.freezeProtectionTemp": [
+      "frostTemp: sub această temperatură camera se încălzește oricum (°C)",
+      "FR-16.1"
+    ],
+    "params.sensorTimeoutSec": [
+      "sensorTimeout: secunde fără citire până la eroare de senzor",
+      "FR-16.2"
+    ],
+    "params.hysteresis": [
+      "hysteresis: robinetul se închide la țintă + histerezis (°C)",
+      "FR-47"
+    ],
+    "params.windowThreshold": [
+      "windowThreshold: scăderea care înseamnă fereastră deschisă (°C)",
+      "FR-40"
+    ],
+    "params.openLoopBypass": [
+      "openLoopBypass: pornire centrală fără robinet deschis (doar mentenanță)",
+      "FR-1.3"
+    ],
+    "params.actuatorNormallyClosed": [
+      "actuatorType: true = robineți NC (închiși fără curent)",
+      "FR-15.1"
+    ],
+    "params.pumpControlEnabled": [
+      "pumpOutput: releul 4 comandă pompa",
+      "FR-14.1"
+    ],
+    "zones[].sensorName": [
+      "Alias senzor al zonei (gol = după MAC)",
+      "FR-11.3"
+    ],
+    "zones[].offset": [
+      "Corecția senzorului zonei (°C)",
+      "FR-49"
+    ],
+    "zones[].target": [
+      "Ținta setată a zonei (°C)",
+      "FR-29"
+    ],
+    "schedule.enabled": [
+      "Programul e activ",
+      "FR-31"
+    ],
+    "schedule.preheat": [
+      "Pornire anticipată activă",
+      "FR-48"
+    ],
+    "schedule.window": [
+      "Detectarea ferestrei deschise activă",
+      "FR-40"
+    ],
+    "schedule.weekday": [
+      "Intervalele de luni până vineri, HH:MM=nivel",
+      "FR-31"
+    ],
+    "schedule.weekend": [
+      "Intervalele de weekend, HH:MM=nivel",
+      "FR-31"
+    ],
+    "schedule.levels[].id": [
+      "Numărul zonei",
+      "FR-29"
+    ],
+    "schedule.levels[].day": [
+      "Temperatura de zi a zonei (°C)",
+      "FR-29"
+    ],
+    "schedule.levels[].night": [
+      "Temperatura de noapte a zonei (°C)",
+      "FR-29"
+    ],
+    "schedule.levels[].away": [
+      "Temperatura pentru plecat a zonei (°C)",
+      "FR-29"
+    ],
+    "learnedDuty[].id": [
+      "Numărul zonei",
+      "FR-47"
+    ],
+    "learnedDuty[].duty": [
+      "Duty de bază învățat al zonei (%)",
+      "FR-47"
+    ],
+    "boilerSetTemp": [
+      "boilerSetTemp: temperatura de tur setată pe centrală (°C)",
+      "FR-35.1"
+    ],
+    "boilerFlowObserved": [
+      "boilerFlowObserved: temperatura de tur observată (°C)",
+      "FR-35.1"
+    ],
+    "gasFlameRate": [
+      "gasFlameRate: debitul de gaz al arzătorului (m³/h)",
+      "FR-35.1"
+    ],
+    "boilerPowerKw": [
+      "boilerPowerKw: puterea centralei (kW)",
+      "FR-35.1"
+    ],
+    "gasPrice": [
+      "gasPrice: prețul gazului (Lei/m³)",
+      "FR-35.1"
+    ],
+    "gasMeter.lastReadingIndex": [
+      "Ultima citire de contor tastată de utilizator (m³, null = nicio citire)",
+      "FR-35.1"
+    ],
+    "gasMeter.lastReadingTime": [
+      "Momentul ultimei citiri (timp Unix, null = nicio citire)",
+      "FR-35.1"
+    ],
+    "gasMeter.estimatedIndex": [
+      "Index estimat acum: ultima citire + gazul ars de atunci (m³)",
+      "FR-35.1"
+    ],
+    "gasMeter.readingCount": [
+      "Câte citiri de contor sunt păstrate",
+      "FR-35.1"
+    ],
+    "gasMeter.gasTodayM3": [
+      "Gaz estimat azi (m³)",
+      "FR-35.1"
+    ],
+    "gasMeter.gasYesterdayM3": [
+      "Gaz estimat ieri (m³)",
+      "FR-35.1"
+    ],
+    "gasMeter.gasThisMonthM3": [
+      "Gaz în luna aceasta (m³): din citiri, altfel estimat",
+      "FR-35.1"
+    ],
+    "gasMeter.gasFlameRate": [
+      "gasFlameRate: debitul de pornire al estimării, până se măsoară unul (m³/h; nu se setează)",
+      "FR-35.1"
+    ],
+    "gasMeter.gasFlowMeasured": [
+      "Debit măsurat din citiri și orele de centrală pornită (m³/h, null = încă nemăsurat)",
+      "FR-35.1"
+    ],
+    "gasMeter.boilerSetTemp": [
+      "boilerSetTemp: temperatura de tur setată pe centrală (°C)",
+      "FR-35.1"
+    ],
+    "gasMeter.boilerFlowObserved": [
+      "boilerFlowObserved: temperatura de tur observată (°C)",
+      "FR-35.1"
+    ],
+    "gasMeter.boilerPowerKw": [
+      "boilerPowerKw: puterea centralei (kW)",
+      "FR-35.1"
+    ],
+    "gasMeter.gasPrice": [
+      "gasPrice: prețul gazului (Lei/m³)",
+      "FR-35.1"
+    ],
+    "firmwareVersion": [
+      "Versiunea firmware 1.LL.ZZ.NN (luna, ziua, al câtelea commit al zilei)",
+      "FR-21"
+    ],
+    "buildDate": [
+      "Data și ora build-ului",
+      "FR-21"
+    ],
+    "gitCommit": [
+      "Commit-ul firmware-ului (-dirty = modificări necomise)",
+      "FR-21"
+    ],
+    "resetReason": [
+      "Motivul ultimei reporniri",
+      "FR-21"
+    ],
+    "lastTxMs": [
+      "Ultimul cadru radio (ms de la pornire, 0 = niciunul)",
+      "FR-17.6"
+    ],
+    "freeHeap": [
+      "Memorie liberă (octeți); sub 60 KB = DTC-402",
+      "NFR-2.2",
+      "v"
+    ],
+    "rssi": [
+      "Semnal Wi-Fi (dBm); sub −82 = DTC-401",
+      "FR-41",
+      "v"
+    ],
+    "uptimeSec": [
+      "Secunde de la pornire",
+      "FR-23",
+      "v"
+    ],
+    "wifiWatchdog": [
+      "Supraveghetorul Wi-Fi",
+      "FR-41"
+    ],
+    "time": [
+      "Ora plăcii",
+      "FR-12.1",
+      "v"
+    ],
+    "date": [
+      "Data plăcii",
+      "FR-12.1"
+    ],
+    "season": [
+      "Anotimpul după dată",
+      "FR-12.2"
+    ],
+    "isHeatingSeason": [
+      "Sezon de încălzire",
+      "FR-12.2"
+    ],
+    "outdoorTemp": [
+      "Temperatura de afară (°C), Open-Meteo",
+      "FR-9"
+    ],
+    "outdoorHumidity": [
+      "Umiditatea de afară (%)",
+      "FR-9"
+    ],
+    "bleScanning": [
+      "Scanarea Bluetooth rulează",
+      "FR-6.3"
+    ],
+    "scanning": [
+      "Scanarea Bluetooth rulează",
+      "FR-6.3"
+    ],
+    "count": [
+      "Senzori auziți de la pornire",
+      "FR-6.3"
+    ],
+    "sensors[].name": [
+      "Numele senzorului din reclama Bluetooth",
+      "FR-6.1"
+    ],
+    "sensors[].mac": [
+      "MAC-ul senzorului",
+      "FR-6.1"
+    ],
+    "sensors[].temp": [
+      "Temperatura citită, fără offset (°C)",
+      "FR-6.2"
+    ],
+    "sensors[].hum": [
+      "Umiditatea citită (%)",
+      "FR-6.2"
+    ],
+    "sensors[].bat": [
+      "Bateria senzorului (%); sub 20 = DTC-102",
+      "FR-6.2"
+    ],
+    "sensors[].rssi": [
+      "Semnal Bluetooth (dBm)",
+      "FR-20",
+      "v"
+    ],
+    "sensors[].packets": [
+      "Pachete primite de la pornire",
+      "FR-6.3",
+      "v"
+    ],
+    "sensors[].source": [
+      "De unde vine citirea",
+      "FR-6.3"
+    ],
+    "sensors[].ageSec": [
+      "Secunde de la ultima citire",
+      "FR-16.2",
+      "v"
+    ],
+    "checks[].id": [
+      "Numele verificării",
+      "FR-10.4"
+    ],
+    "checks[].result": [
+      "OK / FAIL, sau INFO când placa nu poate verifica",
+      "FR-10.4"
+    ],
+    "checks[].value": [
+      "Valoarea măsurată",
+      "FR-10.4",
+      "v"
+    ],
+    "checks[].rule": [
+      "Regula verificării",
+      "FR-10.4"
+    ],
+    "dtcCount": [
+      "Coduri de eroare active",
+      "FR-10.2"
+    ],
+    "dtcs[].code": [
+      "Codul de eroare",
+      "FR-10.2"
+    ],
+    "dtcs[].severity": [
+      "Gravitate",
+      "FR-10.2"
+    ],
+    "dtcs[].message": [
+      "Mesajul codului",
+      "FR-10.2"
+    ],
+    "dtcs[].count": [
+      "De câte ori a apărut",
+      "FR-10.2"
+    ],
+    "dtcs[].ageSec": [
+      "Secunde de la ultima apariție",
+      "FR-10.2",
+      "v"
+    ],
+    "zonesCount": [
+      "Numărul de zone (adăugate de utilizator)",
+      "FR-69"
+    ],
+    "active": [
+      "Căutarea de senzori rulează",
+      "FR-11.5"
+    ],
+    "remainingSec": [
+      "Secunde până se oprește căutarea de senzori (max 600)",
+      "FR-11.5",
+      "v"
+    ],
+    "sensors[].zone": [
+      "Numărul zonei care folosește senzorul (0 = niciuna)",
+      "FR-11.5"
+    ],
+    "openLoopBypass": [
+      "Ocolirea buclei închise (doar test), false = normal",
+      "FR-1.3"
+    ],
+    "actuatorDelaySec": [
+      "interlockDelay: robinetul se deschide atâtea s înainte de centrală",
+      "FR-2"
+    ],
+    "interlockDelaySec": [
+      "interlockDelay: robinetul se deschide atâtea s înainte de centrală",
+      "FR-2"
+    ],
+    "pumpOverrunSec": [
+      "overrun: ultimul robinet rămâne deschis atâtea s după flacără",
+      "FR-3"
+    ],
+    "burnerMinRunSec": [
+      "burnerMinRun: ardere minimă (s)",
+      "FR-4"
+    ],
+    "burnerMinPauseSec": [
+      "burnerMinPause: pauză minimă între arderi (s)",
+      "FR-4"
+    ],
+    "rfMinCooldownSec": [
+      "Pauza minimă între cadre radio (s)",
+      "FR-17.2"
+    ],
+    "rfSafetyHeartbeatSec": [
+      "hbInterval: repetarea stării către centrală (s)",
+      "FR-17.7"
+    ],
+    "rfSafetyHeartbeatEnabled": [
+      "Repetarea stării către centrală e pornită",
+      "FR-17.7"
+    ],
+    "pumpControlEnabled": [
+      "Pompa de circulație e configurată",
+      "FR-14.1"
+    ],
+    "pumpRelayPin": [
+      "Releul pompei (GPIO 26 = releu 4)",
+      "FR-14.1"
+    ],
+    "actuatorNormallyClosed": [
+      "Robineți NC (închis fără curent)",
+      "FR-15.1"
+    ],
+    "freezeProtectionTemp": [
+      "frostTemp: pragul protecției la îngheț (°C)",
+      "FR-16.1"
+    ],
+    "hysteresis": [
+      "Histerezis global (°C)",
+      "FR-47"
+    ],
+    "windowThreshold": [
+      "windowThreshold: scăderea care înseamnă fereastră (°C)",
+      "FR-40"
+    ],
+    "enabled": [
+      "Programul e pornit",
+      "FR-31"
+    ],
+    "preHeatEnabled": [
+      "Preîncălzirea e permisă",
+      "FR-48"
+    ],
+    "windowDetectionEnabled": [
+      "Detecția ferestrei e pornită",
+      "FR-40"
+    ],
+    "isWeekend": [
+      "Azi se folosește programul de weekend",
+      "FR-31"
+    ],
+    "weekday": [
+      "Program luni–vineri (ora=treaptă)",
+      "FR-31"
+    ],
+    "weekend": [
+      "Program de weekend (ora=treaptă)",
+      "FR-31"
+    ],
+    "timeSynced": [
+      "Ora e sincronizată",
+      "FR-12.1"
+    ],
+    "year": [
+      "Anul",
+      "FR-12.1"
+    ],
+    "month": [
+      "Luna",
+      "FR-12.1"
+    ],
+    "day": [
+      "Ziua",
+      "FR-12.1"
+    ],
+    "dayOfWeek": [
+      "Ziua săptămânii",
+      "FR-12.1"
+    ],
+    "weatherValid": [
+      "Există date meteo",
+      "FR-9"
+    ],
+    "weatherAgeSec": [
+      "Vechimea datelor meteo (s); peste 6 h = FAIL",
+      "FR-9",
+      "v"
+    ],
+    "coords": [
+      "Locația pentru vreme (lat,lon)",
+      "FR-9.2"
+    ],
+    "api/zones activeLevel": "Telemetry and diagnostic attribute: activeLevel",
+    "api/zones actuatorType": "Telemetry and diagnostic attribute: actuatorType",
+    "api/zones autoMode": "Telemetry and diagnostic attribute: autoMode",
+    "api/zones away": "Telemetry and diagnostic attribute: away",
+    "api/zones boiler": "Telemetry and diagnostic attribute: boiler",
+    "api/zones boilerCooldownSec": "Telemetry and diagnostic attribute: boilerCooldownSec",
+    "api/zones boilerDemand": "Telemetry and diagnostic attribute: boilerDemand",
+    "api/zones boilerRuntime.currentBurnSec": "Telemetry and diagnostic attribute: boilerRuntime.currentBurnSec",
+    "api/zones boilerRuntime.lastMonthSec": "Telemetry and diagnostic attribute: boilerRuntime.lastMonthSec",
+    "api/zones boilerRuntime.thisMonthSec": "Telemetry and diagnostic attribute: boilerRuntime.thisMonthSec",
+    "api/zones boilerRuntime.todaySec": "Telemetry and diagnostic attribute: boilerRuntime.todaySec",
+    "api/zones boilerRuntime.totalSec": "Telemetry and diagnostic attribute: boilerRuntime.totalSec",
+    "api/zones boilerRuntime.yesterdaySec": "Telemetry and diagnostic attribute: boilerRuntime.yesterdaySec",
+    "api/zones frostGuardActive": "Telemetry and diagnostic attribute: frostGuardActive",
+    "api/zones lastAntiSeizeEpoch": "Telemetry and diagnostic attribute: lastAntiSeizeEpoch",
+    "api/zones minsToNextSlot": "Telemetry and diagnostic attribute: minsToNextSlot",
+    "api/zones nextLevel": "Telemetry and diagnostic attribute: nextLevel",
+    "api/zones outdoorBand": "Telemetry and diagnostic attribute: outdoorBand",
+    "api/zones outdoorTemp": "Telemetry and diagnostic attribute: outdoorTemp",
+    "api/zones pendingAction": "Telemetry and diagnostic attribute: pendingAction",
+    "api/zones pendingWaitSec": "Telemetry and diagnostic attribute: pendingWaitSec",
+    "api/zones preHeatActive": "Telemetry and diagnostic attribute: preHeatActive",
+    "api/zones pumpActive": "Telemetry and diagnostic attribute: pumpActive",
+    "api/zones pumpEnabled": "Telemetry and diagnostic attribute: pumpEnabled",
+    "api/zones scheduleEnabled": "Telemetry and diagnostic attribute: scheduleEnabled",
+    "api/zones sensorTimeoutSec": "Telemetry and diagnostic attribute: sensorTimeoutSec",
+    "api/zones zones[].circuits": "Telemetry and diagnostic attribute: zones[].circuits",
+    "api/zones zones[].currentTemp": "Telemetry and diagnostic attribute: zones[].currentTemp",
+    "api/zones zones[].demand": "Telemetry and diagnostic attribute: zones[].demand",
+    "api/zones zones[].duty": "Telemetry and diagnostic attribute: zones[].duty",
+    "api/zones zones[].dutyPct": "Telemetry and diagnostic attribute: zones[].dutyPct",
+    "api/zones zones[].effectiveTarget": "Telemetry and diagnostic attribute: zones[].effectiveTarget",
+    "api/zones zones[].enabled": "Telemetry and diagnostic attribute: zones[].enabled",
+    "api/zones zones[].frostActive": "Telemetry and diagnostic attribute: zones[].frostActive",
+    "api/zones zones[].heatingType": "Telemetry and diagnostic attribute: zones[].heatingType",
+    "api/zones zones[].heatingTypeStr": "Telemetry and diagnostic attribute: zones[].heatingTypeStr",
+    "api/zones zones[].humidityComp": "Telemetry and diagnostic attribute: zones[].humidityComp",
+    "api/zones zones[].hysteresis": "Telemetry and diagnostic attribute: zones[].hysteresis",
+    "api/zones zones[].id": "Telemetry and diagnostic attribute: zones[].id",
+    "api/zones zones[].isBoost": "Telemetry and diagnostic attribute: zones[].isBoost",
+    "api/zones zones[].isManualHold": "Telemetry and diagnostic attribute: zones[].isManualHold",
+    "api/zones zones[].lastWindowDurationSec": "Telemetry and diagnostic attribute: zones[].lastWindowDurationSec",
+    "api/zones zones[].lastWindowEpoch": "Telemetry and diagnostic attribute: zones[].lastWindowEpoch",
+    "api/zones zones[].learnedDuty": "Telemetry and diagnostic attribute: zones[].learnedDuty",
+    "api/zones zones[].name": "Telemetry and diagnostic attribute: zones[].name",
+    "api/zones zones[].onTimeSec": "Telemetry and diagnostic attribute: zones[].onTimeSec",
+    "api/zones zones[].openSec": "Telemetry and diagnostic attribute: zones[].openSec",
+    "api/zones zones[].relayEngaged": "Telemetry and diagnostic attribute: zones[].relayEngaged",
+    "api/zones zones[].relayPin": "Telemetry and diagnostic attribute: zones[].relayPin",
+    "api/zones zones[].runtimeTodaySec": "Telemetry and diagnostic attribute: zones[].runtimeTodaySec",
+    "api/zones zones[].runtimeYesterdaySec": "Telemetry and diagnostic attribute: zones[].runtimeYesterdaySec",
+    "api/zones zones[].scheduleTarget": "Telemetry and diagnostic attribute: zones[].scheduleTarget",
+    "api/zones zones[].sensor": "Telemetry and diagnostic attribute: zones[].sensor",
+    "api/zones zones[].sensorFault": "Telemetry and diagnostic attribute: zones[].sensorFault",
+    "api/zones zones[].sensorMac": "Telemetry and diagnostic attribute: zones[].sensorMac",
+    "api/zones zones[].sensorValid": "Telemetry and diagnostic attribute: zones[].sensorValid",
+    "api/zones zones[].solarGain": "Telemetry and diagnostic attribute: zones[].solarGain",
+    "api/zones zones[].state": "Telemetry and diagnostic attribute: zones[].state",
+    "api/zones zones[].targetTemp": "Telemetry and diagnostic attribute: zones[].targetTemp",
+    "api/zones zones[].tempOffset": "Telemetry and diagnostic attribute: zones[].tempOffset",
+    "api/zones zones[].windowDetected": "Telemetry and diagnostic attribute: zones[].windowDetected",
+    "api/zones zones[].windowDropThreshold": "Telemetry and diagnostic attribute: zones[].windowDropThreshold",
+    "api/zones zones[].windowPauseActive": "Telemetry and diagnostic attribute: zones[].windowPauseActive",
+    "api/zones zones[].windowPauseRemainingSec": "Telemetry and diagnostic attribute: zones[].windowPauseRemainingSec",
+    "api/boiler/status activeLevel": "Telemetry and diagnostic attribute: activeLevel",
+    "api/boiler/status actuatorType": "Telemetry and diagnostic attribute: actuatorType",
+    "api/boiler/status autoMode": "Telemetry and diagnostic attribute: autoMode",
+    "api/boiler/status away": "Telemetry and diagnostic attribute: away",
+    "api/boiler/status bleScanning": "Telemetry and diagnostic attribute: bleScanning",
+    "api/boiler/status boiler": "Telemetry and diagnostic attribute: boiler",
+    "api/boiler/status boilerCooldownSec": "Telemetry and diagnostic attribute: boilerCooldownSec",
+    "api/boiler/status boilerDemand": "Telemetry and diagnostic attribute: boilerDemand",
+    "api/boiler/status boilerRuntime.currentBurnSec": "Telemetry and diagnostic attribute: boilerRuntime.currentBurnSec",
+    "api/boiler/status boilerRuntime.lastMonthSec": "Telemetry and diagnostic attribute: boilerRuntime.lastMonthSec",
+    "api/boiler/status boilerRuntime.thisMonthSec": "Telemetry and diagnostic attribute: boilerRuntime.thisMonthSec",
+    "api/boiler/status boilerRuntime.todaySec": "Telemetry and diagnostic attribute: boilerRuntime.todaySec",
+    "api/boiler/status boilerRuntime.totalSec": "Telemetry and diagnostic attribute: boilerRuntime.totalSec",
+    "api/boiler/status boilerRuntime.yesterdaySec": "Telemetry and diagnostic attribute: boilerRuntime.yesterdaySec",
+    "api/boiler/status buildDate": "Telemetry and diagnostic attribute: buildDate",
+    "api/boiler/status controlStackFree": "Telemetry and diagnostic attribute: controlStackFree",
+    "api/boiler/status date": "Telemetry and diagnostic attribute: date",
+    "api/boiler/status effectiveMode": "Telemetry and diagnostic attribute: effectiveMode",
+    "api/boiler/status firmwareVersion": "Telemetry and diagnostic attribute: firmwareVersion",
+    "api/boiler/status freeHeap": "Telemetry and diagnostic attribute: freeHeap",
+    "api/boiler/status frostGuardActive": "Telemetry and diagnostic attribute: frostGuardActive",
+    "api/boiler/status gasMeter.boilerFlowObserved": "Telemetry and diagnostic attribute: gasMeter.boilerFlowObserved",
+    "api/boiler/status gasMeter.boilerPowerKw": "Telemetry and diagnostic attribute: gasMeter.boilerPowerKw",
+    "api/boiler/status gasMeter.boilerSetTemp": "Telemetry and diagnostic attribute: gasMeter.boilerSetTemp",
+    "api/boiler/status gasMeter.estimatedIndex": "Telemetry and diagnostic attribute: gasMeter.estimatedIndex",
+    "api/boiler/status gasMeter.gasDhwTotalM3": "Telemetry and diagnostic attribute: gasMeter.gasDhwTotalM3",
+    "api/boiler/status gasMeter.gasFlameRate": "Telemetry and diagnostic attribute: gasMeter.gasFlameRate",
+    "api/boiler/status gasMeter.gasFlowMeasured": "Telemetry and diagnostic attribute: gasMeter.gasFlowMeasured",
+    "api/boiler/status gasMeter.gasPrice": "Telemetry and diagnostic attribute: gasMeter.gasPrice",
+    "api/boiler/status gasMeter.gasThisMonthM3": "Telemetry and diagnostic attribute: gasMeter.gasThisMonthM3",
+    "api/boiler/status gasMeter.gasTodayDhwM3": "Telemetry and diagnostic attribute: gasMeter.gasTodayDhwM3",
+    "api/boiler/status gasMeter.gasTodayHeatM3": "Telemetry and diagnostic attribute: gasMeter.gasTodayHeatM3",
+    "api/boiler/status gasMeter.gasTodayM3": "Telemetry and diagnostic attribute: gasMeter.gasTodayM3",
+    "api/boiler/status gasMeter.gasYesterdayM3": "Telemetry and diagnostic attribute: gasMeter.gasYesterdayM3",
+    "api/boiler/status gasMeter.lastReadingIndex": "Telemetry and diagnostic attribute: gasMeter.lastReadingIndex",
+    "api/boiler/status gasMeter.lastReadingTime": "Telemetry and diagnostic attribute: gasMeter.lastReadingTime",
+    "api/boiler/status gasMeter.readingCount": "Telemetry and diagnostic attribute: gasMeter.readingCount",
+    "api/boiler/status gitCommit": "Telemetry and diagnostic attribute: gitCommit",
+    "api/boiler/status isHeatingSeason": "Telemetry and diagnostic attribute: isHeatingSeason",
+    "api/boiler/status lastAntiSeizeEpoch": "Telemetry and diagnostic attribute: lastAntiSeizeEpoch",
+    "api/boiler/status lastTxMs": "Telemetry and diagnostic attribute: lastTxMs",
+    "api/boiler/status longestLoopPassMs": "Telemetry and diagnostic attribute: longestLoopPassMs",
+    "api/boiler/status longestTickDelayMs": "Telemetry and diagnostic attribute: longestTickDelayMs",
+    "api/boiler/status loopStackFree": "Telemetry and diagnostic attribute: loopStackFree",
+    "api/boiler/status manualRemainingSec": "Telemetry and diagnostic attribute: manualRemainingSec",
+    "api/boiler/status minsToNextSlot": "Telemetry and diagnostic attribute: minsToNextSlot",
+    "api/boiler/status outdoorTemp": "Telemetry and diagnostic attribute: outdoorTemp",
+    "api/boiler/status pendingAction": "Telemetry and diagnostic attribute: pendingAction",
+    "api/boiler/status pendingWaitSec": "Telemetry and diagnostic attribute: pendingWaitSec",
+    "api/boiler/status preHeatActive": "Telemetry and diagnostic attribute: preHeatActive",
+    "api/boiler/status profile": "Telemetry and diagnostic attribute: profile",
+    "api/boiler/status pumpActive": "Telemetry and diagnostic attribute: pumpActive",
+    "api/boiler/status pumpEnabled": "Telemetry and diagnostic attribute: pumpEnabled",
+    "api/boiler/status resetReason": "Telemetry and diagnostic attribute: resetReason",
+    "api/boiler/status rssi": "Telemetry and diagnostic attribute: rssi",
+    "api/boiler/status scheduleEnabled": "Telemetry and diagnostic attribute: scheduleEnabled",
+    "api/boiler/status season": "Telemetry and diagnostic attribute: season",
+    "api/boiler/status seasonMode": "Telemetry and diagnostic attribute: seasonMode",
+    "api/boiler/status seasonState": "Telemetry and diagnostic attribute: seasonState",
+    "api/boiler/status sensorTimeoutSec": "Telemetry and diagnostic attribute: sensorTimeoutSec",
+    "api/boiler/status sensors[].ageSec": "Telemetry and diagnostic attribute: sensors[].ageSec",
+    "api/boiler/status sensors[].bat": "Telemetry and diagnostic attribute: sensors[].bat",
+    "api/boiler/status sensors[].hum": "Telemetry and diagnostic attribute: sensors[].hum",
+    "api/boiler/status sensors[].mac": "Telemetry and diagnostic attribute: sensors[].mac",
+    "api/boiler/status sensors[].name": "Telemetry and diagnostic attribute: sensors[].name",
+    "api/boiler/status sensors[].rssi": "Telemetry and diagnostic attribute: sensors[].rssi",
+    "api/boiler/status sensors[].temp": "Telemetry and diagnostic attribute: sensors[].temp",
+    "api/boiler/status time": "Telemetry and diagnostic attribute: time",
+    "api/boiler/status uptimeSec": "Telemetry and diagnostic attribute: uptimeSec",
+    "api/boiler/status wifiWatchdog": "Telemetry and diagnostic attribute: wifiWatchdog",
+    "api/ble/sensors count": "Telemetry and diagnostic attribute: count",
+    "api/ble/sensors scanning": "Telemetry and diagnostic attribute: scanning",
+    "api/ble/sensors sensors[].ageSec": "Telemetry and diagnostic attribute: sensors[].ageSec",
+    "api/ble/sensors sensors[].bat": "Telemetry and diagnostic attribute: sensors[].bat",
+    "api/ble/sensors sensors[].hum": "Telemetry and diagnostic attribute: sensors[].hum",
+    "api/ble/sensors sensors[].mac": "Telemetry and diagnostic attribute: sensors[].mac",
+    "api/ble/sensors sensors[].name": "Telemetry and diagnostic attribute: sensors[].name",
+    "api/ble/sensors sensors[].packets": "Telemetry and diagnostic attribute: sensors[].packets",
+    "api/ble/sensors sensors[].rssi": "Telemetry and diagnostic attribute: sensors[].rssi",
+    "api/ble/sensors sensors[].source": "Telemetry and diagnostic attribute: sensors[].source",
+    "api/ble/sensors sensors[].temp": "Telemetry and diagnostic attribute: sensors[].temp",
+    "api/diag/status checks[].id": "Telemetry and diagnostic attribute: checks[].id",
+    "api/diag/status checks[].result": "Telemetry and diagnostic attribute: checks[].result",
+    "api/diag/status checks[].rule": "Telemetry and diagnostic attribute: checks[].rule",
+    "api/diag/status checks[].value": "Telemetry and diagnostic attribute: checks[].value",
+    "api/diag/status dtcCount": "Telemetry and diagnostic attribute: dtcCount",
+    "api/diag/status pins[].gpio": "Telemetry and diagnostic attribute: pins[].gpio",
+    "api/diag/status pins[].level": "Telemetry and diagnostic attribute: pins[].level",
+    "api/diag/status pins[].name": "Telemetry and diagnostic attribute: pins[].name",
+    "api/config/system actuatorDelaySec": "Telemetry and diagnostic attribute: actuatorDelaySec",
+    "api/config/system actuatorNormallyClosed": "Telemetry and diagnostic attribute: actuatorNormallyClosed",
+    "api/config/system adaptiveWindow": "Telemetry and diagnostic attribute: adaptiveWindow",
+    "api/config/system boilerFlowObserved": "Telemetry and diagnostic attribute: boilerFlowObserved",
+    "api/config/system boilerLinkType": "Telemetry and diagnostic attribute: boilerLinkType",
+    "api/config/system boilerPowerKw": "Telemetry and diagnostic attribute: boilerPowerKw",
+    "api/config/system boilerSetTemp": "Telemetry and diagnostic attribute: boilerSetTemp",
+    "api/config/system boostDurationSec": "Telemetry and diagnostic attribute: boostDurationSec",
+    "api/config/system burnerMinPauseSec": "Telemetry and diagnostic attribute: burnerMinPauseSec",
+    "api/config/system burnerMinRunSec": "Telemetry and diagnostic attribute: burnerMinRunSec",
+    "api/config/system exerciseIdleDays": "Telemetry and diagnostic attribute: exerciseIdleDays",
+    "api/config/system faultDuty": "Telemetry and diagnostic attribute: faultDuty",
+    "api/config/system faultFrostOutdoor": "Telemetry and diagnostic attribute: faultFrostOutdoor",
+    "api/config/system freezeProtectionTemp": "Telemetry and diagnostic attribute: freezeProtectionTemp",
+    "api/config/system gasFlameRate": "Telemetry and diagnostic attribute: gasFlameRate",
+    "api/config/system gasPrice": "Telemetry and diagnostic attribute: gasPrice",
+    "api/config/system heatLimit": "Telemetry and diagnostic attribute: heatLimit",
+    "api/config/system heatingType": "Telemetry and diagnostic attribute: heatingType",
+    "api/config/system hysteresis": "Telemetry and diagnostic attribute: hysteresis",
+    "api/config/system manualTimeoutSec": "Telemetry and diagnostic attribute: manualTimeoutSec",
+    "api/config/system maxJump": "Telemetry and diagnostic attribute: maxJump",
+    "api/config/system minLoops": "Telemetry and diagnostic attribute: minLoops",
+    "api/config/system noEffectDuty": "Telemetry and diagnostic attribute: noEffectDuty",
+    "api/config/system noEffectRise": "Telemetry and diagnostic attribute: noEffectRise",
+    "api/config/system noEffectTime": "Telemetry and diagnostic attribute: noEffectTime",
+    "api/config/system openLoopBypass": "Telemetry and diagnostic attribute: openLoopBypass",
+    "api/config/system overheatMargin": "Telemetry and diagnostic attribute: overheatMargin",
+    "api/config/system overheatTime": "Telemetry and diagnostic attribute: overheatTime",
+    "api/config/system pumpControlEnabled": "Telemetry and diagnostic attribute: pumpControlEnabled",
+    "api/config/system pumpOverrunSec": "Telemetry and diagnostic attribute: pumpOverrunSec",
+    "api/config/system pumpRelayPin": "Telemetry and diagnostic attribute: pumpRelayPin",
+    "api/config/system rfMinCooldownSec": "Telemetry and diagnostic attribute: rfMinCooldownSec",
+    "api/config/system rfSafetyHeartbeatEnabled": "Telemetry and diagnostic attribute: rfSafetyHeartbeatEnabled",
+    "api/config/system rfSafetyHeartbeatSec": "Telemetry and diagnostic attribute: rfSafetyHeartbeatSec",
+    "api/config/system seasonOffDays": "Telemetry and diagnostic attribute: seasonOffDays",
+    "api/config/system seasonOnDays": "Telemetry and diagnostic attribute: seasonOnDays",
+    "api/config/system selfTestBurn": "Telemetry and diagnostic attribute: selfTestBurn",
+    "api/config/system sensorTimeoutSec": "Telemetry and diagnostic attribute: sensorTimeoutSec",
+    "api/config/system solarLimit": "Telemetry and diagnostic attribute: solarLimit",
+    "api/config/system solarReduction": "Telemetry and diagnostic attribute: solarReduction",
+    "api/config/system status": "Telemetry and diagnostic attribute: status",
+    "api/config/system validMax": "Telemetry and diagnostic attribute: validMax",
+    "api/config/system validMin": "Telemetry and diagnostic attribute: validMin",
+    "api/config/system windowThreshold": "Telemetry and diagnostic attribute: windowThreshold",
+    "api/config/system zonesCount": "Telemetry and diagnostic attribute: zonesCount",
+    "api/config/system zones[].circuits": "Telemetry and diagnostic attribute: zones[].circuits",
+    "api/config/system zones[].enabled": "Telemetry and diagnostic attribute: zones[].enabled",
+    "api/config/system zones[].id": "Telemetry and diagnostic attribute: zones[].id",
+    "api/config/system zones[].mac": "Telemetry and diagnostic attribute: zones[].mac",
+    "api/config/system zones[].name": "Telemetry and diagnostic attribute: zones[].name",
+    "api/config/system zones[].relayPin": "Telemetry and diagnostic attribute: zones[].relayPin",
+    "api/config/export firmwareVersion": "Telemetry and diagnostic attribute: firmwareVersion",
+    "api/config/export format": "Telemetry and diagnostic attribute: format",
+    "api/config/export learnedDuty[].duty": "Telemetry and diagnostic attribute: learnedDuty[].duty",
+    "api/config/export learnedDuty[].id": "Telemetry and diagnostic attribute: learnedDuty[].id",
+    "api/config/export location": "Telemetry and diagnostic attribute: location",
+    "api/config/export params.actuatorDelaySec": "Telemetry and diagnostic attribute: params.actuatorDelaySec",
+    "api/config/export params.actuatorNormallyClosed": "Telemetry and diagnostic attribute: params.actuatorNormallyClosed",
+    "api/config/export params.burnerMinPauseSec": "Telemetry and diagnostic attribute: params.burnerMinPauseSec",
+    "api/config/export params.burnerMinRunSec": "Telemetry and diagnostic attribute: params.burnerMinRunSec",
+    "api/config/export params.freezeProtectionTemp": "Telemetry and diagnostic attribute: params.freezeProtectionTemp",
+    "api/config/export params.hysteresis": "Telemetry and diagnostic attribute: params.hysteresis",
+    "api/config/export params.openLoopBypass": "Telemetry and diagnostic attribute: params.openLoopBypass",
+    "api/config/export params.pumpControlEnabled": "Telemetry and diagnostic attribute: params.pumpControlEnabled",
+    "api/config/export params.pumpOverrunSec": "Telemetry and diagnostic attribute: params.pumpOverrunSec",
+    "api/config/export params.rfSafetyHeartbeatEnabled": "Telemetry and diagnostic attribute: params.rfSafetyHeartbeatEnabled",
+    "api/config/export params.rfSafetyHeartbeatSec": "Telemetry and diagnostic attribute: params.rfSafetyHeartbeatSec",
+    "api/config/export params.sensorTimeoutSec": "Telemetry and diagnostic attribute: params.sensorTimeoutSec",
+    "api/config/export params.windowThreshold": "Telemetry and diagnostic attribute: params.windowThreshold",
+    "api/config/export schedule.enabled": "Telemetry and diagnostic attribute: schedule.enabled",
+    "api/config/export schedule.levels[].away": "Telemetry and diagnostic attribute: schedule.levels[].away",
+    "api/config/export schedule.levels[].day": "Telemetry and diagnostic attribute: schedule.levels[].day",
+    "api/config/export schedule.levels[].id": "Telemetry and diagnostic attribute: schedule.levels[].id",
+    "api/config/export schedule.levels[].night": "Telemetry and diagnostic attribute: schedule.levels[].night",
+    "api/config/export schedule.preheat": "Telemetry and diagnostic attribute: schedule.preheat",
+    "api/config/export schedule.weekday": "Telemetry and diagnostic attribute: schedule.weekday",
+    "api/config/export schedule.weekend": "Telemetry and diagnostic attribute: schedule.weekend",
+    "api/config/export schedule.window": "Telemetry and diagnostic attribute: schedule.window",
+    "api/config/export zones[].circuits": "Telemetry and diagnostic attribute: zones[].circuits",
+    "api/config/export zones[].enabled": "Telemetry and diagnostic attribute: zones[].enabled",
+    "api/config/export zones[].heatingType": "Telemetry and diagnostic attribute: zones[].heatingType",
+    "api/config/export zones[].heatingTypeStr": "Telemetry and diagnostic attribute: zones[].heatingTypeStr",
+    "api/config/export zones[].humidityComp": "Telemetry and diagnostic attribute: zones[].humidityComp",
+    "api/config/export zones[].id": "Telemetry and diagnostic attribute: zones[].id",
+    "api/config/export zones[].mac": "Telemetry and diagnostic attribute: zones[].mac",
+    "api/config/export zones[].name": "Telemetry and diagnostic attribute: zones[].name",
+    "api/config/export zones[].offset": "Telemetry and diagnostic attribute: zones[].offset",
+    "api/config/export zones[].relayPin": "Telemetry and diagnostic attribute: zones[].relayPin",
+    "api/config/export zones[].sensorName": "Telemetry and diagnostic attribute: zones[].sensorName",
+    "api/config/export zones[].solarGain": "Telemetry and diagnostic attribute: zones[].solarGain",
+    "api/setup/discovered-sensors active": "Telemetry and diagnostic attribute: active",
+    "api/setup/discovered-sensors remainingSec": "Telemetry and diagnostic attribute: remainingSec",
+    "api/setup/discovered-sensors sensors[].ageSec": "Telemetry and diagnostic attribute: sensors[].ageSec",
+    "api/setup/discovered-sensors sensors[].bat": "Telemetry and diagnostic attribute: sensors[].bat",
+    "api/setup/discovered-sensors sensors[].hum": "Telemetry and diagnostic attribute: sensors[].hum",
+    "api/setup/discovered-sensors sensors[].mac": "Telemetry and diagnostic attribute: sensors[].mac",
+    "api/setup/discovered-sensors sensors[].name": "Telemetry and diagnostic attribute: sensors[].name",
+    "api/setup/discovered-sensors sensors[].rssi": "Telemetry and diagnostic attribute: sensors[].rssi",
+    "api/setup/discovered-sensors sensors[].temp": "Telemetry and diagnostic attribute: sensors[].temp",
+    "api/setup/discovered-sensors sensors[].zone": "Telemetry and diagnostic attribute: sensors[].zone",
+    "api/schedule activeLevel": "Telemetry and diagnostic attribute: activeLevel",
+    "api/schedule activeMoment": "Telemetry and diagnostic attribute: activeMoment",
+    "api/schedule away": "Telemetry and diagnostic attribute: away",
+    "api/schedule awayTemps.1": "Telemetry and diagnostic attribute: awayTemps.1",
+    "api/schedule awayTemps.2": "Telemetry and diagnostic attribute: awayTemps.2",
+    "api/schedule awayTemps.3": "Telemetry and diagnostic attribute: awayTemps.3",
+    "api/schedule dayOfWeek": "Telemetry and diagnostic attribute: dayOfWeek",
+    "api/schedule days[][].moment": "Telemetry and diagnostic attribute: days[][].moment",
+    "api/schedule days[][].temps.1": "Telemetry and diagnostic attribute: days[][].temps.1",
+    "api/schedule days[][].temps.2": "Telemetry and diagnostic attribute: days[][].temps.2",
+    "api/schedule days[][].temps.3": "Telemetry and diagnostic attribute: days[][].temps.3",
+    "api/schedule days[][].time": "Telemetry and diagnostic attribute: days[][].time",
+    "api/schedule enabled": "Telemetry and diagnostic attribute: enabled",
+    "api/schedule interlockDelaySec": "Telemetry and diagnostic attribute: interlockDelaySec",
+    "api/schedule isWeekend": "Telemetry and diagnostic attribute: isWeekend",
+    "api/schedule minsToNextSlot": "Telemetry and diagnostic attribute: minsToNextSlot",
+    "api/schedule momentNames[]": "Telemetry and diagnostic attribute: momentNames[]",
+    "api/schedule nextLevel": "Telemetry and diagnostic attribute: nextLevel",
+    "api/schedule nextMoment": "Telemetry and diagnostic attribute: nextMoment",
+    "api/schedule openLoopBypass": "Telemetry and diagnostic attribute: openLoopBypass",
+    "api/schedule preHeatActive": "Telemetry and diagnostic attribute: preHeatActive",
+    "api/schedule preHeatEnabled": "Telemetry and diagnostic attribute: preHeatEnabled",
+    "api/schedule pumpControlEnabled": "Telemetry and diagnostic attribute: pumpControlEnabled",
+    "api/schedule pumpOverrunSec": "Telemetry and diagnostic attribute: pumpOverrunSec",
+    "api/schedule scheduleMode": "Telemetry and diagnostic attribute: scheduleMode",
+    "api/schedule status": "Telemetry and diagnostic attribute: status",
+    "api/schedule weekday": "Telemetry and diagnostic attribute: weekday",
+    "api/schedule weekday_moments[].moment": "Telemetry and diagnostic attribute: weekday_moments[].moment",
+    "api/schedule weekday_moments[].temps.1": "Telemetry and diagnostic attribute: weekday_moments[].temps.1",
+    "api/schedule weekday_moments[].temps.2": "Telemetry and diagnostic attribute: weekday_moments[].temps.2",
+    "api/schedule weekday_moments[].temps.3": "Telemetry and diagnostic attribute: weekday_moments[].temps.3",
+    "api/schedule weekday_moments[].time": "Telemetry and diagnostic attribute: weekday_moments[].time",
+    "api/schedule weekend": "Telemetry and diagnostic attribute: weekend",
+    "api/schedule weekend_moments[].moment": "Telemetry and diagnostic attribute: weekend_moments[].moment",
+    "api/schedule weekend_moments[].temps.1": "Telemetry and diagnostic attribute: weekend_moments[].temps.1",
+    "api/schedule weekend_moments[].temps.2": "Telemetry and diagnostic attribute: weekend_moments[].temps.2",
+    "api/schedule weekend_moments[].temps.3": "Telemetry and diagnostic attribute: weekend_moments[].temps.3",
+    "api/schedule weekend_moments[].time": "Telemetry and diagnostic attribute: weekend_moments[].time",
+    "api/schedule windowDetectionEnabled": "Telemetry and diagnostic attribute: windowDetectionEnabled",
+    "api/schedule zones[].away": "Telemetry and diagnostic attribute: zones[].away",
+    "api/schedule zones[].day": "Telemetry and diagnostic attribute: zones[].day",
+    "api/schedule zones[].effectiveTarget": "Telemetry and diagnostic attribute: zones[].effectiveTarget",
+    "api/schedule zones[].id": "Telemetry and diagnostic attribute: zones[].id",
+    "api/schedule zones[].isManualHold": "Telemetry and diagnostic attribute: zones[].isManualHold",
+    "api/schedule zones[].name": "Telemetry and diagnostic attribute: zones[].name",
+    "api/schedule zones[].night": "Telemetry and diagnostic attribute: zones[].night",
+    "api/schedule zones[].windowDetected": "Telemetry and diagnostic attribute: zones[].windowDetected",
+    "api/schedule zones[].windowPauseActive": "Telemetry and diagnostic attribute: zones[].windowPauseActive",
+    "api/schedule zones[].windowPauseRemainingSec": "Telemetry and diagnostic attribute: zones[].windowPauseRemainingSec",
+    "api/setup/time date": "Telemetry and diagnostic attribute: date",
+    "api/setup/time day": "Telemetry and diagnostic attribute: day",
+    "api/setup/time dayOfWeek": "Telemetry and diagnostic attribute: dayOfWeek",
+    "api/setup/time month": "Telemetry and diagnostic attribute: month",
+    "api/setup/time outdoorHumidity": "Telemetry and diagnostic attribute: outdoorHumidity",
+    "api/setup/time outdoorTemp": "Telemetry and diagnostic attribute: outdoorTemp",
+    "api/setup/time prevDayMean": "Telemetry and diagnostic attribute: prevDayMean",
+    "api/setup/time prevDayMeanValid": "Telemetry and diagnostic attribute: prevDayMeanValid",
+    "api/setup/time season": "Telemetry and diagnostic attribute: season",
+    "api/setup/time time": "Telemetry and diagnostic attribute: time",
+    "api/setup/time timeSynced": "Telemetry and diagnostic attribute: timeSynced",
+    "api/setup/time weatherAgeSec": "Telemetry and diagnostic attribute: weatherAgeSec",
+    "api/setup/time weatherState": "Telemetry and diagnostic attribute: weatherState",
+    "api/setup/time weatherValid": "Telemetry and diagnostic attribute: weatherValid",
+    "api/setup/time year": "Telemetry and diagnostic attribute: year",
+    "api/setup/location coords": "Telemetry and diagnostic attribute: coords",
+    "api/diag/mem allocBlocks": "Telemetry and diagnostic attribute: allocBlocks",
+    "api/diag/mem allocated": "Telemetry and diagnostic attribute: allocated",
+    "api/diag/mem chipCores": "Telemetry and diagnostic attribute: chipCores",
+    "api/diag/mem chipRev": "Telemetry and diagnostic attribute: chipRev",
+    "api/diag/mem chipTemp": "Telemetry and diagnostic attribute: chipTemp",
+    "api/diag/mem controlStackFree": "Telemetry and diagnostic attribute: controlStackFree",
+    "api/diag/mem cpuFreqMHz": "Telemetry and diagnostic attribute: cpuFreqMHz",
+    "api/diag/mem flashSize": "Telemetry and diagnostic attribute: flashSize",
+    "api/diag/mem flashSpeed": "Telemetry and diagnostic attribute: flashSpeed",
+    "api/diag/mem free": "Telemetry and diagnostic attribute: free",
+    "api/diag/mem freeBlocks": "Telemetry and diagnostic attribute: freeBlocks",
+    "api/diag/mem freeIram32": "Telemetry and diagnostic attribute: freeIram32",
+    "api/diag/mem fsTotal": "Telemetry and diagnostic attribute: fsTotal",
+    "api/diag/mem fsUsed": "Telemetry and diagnostic attribute: fsUsed",
+    "api/diag/mem heapSize": "Telemetry and diagnostic attribute: heapSize",
+    "api/diag/mem internalFree": "Telemetry and diagnostic attribute: internalFree",
+    "api/diag/mem internalLargest": "Telemetry and diagnostic attribute: internalLargest",
+    "api/diag/mem internalMin": "Telemetry and diagnostic attribute: internalMin",
+    "api/diag/mem largestBlock": "Telemetry and diagnostic attribute: largestBlock",
+    "api/diag/mem loopStackFree": "Telemetry and diagnostic attribute: loopStackFree",
+    "api/diag/mem minFreeEver": "Telemetry and diagnostic attribute: minFreeEver",
+    "api/diag/mem partNext": "Telemetry and diagnostic attribute: partNext",
+    "api/diag/mem partRunning": "Telemetry and diagnostic attribute: partRunning",
+    "api/diag/mem tasks[].name": "Telemetry and diagnostic attribute: tasks[].name",
+    "api/diag/mem tasks[].stackFree": "Telemetry and diagnostic attribute: tasks[].stackFree",
+    "api/diag/mem tasks[].stackFreeMin": "Telemetry and diagnostic attribute: tasks[].stackFreeMin",
+    "api/diag/mem uptime": "Telemetry and diagnostic attribute: uptime",
+    "outdoorBand": "Telemetry and diagnostic attribute: outdoorBand",
+    "zones[].circuits": "Telemetry and diagnostic attribute: zones[].circuits",
+    "zones[].dutyPct": "Telemetry and diagnostic attribute: zones[].dutyPct",
+    "zones[].heatingType": "Telemetry and diagnostic attribute: zones[].heatingType",
+    "zones[].heatingTypeStr": "Telemetry and diagnostic attribute: zones[].heatingTypeStr",
+    "zones[].humidityComp": "Telemetry and diagnostic attribute: zones[].humidityComp",
+    "zones[].onTimeSec": "Telemetry and diagnostic attribute: zones[].onTimeSec",
+    "zones[].solarGain": "Telemetry and diagnostic attribute: zones[].solarGain",
+    "zones[].windowDetected": "Telemetry and diagnostic attribute: zones[].windowDetected",
+    "controlStackFree": "Telemetry and diagnostic attribute: controlStackFree",
+    "effectiveMode": "Telemetry and diagnostic attribute: effectiveMode",
+    "gasMeter.gasDhwTotalM3": "Telemetry and diagnostic attribute: gasMeter.gasDhwTotalM3",
+    "gasMeter.gasTodayDhwM3": "Telemetry and diagnostic attribute: gasMeter.gasTodayDhwM3",
+    "gasMeter.gasTodayHeatM3": "Telemetry and diagnostic attribute: gasMeter.gasTodayHeatM3",
+    "longestLoopPassMs": "Telemetry and diagnostic attribute: longestLoopPassMs",
+    "longestTickDelayMs": "Telemetry and diagnostic attribute: longestTickDelayMs",
+    "loopStackFree": "Telemetry and diagnostic attribute: loopStackFree",
+    "manualRemainingSec": "Telemetry and diagnostic attribute: manualRemainingSec",
+    "profile": "Telemetry and diagnostic attribute: profile",
+    "seasonMode": "Telemetry and diagnostic attribute: seasonMode",
+    "seasonState": "Telemetry and diagnostic attribute: seasonState",
+    "pins[].gpio": "Telemetry and diagnostic attribute: pins[].gpio",
+    "pins[].name": "Telemetry and diagnostic attribute: pins[].name",
+    "adaptiveWindow": "Telemetry and diagnostic attribute: adaptiveWindow",
+    "boilerLinkType": "Telemetry and diagnostic attribute: boilerLinkType",
+    "boostDurationSec": "Telemetry and diagnostic attribute: boostDurationSec",
+    "exerciseIdleDays": "Telemetry and diagnostic attribute: exerciseIdleDays",
+    "faultDuty": "Telemetry and diagnostic attribute: faultDuty",
+    "faultFrostOutdoor": "Telemetry and diagnostic attribute: faultFrostOutdoor",
+    "heatLimit": "Telemetry and diagnostic attribute: heatLimit",
+    "heatingType": "Telemetry and diagnostic attribute: heatingType",
+    "manualTimeoutSec": "Telemetry and diagnostic attribute: manualTimeoutSec",
+    "maxJump": "Telemetry and diagnostic attribute: maxJump",
+    "minLoops": "Telemetry and diagnostic attribute: minLoops",
+    "noEffectDuty": "Telemetry and diagnostic attribute: noEffectDuty",
+    "noEffectRise": "Telemetry and diagnostic attribute: noEffectRise",
+    "noEffectTime": "Telemetry and diagnostic attribute: noEffectTime",
+    "overheatMargin": "Telemetry and diagnostic attribute: overheatMargin",
+    "overheatTime": "Telemetry and diagnostic attribute: overheatTime",
+    "seasonOffDays": "Telemetry and diagnostic attribute: seasonOffDays",
+    "seasonOnDays": "Telemetry and diagnostic attribute: seasonOnDays",
+    "selfTestBurn": "Telemetry and diagnostic attribute: selfTestBurn",
+    "solarLimit": "Telemetry and diagnostic attribute: solarLimit",
+    "solarReduction": "Telemetry and diagnostic attribute: solarReduction",
+    "validMax": "Telemetry and diagnostic attribute: validMax",
+    "validMin": "Telemetry and diagnostic attribute: validMin",
+    "activeMoment": "Telemetry and diagnostic attribute: activeMoment",
+    "awayTemps.1": "Telemetry and diagnostic attribute: awayTemps.1",
+    "awayTemps.2": "Telemetry and diagnostic attribute: awayTemps.2",
+    "awayTemps.3": "Telemetry and diagnostic attribute: awayTemps.3",
+    "days[][].moment": "Telemetry and diagnostic attribute: days[][].moment",
+    "days[][].temps.1": "Telemetry and diagnostic attribute: days[][].temps.1",
+    "days[][].temps.2": "Telemetry and diagnostic attribute: days[][].temps.2",
+    "days[][].temps.3": "Telemetry and diagnostic attribute: days[][].temps.3",
+    "days[][].time": "Telemetry and diagnostic attribute: days[][].time",
+    "momentNames[]": "Telemetry and diagnostic attribute: momentNames[]",
+    "nextMoment": "Telemetry and diagnostic attribute: nextMoment",
+    "scheduleMode": "Telemetry and diagnostic attribute: scheduleMode",
+    "weekday_moments[].moment": "Telemetry and diagnostic attribute: weekday_moments[].moment",
+    "weekday_moments[].temps.1": "Telemetry and diagnostic attribute: weekday_moments[].temps.1",
+    "weekday_moments[].temps.2": "Telemetry and diagnostic attribute: weekday_moments[].temps.2",
+    "weekday_moments[].temps.3": "Telemetry and diagnostic attribute: weekday_moments[].temps.3",
+    "weekday_moments[].time": "Telemetry and diagnostic attribute: weekday_moments[].time",
+    "weekend_moments[].moment": "Telemetry and diagnostic attribute: weekend_moments[].moment",
+    "weekend_moments[].temps.1": "Telemetry and diagnostic attribute: weekend_moments[].temps.1",
+    "weekend_moments[].temps.2": "Telemetry and diagnostic attribute: weekend_moments[].temps.2",
+    "weekend_moments[].temps.3": "Telemetry and diagnostic attribute: weekend_moments[].temps.3",
+    "weekend_moments[].time": "Telemetry and diagnostic attribute: weekend_moments[].time",
+    "prevDayMean": "Telemetry and diagnostic attribute: prevDayMean",
+    "prevDayMeanValid": "Telemetry and diagnostic attribute: prevDayMeanValid",
+    "weatherState": "Telemetry and diagnostic attribute: weatherState",
+    "allocBlocks": "Telemetry and diagnostic attribute: allocBlocks",
+    "allocated": "Telemetry and diagnostic attribute: allocated",
+    "chipCores": "Telemetry and diagnostic attribute: chipCores",
+    "chipRev": "Telemetry and diagnostic attribute: chipRev",
+    "chipTemp": "Telemetry and diagnostic attribute: chipTemp",
+    "cpuFreqMHz": "Telemetry and diagnostic attribute: cpuFreqMHz",
+    "flashSize": "Telemetry and diagnostic attribute: flashSize",
+    "flashSpeed": "Telemetry and diagnostic attribute: flashSpeed",
+    "free": "Telemetry and diagnostic attribute: free",
+    "freeBlocks": "Telemetry and diagnostic attribute: freeBlocks",
+    "freeIram32": "Telemetry and diagnostic attribute: freeIram32",
+    "fsTotal": "Telemetry and diagnostic attribute: fsTotal",
+    "fsUsed": "Telemetry and diagnostic attribute: fsUsed",
+    "heapSize": "Telemetry and diagnostic attribute: heapSize",
+    "internalFree": "Telemetry and diagnostic attribute: internalFree",
+    "internalLargest": "Telemetry and diagnostic attribute: internalLargest",
+    "internalMin": "Telemetry and diagnostic attribute: internalMin",
+    "partNext": "Telemetry and diagnostic attribute: partNext",
+    "partRunning": "Telemetry and diagnostic attribute: partRunning",
+    "tasks[].name": "Telemetry and diagnostic attribute: tasks[].name",
+    "tasks[].stackFree": "Telemetry and diagnostic attribute: tasks[].stackFree",
+    "uptime": "Telemetry and diagnostic attribute: uptime"
+  }
+}

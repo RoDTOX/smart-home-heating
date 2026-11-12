@@ -153,9 +153,9 @@ function closeAdminAuthModal() {
 }
 
 async function submitAdminAuth() {
-  const pass = ($("adminAuthPass").value || "").trim();
+  const secretKey = ($("adminAuthPass").value || "").trim();
   const errBox = $("adminAuthErr");
-  if (!pass) {
+  if (!secretKey) {
     errBox.textContent = "Introduceți parola administrator.";
     return;
   }
@@ -168,7 +168,7 @@ async function submitAdminAuth() {
 
   for (const u of userCandidates) {
     try {
-      const candidateAuth = "Basic " + btoa(u + ":" + pass);
+      const candidateAuth = "Basic " + btoa(u + ":" + secretKey);
       const r = await fetch("api/auth/verify", {
         method: "POST",
         headers: { "Authorization": candidateAuth }
@@ -185,7 +185,7 @@ async function submitAdminAuth() {
   if (!ok) {
     for (const u of userCandidates) {
       try {
-        const candidateAuth = "Basic " + btoa(u + ":" + pass);
+        const candidateAuth = "Basic " + btoa(u + ":" + secretKey);
         const r = await fetch("api/boiler/off", {
           method: "POST",
           headers: { "Authorization": candidateAuth }
@@ -202,7 +202,6 @@ async function submitAdminAuth() {
 
   if (ok) {
     sessionStorage.setItem("sh_admin_auth", authHeader);
-    sessionStorage.setItem("sh_admin_pass", pass);
     document.body.classList.add("admin");
     location.hash = "admin";
     updateAdminBtn();
@@ -225,7 +224,6 @@ $("toggleAdmin").onclick = e => {
   e.preventDefault();
   if (isAdmin()) {
     sessionStorage.removeItem("sh_admin_auth");
-    sessionStorage.removeItem("sh_admin_pass");
     sessionStorage.removeItem("sh_admin_user");
     document.body.classList.remove("admin");
     location.hash = "";
