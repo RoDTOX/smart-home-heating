@@ -5,6 +5,11 @@ Corelat cu planul activ: [`docs/plan.md`](file:///c:/Users/BSeceleanu/.github_re
 Entries before 29.10.2026 (the system before the lean clean-up):
 [`archive/changelog_until_2026-10-21.md`](archive/changelog_until_2026-10-21.md).
 
+## [12.11.2026] - Drop Legacy `web/index.html` (Owner Confirmed)
+
+- **Changed:** Removed `web/index.html` (`git rm`) after owner confirmation; `web/src/*` is now the single source of truth built into `.pio/build/index.html.gz` by `tools/sh_build_web.py`.
+- **Verified:** `python tools/sh_build_web.py --force` (`44 101 B` gzip), `pio run -e esp32dev` (`SUCCESS`), `python tools/sh_process_check.py` (`0` errors, `PASS`).
+
 ## [12.11.2026] - Step I-8 (Part 1) Checker Enforcement for Pure Modules (`R-A9`)
 
 - **Who / when / why:** Step I-8 (part 1) of the Improvement plan in [`docs/plan.md`](plan.md): prevent drift back into `millis()`, `Arduino.h`, or untested pure modules while keeping `R-A7` as WARN until Step I-7 removes `String` from L2–L4.
