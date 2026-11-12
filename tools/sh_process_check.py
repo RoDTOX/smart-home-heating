@@ -7,7 +7,8 @@ Traceability and process check (stdlib only). Rules: docs/process.md.
            {LEVEL; METHOD} attribute per requirement and coverage per verification method
   reqs     requirement writing rules: one value per quantity, measurable wording,
            one meaning per DTC code (doc and firmware)
-  arch     dependency rules R-A1...R-A7 (docs/architecture.md §3.3) grepped in src/ and include/ (WARN only)
+  arch     dependency rules R-A1...R-A7 (docs/architecture.md §3.3) grepped in src/ and include/ (WARN)
+           and R-A9 pure-module isolation + host test presence (ERROR)
   process  rules from AGENTS.md checked against the branch diff:
            safety ranges and defaults, changelog + activeContext updated, commit message format,
            debug leftovers, secrets, new libraries, firmware size, build identity,
@@ -1034,6 +1035,67 @@ ARCH_RULES = [
      set(), {"L2", "L3", "L4"}, False),
 ]
 
+# Pure control/supervisor/advisor modules (migration steps I-2, I-4, I-5): module stem -> host test folder under test/.
+# Single source of truth for R-A9 (no millis(), no Arduino.h in headers or unguarded .cpp, host test present).
+PURE_MODULES = {
+    "SafetySupervisor": "test_safety",
+    "ZoneController": "test_zone_controller",
+    "HeatUpModel": "test_heatup_model",
+    "SolarThrottle": "test_solar_throttle",
+    "CycleAligner": "test_cycle_aligner",
+    "SmartWindow": "test_smart_window",
+    "HumidityComp": "test_humidity_comp",
+    "PlantMonitor": "test_plant_monitor",
+}
+PURE_MILLIS_RE = re.compile(r"\bmillis\s*\(")
+PURE_ARDUINO_RE = re.compile(r'^\s*#\s*include\s*[<"]Arduino\.h[>"]')
+IF_DIRECTIVE_RE = re.compile(r"^\s*#\s*(if|ifdef|ifndef|endif)\b(.*)$")
+
+
+def check_pure_modules(rep):
+    """R-A9: pure modules have no millis(), no Arduino.h in headers (or unguarded .cpp), and a test/ suite."""
+    findings = 0
+    for mod, test_dir in PURE_MODULES.items():
+        hdr = os.path.join(ROOT, "include", f"{mod}.h")
+        if os.path.isfile(hdr):
+            for n, code in code_lines(hdr):
+                if PURE_MILLIS_RE.search(code):
+                    rep.error(f"R-A9 millis() in pure module: include/{mod}.h:{n}")
+                    findings += 1
+                if PURE_ARDUINO_RE.match(code):
+                    rep.error(f"R-A9 Arduino.h in pure module header: include/{mod}.h:{n}")
+                    findings += 1
+
+        cpp = os.path.join(ROOT, "src", f"{mod}.cpp")
+        if os.path.isfile(cpp):
+            if_stack = []
+            for n, code in code_lines(cpp):
+                m = IF_DIRECTIVE_RE.match(code)
+                if m:
+                    kw, rest = m.group(1), m.group(2)
+                    if kw == "endif":
+                        if if_stack:
+                            if_stack.pop()
+                    elif kw == "ifdef":
+                        if_stack.append(rest.strip() == "ARDUINO")
+                    elif kw == "if":
+                        if_stack.append("defined(ARDUINO)" in rest.replace(" ", ""))
+                    else:
+                        if_stack.append(False)
+                if PURE_MILLIS_RE.search(code):
+                    rep.error(f"R-A9 millis() in pure module: src/{mod}.cpp:{n}")
+                    findings += 1
+                if PURE_ARDUINO_RE.match(code) and not any(if_stack):
+                    rep.error(f"R-A9 Arduino.h outside #ifdef ARDUINO in pure module: src/{mod}.cpp:{n}")
+                    findings += 1
+
+        tpath = os.path.join(ROOT, "test", test_dir)
+        tfiles = glob.glob(os.path.join(tpath, "*.cpp")) + glob.glob(os.path.join(tpath, "*.c"))
+        if not os.path.isdir(tpath) or not tfiles:
+            rep.error(f"R-A9 pure module {mod} has no host test in test/{test_dir}/")
+            findings += 1
+    return findings
+
 
 def code_lines(path):
     """(line number, code) with comments and string literals removed."""
@@ -1053,8 +1115,8 @@ def code_lines(path):
 
 
 def check_arch(rep):
-    """Dependency rules R-A1...R-A7 (architecture §3.3) as grep heuristics: WARN, one line per rule and file."""
-    rep.section("Architecture rules (SWE.2 dependency rules R-A1...R-A7, architecture.md §3.3)", "arch")
+    """Dependency rules R-A1...R-A7 (WARN) and R-A9 pure-module isolation (ERROR)."""
+    rep.section("Architecture rules (SWE.2 dependency rules R-A1...R-A7, R-A9, architecture.md §3.3)", "arch")
     layers = {r["Module"].strip("`"): r.get("Layer", "")[:2] for r in module_rows(read(ARCH_DOC))}
     lower = [m for m, layer in layers.items() if layer in ("L2", "L3", "L4")]
     rules = [(rid, what, re.compile(rx or rf"\b(?:{'|'.join(lower)}|{LEGACY_LOWER})\b"), allowed, scope, decl)
@@ -1079,8 +1141,9 @@ def check_arch(rep):
             more = f" (+{len(lines) - 1} more)" if len(lines) > 1 else ""
             rep.warn(f"{rid} {what}: {rel}:{lines[0]}{more}")
             findings += 1
-    rep.info(f"{len(files)} files, {findings} rule findings - today's code predates the architecture "
-             f"({ARCH_DOC} §17); the migration (§18) removes them step by step")
+    pure_findings = check_pure_modules(rep)
+    rep.info(f"{len(files)} files, {findings} rule findings, {len(PURE_MODULES)} pure modules ({pure_findings} R-A9 errors) "
+             f"- today's code predates the architecture ({ARCH_DOC} §17); the migration (§18) removes them step by step")
 
 
 # ---------------------------------------------------------------- release

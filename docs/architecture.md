@@ -162,8 +162,9 @@ software part only:
 | R-A6 | L6 modules change state only through `Commands` and read state only through `StatusModel`. |
 | R-A7 | No `String`, `new` or growing container in L2–L4 after boot. |
 | R-A8 | The control task makes no flash write, no network call and no blocking wait (queue and lock calls with timeout 0); `loop()` code changes control state only through the command queue I15 (AR-21, §5.1). |
+| R-A9 | Pure L3/L4 modules (listed once in `tools/sh_process_check.py` `PURE_MODULES`) call no `millis()`, include no `Arduino.h` in headers (or outside `#ifdef ARDUINO` in `.cpp`), and each has a host test suite under `test/`. |
 
-These rules can become a check in `tools/sh_process_check.py` (process zone, follow-up).
+`tools/sh_process_check.py arch` enforces `R-A9` as ERROR and checks `R-A1`…`R-A7` as WARN (until I-7 clears `R-A7`).
 
 ---
 

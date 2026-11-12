@@ -5,6 +5,14 @@ Corelat cu planul activ: [`docs/plan.md`](file:///c:/Users/BSeceleanu/.github_re
 Entries before 29.10.2026 (the system before the lean clean-up):
 [`archive/changelog_until_2026-10-21.md`](archive/changelog_until_2026-10-21.md).
 
+## [12.11.2026] - Step I-8 (Part 1) Checker Enforcement for Pure Modules (`R-A9`)
+
+- **Who / when / why:** Step I-8 (part 1) of the Improvement plan in [`docs/plan.md`](plan.md): prevent drift back into `millis()`, `Arduino.h`, or untested pure modules while keeping `R-A7` as WARN until Step I-7 removes `String` from L2–L4.
+- **Changed:**
+  - `tools/sh_process_check.py`: added `PURE_MODULES` single-source map (8 modules -> `test/` dirs) and `check_pure_modules(rep)` inside `check_arch(rep)` raising ERROR (`R-A9`) on any `millis()`, any `Arduino.h` in headers (or outside `#ifdef ARDUINO` in `.cpp`), or missing host test suite under `test/`.
+  - `docs/architecture.md` §3.3 & `docs/process.md`: documented rule `R-A9` and partial status pending `I-7` for `R-A7`.
+- **Verified:** Injected `millis()` into `src/SafetySupervisor.cpp` -> `python tools/sh_process_check.py arch` exited `1` with `ERROR R-A9 millis() in pure module: src/SafetySupervisor.cpp:144`; reverted -> `0` errors (`PASS`). Full `python tools/sh_process_check.py` -> `0` errors (`1` known `PB-12`, `PASS`).
+
 ## [12.11.2026] - Step I-9 Page from Parts (`web/src/*`)
 
 - **Who / when / why:** Step I-9 of the Improvement plan in [`docs/plan.md`](plan.md): modularize `web/index.html` (3,170 lines) into maintainable per-card parts, one stylesheet, and one i18n file without a framework, and separate history chart data preparation from SVG drawing.

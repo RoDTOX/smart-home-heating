@@ -13,7 +13,7 @@ owner accepted is shown as `INFO waived` (§3). The default run prints each sect
 |---|---|---|---|
 | SYS.2 / SWE.1 | Requirements (`FR-x`, `NFR-x`) with level and verification method (R7) | `docs/requirements_and_features.md` | `sh_process_check.py reqs`, `trace`, `sh-req-reviewer` |
 | SYS.2 / SWE.1 | Requirements review record, with the accepted checker warnings (its §7) | `docs/requirements_review.md` | §3 exit criteria; `reqs` / `trace` read the waivers |
-| SWE.2 | Architecture; requirement → module allocation (§3.2 Requirements column); dependency rules R-A1…R-A7 (§3.3) | `docs/architecture.md` | `trace`, `arch`, `sh-code-reviewer` (code against it) |
+| SWE.2 | Architecture; requirement → module allocation (§3.2 Requirements column); dependency rules R-A1…R-A9 (§3.3) | `docs/architecture.md` | `trace`, `arch` (`R-A9` ERROR, `R-A1`…`R-A7` WARN), `sh-code-reviewer` (code against it) |
 | SWE.6 | Qualification tests against the requirements, run on the board. IDs keep their historical `SWE.5-TCxx.y` prefix so they stay stable | `tools/sh_tests/t_<area>.py` (runner `tools/sh_test_system.py`) → `docs/system_test_report.md` | `trace` (incl. hollow tests), `sh-test-reviewer` (§3.2, clean room); written first by `sh-test-writer` (§3.1) |
 | VAL.1 | Owner acceptance: the owner uses the heating on the board | `docs/acceptance.md` | `release` (§5) |
 | SUP.1 | Quality assurance: one review record per migration step | `docs/process_review.md`, then `docs/review_step_<n>.md` (§9) | `sh-assessor` (independent check of the evidence), owner ✅ |
@@ -215,7 +215,7 @@ The board keeps its settings in NVS, so a correct build can still run with unsaf
 |---|---|---|
 | Build identity: `include/Version.h` hard-coded `APP_GIT_COMMIT "8065534"` | The board always reported the same commit | **closed 31.10.2026:** `tools/sh_git_version.py` writes it on every build; `process` errors on a hard-coded commit |
 | Burner minimum pause not in `GET /api/config/system` | Cannot be checked on the board | open |
-| SWE.2 dependency rules R-A1…R-A7 (`architecture.md` §3.3) not checked | Code can cross module boundaries unseen | **closed 01.11.2026:** `trace` checks the allocation; `arch` greps R-A1…R-A7 as WARN (today's code does not follow them yet, architecture §17) |
+| SWE.2 dependency rules R-A1…R-A9 (`architecture.md` §3.3) not enforced | Code can cross module boundaries unseen | **partial (12.11.2026, I-8 part 1):** `arch` errors on `R-A9` (pure modules: no `millis()`, no `Arduino.h`, host test present); `R-A1`…`R-A7` remain WARN until `I-7` clears L2–L4 `String` |
 | Acceptance and problems not traced to requirements | A release could skip a safety requirement | **closed 01.11.2026:** `Requirements` columns; `release` checks the safety IDs |
 | CI failed on known errors | A new error looked like the known ones | **closed 01.11.2026:** `KNOWN` via the `PB-n` `Checker` column |
 | Test review judges by reading | Whether a test value comes from the requirement is not machine-checked | partly: `trace` finds hollow tests; the rest is the §3.2 gate |
