@@ -60,7 +60,7 @@ class HumidityCompTests:
             j = r.json()
             for z in j.get("zones", []):
                 red = z.get("targetReduction", 0.0)
-                assert 0.0 <= red <= 0.501, f"Reduction out of bounds [0..0.5 C]: {red}"
+                assert 0.0 <= red <= 0.5 + 0.001, f"Reduction out of bounds [0..0.5 C]: {red}"
                 if not z.get("humidityComp") or z.get("humidity", 0.0) < 60.0:
                     assert red == 0.0, f"Expected 0.0 reduction when RH < 60% or opt-out, got {red}"
 

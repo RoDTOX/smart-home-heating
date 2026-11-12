@@ -116,9 +116,12 @@ class HydraulicsTests:
         try:
             r = requests.get(f"{self.base_url}/api/zones", timeout=self.timeout)
             latency = (time.time() - start) * 1000
+            assert r.status_code == 200, f"/api/zones answered {r.status_code}"
             data = r.json()
-            # Verify keeper zone & pump overrun logic telemetry
-            details = f"Verified 180s overrun rule; keeper zone state: {data.get('pumpActive')}"
+            assert "pumpActive" in data, "Missing pumpActive in /api/zones"
+            cfg = requests.get(f"{self.base_url}/api/config/system", timeout=self.timeout).json()
+            assert cfg.get("pumpOverrunSec") == 180, f"Expected default pumpOverrunSec 180, got {cfg.get('pumpOverrunSec')}"
+            details = f"Verified 180s overrun config; pumpActive={data.get('pumpActive')}"
             return TestResult(test_id, name, req, "PASS", latency, details)
         except Exception as e:
             return TestResult(test_id, name, req, "FAIL", (time.time() - start)*1000, str(e))
@@ -132,9 +135,12 @@ class HydraulicsTests:
         try:
             r = requests.get(f"{self.base_url}/api/zones", timeout=self.timeout)
             latency = (time.time() - start) * 1000
+            assert r.status_code == 200, f"/api/zones answered {r.status_code}"
             data = r.json()
             assert "frostGuardActive" in data, "Missing frostGuardActive"
-            details = f"Frost Guard Active: {data.get('frostGuardActive')} (Trigger threshold: <12.0°C)"
+            cfg = requests.get(f"{self.base_url}/api/config/system", timeout=self.timeout).json()
+            assert abs(cfg.get("freezeProtectionTemp", 0.0) - 12) < 0.05, f"Expected freezeProtectionTemp 12 C, got {cfg.get('freezeProtectionTemp')}"
+            details = f"Frost Guard Active: {data.get('frostGuardActive')} (Threshold: {cfg.get('freezeProtectionTemp')}°C)"
             return TestResult(test_id, name, req, "PASS", latency, details)
         except Exception as e:
             return TestResult(test_id, name, req, "FAIL", (time.time() - start)*1000, str(e))
@@ -235,6 +241,7 @@ class HydraulicsTests:
 
             if r_try.status_code == 429:
                 wait_sec = r_try.json().get("waitSec", 0)
+                assert 0 <= wait_sec <= 60, f"waitSec {wait_sec} outside 60s guard"
                 details = f"Interlock ACTIVE: Rejected state reversal (wait: {wait_sec}s remaining)"
                 requests.post(f"{self.base_url}/api/boiler/cancel", timeout=self.timeout)
                 requests.post(f"{self.base_url}/api/boiler/off?force=true", timeout=self.timeout)
@@ -248,6 +255,7 @@ class HydraulicsTests:
                 requests.post(f"{self.base_url}/api/boiler/off?force=true", timeout=self.timeout)
                 assert r_rev.status_code == 429, f"Expected 429 on reversal, got {r_rev.status_code}"
                 wait_sec = r_rev.json().get("waitSec", 0)
+                assert 0 <= wait_sec <= 60, f"waitSec {wait_sec} outside 60s guard"
                 details = f"Interlock ACTIVE on immediate reversal (wait: {wait_sec}s remaining)"
                 return TestResult(test_id, name, req, "PASS", (time.time()-start)*1000, details)
             else:
@@ -300,12 +308,15 @@ class HydraulicsTests:
             time.sleep(0.1)
             # Inject 3 rapid rejected toggle requests (trigger threshold >= 3)
             for _ in range(3):
-                requests.post(f"{self.base_url}/api/boiler/on", timeout=self.timeout)
+                r_sp = requests.post(f"{self.base_url}/api/boiler/on", timeout=self.timeout)
+                assert r_sp.status_code in (409, 429), f"Expected 409/429 on rapid boiler ON, got {r_sp.status_code}"
                 time.sleep(0.08)
             # Immediately cancel any pending action scheduled by the rejected calls
             requests.post(f"{self.base_url}/api/boiler/cancel", timeout=self.timeout)
+            diag = requests.get(f"{self.base_url}/api/diag/status", timeout=self.timeout).json()
+            assert any(d.get("code") == "DTC-201" for d in diag.get("dtcs", [])), "DTC-201 not raised after 3 rapid rejections"
             latency = (time.time() - start) * 1000
-            details = "Fired 3 rapid requests to trigger DTC-201; immediately cancelled pending startup"
+            details = "Fired 3 rapid requests, verified DTC-201 raised, cancelled pending startup"
             return TestResult(test_id, name, req, "PASS", latency, details)
         except Exception as e:
             requests.post(f"{self.base_url}/api/boiler/cancel", timeout=self.timeout)

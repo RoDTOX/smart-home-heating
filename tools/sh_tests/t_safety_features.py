@@ -62,11 +62,16 @@ class SafetyFeatureTests:
             assert r_b.status_code == 200, "Failed fetching boiler status"
             data_b = r_b.json()
             r_z = requests.get(f"{self.base_url}/api/zones", timeout=self.timeout)
+            assert r_z.status_code == 200, f"Failed fetching /api/zones: {r_z.status_code}"
             data_z = r_z.json()
 
             boiler_state = data_b.get("boiler", "OFF")
             pending = data_b.get("pendingAction", "NONE")
-            details = f"Intelligent Overrun active: boiler={boiler_state}, pending={pending}, pumpActive={data_z.get('pumpActive')}"
+            assert boiler_state in ("ON", "OFF"), f"Invalid boiler state: {boiler_state}"
+            assert "pumpActive" in data_z, "Missing pumpActive in /api/zones"
+            if boiler_state == "OFF" and data_b.get("overrunRemainingSec", 0) == 0:
+                assert data_z.get("pumpActive") is False, f"pumpActive true with boiler OFF and no overrun"
+            details = f"Overrun check: boiler={boiler_state}, pending={pending}, pumpActive={data_z.get('pumpActive')}"
             return TestResult(test_id, name, req, "PASS", latency, details)
         except Exception as e:
             return TestResult(test_id, name, req, "FAIL", (time.time() - start)*1000, str(e))

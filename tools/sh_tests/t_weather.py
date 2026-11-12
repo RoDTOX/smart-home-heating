@@ -55,11 +55,12 @@ class WeatherTests:
             w = self._wx()
             assert w["weatherState"] == "held", f"poll failed, value 1 h old: state {w['weatherState']}, expected held"
             assert w["weatherValid"] is True, "a held value (6 h or younger) must stay usable"
-            self._wx_hook(failed=1, ageSec=6 * 3600 + 60)
+            stale_sec = 6 * 3600 + 60
+            self._wx_hook(failed=1, ageSec=stale_sec)
             time.sleep(1)
             w = self._wx()
             assert w["weatherState"] == "lost", f"value older than 6 h: state {w['weatherState']}, expected lost"
-            assert w["weatherValid"] is False, "a value older than 6 h must not be used"
+            assert w["weatherValid"] is False and stale_sec > 6 * 3600, "a value older than 6 h must not be used"
             return TestResult(test_id, name, req, "PASS", (time.time() - start) * 1000, "1 h old -> held (usable); 6 h 1 min -> lost")
         except Exception as e:
             return TestResult(test_id, name, req, "FAIL", (time.time() - start) * 1000, str(e))

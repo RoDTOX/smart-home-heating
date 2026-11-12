@@ -151,7 +151,11 @@ class ControlTests:
             r = requests.post(f"{self.base_url}/api/console/send?cmd=HELP", timeout=self.timeout)
             latency = (time.time() - start) * 1000
             assert r.status_code == 200, f"HELP command failed: {r.status_code}"
-            details = "Dispatched HELP command over REST console endpoint"
+            assert len(r.text.strip()) > 0, "Empty response from /api/console/send"
+            time.sleep(0.1)
+            r_logs = requests.get(f"{self.base_url}/api/console/logs", timeout=self.timeout)
+            assert r_logs.status_code == 200 and ("HELP" in r_logs.text or "Available commands" in r_logs.text), "HELP output missing from console logs"
+            details = "Dispatched HELP command and verified response in console logs"
             return TestResult(test_id, name, req, "PASS", latency, details)
         except Exception as e:
             return TestResult(test_id, name, req, "FAIL", (time.time() - start)*1000, str(e))
@@ -627,6 +631,8 @@ class ControlTests:
             assert r.status_code == 400, f"level 28.5: expected HTTP 400, got {r.status_code}"
             r = requests.post(f"{self.base_url}/api/schedule/level?zone={zone_id}&level=day&temp=28.0", timeout=self.timeout)
             assert r.status_code == 200, f"level 28.0: expected HTTP 200, got {r.status_code}"
+            z_after = requests.get(f"{self.base_url}/api/schedule", timeout=self.timeout).json()["zones"][0]
+            assert abs(z_after["day"] - 28) < 0.05, f"level 28 C not persisted: {z_after['day']}"
             return TestResult(test_id, name, req, "PASS", (time.time() - start) * 1000, "28.5 refused twice, 28.0 accepted as a level")
         except Exception as e:
             return TestResult(test_id, name, req, "FAIL", (time.time() - start) * 1000, str(e))

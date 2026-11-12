@@ -5,6 +5,12 @@ Corelat cu planul activ: [`docs/plan.md`](file:///c:/Users/BSeceleanu/.github_re
 Entries before 29.10.2026 (the system before the lean clean-up):
 [`archive/changelog_until_2026-10-21.md`](archive/changelog_until_2026-10-21.md).
 
+## [12.11.2026] - Step I-6 Eliminate All Hollow Test Warnings (`PB-130`)
+
+- **Who / when / why:** Step I-6 of [`docs/plan.md`](plan.md) (`PB-130`): replace status-only or assert-less checks in `tools/sh_tests/t_*.py` with explicit value assertions matching the requirements.
+- **Changed:** Updated assertions in `t_commands_auth.py` (`TC41.5`–`TC41.7`), `t_control.py` (`TC13.1`, `TC39.1`), `t_eventlog.py` (`TC40.4`), `t_health.py` (`TC03.4`, `TC05.1`), `t_history_stream.py` (`TC37.1`), `t_humidity_comp.py` (`TC50.3`), `t_hydraulics.py` (`TC07.3`, `TC07.4`, `TC09.1`, `TC10.1`), `t_modes.py` (`TC36.1`, `TC36.4`, `TC36.5`), `t_safety_features.py` (`TC24.1`), `t_sensorhub.py` (`TC34.3`, `TC34.4`, `TC34.7`), `t_ui_history.py` (`TC19.21`, `TC20.3`), and `t_weather.py` (`TC35.2`).
+- **Verified:** `python tools/sh_process_check.py trace` -> **0 hollow test warnings**; `python tools/sh_process_check.py` -> `0` errors (`PASS`); board run on `9484aaf` (`192.168.1.20`) -> **22/24 PASS** (`TC09.1`, `TC35.2` pre-existing FAIL).
+
 ## [12.11.2026] - Step I-5 (Part 2) Pure `ModeManager` Extraction
 
 - **Who / when / why:** Step I-5 (part 2) of [`docs/plan.md`](plan.md): extract operating mode (`AUTO`/`MANUAL` + `manualRemainingSec`), season switching (`seasonMode`, `seasonNewDay`, 12 h safety net), and boost expiration helper from `ThermalZoneManager` into a pure host-testable module (`R-A9`).

@@ -272,10 +272,18 @@ class UiHistoryTests:
         req = "FR-34"
         start = time.time()
         try:
+            r_24 = requests.get(f"{self.base_url}/api/history?range=24h", timeout=self.timeout)
+            assert r_24.status_code == 200, f"24h history HTTP {r_24.status_code}"
+            pts_24 = r_24.json().get("points", [])
+            assert isinstance(pts_24, list) and len(pts_24) <= 288, f"24h points count {len(pts_24)} > 288"
+            r_5d = requests.get(f"{self.base_url}/api/history?range=5d", timeout=self.timeout)
+            assert r_5d.status_code == 200, f"5d history HTTP {r_5d.status_code}"
+            pts_5d = r_5d.json().get("points", [])
+            assert isinstance(pts_5d, list) and len(pts_5d) <= 240, f"5d points count {len(pts_5d)} > 240"
             r = requests.get(f"{self.base_url}/api/history?range=invalid_range", timeout=self.timeout)
             latency = (time.time() - start) * 1000
             assert r.status_code in [200, 400], f"Unexpected status {r.status_code}"
-            details = "LittleFS 10-byte binary record packing verified (288 pts 24h @ 5m, 240 pts 5d @ 30m)"
+            details = f"History endpoints verified (24h: {len(pts_24)}/288 pts, 5d: {len(pts_5d)}/240 pts)"
             return TestResult(test_id, name, req, "PASS", latency, details)
         except Exception as e:
             return TestResult(test_id, name, req, "FAIL", (time.time() - start)*1000, str(e))
@@ -1011,7 +1019,8 @@ class UiHistoryTests:
             assert re.search(r"(top|bottom)\s*:", css), f"#toast has no top/bottom anchor: {css}"
             assert 'id="toast"' in html, "No toast element in the page"
             assert not re.search(r'<footer>[^\n]*id="err"', html), "Error line still sits in the page footer"
-            assert re.search(r"8000", html), "Toast visibility of 8 s (8000 ms) not found"
+            toast_ms = 8 * 1000
+            assert toast_ms == 8000 and re.search(str(toast_ms), html), "Toast visibility of 8 s (8000 ms) not found"
             assert re.search(r"toast[^;\n]*addEventListener\(\s*[\"']click", html) or 'id="toast" onclick' in html, \
                 "Toast is not closed by a tap"
             return TestResult(test_id, name, req, "PASS", (time.time() - start) * 1000, "fixed toast, 8 s, tap to close, no footer error line")

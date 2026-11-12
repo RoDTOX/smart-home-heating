@@ -120,10 +120,11 @@ class CommandsAuthTests:
             assert r.status_code == 200, f"/api/diag/status answered {r.status_code}"
             data = r.json()
             active_dtcs = [d.get("code") for d in data.get("dtcs", [])]
-            # When running with default credentials, DTC-403 is active; clears on custom credentials (FR-59)
-            latency = (time.time() - start) * 1000
             has_dtc = "DTC-403" in active_dtcs
-            details = f"DTC-403 active={has_dtc} (FR-59 default credentials contract verified)"
+            expected = (self.api_auth() == ("admin", "heating1234"))
+            assert has_dtc == expected, f"DTC-403 active={has_dtc}, expected={expected} (FR-59)"
+            latency = (time.time() - start) * 1000
+            details = f"DTC-403 active={has_dtc} matches credentials state (FR-59)"
             return TestResult(test_id, name, req, "PASS", latency, details)
         except Exception as e:
             return TestResult(test_id, name, req, "FAIL", (time.time() - start) * 1000, str(e))
@@ -137,9 +138,12 @@ class CommandsAuthTests:
             assert r.status_code == 200, f"/api/diag/mem answered {r.status_code}"
             data = r.json()
             assert "free" in data and "minFreeEver" in data, "Missing memory keys in /api/diag/mem"
+            wx = next((t for t in data.get("tasks", []) if t.get("name") == "wx"), None)
+            assert wx is not None, "Weather task 'wx' missing in /api/diag/mem tasks"
+            assert 0 < wx.get("stackFreeMin", 0) <= 4 * 1024, f"wx stackFreeMin {wx.get('stackFreeMin')} outside 4 KB budget"
 
             latency = (time.time() - start) * 1000
-            return TestResult(test_id, name, req, "PASS", latency, f"Free heap: {data.get('free')} B, minFreeEver: {data.get('minFreeEver')} B")
+            return TestResult(test_id, name, req, "PASS", latency, f"Free heap: {data.get('free')} B, wx stackFreeMin: {wx.get('stackFreeMin')} B")
         except Exception as e:
             return TestResult(test_id, name, req, "FAIL", (time.time() - start) * 1000, str(e))
 
@@ -153,7 +157,12 @@ class CommandsAuthTests:
             checks = r_status.json().get("checks", [])
             heap_check = next((c for c in checks if c.get("id") == "heap"), None)
             assert heap_check is not None, "heap check missing in /api/diag/status"
-            assert "DTC-402" in heap_check.get("rule", ""), "DTC-402 missing in heap check rule description"
+            rule = heap_check.get("rule", "")
+            assert "DTC-402" in rule and str(60) in rule, f"Unexpected heap check rule: {rule}"
+            r_mem = requests.get(f"{self.base_url}/api/diag/mem", timeout=self.timeout).json()
+            if r_mem.get("free", 0) >= 75 * 1024:
+                active_dtcs = [d.get("code") for d in r_status.json().get("dtcs", [])]
+                assert "DTC-402" not in active_dtcs, "DTC-402 still active above 75 KB"
 
             latency = (time.time() - start) * 1000
             return TestResult(test_id, name, req, "PASS", latency, f"Heap check result: {heap_check.get('result')} ({heap_check.get('value')})")

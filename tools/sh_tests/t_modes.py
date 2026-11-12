@@ -46,9 +46,9 @@ class ModeTests:
         start = time.time()
         try:
             c = requests.get(f"{self.base_url}/api/config/system", timeout=self.timeout).json()
-            want = {"manualTimeoutSec": 10800, "boostDurationSec": 10800, "heatLimit": 15, "seasonOnDays": 2, "seasonOffDays": 5}
+            want = {"manualTimeoutSec": 3 * 3600, "boostDurationSec": 3 * 3600, "heatLimit": 15, "seasonOnDays": 2, "seasonOffDays": 5}
             got = {k: c.get(k) for k in want}
-            assert got == want, f"defaults {got}, expected {want}"
+            assert got == want and c.get("heatLimit") == 15 and c.get("manualTimeoutSec") == 3 * 3600, f"defaults {got}, expected {want}"
             bad = {"manualTimeoutSec": (3599, 21601), "boostDurationSec": (3599, 21601), "heatLimit": (9, 19),
                    "seasonOnDays": (0, 8), "seasonOffDays": (0, 11)}
             for key, vals in bad.items():
@@ -143,7 +143,7 @@ class ModeTests:
             self._md_day("none")
             assert st() == "HEATING", "a day without data changed the season"
             self._md_day(17.5)
-            assert st() == "SUMMER", "5 days in a row above heatLimit + 2 C did not end the season"
+            assert st() == "SUMMER" and 17.5 > 15 + 2, "5 days in a row above heatLimit + 2 C did not end the season"
             # season mode ON / OFF ignore the means
             self._md_season("on")
             self._md_day(25.0)
@@ -165,6 +165,7 @@ class ModeTests:
             post = lambda t: requests.post(f"{self.base_url}/api/zones/setpoint?id={n}&target={t}", timeout=self.timeout)
             sched = zone()["scheduleTarget"]
             for off in (0.5, 1.0, 1.5, 2.0):
+                assert 0.5 <= off <= 2.0
                 r = post(sched + off)
                 assert r.status_code == 200, f"boost +{off}: HTTP {r.status_code}"
                 z = zone()

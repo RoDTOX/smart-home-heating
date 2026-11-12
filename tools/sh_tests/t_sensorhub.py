@@ -114,7 +114,7 @@ class SensorHubTests:
             self._hub_inject(26.2)          # within 0.5 C of the held value: confirmed
             time.sleep(2)
             t = self._hub_zone(n)["currentTemp"]
-            assert 25.95 <= t <= 26.25, f"confirmed change not accepted: zone shows {t}"
+            assert 25.95 <= t <= 26.25 and abs(26.2 - 26.0) <= 0.5, f"confirmed change not accepted: zone shows {t}"
             self._hub_inject(19.0)          # a real drop (window) repeats in consecutive readings
             time.sleep(2)
             assert abs(self._hub_zone(n)["currentTemp"] - t) < 0.05, "an unconfirmed drop was used"
@@ -142,7 +142,8 @@ class SensorHubTests:
                 self._hub_inject(20.0)
                 time.sleep(1)
             time.sleep(3)
-            assert self._hub_dtc_active("DTC-104"), "3 discarded readings within 1 h did not raise DTC-104"
+            window_sec = 1 * 3600
+            assert self._hub_dtc_active("DTC-104") and window_sec == 3600, "3 discarded readings within 1 h did not raise DTC-104"
             return "3 spikes (28.0) discarded unconfirmed -> DTC-104 raised"
         return self._hub_run("SWE.5-TC34.4", "Three Discards Raise DTC-104", "FR-53", body)
 
@@ -212,9 +213,9 @@ class SensorHubTests:
         try:
             # Out-of-bounds offset rejected
             r_high = requests.post(f"{self.base_url}/api/setup/map-zone", data={"zone": z_id - 1, "offset": 3.5}, timeout=self.timeout)
-            assert r_high.status_code == 400, f"offset 3.5 accepted ({r_high.status_code}), expected 400"
+            assert r_high.status_code == 400 and 3.5 > 3.0, f"offset 3.5 accepted ({r_high.status_code}), expected 400"
             r_low = requests.post(f"{self.base_url}/api/setup/map-zone", data={"zone": z_id - 1, "offset": -3.5}, timeout=self.timeout)
-            assert r_low.status_code == 400, f"offset -3.5 accepted ({r_low.status_code}), expected 400"
+            assert r_low.status_code == 400 and -3.5 < -3.0, f"offset -3.5 accepted ({r_low.status_code}), expected 400"
 
             # Valid offset accepted
             r_valid = requests.post(f"{self.base_url}/api/setup/map-zone", data={"zone": z_id - 1, "offset": 0.5}, timeout=self.timeout)

@@ -210,10 +210,13 @@ class HealthTests:
         try:
             r = requests.get(f"{self.base_url}/api/boiler/status", timeout=self.timeout)
             latency = (time.time() - start) * 1000
+            assert r.status_code == 200, f"/api/boiler/status answered {r.status_code}"
             data = r.json()
-            # Device has been booted; verify telemetry reflects warmup completion or active loop
-            uptime = data.get("uptimeSec", 0)
-            details = f"Uptime: {uptime}s (Boot warmup grace period verified passed and operational)"
+            assert "uptimeSec" in data and data["uptimeSec"] >= 0, f"Invalid uptimeSec in {data}"
+            if "bootWarmupActive" in data and data["uptimeSec"] >= 300:
+                assert data["bootWarmupActive"] is False, "bootWarmupActive still true after 300 s"
+            uptime = data["uptimeSec"]
+            details = f"Uptime: {uptime}s (Boot warmup grace period verified)"
             return TestResult(test_id, name, req, "PASS", latency, details)
         except Exception as e:
             return TestResult(test_id, name, req, "FAIL", (time.time() - start)*1000, str(e))
@@ -285,18 +288,20 @@ class HealthTests:
     # ---------------------------------------------------------
 
     def test_tc05_1_hardware_twdt_guard(self):
-        """SWE.5-TC05.1: Hardware Task Watchdog (TWDT 90s) Integrity (NFR-1.5)"""
+        """SWE.5-TC05.1: Hardware Task Watchdog (TWDT) Integrity & Reset Reason (NFR-1.5)"""
         test_id = "SWE.5-TC05.1"
-        name = "Hardware Task Watchdog (TWDT 90s)"
+        name = "Hardware Task Watchdog (TWDT)"
         req = "NFR-1.5"
         start = time.time()
         try:
             r = requests.get(f"{self.base_url}/api/boiler/status", timeout=self.timeout)
             latency = (time.time() - start) * 1000
+            assert r.status_code == 200, f"/api/boiler/status answered {r.status_code}"
             data = r.json()
-            # Verified via system status responsiveness and reset reason
             assert data.get("uptimeSec", 0) >= 0, "Invalid system uptime"
-            details = f"TWDT 90s Active, Loop fed normally, Reset reason: {data.get('resetReason')}"
+            rr = str(data.get("resetReason", ""))
+            assert rr and "WDT" not in rr.upper(), f"Unexpected WDT resetReason: {rr}"
+            details = f"TWDT Active, Loop fed normally, Reset reason: {rr}"
             return TestResult(test_id, name, req, "PASS", latency, details)
         except Exception as e:
             return TestResult(test_id, name, req, "FAIL", (time.time() - start)*1000, str(e))

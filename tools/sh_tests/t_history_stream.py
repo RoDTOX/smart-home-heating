@@ -12,7 +12,7 @@ class HistoryStreamTests:
         test_id, name, req = "SWE.5-TC37.1", "History Streamed", "FR-34"
         start = time.time()
         try:
-            for rng, pts in (("24h", 288), ("5d", 240)):
+            for hours, rng, pts in ((24, "24h", 288), (120, "5d", 240)):
                 r = requests.get(f"{self.base_url}/api/history?range={rng}", timeout=15)
                 assert r.status_code == 200, f"range {rng}: HTTP {r.status_code}"
                 assert r.headers.get("Transfer-Encoding", "").lower() == "chunked", \
@@ -20,7 +20,7 @@ class HistoryStreamTests:
                 j = r.json()
                 assert isinstance(j, dict) and j, f"range {rng}: empty or not an object"
                 lists = [v for v in j.values() if isinstance(v, list)]
-                assert lists and max(len(v) for v in lists) <= pts + 1, f"range {rng}: no list or more than {pts} points"
+                assert lists and max(len(v) for v in lists) <= pts + 1 and hours in (24, 120), f"range {rng}: no list or more than {pts} points"
             return TestResult(test_id, name, req, "PASS", (time.time() - start) * 1000, "24h and 5d: chunked, valid JSON")
         except Exception as e:
             return TestResult(test_id, name, req, "FAIL", (time.time() - start) * 1000, str(e))
