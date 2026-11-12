@@ -7,6 +7,7 @@
 #include "ParamStore.h"
 #include "BoilerRadioTrigger.h"
 #include "SafetySupervisor.h"
+#include "Schedule.h"
 
 #define MAX_THERMAL_ZONES 32  // zone slots reserved statically (FR-69); the zones in use are getZoneCount()
 
@@ -41,67 +42,6 @@ enum ZoneState {
 enum HeatingType : uint8_t {
     HEATING_TYPE_FLOOR = 0,
     HEATING_TYPE_RADIATORS = 1
-};
-
-// Comfort levels: each zone has one temperature per level
-enum ComfortLevel : uint8_t {
-    LEVEL_DAY = 0,
-    LEVEL_NIGHT,
-    LEVEL_AWAY,
-    LEVEL_COUNT
-};
-
-#define MAX_SCHEDULE_SLOTS 8
-#define MAX_SCHEDULE_MOMENTS 4
-#define MAX_SCHEDULE_DAYS 7
-
-enum ScheduleMode : uint8_t {
-    SCHED_MODE_5_2 = 0,
-    SCHED_MODE_CONSTANT = 1,
-    SCHED_MODE_UNIFIED = 2,
-    SCHED_MODE_7DAY = 3
-};
-
-// FR-1.2, FR-29 (C-36): no target, level or boost above this, boost included
-constexpr float TARGET_MAX_C = 28.0f;
-
-// Encodes 5.0..30.0 C with 0.1 C resolution into 0..250
-inline uint8_t encodeTempByte(float t) {
-    if (t < 5.0f) t = 5.0f;
-    if (t > 30.0f) t = 30.0f;
-    return (uint8_t)lroundf((t - 5.0f) * 10.0f);
-}
-inline float decodeTempByte(uint8_t b) {
-    return 5.0f + (float)b / 10.0f;
-}
-
-struct MomentConfig {
-    uint8_t hour;
-    uint8_t minute;
-    uint8_t temps[MAX_THERMAL_ZONES]; // 0..250 maps to 5.0..30.0 C
-};
-
-// From hour:minute on, all zones follow `level`
-struct ScheduleSlot {
-    uint8_t hour;
-    uint8_t minute;
-    uint8_t level;
-};
-
-struct ScheduleConfig {
-    bool enabled;
-    bool preHeatEnabled;
-    bool windowDetectionEnabled;
-    bool away;  // Global away override (ignores slots)
-    uint8_t scheduleMode; // 0 = 5+2, 1 = constant, 2 = unified, 3 = 7day
-    float levelTemps[LEVEL_COUNT][MAX_THERMAL_ZONES];
-    uint8_t weekdayCount;
-    ScheduleSlot weekday[MAX_SCHEDULE_SLOTS];
-    uint8_t weekendCount;
-    ScheduleSlot weekend[MAX_SCHEDULE_SLOTS];
-    MomentConfig days[MAX_SCHEDULE_DAYS][MAX_SCHEDULE_MOMENTS]; // 0=Sun, 1=Mon ... 6=Sat
-    uint8_t awayTemps[MAX_THERMAL_ZONES];
-    char momentNames[MAX_SCHEDULE_MOMENTS][16];
 };
 
 struct WindowDetectionState {
@@ -281,37 +221,37 @@ public:
     void setBoilerManual(BoilerRadioTrigger& boiler, bool on);
 
     // Schedule: same slots for all zones, each slot selects a comfort level
-    const ScheduleConfig& getScheduleConfig() const { return _scheduleConfig; }
+    const ScheduleConfig& getScheduleConfig() const { return _schedule.getConfig(); }
     void setScheduleEnabled(bool enabled);
-    bool isScheduleEnabled() const { return _scheduleConfig.enabled; }
+    bool isScheduleEnabled() const { return _schedule.isEnabled(); }
     void setPreHeatEnabled(bool enabled);
-    bool isPreHeatEnabled() const { return _scheduleConfig.preHeatEnabled; }
+    bool isPreHeatEnabled() const { return _schedule.isPreHeatEnabled(); }
     void setWindowDetectionEnabled(bool enabled);
-    bool isWindowDetectionEnabled() const { return _scheduleConfig.windowDetectionEnabled; }
+    bool isWindowDetectionEnabled() const { return _schedule.isWindowDetectionEnabled(); }
     void setAway(bool away);
-    bool isAway() const { return _scheduleConfig.away; }
+    bool isAway() const { return _schedule.isAway(); }
     bool setLevelTemp(size_t index, ComfortLevel level, float temp);
     bool setSlots(bool weekend, const char* spec);  // e.g. "06:30=day,22:30=night"
     String getSlotsString(bool weekend) const;
     void resetScheduleToDefault();
-    static ScheduleConfig getFactoryDefaultSchedule();
-    static const char* getLevelName(uint8_t level);
-    static int parseLevel(const char* name);  // -1 if invalid
+    static ScheduleConfig getFactoryDefaultSchedule() { return Schedule::getFactoryDefaultSchedule(); }
+    static const char* getLevelName(uint8_t level) { return Schedule::getLevelName(level); }
+    static int parseLevel(const char* name) { return Schedule::parseLevel(name); }
 
-    uint8_t getActiveLevel() const { return _activeLevel; }
-    uint8_t getNextLevel() const { return _nextLevel; }
-    uint32_t getMinutesToNextSlot() const { return _minsToNextSlot; }
-    bool isPreHeatActive() const { return _preHeatActive; }
+    uint8_t getActiveLevel() const { return _schedule.getActiveLevel(); }
+    uint8_t getNextLevel() const { return _schedule.getNextLevel(); }
+    uint32_t getMinutesToNextSlot() const { return _schedule.getMinutesToNextSlot(); }
+    bool isPreHeatActive() const { return _schedule.isPreHeatActive(); }
 
     void setScheduleMode(uint8_t mode);
-    uint8_t getScheduleMode() const { return _scheduleConfig.scheduleMode; }
-    const char* getScheduleModeName() const;
+    uint8_t getScheduleMode() const { return _schedule.getScheduleMode(); }
+    const char* getScheduleModeName() const { return _schedule.getScheduleModeName(); }
     bool setScheduleModeByName(const char* name);
     bool setMoment(uint8_t dayIndex, uint8_t momentIndex, uint8_t hour, uint8_t minute, const float* temps);
     bool setMomentForGroup(const char* group, uint8_t momentIndex, uint8_t hour, uint8_t minute, const float* temps);
     bool setAwayTemp(size_t index, float temp);
-    float getAwayTemp(size_t index) const;
-    const char* getMomentName(uint8_t index) const;
+    float getAwayTemp(size_t index) const { return _schedule.getAwayTemp(index); }
+    const char* getMomentName(uint8_t index) const { return _schedule.getMomentName(index); }
     bool setMomentName(uint8_t index, const char* name);
 
     // Open Window Detection State
@@ -350,14 +290,7 @@ private:
     ThermalZoneStatus _statuses[MAX_THERMAL_ZONES];
 
     // Schedule State
-    ScheduleConfig _scheduleConfig;
-    int16_t _activeSlotKey;  // weekend * 16 + slot index, -1 = none
-    uint8_t _activeLevel;
-    uint8_t _nextLevel;
-    uint8_t _activeMomentIdx = 0;
-    uint8_t _nextMomentIdx = 1;
-    uint32_t _minsToNextSlot;
-    bool _preHeatActive;
+    Schedule _schedule;
     WindowDetectionState _windowStates[MAX_THERMAL_ZONES];
     TpiState _tpi[MAX_THERMAL_ZONES];
     uint8_t _zoneCount = 0;

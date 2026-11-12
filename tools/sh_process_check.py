@@ -1039,6 +1039,7 @@ ARCH_RULES = [
 # Single source of truth for R-A9 (no millis(), no Arduino.h in headers or unguarded .cpp, host test present).
 PURE_MODULES = {
     "SafetySupervisor": "test_safety",
+    "Schedule": "test_schedule",
     "ZoneController": "test_zone_controller",
     "HeatUpModel": "test_heatup_model",
     "SolarThrottle": "test_solar_throttle",

@@ -5,6 +5,16 @@ Corelat cu planul activ: [`docs/plan.md`](file:///c:/Users/BSeceleanu/.github_re
 Entries before 29.10.2026 (the system before the lean clean-up):
 [`archive/changelog_until_2026-10-21.md`](archive/changelog_until_2026-10-21.md).
 
+## [12.11.2026] - Step I-5 (Part 1) Pure `Schedule` Extraction
+
+- **Who / when / why:** Step I-5 (part 1) of [`docs/plan.md`](plan.md): extract schedule levels, slots, moment matrix, pre-heat lead, and evaluation from `ThermalZoneManager` into a pure host-testable module (`R-A9`), keeping `ThermalZoneManager` focused on zone orchestration.
+- **Changed:**
+  - `include/Schedule.h`, `src/Schedule.cpp` (new): pure `Schedule` module (`0` `Arduino.h`, `0` `millis()`, `0` `String`) encapsulating `ScheduleConfig`, `ScheduleSlot`, comfort levels/moments, `evaluate()`, `targetRaw()`, `getTargetTemp()`, and zone-index helpers (`resetZoneLevels`, `onZoneRemoved`).
+  - `test/test_schedule/test_schedule.cpp` (new): 5 host tests covering `FR-29`, `FR-30`, `FR-31`, `FR-48`, `FR-61`.
+  - `include/ThermalZoneManager.h`, `src/ThermalZoneManager.cpp`: delegated schedule state and evaluation to `_schedule` (`1 780` lines remaining in `ThermalZoneManager.cpp` before `ModeManager` extraction).
+  - `platformio.ini`, `tools/sh_process_check.py`: added `Schedule` to `[env:native]` and `PURE_MODULES`.
+- **Verified:** `pio test -e native` -> **33/33 PASSED**; `pio run -e esp32dev` -> `1 303 264 B` (`3 360 B` under `1 306 624 B` limit); `pio run -e esp32release` -> `1 303 280 B` (`3 344 B` margin); `python tools/sh_process_check.py` -> `0` errors (`9` pure modules, `0` `R-A9` errors, `1` known `PB-12`); `claude-opus-4-6` safety review -> `VERDICT: PASS`.
+
 ## [12.11.2026] - Board Verification Fixes (`PB-128`, `PB-129`)
 
 - **Changed:**
