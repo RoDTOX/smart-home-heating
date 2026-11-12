@@ -233,26 +233,3 @@ bool PlantMonitor::isZoneNoEffect(size_t zoneIndex) const {
     if (zoneIndex >= 32) return false;
     return _zones[zoneIndex].noEffectDetectedMs != 0;
 }
-
-#ifdef ARDUINO
-String getPlantStatusJson() {
-    String out = "{\"zones\":[";
-    size_t count = thermalZones.getZoneCount();
-    for (size_t i = 0; i < count; i++) {
-        if (i > 0) out += ",";
-        out += "{\"zone\":";
-        out += String(i + 1);
-        out += ",\"overheating\":";
-        out += plantMonitor.isZoneOverheating(i) ? "true" : "false";
-        out += ",\"noEffect\":";
-        out += plantMonitor.isZoneNoEffect(i) ? "true" : "false";
-        out += "}";
-    }
-    out += "],\"boilerMonitor\":{\"boilerNotHeating\":";
-    out += plantMonitor.isBoilerNotHeating() ? "true" : "false";
-    out += "},\"misdirection\":";
-    out += plantMonitor.isMisdirectionDetected() ? "true" : "false";
-    out += "}";
-    return out;
-}
-#endif

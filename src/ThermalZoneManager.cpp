@@ -834,14 +834,14 @@ bool ThermalZoneManager::setSlots(bool weekend, const char* spec) {
     if (!_schedule.setSlots(weekend, spec)) return false;
     saveSchedule();
     evaluateSchedule(millis());
-    netConsole.printf("[Thermal] %s slots: %s\n", weekend ? "Weekend" : "Weekday", getSlotsString(weekend).c_str());
+    char wkBuf[160];
+    getSlotsString(weekend, wkBuf, sizeof(wkBuf));
+    netConsole.printf("[Thermal] %s slots: %s\n", weekend ? "Weekend" : "Weekday", wkBuf);
     return true;
 }
 
-String ThermalZoneManager::getSlotsString(bool weekend) const {
-    char buf[160];
-    _schedule.formatSlots(weekend, buf, sizeof(buf));
-    return String(buf);
+void ThermalZoneManager::getSlotsString(bool weekend, char* out, size_t cap) const {
+    _schedule.formatSlots(weekend, out, cap);
 }
 
 void ThermalZoneManager::setAway(bool away) {
@@ -1141,132 +1141,6 @@ uint32_t ThermalZoneManager::getWindowLastDetectionEpoch(size_t index) const {
 uint32_t ThermalZoneManager::getWindowLastDetectionDurationSec(size_t index) const {
     if (index >= MAX_THERMAL_ZONES) return 0;
     return _windowStates[index].lastDetectionDurationSec;
-}
-
-static void appendBoolField(String& out, const char* key, bool val) {
-    out += '"';
-    out += key;
-    out += "\":";
-    out += val ? "true," : "false,";
-}
-
-static void appendIdTempField(String& out, uint8_t id, float temp) {
-    char buf[12];
-    snprintf(buf, sizeof(buf), "\"%u\":", (unsigned)id);
-    out += buf;
-    out += String(temp, 1);
-}
-
-static void appendDayMomentsJson(String& out, const ScheduleConfig& sched,
-                                 const ThermalZoneConfig* configs, size_t zoneCount,
-                                 size_t dayIdx) {
-    out += '[';
-    for (size_t m = 0; m < MAX_SCHEDULE_MOMENTS; m++) {
-        if (m > 0) out += ',';
-        char buf[48];
-        snprintf(buf, sizeof(buf), "{\"moment\":%u,\"time\":\"%02u:%02u\",\"temps\":{",
-                 (unsigned)(m + 1), sched.days[dayIdx][m].hour, sched.days[dayIdx][m].minute);
-        out += buf;
-        for (size_t z = 0; z < zoneCount; z++) {
-            if (z > 0) out += ',';
-            float t = sched.days[dayIdx][m].temps[z] > 0
-                ? decodeTempByte(sched.days[dayIdx][m].temps[z])
-                : sched.levelTemps[m == 3 ? LEVEL_NIGHT : LEVEL_DAY][z];
-            appendIdTempField(out, configs[z].id, t);
-        }
-        out += "}}";
-    }
-    out += ']';
-}
-
-String ThermalZoneManager::getScheduleJson() const {
-    const ScheduleConfig& cfg = _schedule.getConfig();
-    String json;
-    json.reserve(2560);
-    json = "{\"status\":\"ok\",";
-    appendBoolField(json, "enabled", cfg.enabled);
-    appendBoolField(json, "away", cfg.away);
-    json += "\"scheduleMode\":\"";
-    json += getScheduleModeName();
-    json += "\",\"activeMoment\":";
-    json += (unsigned)(_schedule.getActiveMomentIdx() + 1);
-    json += ",\"nextMoment\":";
-    json += (unsigned)(_schedule.getNextMomentIdx() + 1);
-    json += ',';
-    appendBoolField(json, "preHeatEnabled", cfg.preHeatEnabled);
-    appendBoolField(json, "windowDetectionEnabled", cfg.windowDetectionEnabled);
-    json += "\"activeLevel\":\"";
-    json += getLevelName(_schedule.getActiveLevel());
-    json += "\",\"nextLevel\":\"";
-    json += getLevelName(_schedule.getNextLevel());
-    json += "\",\"minsToNextSlot\":";
-    json += _schedule.getMinutesToNextSlot();
-    json += ',';
-    appendBoolField(json, "preHeatActive", _schedule.isPreHeatActive());
-    appendBoolField(json, "isWeekend", timeAndWeather.isWeekend());
-    json += "\"dayOfWeek\":";
-    json += timeAndWeather.getDayOfWeekIndex();
-    json += ",\"weekday\":\"";
-    json += getSlotsString(false);
-    json += "\",\"weekend\":\"";
-    json += getSlotsString(true);
-    json += "\",";
-    appendBoolField(json, "openLoopBypass", _openLoopBypass);
-    json += "\"interlockDelaySec\":";
-    json += _safety.getInterlockDelayMs() / 1000;
-    json += ",\"pumpOverrunSec\":";
-    json += _safety.getPumpOverrunMs() / 1000;
-    json += ',';
-    appendBoolField(json, "pumpControlEnabled", _pumpControlEnabled);
-    json += "\"momentNames\":[";
-    for (size_t m = 0; m < MAX_SCHEDULE_MOMENTS; m++) {
-        if (m > 0) json += ',';
-        json += '"';
-        json += getMomentName((uint8_t)m);
-        json += '"';
-    }
-    json += "],\"weekday_moments\":";
-    appendDayMomentsJson(json, cfg, _configs, _zoneCount, 1);
-    json += ",\"weekend_moments\":";
-    appendDayMomentsJson(json, cfg, _configs, _zoneCount, 0);
-    json += ",\"awayTemps\":{";
-    for (size_t z = 0; z < _zoneCount; z++) {
-        if (z > 0) json += ',';
-        appendIdTempField(json, _configs[z].id, _schedule.getAwayTemp(z));
-    }
-    json += "},\"days\":[";
-    for (size_t d = 0; d < 7; d++) {
-        if (d > 0) json += ',';
-        appendDayMomentsJson(json, cfg, _configs, _zoneCount, d);
-    }
-    json += "],\"zones\":[";
-    for (size_t i = 0; i < _zoneCount; i++) {
-        if (i > 0) json += ',';
-        json += "{\"id\":";
-        json += _configs[i].id;
-        json += ",\"name\":\"";
-        json += _configs[i].name;
-        json += "\",";
-        for (uint8_t l = 0; l < LEVEL_COUNT; l++) {
-            float lvVal = (l == LEVEL_AWAY) ? _schedule.getAwayTemp(i) : cfg.levelTemps[l][i];
-            json += '"';
-            json += getLevelName(l);
-            json += "\":";
-            json += String(lvVal, 1);
-            json += ',';
-        }
-        json += "\"effectiveTarget\":";
-        json += String(getEffectiveTargetTemp(i), 1);
-        json += ',';
-        appendBoolField(json, "isManualHold", _statuses[i].isManualHold);
-        appendBoolField(json, "windowDetected", isWindowDetected(i));
-        appendBoolField(json, "windowPauseActive", isWindowPauseActive(i));
-        json += "\"windowPauseRemainingSec\":";
-        json += getWindowPauseRemainingSec(i);
-        json += '}';
-    }
-    json += "]}";
-    return json;
 }
 
 uint32_t ThermalZoneManager::getBootWarmupElapsedSec() const {

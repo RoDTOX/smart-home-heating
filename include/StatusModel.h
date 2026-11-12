@@ -19,6 +19,12 @@ public:
     // Builds the /api/zones JSON payload into the static buffer
     const char* buildZonesJson();
 
+    // Builds the /api/schedule JSON payload into the static buffer
+    const char* buildScheduleJson();
+
+    // Builds the /api/plant/status JSON payload into the static buffer
+    const char* buildPlantStatusJson();
+
     // Returns pointer to the static buffer and current length
     const char* getBuffer() const { return _buf; }
     size_t getLength() const { return _len; }

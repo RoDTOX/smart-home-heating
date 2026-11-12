@@ -520,8 +520,11 @@ String configExportJson() {
     s["enabled"] = thermalZones.isScheduleEnabled();
     s["preheat"] = thermalZones.isPreHeatEnabled();
     s["window"] = thermalZones.isWindowDetectionEnabled();
-    s["weekday"] = thermalZones.getSlotsString(false);
-    s["weekend"] = thermalZones.getSlotsString(true);
+    char wkBuf[160];
+    thermalZones.getSlotsString(false, wkBuf, sizeof(wkBuf));
+    s["weekday"] = wkBuf;
+    thermalZones.getSlotsString(true, wkBuf, sizeof(wkBuf));
+    s["weekend"] = wkBuf;
     JsonArray levels = s["levels"].to<JsonArray>();
     const ScheduleConfig& sc = thermalZones.getScheduleConfig();
     for (size_t i = 0; i < thermalZones.getZoneCount(); i++) {

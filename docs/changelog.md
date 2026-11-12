@@ -5,6 +5,20 @@ Corelat cu planul activ: [`docs/plan.md`](file:///c:/Users/BSeceleanu/.github_re
 Entries before 29.10.2026 (the system before the lean clean-up):
 [`archive/changelog_until_2026-10-21.md`](archive/changelog_until_2026-10-21.md).
 
+## [12.11.2026] - Step I-7 Eliminate `String` in Control Path (`R-A7`)
+
+- **Who / when / why:** Step I-7 of [`docs/plan.md`](plan.md): remove dynamic `String` heap allocations from L3–L4 (`ThermalZoneManager`, `PlantMonitor`) by formatting `/api/schedule` and `/api/plant/status` directly into `StatusModel`'s static `4 096 B` buffer.
+- **Changed:**
+  - `include/StatusModel.h`, `src/StatusModel.cpp`: added `buildScheduleJson()` and `buildPlantStatusJson()`.
+  - `include/ThermalZoneManager.h`, `src/ThermalZoneManager.cpp`, `src/ConfigTransfer.cpp`, `src/ConsoleCommands.cpp`: removed `getScheduleJson()` and `String getSlotsString()`; replaced with `getSlotsString(bool, char*, size_t)` (`ThermalZoneManager.cpp` now `1 644` lines).
+  - `src/PlantMonitor.cpp`: removed `String getPlantStatusJson()`.
+  - `src/WebApi.cpp`: routed `/api/schedule` and `/api/plant/status` through `statusModel`.
+- **Verified & Heap Comparison:**
+  - `pio run -e esp32dev` -> `1 303 200 B` (`-544 B`, `3 424 B` margin); `esp32release` -> `1 303 216 B` (`-544 B`, `3 408 B` margin); `claude-opus-4-6` safety review -> `VERDICT: PASS`.
+  - `python tools/sh_process_check.py arch` -> `0` `R-A7` warnings in L3–L4 (remaining `R-A7` warnings only in L2 `BleSensorScanner.cpp` / `TimeAndWeatherService`).
+  - Board (`192.168.1.20`, `v1.11.12.09`): `/api/schedule` JSON schema/static fields identical (`3 482 -> 3 480 B`, 2 B diff from live `minsToNextSlot` / `windowDetected`), `/api/plant/status` `200 OK`.
+  - Heap (`/api/diag/mem`): before (`9484aaf`, longer-running session) `free = 83 320 B`, `largestBlock = 77 812 B`, `minFreeEver = 40 728 B`; after (`v1.11.12.09`, fresh boot) steady `free = 85 628 B` (`+2 308 B`), `largestBlock = 81 908 B`, after weather refresh `free = 85 112 B`, `minFreeEver = 66 152 B` (note: `minFreeEver` jump includes reboot reset vs prior test session).
+
 ## [12.11.2026] - Step I-6 Eliminate All Hollow Test Warnings (`PB-130`)
 
 - **Who / when / why:** Step I-6 of [`docs/plan.md`](plan.md) (`PB-130`): replace status-only or assert-less checks in `tools/sh_tests/t_*.py` with explicit value assertions matching the requirements.

@@ -233,7 +233,7 @@ public:
     bool isAway() const { return _schedule.isAway(); }
     bool setLevelTemp(size_t index, ComfortLevel level, float temp);
     bool setSlots(bool weekend, const char* spec);  // e.g. "06:30=day,22:30=night"
-    String getSlotsString(bool weekend) const;
+    void getSlotsString(bool weekend, char* out, size_t cap) const;
     void resetScheduleToDefault();
     static ScheduleConfig getFactoryDefaultSchedule() { return Schedule::getFactoryDefaultSchedule(); }
     static const char* getLevelName(uint8_t level) { return Schedule::getLevelName(level); }
@@ -241,6 +241,8 @@ public:
 
     uint8_t getActiveLevel() const { return _schedule.getActiveLevel(); }
     uint8_t getNextLevel() const { return _schedule.getNextLevel(); }
+    uint8_t getActiveMomentIdx() const { return _schedule.getActiveMomentIdx(); }
+    uint8_t getNextMomentIdx() const { return _schedule.getNextMomentIdx(); }
     uint32_t getMinutesToNextSlot() const { return _schedule.getMinutesToNextSlot(); }
     bool isPreHeatActive() const { return _schedule.isPreHeatActive(); }
 
@@ -273,9 +275,6 @@ public:
         return index < MAX_THERMAL_ZONES && _statuses[index].isManualHold &&
                _configs[index].targetTemp > getScheduleTargetTemp(index) + 0.05f;
     }
-
-    // Schedule JSON Serialization
-    String getScheduleJson() const;
 
     // Schedule Persistence
     void loadSchedule();

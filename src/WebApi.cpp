@@ -20,6 +20,7 @@
 #include "CycleAligner.h"
 #include "HumidityComp.h"
 #include "SmartWindow.h"
+#include "StatusModel.h"
 #include <Arduino.h>
 #include <ArduinoJson.h>
 #include <WebServer.h>
@@ -1036,9 +1037,8 @@ void handleApiDiagStatus() {
 }
 
 void handleApiPlantStatus() {
-  extern String getPlantStatusJson();
   sendCorsHeaders();
-  server.send(200, "application/json", getPlantStatusJson());
+  server.send(200, "application/json", statusModel.buildPlantStatusJson());
 }
 
 void handleApiHeatUpStatus() {
@@ -1329,7 +1329,7 @@ void handleApiStatus() {
 }
 
 static void sendScheduleJson() {
-  server.send(200, "application/json", thermalZones.getScheduleJson());
+  server.send(200, "application/json", statusModel.buildScheduleJson());
 }
 
 void handleApiScheduleGet() {

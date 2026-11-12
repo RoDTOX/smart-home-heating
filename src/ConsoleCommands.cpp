@@ -632,8 +632,11 @@ void handleSerialCommand(String cmd) {
                         ThermalZoneManager::getLevelName(thermalZones.getActiveLevel()),
                         ThermalZoneManager::getLevelName(thermalZones.getNextLevel()),
                         (unsigned int)thermalZones.getMinutesToNextSlot());
-      netConsole.printf("  Weekday:    %s\n", thermalZones.getSlotsString(false).c_str());
-      netConsole.printf("  Weekend:    %s\n", thermalZones.getSlotsString(true).c_str());
+      char wkBuf[160];
+      thermalZones.getSlotsString(false, wkBuf, sizeof(wkBuf));
+      netConsole.printf("  Weekday:    %s\n", wkBuf);
+      thermalZones.getSlotsString(true, wkBuf, sizeof(wkBuf));
+      netConsole.printf("  Weekend:    %s\n", wkBuf);
       netConsole.println(F("  Zone                        Day     Night   Away"));
       for (size_t i = 0; i < thermalZones.getZoneCount(); i++) {
         netConsole.printf("  %u %-25s %5.1f   %5.1f   %5.1f\n", (unsigned int)(i + 1), thermalZones.getConfig(i).name,
