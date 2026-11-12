@@ -5,6 +5,15 @@ Corelat cu planul activ: [`docs/plan.md`](file:///c:/Users/BSeceleanu/.github_re
 Entries before 29.10.2026 (the system before the lean clean-up):
 [`archive/changelog_until_2026-10-21.md`](archive/changelog_until_2026-10-21.md).
 
+## [12.11.2026] - Step I-9 Page from Parts (`web/src/*`)
+
+- **Who / when / why:** Step I-9 of the Improvement plan in [`docs/plan.md`](plan.md): modularize `web/index.html` (3,170 lines) into maintainable per-card parts, one stylesheet, and one i18n file without a framework, and separate history chart data preparation from SVG drawing.
+- **Changed:**
+  - `web/src/`: split into 20 files (`shell.html`, `styles.css`, `doc.json`, `i18n.ro.js` incl. `DAYS_SHORT`/`DAYS_FULL`, `core.js`, `app.js`, and `.html`/`.js` pairs for `rooms`, `schedule`, `diagnostics`, `history`, `gas`, `setup`, `console`; moved `gasFormOpen`/`gasReadingsSeen` to `gas.js`).
+  - `web/src/history.js`: split `renderHistoryChart()` into `prepareHistoryChartData()` (`buildRunBlocks`, `buildCurveSegments`) and `drawHistoryChart()` (`renderHistoryInfoBar`, `drawCurveSvg`).
+  - `tools/sh_build_web.py` & `tools/sh_dev_server.py`: added `assemble_html()`, `source_files()` (without SCons `__file__` dependency), `--sync` option (`web/index.html` kept synced until owner confirms deletion), and served `/` + `/index.html` dynamically in dev server.
+- **Verified (PC / Build — pending board OTA assets upload & visual check):** `python tools/sh_build_web.py --force --sync` -> `148 880 -> 44 101 B` gzip (`-411 B` vs `44 512 B` baseline, well inside `±2 KB`); `node --check` on assembled `<script>` -> exit `0`; `LocalDevHandler` GET `/` and `/index.html` -> HTTP `200`; `pio run -e esp32dev` -> SUCCESS; `pio test -e native` -> 28/28 PASS.
+
 ## [12.11.2026] - Flash Deduplication & Step I-4 `SafetySupervisor` Extraction (D-62)
 
 - **Who / when / why:** Overnight continuation under read-only `claude-fable-5-2` + `claude-opus-4-6` safety review on branch `claude/vibrant-ride-95fick`. Reclaimed Flash headroom below the `1 306 624 B` `.bin` OTA limit (clarifying `R-2`: earlier `1 299 649 B` numbers were ELF Flash rather than `.bin`, while `ba61543` `.bin` was `1 305 968 B`), and extracted `SafetySupervisor` cleanly out of `ThermalZoneManager`.

@@ -24,6 +24,10 @@ ESP32_HOST = os.environ.get("ESP_HEATING_IP", "192.168.1.20")
 ESP32_PORT = 80
 REPO_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 WEB_DIR = os.path.join(REPO_DIR, "web")
+TOOLS_DIR = os.path.dirname(os.path.abspath(__file__))
+if TOOLS_DIR not in sys.path:
+    sys.path.insert(0, TOOLS_DIR)
+from sh_build_web import assemble_html
 
 def generate_mock_history(range_param="24h"):
     import math
@@ -158,8 +162,14 @@ class LocalDevHandler(http.server.SimpleHTTPRequestHandler):
         if self.path.startswith('/api/') or self.path == '/api':
             self._proxy_to_esp("GET")
             return
-        if self.path == '/' or self.path == '':
-            self.path = '/index.html'
+        if self.path == '/' or self.path == '' or self.path == '/index.html':
+            body = assemble_html(REPO_DIR).encode('utf-8')
+            self.send_response(200)
+            self.send_header('Content-Type', 'text/html; charset=utf-8')
+            self.send_header('Content-Length', str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+            return
         super().do_GET()
 
     def do_POST(self):

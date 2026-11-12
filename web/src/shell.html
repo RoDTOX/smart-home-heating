@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="ro">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Încălzire</title>
+<style>
+{{STYLES}}
+</style>
+</head>
+<body>
+<main>
+<header>
+  <h1>Încălzire</h1>
+  <div class="meta"><span id="clock">--:--</span><span id="outdoor">afară --</span><span id="boiler">centrala --</span><span id="level"></span></div>
+  <div style="display:flex;align-items:center;gap:8px">
+    <button id="away">Plecat</button>
+    <button type="button" id="toggleAdmin" class="btn-top-admin" style="background:var(--card);border:1px solid var(--line);border-radius:8px;padding:6px 12px;font-size:13px;color:var(--fg);cursor:pointer;font-weight:500;display:flex;align-items:center;gap:5px">⚙️ Admin</button>
+  </div>
+</header>
+
+<div id="adminAuthModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:9999;align-items:center;justify-content:center;backdrop-filter:blur(3px)">
+  <div style="background:var(--card);border:1px solid var(--line);border-radius:12px;padding:20px;max-width:320px;width:90%;box-shadow:0 8px 32px rgba(0,0,0,0.5)">
+    <div style="font-weight:600;font-size:16px;margin-bottom:8px;display:flex;align-items:center;gap:6px">🔒 Autentificare Administrator</div>
+    <div class="s" style="color:var(--mut);margin-bottom:12px">Introduceți parola pentru a accesa setările și diagnoza instalației.</div>
+    <form id="adminAuthForm" onsubmit="event.preventDefault();submitAdminAuth();">
+      <input id="adminAuthPass" type="password" placeholder="Parolă administrator" autocomplete="current-password" style="width:100%;box-sizing:border-box;margin-bottom:10px;padding:8px 12px;border-radius:6px;border:1px solid var(--line);background:var(--bg);color:var(--fg)">
+      <div id="adminAuthErr" class="s" style="color:var(--bad);margin-bottom:10px;min-height:16px"></div>
+      <div style="display:flex;justify-content:flex-end;gap:8px">
+        <button type="button" onclick="closeAdminAuthModal()" style="padding:6px 12px;background:none;border:1px solid var(--line);border-radius:6px;color:var(--mut);cursor:pointer">Anulează</button>
+        <button type="submit" id="adminAuthSubmit" style="padding:6px 14px;background:var(--btn);color:#fff;border:none;border-radius:6px;font-weight:600;cursor:pointer">Deblochează</button>
+      </div>
+    </form>
+  </div>
+</div>
+{{CARD_ROOMS}}
+<div id="admin">
+{{CARD_SCHEDULE}}
+{{CARD_DIAGNOSTICS}}
+{{CARD_HISTORY}}
+{{CARD_SETUP}}
+{{CARD_CONSOLE}}
+</div>
+
+<footer>
+  <span style="opacity:0.8">Smart Heating</span>
+  <span id="fwInfo" class="s" style="opacity:0.75;margin-left:8px"></span>
+  <span id="devBanner" class="s" style="display:none;opacity:0.5;margin-left:12px;color:#f59e0b">🛠️ Profil: Dezvoltare</span>
+</footer>
+<div id="toast" role="alert"></div>
+</main>
+<!-- FR-8.1: API names watched by the engineering view and their explanation [text, requirement, "v" = changes continuously] -->
+<script type="application/json" id="doc">
+{{DOC_JSON}}
+</script>
+<script>
+{{SCRIPTS}}
+</script>
+</body>
+</html>

@@ -1,0 +1,29 @@
+  <!-- 3. Istoric & Grafic Telemetrie (Default: COLLAPSED, FR-34) -->
+  <details class="adm-card" id="grpHistory">
+    <summary><h2>3. Istoric &amp; Grafic Telemetrie (TPI, Activitate, Temperaturi)</h2></summary>
+    <div class="adm-body" id="histBody">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;gap:8px;flex-wrap:nowrap">
+        <div id="histRangeTabs" style="display:flex;gap:6px;flex-shrink:0">
+          <button type="button" class="sm hist-range-btn" data-range="1h">1 Oră</button>
+          <button type="button" class="sm hist-range-btn" data-range="12h">12 Ore</button>
+          <button type="button" class="sm hist-range-btn on" data-range="24h">24 Ore</button>
+          <button type="button" class="sm hist-range-btn" data-range="3d">3 Zile</button>
+          <button type="button" class="sm hist-range-btn" data-range="5d">5 Zile</button>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center;flex-shrink:0">
+          <span class="s" id="histSummary" style="font-size:11px;color:var(--mut);white-space:nowrap"></span>
+          <button type="button" id="btnRefreshHist" class="sm" style="white-space:nowrap">🔄 Reîmprospătează</button>
+        </div>
+      </div>
+
+      <div style="font-weight:600;font-size:13px;margin:8px 0 4px">3.1 Activitate Circuite &amp; Cazan (Timeline)</div>
+      <div id="histChartBox" style="position:relative;background:var(--card);border:1px solid var(--line);border-radius:10px;padding:8px;overflow-x:auto">
+        <div id="histSvgContainer"></div>
+        <div id="histInfoBar" style="margin-top:8px;padding:6px 12px;background:var(--bg);border:1px solid var(--line);border-radius:8px;font-size:12px;height:70px;min-height:70px;max-height:70px;box-sizing:border-box;display:flex;flex-direction:column;justify-content:center;gap:6px;overflow:hidden"></div>
+      </div>
+
+      <div id="tpiInspectorBox" style="margin-top:14px;padding:12px;background:var(--bg);border:1px solid var(--line);border-radius:10px"></div>
+      {{CARD_GAS}}
+    </div>
+  </details>
+

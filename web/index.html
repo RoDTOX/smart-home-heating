@@ -95,7 +95,6 @@ code,.mono{font:13px/1.35 ui-monospace,SFMono-Regular,Consolas,monospace}
 </div>
 <ul class="alerts" id="alerts"></ul>
 <div class="grid" id="rooms"></div>
-
 <div id="admin">
   <!-- 1. Confort & Programare (Default: OPEN) -->
   <details class="adm-card" id="grpSched">
@@ -134,7 +133,6 @@ code,.mono{font:13px/1.35 ui-monospace,SFMono-Regular,Consolas,monospace}
       </div>
     </div>
   </details>
-
   <!-- 2. Sănătate & Diagnoză (Default: COLLAPSED) -->
   <details class="adm-card" id="grpDiag">
     <summary><h2>2. Sănătate &amp; Diagnoză (FR-10.4)</h2></summary>
@@ -153,7 +151,6 @@ code,.mono{font:13px/1.35 ui-monospace,SFMono-Regular,Consolas,monospace}
       </div>
     </div>
   </details>
-
   <!-- 3. Istoric & Grafic Telemetrie (Default: COLLAPSED, FR-34) -->
   <details class="adm-card" id="grpHistory">
     <summary><h2>3. Istoric &amp; Grafic Telemetrie (TPI, Activitate, Temperaturi)</h2></summary>
@@ -179,10 +176,9 @@ code,.mono{font:13px/1.35 ui-monospace,SFMono-Regular,Consolas,monospace}
       </div>
 
       <div id="tpiInspectorBox" style="margin-top:14px;padding:12px;background:var(--bg);border:1px solid var(--line);border-radius:10px"></div>
-      <div id="gasMeterBox" style="margin-top:14px;padding:12px;background:var(--bg);border:1px solid var(--line);border-radius:10px"></div>
+            <div id="gasMeterBox" style="margin-top:14px;padding:12px;background:var(--bg);border:1px solid var(--line);border-radius:10px"></div>
     </div>
   </details>
-
   <!-- 4. Configurare Instalație (Default: COLLAPSED) -->
   <details class="adm-card" id="grpSetup">
     <summary><h2>4. Configurare Instalație</h2></summary>
@@ -227,7 +223,6 @@ code,.mono{font:13px/1.35 ui-monospace,SFMono-Regular,Consolas,monospace}
       </div>
     </div>
   </details>
-
   <!-- 5. Instrumente Inginerie & Debug (Default: COLLAPSED) -->
   <details class="adm-card" id="grpDebug">
     <summary><h2>5. Instrumente Inginerie &amp; Debug</h2></summary>
@@ -474,7 +469,6 @@ code,.mono{font:13px/1.35 ui-monospace,SFMono-Regular,Consolas,monospace}
 }}
 </script>
 <script>
-const MIN_T = 15, MAX_T = 28, STEP = 0.5;  // C-36: ceiling 28 C, boost included
 const LEVELS = ["day", "night", "away"], LEVEL_RO = {day: "zi", night: "noapte", away: "plecat"};
 // FR-8.4: zone state code -> page text
 const STATE_RO = {FROST: "Protecție îngheț", DISABLED: "Zonă oprită", FAULT: "Senzor pierdut – încălzește de rezervă",
@@ -524,6 +518,30 @@ const RESET_REASONS = {
   9: {title: "Cădere tensiune (Brownout)", desc: "Tensiunea pe linia de alimentare de 3.3V/5V a scăzut sub pragul sigur."},
   10: {title: "Reset extern SDIO", desc: "Semnal extern de reset pe pinii de comunicație."}
 };
+const MOMENT_LABELS = [
+  "P1: Trezire",
+  "P2: Plecat / Zi",
+  "P3: Seară",
+  "P4: Somn / Noapte"
+];
+const DAY_TABS = [
+  {idx: 1, key: "mon", label: "Luni"},
+  {idx: 2, key: "tue", label: "Marți"},
+  {idx: 3, key: "wed", label: "Miercuri"},
+  {idx: 4, key: "thu", label: "Joi"},
+  {idx: 5, key: "fri", label: "Vineri"},
+  {idx: 6, key: "sat", label: "Sâmbătă"},
+  {idx: 0, key: "sun", label: "Duminică"}
+];
+// FR-65.1 / FR-65.6: save the settings file; send a chosen file unchanged and show what the controller did with it
+const REASON_RO = {unknown: "nume necunoscut", invalid: "valoare nepermisă", "no-zone": "zonă inexistentă",
+  "relay-taken": "releu folosit de altă zonă", "pump-relay": "releul pompei", "valve-energised": "robinet deschis", duplicate: "id repetat"};
+// FR-11.3: one Save for all zones; the controller checks them together on the configuration that results
+const SAVE_WHY = {"sensor-taken": "senzorul e la altă zonă", "relay-taken": "releul e la altă zonă", "pump-relay": "releul e al pompei",
+  "valve-energised": "supapa e deschisă", invalid: "valoare nepermisă (o zonă pornită are nevoie de senzor)", duplicate: "zonă dublă"};
+const DAYS_SHORT = ["Dum", "Lun", "Mar", "Mie", "Joi", "Vin", "Sâm"];
+const DAYS_FULL = ["Duminică", "Luni", "Marți", "Miercuri", "Joi", "Vineri", "Sâmbătă"];
+const MIN_T = 15, MAX_T = 28, STEP = 0.5;  // C-36: ceiling 28 C, boost included
 const RELAYS = [[32, "Releu 1 (GPIO32)"], [33, "Releu 2 (GPIO33)"], [25, "Releu 3 (GPIO25)"], [26, "Releu 4 (GPIO26)"]];
 const DOC = JSON.parse(document.getElementById("doc").textContent);
 const $ = id => document.getElementById(id);
@@ -569,6 +587,212 @@ async function api(path, params, isJson = false) {
   return r.json();
 }
 
+function goToAdminCreds() {
+  if (!isAdmin()) {
+    openAdminAuthModal(() => {
+      const grp = $("grpSetup");
+      if (grp) grp.open = true;
+      const passInp = $("cfgAdminPass");
+      if (passInp) {
+        passInp.scrollIntoView({ behavior: "smooth", block: "center" });
+        passInp.focus();
+      }
+    });
+    return;
+  }
+  const grp = $("grpSetup");
+  if (grp) grp.open = true;
+  const passInp = $("cfgAdminPass");
+  if (passInp) {
+    passInp.scrollIntoView({ behavior: "smooth", block: "center" });
+    passInp.focus();
+  }
+}
+
+let inFlight = false;
+async function refresh() {
+  // One refresh at a time, endpoints one after another: the board serves one client request per loop pass
+  if (inFlight) { again = true; return; }  // a change made meanwhile (add / delete a zone) is shown by one more pass
+  inFlight = true;
+  try {
+    const admin = isAdmin();
+    const debugOpen = admin && ($("grpDebug") && $("grpDebug").open);
+    const eps = debugOpen
+      ? DOC.endpoints
+      : (admin ? ["api/zones", "api/ble/sensors", "api/boiler/status", "api/diag/status", "api/schedule"]
+               : ["api/zones", "api/ble/sensors", "api/boiler/status", "api/diag/status"]);
+    for (const ep of eps) RAW[ep] = ep === "api/setup/discovered-sensors" ? await api("api/setup/discovered-sensors") : await api(ep);
+    Z = RAW["api/zones"]; B = RAW["api/ble/sensors"].sensors; ST = RAW["api/boiler/status"]; D = RAW["api/diag/status"];
+    S = RAW["api/schedule"] || S;
+    $("devBanner").style.display = ST && ST.profile === "dev-open" ? "inline-block" : "none";
+    if (ST && $("fwInfo")) {
+      $("fwInfo").textContent = `· FW v${ST.firmwareVersion || "1.11.05.24"} (${(ST.gitCommit || "").split("-")[0]}) · UI v1.11.07.01 (LittleFS)`;
+    }
+    updateAdminBtn();
+    const now = Date.now();
+    for (const zid in pendingSetpoints) {
+      if (!pendingSetpoints[zid].timer && now > pendingSetpoints[zid].holdUntil) {
+        delete pendingSetpoints[zid];
+      }
+    }
+    renderHeader(); renderRooms(); renderAlerts();
+    if (admin) {
+      renderChecks(); renderSetup(); renderSensors();
+      if (!isSchedBusy()) renderSchedule();
+      if ($("grpHistory") && $("grpHistory").open) {
+        renderTpiInspector();
+        renderGasMeter();
+        if (!histData24h || (Date.now() - lastHistFetch > 60000)) loadHistoryChart();
+      }
+      if (debugOpen) { renderPins(); renderMem(); updateWatch(); }
+      if (!busy("loc") && RAW["api/setup/location"]) $("loc").value = RAW["api/setup/location"].coords;
+    }
+    if (Date.now() >= errUntil) $("toast").textContent = "";
+  } catch (e) { showErr("Conexiune pierdută (" + e.message + ")"); }
+  inFlight = false;
+  if (again) { again = false; refresh(); }
+}
+
+let timer = null;
+function startTimer() { clearInterval(timer); timer = setInterval(() => { if (!document.hidden) refresh(); }, isAdmin() ? 3000 : 5000); }
+
+let pendingAdminCallback = null;
+
+function updateAdminBtn() {
+  const btn = $("toggleAdmin");
+  if (btn) {
+    if (isAdmin()) {
+      btn.textContent = "✕ Ieși Admin";
+      btn.style.borderColor = "var(--line)";
+      btn.style.color = "var(--mut)";
+      btn.title = "Ieși din panoul de administrare";
+    } else {
+      btn.textContent = "⚙️ Admin";
+      btn.style.borderColor = "var(--line)";
+      btn.style.color = "var(--fg)";
+      btn.title = "Deschide panoul de administrare";
+    }
+  }
+}
+
+function openAdminAuthModal(cb) {
+  pendingAdminCallback = cb || null;
+  const modal = $("adminAuthModal");
+  if (modal) {
+    modal.style.display = "flex";
+    $("adminAuthErr").textContent = "";
+    $("adminAuthPass").value = "";
+    setTimeout(() => $("adminAuthPass").focus(), 50);
+  }
+}
+
+function closeAdminAuthModal() {
+  const modal = $("adminAuthModal");
+  if (modal) modal.style.display = "none";
+  pendingAdminCallback = null;
+}
+
+async function submitAdminAuth() {
+  const pass = ($("adminAuthPass").value || "").trim();
+  const errBox = $("adminAuthErr");
+  if (!pass) {
+    errBox.textContent = "Introduceți parola administrator.";
+    return;
+  }
+  errBox.textContent = "Se verifică...";
+  errBox.style.color = "var(--mut)";
+
+  const userCandidates = ["bogdan", "admin"];
+  let ok = false;
+  let authHeader = "";
+
+  for (const u of userCandidates) {
+    try {
+      const candidateAuth = "Basic " + btoa(u + ":" + pass);
+      const r = await fetch("api/auth/verify", {
+        method: "POST",
+        headers: { "Authorization": candidateAuth }
+      });
+      if (r.ok) {
+        ok = true;
+        authHeader = candidateAuth;
+        sessionStorage.setItem("sh_admin_user", u);
+        break;
+      }
+    } catch (_) {}
+  }
+
+  if (!ok) {
+    for (const u of userCandidates) {
+      try {
+        const candidateAuth = "Basic " + btoa(u + ":" + pass);
+        const r = await fetch("api/boiler/off", {
+          method: "POST",
+          headers: { "Authorization": candidateAuth }
+        });
+        if (r.status !== 401) {
+          ok = true;
+          authHeader = candidateAuth;
+          sessionStorage.setItem("sh_admin_user", u);
+          break;
+        }
+      } catch (_) {}
+    }
+  }
+
+  if (ok) {
+    sessionStorage.setItem("sh_admin_auth", authHeader);
+    sessionStorage.setItem("sh_admin_pass", pass);
+    document.body.classList.add("admin");
+    location.hash = "admin";
+    updateAdminBtn();
+    closeAdminAuthModal();
+    startTimer();
+    refresh();
+    if (pendingAdminCallback) {
+      const cb = pendingAdminCallback;
+      pendingAdminCallback = null;
+      cb();
+    }
+  } else {
+    errBox.textContent = "Parolă incorectă!";
+    errBox.style.color = "var(--bad)";
+    $("adminAuthPass").focus();
+  }
+}
+
+$("toggleAdmin").onclick = e => {
+  e.preventDefault();
+  if (isAdmin()) {
+    sessionStorage.removeItem("sh_admin_auth");
+    sessionStorage.removeItem("sh_admin_pass");
+    sessionStorage.removeItem("sh_admin_user");
+    document.body.classList.remove("admin");
+    location.hash = "";
+    updateAdminBtn();
+    startTimer();
+    refresh();
+  } else {
+    const cachedAuth = sessionStorage.getItem("sh_admin_auth");
+    if (cachedAuth) {
+      document.body.classList.add("admin");
+      location.hash = "admin";
+      updateAdminBtn();
+      startTimer();
+      refresh();
+    } else {
+      openAdminAuthModal();
+    }
+  }
+};
+
+const savedAuth = sessionStorage.getItem("sh_admin_auth");
+if (savedAuth && location.hash === "#admin") {
+  document.body.classList.add("admin");
+} else {
+  if (location.hash === "#admin") location.hash = "";
+}
+updateAdminBtn();
 function roomClass(z) {
   if (z.state === "WINDOW" || z.windowPauseActive || z.windowDetected) return "win";
   if (z.state === "FAULT" || z.state === "DISABLED") return "bad";
@@ -653,51 +877,12 @@ function renderRooms() {
   }).join("");
 }
 
-// FR-8.1: the schedule in words, with the time of the next change
-function scheduleText() {
-  if (Z.away) return "Mod plecat: toate camerele pe treapta plecat";
-  if (!Z.scheduleEnabled) return "Program oprit: camerele țin ținta setată";
-  if (S && S.scheduleMode === "constant") return "Program: Temperatură constantă 24/7";
-  let at = "";
-  const m = ST && /^(\d\d):(\d\d)/.exec(ST.time || "");
-  if (m) {
-    const t = (+m[1] * 60 + +m[2] + Z.minsToNextSlot) % 1440;
-    at = " până la " + String(Math.floor(t / 60)).padStart(2, "0") + ":" + String(t % 60).padStart(2, "0");
-  }
-  const pre = Z.preHeatActive ? " · preîncălzire" : "";
-  const curMom = S && S.activeMoment ? `P${S.activeMoment}` : LEVEL_RO[Z.activeLevel];
-  const nxtMom = S && S.nextMoment ? `P${S.nextMoment}` : LEVEL_RO[Z.nextLevel];
-  return `Program: ${curMom}${at}, apoi ${nxtMom}${pre}`;
-}
-
 function renderHeader() {
   $("clock").textContent = ST ? ST.time.slice(0, 5) : "--:--";
   $("outdoor").textContent = ST && ST.outdoorTemp > -100 ? "afară " + ST.outdoorTemp.toFixed(1) + "°" : "afară --";
   $("boiler").textContent = "centrala " + (Z.boiler === "ON" ? "pornită 🔥" : "oprită");
   $("level").textContent = scheduleText();
   $("away").classList.toggle("on", Z.away);
-}
-
-function goToAdminCreds() {
-  if (!isAdmin()) {
-    openAdminAuthModal(() => {
-      const grp = $("grpSetup");
-      if (grp) grp.open = true;
-      const passInp = $("cfgAdminPass");
-      if (passInp) {
-        passInp.scrollIntoView({ behavior: "smooth", block: "center" });
-        passInp.focus();
-      }
-    });
-    return;
-  }
-  const grp = $("grpSetup");
-  if (grp) grp.open = true;
-  const passInp = $("cfgAdminPass");
-  if (passInp) {
-    passInp.scrollIntoView({ behavior: "smooth", block: "center" });
-    passInp.focus();
-  }
 }
 
 function renderAlerts() {
@@ -724,6 +909,528 @@ function renderAlerts() {
 
 const busy = id => $(id).contains(document.activeElement);
 
+$("rooms").addEventListener("click", async e => {
+  const b = e.target.closest("button");
+  if (b && b.dataset.a) {
+    const i = +b.dataset.i, z = Z && Z.zones && Z.zones[i];
+    if (!z) return;
+    const zid = (z.id !== undefined) ? z.id : (i + 1);
+
+    if (b.dataset.a === "clr") {
+      delete pendingSetpoints[zid];
+      try {
+        await api("api/zones/hold/clear", {id: zid});
+        refresh();
+      } catch (err) { showErr(err.message); }
+      return;
+    }
+
+    // 1. Calculate new target optimistically from persistent pendingSetpoints or effectiveTarget
+    const step = b.dataset.a === "up" ? STEP : -STEP;
+    const pVal = pendingSetpoints[zid];
+    const curTarget = (pVal !== undefined && typeof pVal.target === "number")
+      ? pVal.target
+      : (typeof z.effectiveTarget === "number" ? z.effectiveTarget : 20.0);
+    const nextTarget = Math.min(MAX_T, Math.max(MIN_T, +(curTarget + step).toFixed(1)));
+
+    // Cancel in-flight debounce timer if user is clicking rapidly
+    if (pVal && pVal.timer) clearTimeout(pVal.timer);
+
+    pendingSetpoints[zid] = {
+      target: nextTarget,
+      holdUntil: Date.now() + 2500,
+      timer: setTimeout(async () => {
+        try {
+          await api("api/zones/setpoint", {id: zid, target: nextTarget.toFixed(1)});
+        } catch (err) {
+          showErr(err.message);
+        } finally {
+          setTimeout(() => {
+            if (pendingSetpoints[zid] && pendingSetpoints[zid].target === nextTarget) {
+              delete pendingSetpoints[zid];
+            }
+          }, 1200);
+          refresh();
+        }
+      }, 350)
+    };
+
+    // 2. Instant DOM update with zero flicker
+    const card = b.closest(".room");
+    if (card) {
+      const spVal = card.querySelector(".sp-val");
+      if (spVal) spVal.textContent = nextTarget.toFixed(1) + "°";
+      const clrBtn = card.querySelector(".sp-clr");
+      if (clrBtn) clrBtn.classList.remove("hidden");
+    }
+    return;
+  }
+  if (e.target.closest(".ctl")) return;
+});
+
+$("away").onclick = async () => {
+  const nextAway = !Z.away;
+  Z.away = nextAway;
+  $("away").classList.toggle("on", nextAway);
+  try {
+    await api("api/schedule/enable", {away: nextAway ? 1 : 0});
+  } catch (err) {
+    showErr(err.message);
+  } finally {
+    refresh();
+  }
+};
+
+window.clearWindowPause = async function(id) {
+  try {
+    await fetch(`/api/zones/window/clear?id=${encodeURIComponent(id)}`, { method: "POST" });
+    refresh();
+  } catch (e) {
+    console.error("clearWindowPause error:", e);
+  }
+};
+// FR-8.1: the schedule in words, with the time of the next change
+function scheduleText() {
+  if (Z.away) return "Mod plecat: toate camerele pe treapta plecat";
+  if (!Z.scheduleEnabled) return "Program oprit: camerele țin ținta setată";
+  if (S && S.scheduleMode === "constant") return "Program: Temperatură constantă 24/7";
+  let at = "";
+  const m = ST && /^(\d\d):(\d\d)/.exec(ST.time || "");
+  if (m) {
+    const t = (+m[1] * 60 + +m[2] + Z.minsToNextSlot) % 1440;
+    at = " până la " + String(Math.floor(t / 60)).padStart(2, "0") + ":" + String(t % 60).padStart(2, "0");
+  }
+  const pre = Z.preHeatActive ? " · preîncălzire" : "";
+  const curMom = S && S.activeMoment ? `P${S.activeMoment}` : LEVEL_RO[Z.activeLevel];
+  const nxtMom = S && S.nextMoment ? `P${S.nextMoment}` : LEVEL_RO[Z.nextLevel];
+  return `Program: ${curMom}${at}, apoi ${nxtMom}${pre}`;
+}
+
+
+let schedDirty = false;
+let schedState = null;
+let activeDayIndex = 1; // 1 = Monday
+
+function isSchedBusy() {
+  const sf = $("saveSched") ? $("saveSched").closest("details, section") : null;
+  return schedDirty || editing || (sf && sf.contains(document.activeElement));
+}
+
+
+
+function initSchedStateFromS() {
+  if (!S) return;
+  const zones = S.zones || [];
+  const defaultNames = ["Trezire", "Plecat", "Seară", "Noapte"];
+  schedState = {
+    mode: S.scheduleMode || "5+2",
+    enabled: !!S.enabled,
+    momentNames: (S.momentNames && S.momentNames.length === 4) ? [...S.momentNames] : defaultNames,
+    awayTemps: {},
+    constantTemps: {},
+    days: []
+  };
+
+  zones.forEach(z => {
+    schedState.awayTemps[z.id] = (S.awayTemps && S.awayTemps[z.id] !== undefined) ? S.awayTemps[z.id] : (z.away !== undefined ? z.away : 18.0);
+    schedState.constantTemps[z.id] = z.day !== undefined ? z.day : 22.0;
+  });
+
+  const defaultTimes = ["06:30", "08:30", "17:00", "22:30"];
+  const defaultWeTimes = ["07:30", "09:30", "18:00", "23:00"];
+
+  for (let d = 0; d < 7; d++) {
+    const isWk = (d === 0 || d === 6);
+    const dayMoments = [];
+    const srcMoments = (S.days && S.days[d]) ? S.days[d] : (isWk ? S.weekend_moments : S.weekday_moments) || [];
+    
+    for (let m = 0; m < 4; m++) {
+      const srcM = srcMoments[m] || {};
+      const t = srcM.time || (isWk ? defaultWeTimes[m] : defaultTimes[m]);
+      const temps = {};
+      zones.forEach(z => {
+        if (srcM.temps && srcM.temps[z.id] !== undefined) {
+          temps[z.id] = srcM.temps[z.id];
+        } else {
+          temps[z.id] = m === 3 ? (z.night || 21.0) : (z.day || 23.0);
+        }
+      });
+      dayMoments.push({moment: m + 1, time: t, temps: temps});
+    }
+    schedState.days.push(dayMoments);
+  }
+
+  if (schedState.days[1] && schedState.days[1][0] && schedState.days[1][0].temps) {
+    zones.forEach(z => {
+      if (schedState.days[1][0].temps[z.id] !== undefined) {
+        schedState.constantTemps[z.id] = schedState.days[1][0].temps[z.id];
+      }
+    });
+  }
+}
+
+function renderMomentsTableHtml(moments, groupTag, extraActions = "") {
+  const zones = S.zones || [];
+  let h = `<div class="scroll" style="margin-top:6px"><table class="sched-moment-tbl">`;
+  h += `<thead><tr><th>Moment</th><th>Oră (24h)</th>`;
+  zones.forEach(z => { h += `<th>${esc(z.name)}</th>`; });
+  h += `</tr></thead><tbody>`;
+
+  const curDow = (S && typeof S.dayOfWeek === "number") ? S.dayOfWeek : new Date().getDay();
+  const isWknd = (S && typeof S.isWeekend === "boolean") ? S.isWeekend : (curDow === 0 || curDow === 6);
+  let groupIsActive = false;
+  if (S && S.enabled && (!schedState || schedState.mode !== "constant")) {
+    if (groupTag === "unified") groupIsActive = true;
+    else if (groupTag === "wd") groupIsActive = !isWknd;
+    else if (groupTag === "we") groupIsActive = isWknd;
+    else if (groupTag && groupTag.startsWith("d")) {
+      const tagDow = parseInt(groupTag.substring(1), 10);
+      groupIsActive = (tagDow === curDow);
+    }
+  }
+
+  moments.forEach((m, idx) => {
+    const isAct = groupIsActive && (S && S.activeMoment === (idx + 1));
+    const actMark = isAct
+      ? `<span style="color:var(--ok);font-size:13px;width:14px;display:inline-block;text-align:center" title="Moment activ acum">●</span>`
+      : `<span style="color:var(--mut);opacity:0.4;font-size:13px;width:14px;display:inline-block;text-align:center" title="Moment inactiv">○</span>`;
+    h += `<tr class="${isAct ? 'chg' : ''}">`;
+    const mName = (schedState && schedState.momentNames && schedState.momentNames[idx]) ? schedState.momentNames[idx] : MOMENT_LABELS[idx];
+    h += `<td><div style="display:flex;align-items:center;gap:6px">
+      ${actMark}<span class="s" style="font-weight:bold">P${idx + 1}:</span>
+      <input type="text" class="mom-name" data-m="${idx}" value="${esc(mName)}" maxlength="15" title="Redenumește momentul" style="width:105px;font-weight:600;padding:2px 4px;font-size:13px">
+    </div></td>`;
+    h += `<td><input type="text" class="time24" data-group="${groupTag}" data-m="${idx}" value="${esc(m.time)}" placeholder="06:30" maxlength="5"></td>`;
+    zones.forEach(z => {
+      const val = (m.temps && m.temps[z.id] !== undefined) ? Number(m.temps[z.id]).toFixed(1) : "22.0";
+      h += `<td><input type="number" step="0.5" min="5" max="28" class="n sched-t" data-group="${groupTag}" data-m="${idx}" data-z="${z.id}" value="${val}"></td>`;
+    });
+    h += `</tr>`;
+  });
+
+  h += `</tbody></table></div>`;
+  if (extraActions) {
+    h += `<div class="row" style="margin-top:8px;gap:6px">${extraActions}</div>`;
+  }
+  return h;
+}
+
+function renderSchedule() {
+  if (!S) return;
+  if (!schedDirty && !editing) {
+    initSchedStateFromS();
+  }
+  if (!schedState) return;
+
+  $("schedOn").checked = schedState.enabled;
+
+  if ($("schedActiveBadge")) {
+    const isConst = (schedState && schedState.mode === "constant") || (S && S.scheduleMode === "constant");
+    const isAway = (S && S.away) || (Z && Z.away);
+    let badgeText = "";
+    if (!S || !S.enabled) {
+      badgeText = `<span class="INFO">○ Oprit</span>`;
+    } else if (isAway) {
+      badgeText = `<span class="INFO">● Activ (Mod Plecat)</span>`;
+    } else if (isConst) {
+      badgeText = `<span class="OK">● Activ (Constant 24/7)</span>`;
+    } else {
+      const actM = S.activeMoment ? `P${S.activeMoment}` : "";
+      badgeText = `<span class="OK">● Activ</span> ${actM ? `(${actM})` : ''}`;
+    }
+    $("schedActiveBadge").innerHTML = badgeText;
+  }
+
+  document.querySelectorAll(".sched-mode-btn").forEach(btn => {
+    btn.classList.toggle("on", btn.dataset.mode === schedState.mode);
+  });
+
+  const descEl = $("schedModeDesc");
+  if (descEl) {
+    const descs = {
+      "5+2": "Program diferențiat: 4 momente zilnice pentru Luni–Vineri și 4 momente pentru Weekend.",
+      "unified": "Program unificat: același set de 4 momente aplicat în fiecare zi a săptămânii (Luni–Duminică).",
+      "7day": "Program pe 7 zile: câte 4 momente configurabile independent pentru fiecare zi a săptămânii.",
+      "constant": "Temperatură constantă: o singură valoare țintă 24/7 menținută continuu pentru fiecare cameră."
+    };
+    descEl.textContent = descs[schedState.mode] || "";
+  }
+
+  const c = $("schedContent");
+  if (c) {
+    const zones = S.zones || [];
+    if (schedState.mode === "constant") {
+      let h = `<div class="scroll"><table style="max-width:480px"><thead><tr><th>Cameră</th><th>Temperatură țintă (°C)</th></tr></thead><tbody>`;
+      zones.forEach(z => {
+        const val = Number(schedState.constantTemps[z.id] !== undefined ? schedState.constantTemps[z.id] : 22.0).toFixed(1);
+        h += `<tr><td><b>${esc(z.name)}</b></td><td><input type="number" step="0.5" min="5" max="28" class="n const-t" data-z="${z.id}" value="${val}"></td></tr>`;
+      });
+      h += `</tbody></table></div>`;
+      c.innerHTML = h;
+    } else if (schedState.mode === "unified") {
+      c.innerHTML = renderMomentsTableHtml(schedState.days[1], "unified");
+    } else if (schedState.mode === "5+2") {
+      let h = `<div style="font-weight:600;margin-top:4px">Momente Luni – Vineri:</div>`;
+      h += renderMomentsTableHtml(schedState.days[1], "wd");
+      h += `<div style="font-weight:600;margin-top:14px">Momente Weekend (Sâmbătă – Duminică):</div>`;
+      h += renderMomentsTableHtml(schedState.days[0], "we", `
+        <button type="button" class="sm" id="btnCopyWdToWe">Copiază L–V în Weekend</button>
+        <button type="button" class="sm" id="btnCopyWeToWd">Copiază Weekend în L–V</button>
+      `);
+      c.innerHTML = h;
+    } else if (schedState.mode === "7day") {
+      let h = `<div class="row" id="dayTabs" style="gap:4px;margin-bottom:8px">`;
+      DAY_TABS.forEach(d => {
+        h += `<button type="button" class="sm day-tab-btn ${d.idx === activeDayIndex ? 'on' : ''}" data-day="${d.idx}">${d.label}</button>`;
+      });
+      h += `</div>`;
+      const curTab = DAY_TABS.find(d => d.idx === activeDayIndex) || DAY_TABS[0];
+      const copyActions = `
+        <button type="button" class="sm" id="btnCopyDayToAll">Copiază ${curTab.label} la toate zilele</button>
+        <button type="button" class="sm" id="btnCopyDayToWd">Copiază la L–V</button>
+        <button type="button" class="sm" id="btnCopyDayToWe">Copiază la Weekend</button>
+      `;
+      h += renderMomentsTableHtml(schedState.days[activeDayIndex], `day_${activeDayIndex}`, copyActions);
+      c.innerHTML = h;
+    }
+  }
+
+  const awayCont = $("awayInputs");
+  if (awayCont) {
+    const zones = S.zones || [];
+    awayCont.innerHTML = zones.map(z => {
+      const val = Number(schedState.awayTemps[z.id] !== undefined ? schedState.awayTemps[z.id] : 18.0).toFixed(1);
+      return `<label class="slot-chip" style="display:inline-flex;gap:6px;align-items:center">
+        <span>${esc(z.name)}:</span>
+        <input type="number" step="0.5" min="5" max="28" class="n away-t" data-z="${z.id}" value="${val}">
+        <span class="s">°C</span>
+      </label>`;
+    }).join("");
+  }
+
+
+}
+
+// While the schedule form is being edited, refreshes must not overwrite the inputs (PB-66, C-14)
+const schedForm = $("saveSched") ? $("saveSched").closest("details, section") : document;
+function markSchedDirty() {
+  schedDirty = true;
+  $("undoSched").style.display = "";
+}
+function syncSchedInput(t) {
+  markSchedDirty();
+  editing = true;
+  if (!schedState) return;
+
+  if (t.id === "schedOn") {
+    schedState.enabled = t.checked;
+  } else if (t.classList.contains("mom-name")) {
+    const m = +t.dataset.m, val = t.value.trim();
+    if (schedState.momentNames && val) {
+      schedState.momentNames[m] = val;
+      // Mirror name in other moment name inputs if visible
+      document.querySelectorAll(`.mom-name[data-m="${m}"]`).forEach(inp => {
+        if (inp !== t) inp.value = val;
+      });
+    }
+  } else if (t.classList.contains("time24")) {
+    const grp = t.dataset.group, m = +t.dataset.m, val = t.value.trim();
+    if (grp === "unified") {
+      for (let d = 0; d < 7; d++) schedState.days[d][m].time = val;
+    } else if (grp === "wd") {
+      for (let d = 1; d <= 5; d++) schedState.days[d][m].time = val;
+    } else if (grp === "we") {
+      schedState.days[0][m].time = val; schedState.days[6][m].time = val;
+    } else if (grp && grp.startsWith("day_")) {
+      const d = +grp.split("_")[1];
+      schedState.days[d][m].time = val;
+    }
+  } else if (t.classList.contains("sched-t")) {
+    const grp = t.dataset.group, m = +t.dataset.m, z = t.dataset.z, val = parseFloat(t.value);
+    if (!isNaN(val)) {
+      if (grp === "unified") {
+        for (let d = 0; d < 7; d++) schedState.days[d][m].temps[z] = val;
+      } else if (grp === "wd") {
+        for (let d = 1; d <= 5; d++) schedState.days[d][m].temps[z] = val;
+      } else if (grp === "we") {
+        schedState.days[0][m].temps[z] = val; schedState.days[6][m].temps[z] = val;
+      } else if (grp && grp.startsWith("day_")) {
+        const d = +grp.split("_")[1];
+        schedState.days[d][m].temps[z] = val;
+      }
+    }
+  } else if (t.classList.contains("const-t")) {
+    const z = t.dataset.z, val = parseFloat(t.value);
+    if (!isNaN(val)) {
+      schedState.constantTemps[z] = val;
+      for (let d = 0; d < 7; d++) schedState.days[d][0].temps[z] = val;
+    }
+  } else if (t.classList.contains("away-t")) {
+    const z = t.dataset.z, val = parseFloat(t.value);
+    if (!isNaN(val)) {
+      schedState.awayTemps[z] = val;
+    }
+  }
+}
+
+schedForm.addEventListener("input", e => syncSchedInput(e.target));
+schedForm.addEventListener("change", e => syncSchedInput(e.target));
+schedForm.addEventListener("focusin", () => editing = true);
+schedForm.addEventListener("focusout", () => {
+  setTimeout(() => {
+    if (schedForm && !schedForm.contains(document.activeElement) && !schedDirty) editing = false;
+  }, 50);
+});
+
+// Interactive clicks for Mode, Day Tabs, Copy, Quick Away, Legacy Slots
+schedForm.addEventListener("click", e => {
+  // Mode selection button
+  const modeBtn = e.target.closest(".sched-mode-btn");
+  if (modeBtn && schedState) {
+    schedState.mode = modeBtn.dataset.mode;
+    markSchedDirty();
+    renderSchedule();
+    return;
+  }
+
+  // 7-Day Day tab button
+  const dayBtn = e.target.closest(".day-tab-btn");
+  if (dayBtn) {
+    activeDayIndex = +dayBtn.dataset.day;
+    renderSchedule();
+    return;
+  }
+
+
+
+  // Copy helpers for 5+2
+  if (e.target.id === "btnCopyWdToWe" && schedState) {
+    for (let m = 0; m < 4; m++) {
+      schedState.days[0][m] = JSON.parse(JSON.stringify(schedState.days[1][m]));
+      schedState.days[6][m] = JSON.parse(JSON.stringify(schedState.days[1][m]));
+    }
+    markSchedDirty();
+    renderSchedule();
+    return;
+  }
+  if (e.target.id === "btnCopyWeToWd" && schedState) {
+    for (let d = 1; d <= 5; d++) {
+      for (let m = 0; m < 4; m++) {
+        schedState.days[d][m] = JSON.parse(JSON.stringify(schedState.days[0][m]));
+      }
+    }
+    markSchedDirty();
+    renderSchedule();
+    return;
+  }
+
+  // Copy helpers for 7day
+  if (e.target.id === "btnCopyDayToAll" && schedState) {
+    const src = schedState.days[activeDayIndex];
+    for (let d = 0; d < 7; d++) {
+      if (d !== activeDayIndex) {
+        schedState.days[d] = JSON.parse(JSON.stringify(src));
+      }
+    }
+    markSchedDirty();
+    renderSchedule();
+    return;
+  }
+  if (e.target.id === "btnCopyDayToWd" && schedState) {
+    const src = schedState.days[activeDayIndex];
+    for (let d = 1; d <= 5; d++) {
+      schedState.days[d] = JSON.parse(JSON.stringify(src));
+    }
+    markSchedDirty();
+    renderSchedule();
+    return;
+  }
+  if (e.target.id === "btnCopyDayToWe" && schedState) {
+    const src = schedState.days[activeDayIndex];
+    schedState.days[0] = JSON.parse(JSON.stringify(src));
+    schedState.days[6] = JSON.parse(JSON.stringify(src));
+    markSchedDirty();
+    renderSchedule();
+    return;
+  }
+
+
+});
+
+$("undoSched").onclick = () => {
+  schedDirty = false;
+  editing = false;
+  $("undoSched").style.display = "none";
+  $("schedMsg").textContent = "Modificări anulate.";
+  initSchedStateFromS();
+  renderSchedule();
+};
+
+$("saveSched").onclick = async () => {
+  if (!schedState) return;
+  try {
+    $("schedMsg").textContent = "Se salvează...";
+    // 1. Enable / disable
+    await api("api/schedule/enable", {enabled: $("schedOn").checked ? 1 : 0});
+
+    // 1b. Customizable moment names
+    if (schedState.momentNames && schedState.momentNames.length === 4) {
+      await api("api/schedule/names", {names: schedState.momentNames}, true);
+    }
+
+    // 2. Mode
+    const mode = schedState.mode;
+    await api("api/schedule/mode", {mode: mode});
+
+    // 3. Save moments according to mode
+    if (mode === "constant") {
+      const temps = {};
+      (S.zones || []).forEach(z => {
+        const v = parseFloat(schedState.constantTemps[z.id] || 22.0);
+        temps[z.id] = v;
+      });
+      await api("api/schedule/moment", {day: "all", moment: 1, time: "00:00", temps: temps}, true);
+      for (const z of (S.zones || [])) {
+        await api("api/schedule/level", {zone: z.id, level: "day", temp: temps[z.id]});
+      }
+    } else if (mode === "unified") {
+      for (let m = 0; m < 4; m++) {
+        const mom = schedState.days[1][m];
+        await api("api/schedule/moment", {day: "all", moment: m + 1, time: mom.time, temps: mom.temps}, true);
+      }
+    } else if (mode === "5+2") {
+      for (let m = 0; m < 4; m++) {
+        const momWd = schedState.days[1][m];
+        await api("api/schedule/moment", {day: "weekday", moment: m + 1, time: momWd.time, temps: momWd.temps}, true);
+        const momWe = schedState.days[0][m];
+        await api("api/schedule/moment", {day: "weekend", moment: m + 1, time: momWe.time, temps: momWe.temps}, true);
+      }
+    } else if (mode === "7day") {
+      const dayKeys = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"];
+      for (let d = 0; d < 7; d++) {
+        for (let m = 0; m < 4; m++) {
+          const mom = schedState.days[d][m];
+          await api("api/schedule/moment", {day: dayKeys[d], moment: m + 1, time: mom.time, temps: mom.temps}, true);
+        }
+      }
+    }
+
+    // 4. Save Away temps
+    for (const z of (S.zones || [])) {
+      const aw = parseFloat(schedState.awayTemps[z.id] || 18.0);
+      await api("api/schedule/level", {zone: z.id, level: "away", temp: aw});
+    }
+
+    schedDirty = false;
+    editing = false;
+    $("undoSched").style.display = "none";
+    $("schedMsg").textContent = "Program salvat cu succes.";
+    setTimeout(() => { if ($("schedMsg").textContent === "Program salvat cu succes.") $("schedMsg").textContent = ""; }, 4000);
+    refresh();
+  } catch (e) {
+    $("schedMsg").textContent = "Eroare: " + e.message;
+  }
+};
 function renderChecks() {
   let rows = (D && D.checks || []).map(c =>
     `<tr><td><code>${esc(c.id)}</code></td><td class="${esc(c.result)}">${esc(c.result)}</td><td>${esc(c.value)}</td><td>${esc(CHECK_RO[c.id] || c.rule)}</td></tr>`).join("");
@@ -820,219 +1527,359 @@ function renderChecks() {
 }
 
 
+let dtcEventsLoaded = false;
+async function loadDtcEvents(force = false) {
+  const box = $("persistentDtcHistory");
+  if (!box) return;
+  if (dtcEventsLoaded && !force) return;
+  box.innerHTML = `<div class="s" style="color:var(--mut)">Se încarcă istoricul din memoria flash...</div>`;
+  try {
+    const d = await (await fetch("api/diag/events")).json();
+    if (!d || !d.events || d.events.length === 0) {
+      box.innerHTML = `<div class="s" style="color:var(--mut);padding:4px 0">Niciun eveniment diagnostic înregistrat în memoria flash.</div>`;
+      dtcEventsLoaded = true;
+      return;
+    }
+    const typeMap = {
+      "dtc-raised": '<span style="color:var(--bad);font-weight:600">🔴 Ridicat</span>',
+      "dtc-cleared": '<span style="color:var(--ok);font-weight:600">🟢 Curățat</span>',
+      "restart": '<span style="color:#f59e0b;font-weight:600">⚡ Restart</span>'
+    };
+    box.innerHTML = `<div class="scroll" style="margin-top:6px;max-height:260px;overflow-y:auto"><table style="font-size:11px;width:100%;border-collapse:collapse">
+      <thead><tr>
+        <th style="padding:4px 6px">Dată / Oră</th>
+        <th style="padding:4px 6px">Stare</th>
+        <th style="padding:4px 6px">Cod</th>
+        <th style="padding:4px 6px">Descriere &amp; Cauză</th>
+        <th style="padding:4px 6px">Zonă / Țintă</th>
+      </tr></thead>
+      <tbody>` +
+      d.events.map(e => {
+        const timeStr = (e.time > 1700000000) ? new Date(e.time * 1000).toLocaleString('ro-RO') : `+${e.time}s uptime`;
+        let codeStr = '—';
+        let descStr = '';
+        let targetStr = 'Global';
+
+        if (e.type === 'restart') {
+          const rInfo = RESET_REASONS[e.value] || {title: "Repornire sistem (motiv " + e.value + ")", desc: "Reset placă ESP32"};
+          codeStr = '<code style="color:#f59e0b;font-weight:bold">SYS-REBOOT</code>';
+          descStr = `<b>${esc(rInfo.title)}</b><div class="s" style="color:var(--mut);margin-top:2px">${esc(rInfo.desc)}</div>`;
+          targetStr = 'Sistem (Restaurat)';
+        } else {
+          const cleanCode = String(e.code || '').replace("DTC-", "");
+          const info = DTC_INFO[cleanCode] || {title: "Cod eroare diagnostic", cause: "Eveniment înregistrat de DiagnosticEngine."};
+          codeStr = e.code ? `<code><b>${esc(e.code)}</b></code>` : '—';
+          descStr = `<b>${esc(info.title)}</b><div class="s" style="color:var(--mut);margin-top:2px">${esc(info.cause)}</div>`;
+          targetStr = e.zone ? `Zona ${e.zone}` : 'Global';
+        }
+
+        return `<tr>
+          <td style="white-space:nowrap;padding:5px 6px"><b>${esc(timeStr)}</b></td>
+          <td style="white-space:nowrap;padding:5px 6px">${typeMap[e.type] || esc(e.type)}</td>
+          <td style="white-space:nowrap;padding:5px 6px">${codeStr}</td>
+          <td style="padding:5px 6px">${descStr}</td>
+          <td style="white-space:nowrap;padding:5px 6px">${esc(targetStr)}</td>
+        </tr>`;
+      }).join("") +
+      `</tbody></table></div>`;
+    dtcEventsLoaded = true;
+  } catch(err) {
+    box.innerHTML = `<div class="s" style="color:var(--err)">Eroare la încărcarea istoricului: ${esc(err.message)}</div>`;
+  }
+}
 // FR-34: LittleFS Telemetry Timeline, Temperature Curves & TPI Algorithm Inspector
-function renderHistoryChart() {
-  const container = $("histSvgContainer");
-  if (!container) return;
 
-  const isMultiDay = (selectedHistRange === "3d" || selectedHistRange === "5d");
-  const data = isMultiDay ? histData5d : histData24h;
+function buildRunBlocks(ordered, pred) {
+  const blocks = [];
+  let start = -1, end = -1;
+  for (let k = 0; k < ordered.length; k++) {
+    const item = ordered[k];
+    if (pred(item)) {
+      if (start === -1) {
+        start = item.slotsAgo;
+        end = item.slotsAgo;
+      } else if (end - item.slotsAgo === 1) {
+        end = item.slotsAgo;
+      } else {
+        blocks.push({start, end});
+        start = item.slotsAgo;
+        end = item.slotsAgo;
+      }
+    } else if (start !== -1) {
+      blocks.push({start, end});
+      start = -1;
+      end = -1;
+    }
+  }
+  if (start !== -1) blocks.push({start, end});
+  return blocks;
+}
 
+function buildCurveSegments(pointsList, maxGapSlots, maxBridgeGap) {
+  const segments = [];
+  let curSeg = [];
+  pointsList.forEach(pt => {
+    if (curSeg.length > 0 && curSeg[curSeg.length - 1].slotsAgo - pt.slotsAgo > maxGapSlots) {
+      segments.push(curSeg);
+      curSeg = [];
+    }
+    curSeg.push(pt);
+  });
+  if (curSeg.length > 0) segments.push(curSeg);
+
+  const bridges = [];
+  for (let si = 0; si < segments.length - 1; si++) {
+    const ptA = segments[si][segments[si].length - 1];
+    const ptB = segments[si + 1][0];
+    if (Math.abs(ptA.slotsAgo - ptB.slotsAgo) <= maxBridgeGap) bridges.push([ptA, ptB]);
+  }
+  return {segments, bridges};
+}
+
+function prepareHistoryChartData(range, data, zonesData, nowMs = Date.now()) {
   if (!data || !data.points || !data.points.length) {
-    container.innerHTML = `<div class="s" style="padding:20px;text-align:center">Nicio înregistrare disponibilă pentru intervalul selectat (${selectedHistRange}).</div>`;
-    return;
+    return {ready: false, emptyHtml: `<div class="s" style="padding:20px;text-align:center">Nicio înregistrare disponibilă pentru intervalul selectat (${esc(range)}).</div>`};
   }
 
+  const isMultiDay = (range === "3d" || range === "5d");
   const cur = (data.currentSlot !== undefined) ? data.currentSlot : 0;
   const slotCapacity = isMultiDay ? 240 : 288;
-  const totalWindowSlots = (selectedHistRange === "1h") ? 12
-    : (selectedHistRange === "12h") ? 144
-    : (selectedHistRange === "24h") ? 288
-    : (selectedHistRange === "3d") ? 144
-    : 240;
+  const totalWindowSlots = (range === "1h") ? 12
+    : (range === "12h") ? 144
+    : (range === "24h") ? 288
+    : (range === "3d") ? 144 : 240;
 
   const slotMap = {};
-  (data.points || []).forEach(p => slotMap[p[0]] = p);
+  (data.points || []).forEach(p => { slotMap[p[0]] = p; });
 
-  // Chronological reordering: eliminate jump/crossover line & place points at exact historical slot
   const ordered = [];
   for (let i = 1; i <= slotCapacity; i++) {
     const s = (cur + i) % slotCapacity;
     if (slotMap[s]) {
       const slotsAgo = slotCapacity - i;
-      if (slotsAgo < totalWindowSlots) {
-        ordered.push({ p: slotMap[s], slotsAgo: slotsAgo });
-      }
+      if (slotsAgo < totalWindowSlots) ordered.push({p: slotMap[s], slotsAgo});
     }
   }
 
   if (!ordered.length) {
-    container.innerHTML = `<div class="s" style="padding:20px;text-align:center">Date insuficiente pentru ${selectedHistRange}.</div>`;
-    return;
+    return {ready: false, emptyHtml: `<div class="s" style="padding:20px;text-align:center">Date insuficiente pentru ${esc(range)}.</div>`};
   }
 
-  const zones = (Z && Z.zones && Z.zones.length) ? Z.zones : [
-    {id: 1, name: "Zona 1"},
-    {id: 2, name: "Zona 2"},
-    {id: 3, name: "Zona 3"}
+  const zones = (zonesData && zonesData.zones && zonesData.zones.length) ? zonesData.zones : [
+    {id: 1, name: "Zona 1"}, {id: 2, name: "Zona 2"}, {id: 3, name: "Zona 3"}
   ];
-
   const zoneColors = ["#38bdf8", "#a78bfa", "#f472b6", "#34d399"];
   const rowDefs = [
-    { label: "⚡ Evenimente", isEvent: true, color: "#f59e0b" },
-    { label: "🔥 Cazan ON", bit: 1, color: "var(--heat)" }
+    {label: "⚡ Evenimente", isEvent: true, color: "#f59e0b"},
+    {label: "🔥 Cazan ON", bit: 1, color: "var(--heat)"}
   ];
   zones.forEach((z, idx) => {
-    const bit = 1 << (idx + 2);
     rowDefs.push({
       label: esc(z.name || ("Zona " + (idx + 1))),
-      bit: bit,
+      bit: 1 << (idx + 2),
       color: zoneColors[idx % zoneColors.length],
       zoneIdx: idx
     });
   });
 
-  const W = 880;
-  const x0 = 100, x1 = 835, chartW = x1 - x0;
+  const W = 880, x0 = 100, x1 = 835, chartW = x1 - x0;
   const slotW = chartW / totalWindowSlots;
 
-  let validTemps = [];
-  let validOutTemps = [];
-  ordered.forEach(item => {
-    const p = item.p;
+  const validTemps = [], validOutTemps = [];
+  ordered.forEach(({p}) => {
     for (let k = 1; k <= 3; k++) {
       if (p[k] !== null && p[k] !== undefined && p[k] > 5 && p[k] < 35) validTemps.push(p[k]);
     }
     if (p[4] !== null && p[4] !== undefined && p[4] > -40 && p[4] < 55) validOutTemps.push(p[4]);
   });
-  let minT = 18, maxT = 26;
-  if (validTemps.length > 0) {
-    minT = Math.floor(Math.min(...validTemps)) - 1;
-    maxT = Math.ceil(Math.max(...validTemps)) + 1;
-  }
+
+  let minT = validTemps.length ? Math.floor(Math.min(...validTemps)) - 1 : 18;
+  let maxT = validTemps.length ? Math.ceil(Math.max(...validTemps)) + 1 : 26;
   if (maxT - minT < 4) maxT = minT + 4;
 
-  let minOutT = 0, maxOutT = 15;
-  if (validOutTemps.length > 0) {
-    minOutT = Math.floor(Math.min(...validOutTemps)) - 1;
-    maxOutT = Math.ceil(Math.max(...validOutTemps)) + 1;
-  }
+  let minOutT = validOutTemps.length ? Math.floor(Math.min(...validOutTemps)) - 1 : 0;
+  let maxOutT = validOutTemps.length ? Math.ceil(Math.max(...validOutTemps)) + 1 : 15;
   if (maxOutT - minOutT < 4) maxOutT = minOutT + 4;
 
-  const topActY = 20;
-  const actRowH = 14;
-  const actGap = 5;
-  const actTotalH = rowDefs.length * (actRowH + actGap);
-  const tempHeaderY = topActY + actTotalH + 18;
-  const tempTop = tempHeaderY + 12;
-  const tempH = 115;
-  const tempBot = tempTop + tempH;
-  const totalH = tempBot + 35;
-
+  const topActY = 20, actRowH = 14, actGap = 5;
+  const tempHeaderY = topActY + rowDefs.length * (actRowH + actGap) + 18;
+  const tempTop = tempHeaderY + 12, tempH = 115, tempBot = tempTop + tempH, totalH = tempBot + 35;
   const tempToY = t => tempBot - ((t - minT) / (maxT - minT)) * tempH;
   const outTempToY = t => tempBot - ((t - minOutT) / (maxOutT - minOutT)) * tempH;
 
-  const svgParts = [];
-  svgParts.push(`<svg id="histSvg" viewBox="0 0 ${W} ${totalH}" style="width:100%;height:auto;display:block;font-family:system-ui,-apple-system,sans-serif">`);
-
-  // Time grid marks across chart
-  const timeStepMarks = (selectedHistRange === "1h") ? 6
-    : ((selectedHistRange === "12h") ? 6
-    : ((selectedHistRange === "24h") ? 6
-    : ((selectedHistRange === "3d") ? 6 : 5)));
-  const daysShort = ["Dum", "Lun", "Mar", "Mie", "Joi", "Vin", "Sâm"];
-  const nowMs = Date.now();
-
+  const timeStepMarks = (range === "5d") ? 5 : 6;
+  const totalWindowHours = (range === "1h") ? 1.0 : (range === "12h") ? 12 : (range === "24h") ? 24 : (range === "3d") ? 72 : 120;
+  const todayDate = new Date(nowMs).getDate();
+  const timeMarks = [];
   for (let m = 0; m <= timeStepMarks; m++) {
     const frac = m / timeStepMarks;
     const gx = x0 + frac * chartW;
-    svgParts.push(`<line x1="${gx.toFixed(1)}" y1="${topActY}" x2="${gx.toFixed(1)}" y2="${tempBot}" stroke="var(--line)" stroke-width="1" stroke-dasharray="2,2" />`);
-    
-    // Label
-    let lbl = "";
-    const hoursAgo = (selectedHistRange === "1h")
-      ? (1 - frac) * 1.0
-      : (isMultiDay
-        ? (1 - frac) * (selectedHistRange === "3d" ? 72 : 120)
-        : (1 - frac) * (selectedHistRange === "12h" ? 12 : 24));
-    const markDate = new Date(nowMs - hoursAgo * 3600 * 1000);
-    const dName = daysShort[markDate.getDay()];
+    const markDate = new Date(nowMs - (1 - frac) * totalWindowHours * 3600 * 1000);
     const hh = String(markDate.getHours()).padStart(2, "0");
     const mm = String(markDate.getMinutes()).padStart(2, "0");
-
-    if (m === timeStepMarks) {
-      lbl = `Acum (${hh}:${mm})`;
-    } else if (selectedHistRange === "1h") {
-      lbl = `${hh}:${mm}`;
-    } else if (isMultiDay) {
-      lbl = `${dName} ${hh}:${mm}`;
-    } else {
-      const isToday = (markDate.getDate() === new Date(nowMs).getDate());
-      lbl = (isToday ? "" : "Ieri ") + `${hh}:${mm}`;
-    }
-    svgParts.push(`<text x="${gx.toFixed(1)}" y="${totalH - 12}" font-size="11" fill="var(--mut)" text-anchor="middle">${lbl}</text>`);
+    let label = `${hh}:${mm}`;
+    if (m === timeStepMarks) label = `Acum (${hh}:${mm})`;
+    else if (isMultiDay) label = `${DAYS_SHORT[markDate.getDay()]} ${hh}:${mm}`;
+    else if (range !== "1h" && markDate.getDate() !== todayDate) label = `Ieri ${hh}:${mm}`;
+    timeMarks.push({gx, label});
   }
 
-  const reboots = data.reboots || [];
-  const visibleEvents = [];
   const curEpoch = (data.currentEpoch && data.currentEpoch > 1700000000) ? data.currentEpoch : Math.floor(nowMs / 1000);
-  const totalWindowHours = (selectedHistRange === "1h") ? 1.0 : ((selectedHistRange === "12h") ? 12 : ((selectedHistRange === "24h") ? 24 : (selectedHistRange === "3d" ? 72 : 120)));
-
-  reboots.forEach(rb => {
+  const visibleEvents = [];
+  (data.reboots || []).forEach(rb => {
     const slotSec = isMultiDay ? 1800 : 300;
     const rSlot = isMultiDay ? rb.slot5d : rb.slot24h;
-    const slotCap = isMultiDay ? 240 : 288;
-    const slotsAgo = (cur >= rSlot) ? (cur - rSlot) : (cur + slotCap - rSlot);
-
-    let tEnd = rb.epoch ? rb.epoch : (curEpoch - slotsAgo * slotSec);
-    let tStart = (rb.offEpoch && rb.offEpoch > 1700000000 && rb.offEpoch < tEnd) ? rb.offEpoch : (tEnd - 120);
-    let durSec = Math.max(10, tEnd - tStart);
-    let durText = (durSec < 90) ? `${durSec}s` : (durSec < 3600 ? `~${Math.round(durSec / 60)}m` : `~${(durSec / 3600).toFixed(1)}h`);
-
-    const dStart = new Date(tStart * 1000);
-    const dEnd = new Date(tEnd * 1000);
+    const slotsAgo = (cur >= rSlot) ? (cur - rSlot) : (cur + slotCapacity - rSlot);
+    const tEnd = rb.epoch ? rb.epoch : (curEpoch - slotsAgo * slotSec);
+    const tStart = (rb.offEpoch && rb.offEpoch > 1700000000 && rb.offEpoch < tEnd) ? rb.offEpoch : (tEnd - 120);
+    const durSec = Math.max(10, tEnd - tStart);
+    const durText = (durSec < 90) ? `${durSec}s` : (durSec < 3600 ? `~${Math.round(durSec / 60)}m` : `~${(durSec / 3600).toFixed(1)}h`);
+    const dStart = new Date(tStart * 1000), dEnd = new Date(tEnd * 1000);
     const startStr = `${String(dStart.getHours()).padStart(2, "0")}:${String(dStart.getMinutes()).padStart(2, "0")}`;
     const endStr = `${String(dEnd.getHours()).padStart(2, "0")}:${String(dEnd.getMinutes()).padStart(2, "0")}`;
-    const intervalLabel = `${startStr} → ${endStr} (${durText})`;
-
     const hoursAgoEnd = Math.max(0, (nowMs / 1000 - tEnd) / 3600);
     const hoursAgoStart = Math.max(0, (nowMs / 1000 - tStart) / 3600);
-
     if (hoursAgoEnd <= totalWindowHours) {
       const fracEnd = Math.max(0, Math.min(1, 1 - (hoursAgoEnd / totalWindowHours)));
       const fracStart = Math.max(0, Math.min(1, 1 - (hoursAgoStart / totalWindowHours)));
-
-      const xEnd = x0 + fracEnd * chartW;
-      const xStart = x0 + fracStart * chartW;
-
+      const xEnd = x0 + fracEnd * chartW, xStart = x0 + fracStart * chartW;
       const minW = Math.max(10, slotW * 0.45);
       const bx = Math.max(x0, Math.min(x1 - minW, Math.min(xStart, xEnd)));
       const bw = Math.max(minW, Math.min(x1 - bx, Math.max(Math.abs(xEnd - xStart), minW)));
-
-      let rawReason = rb.reason || "Restart sistem";
+      const rawReason = rb.reason || "Restart sistem";
       let shortReason = "Restart";
       if (/firmware|software/i.test(rawReason)) shortReason = "Restart FW";
       else if (/power|curent|alimentare/i.test(rawReason)) shortReason = "Pană curent";
       else if (/watchdog|wdt/i.test(rawReason)) shortReason = "Watchdog";
       else if (/panic|crash/i.test(rawReason)) shortReason = "Crash";
       else if (/brownout/i.test(rawReason)) shortReason = "Brownout";
-
       visibleEvents.push({
-        bx: bx,
-        bw: bw,
-        rx: (xStart + xEnd) / 2,
-        tStart: tStart,
-        tEnd: tEnd,
-        rb: rb,
-        reason: rawReason,
-        shortReason: shortReason,
-        intervalLabel: intervalLabel,
-        startStr: startStr,
-        endStr: endStr,
-        durText: durText
+        bx, bw, rx: (xStart + xEnd) / 2, tStart, tEnd, rb,
+        reason: rawReason, shortReason,
+        intervalLabel: `${startStr} → ${endStr} (${durText})`,
+        startStr, endStr, durText
       });
     }
   });
 
-  // Activity tracks
-  rowDefs.forEach((r, ri) => {
+  const tracks = rowDefs.map((r, ri) => {
     const ry = topActY + ri * (actRowH + actGap);
-    svgParts.push(`<text x="${x0 - 8}" y="${(ry + 11).toFixed(1)}" font-size="11" font-weight="600" fill="var(--fg)" text-anchor="end">${r.label}</text>`);
-    svgParts.push(`<rect x="${x0}" y="${ry}" width="${chartW}" height="${actRowH}" rx="3" fill="var(--bg)" stroke="var(--line)" />`);
+    if (r.isEvent) return {r, ry, blocks: [], winBlocks: []};
+    const blocks = buildRunBlocks(ordered, item => (item.p[5] & r.bit) !== 0);
+    const winBlocks = (r.zoneIdx !== undefined)
+      ? buildRunBlocks(ordered, item => (((item.p[5] >> 5) & 0x03) === (r.zoneIdx + 1)))
+      : [];
+    return {r, ry, blocks, winBlocks};
+  });
 
+  const maxGapSlots = (range === "1h") ? 2 : (isMultiDay ? 3 : 4);
+  const outPoints = [];
+  ordered.forEach(item => {
+    const v = item.p[4];
+    if (v !== null && v !== undefined && v > -40 && v < 55) {
+      outPoints.push({px: x1 - item.slotsAgo * slotW, py: outTempToY(v), slotsAgo: item.slotsAgo});
+    }
+  });
+  const outCurve = buildCurveSegments(outPoints, maxGapSlots, maxGapSlots);
+
+  const zoneCurves = zones.map((z, idx) => {
+    const k = idx + 1, color = zoneColors[idx % zoneColors.length], pts = [];
+    ordered.forEach(item => {
+      const v = item.p[k];
+      if (v !== null && v !== undefined && v > 0) {
+        pts.push({px: x1 - item.slotsAgo * slotW, py: tempToY(v), slotsAgo: item.slotsAgo});
+      }
+    });
+    return {color, ...buildCurveSegments(pts, maxGapSlots, maxGapSlots)};
+  });
+
+  return {
+    ready: true, range, isMultiDay, ordered, latestItem: ordered[ordered.length - 1],
+    zones, zoneColors, visibleEvents, tracks, timeMarks,
+    W, totalH, x0, x1, chartW, slotW, totalWindowSlots,
+    topActY, actRowH, tempHeaderY, tempTop, tempH, tempBot,
+    minT, maxT, tStep: (maxT - minT > 8) ? 3 : 2,
+    minOutT, maxOutT, outStep: (maxOutT - minOutT > 10) ? 4 : ((maxOutT - minOutT > 6) ? 3 : 2),
+    tempToY, outTempToY, outCurve, zoneCurves
+  };
+}
+
+function renderHistoryInfoBar(item, timeStr, isCurrent, nearReboot, zones, zoneColors) {
+  const bar = $("histInfoBar");
+  if (!bar) return;
+
+  let row1 = `<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;height:24px;overflow-x:auto">` +
+    `<div style="display:flex;align-items:center;gap:8px;flex-shrink:0">` +
+    `<div style="display:flex;align-items:center;gap:5px;font-weight:600;color:var(--fg);white-space:nowrap"><span>${isCurrent ? '⏱️' : '📅'}</span> <span>${esc(timeStr)}</span></div>`;
+
+  if (item) {
+    const p = item.p, bOn = (p[5] & 1) !== 0;
+    row1 += `<span style="padding:2px 8px;border-radius:4px;font-weight:600;font-size:11px;white-space:nowrap;background:${bOn ? 'rgba(239,68,68,0.15);color:#ef4444;border:1px solid rgba(239,68,68,0.4)' : 'rgba(100,116,139,0.15);color:var(--mut);border:1px solid var(--line)'}">${bOn ? '🔥 Cazan PORNIT' : '⚪ Cazan Oprit'}</span>`;
+    if (p[4] !== null && p[4] !== undefined) {
+      row1 += `<span style="padding:2px 8px;border-radius:4px;font-size:11px;background:rgba(148,163,184,0.1);border:1px solid #64748b;color:#94a3b8;white-space:nowrap">🌡️ Afară: ${p[4].toFixed(1)}°C</span>`;
+    }
+  } else {
+    row1 += `<span class="s" style="color:var(--mut);white-space:nowrap">Fără date temperatură în acest interval</span>`;
+  }
+  row1 += `</div><div style="display:flex;align-items:center;gap:6px;flex-shrink:0">`;
+  if (nearReboot) {
+    const rawReason = String(nearReboot.reason || ''), shortReason = nearReboot.shortReason || 'Restart';
+    const labelText = nearReboot.startStr ? `${shortReason}: ${nearReboot.startStr} → ${nearReboot.endStr} (${nearReboot.durText})` : shortReason;
+    row1 += `<span style="padding:2px 8px;border-radius:4px;font-weight:600;font-size:11px;background:rgba(245,158,11,0.15);border:1px solid #f59e0b;color:#f59e0b;white-space:nowrap" title="${esc(rawReason)} · ${esc(nearReboot.intervalLabel || '')}">⚡ ${esc(labelText)}</span>`;
+  }
+  row1 += `</div></div>`;
+
+  let row2 = `<div style="display:flex;align-items:center;gap:8px;height:24px;overflow-x:auto">`;
+  zones.forEach((z, idx) => {
+    const color = zoneColors[idx % zoneColors.length];
+    if (item) {
+      const p = item.p, vOn = (p[5] & (1 << (idx + 2))) !== 0;
+      const winActive = (((p[5] >> 5) & 0x03) === (idx + 1));
+      const temp = (p[idx + 1] !== null && p[idx + 1] !== undefined) ? p[idx + 1].toFixed(1) + '°C' : '--';
+      const stateLabel = winActive ? (vOn ? '🪟 geam deschis' : '🪟 pauză geam') : (vOn ? 'vană deschisă' : 'închis');
+      const stateColor = winActive ? color : (vOn ? 'var(--ok)' : 'var(--mut)');
+      row2 += `<span style="padding:2px 8px;border-radius:4px;font-size:11px;background:rgba(255,255,255,0.03);border:1px solid var(--line);color:var(--fg);white-space:nowrap"><b style="color:${color}">${esc(z.name)}</b>: ${temp} <span style="color:${stateColor};font-weight:500">(${stateLabel})</span></span>`;
+    } else {
+      row2 += `<span style="padding:2px 8px;border-radius:4px;font-size:11px;background:rgba(255,255,255,0.03);border:1px solid var(--line);color:var(--mut);white-space:nowrap"><b style="color:${color}">${esc(z.name)}</b>: --</span>`;
+    }
+  });
+  bar.innerHTML = row1 + row2 + `</div>`;
+}
+
+function drawCurveSvg(svgParts, curve, color, isDashed, dotRadius) {
+  curve.bridges.forEach(([ptA, ptB]) => {
+    svgParts.push(`<line x1="${ptA.px.toFixed(1)}" y1="${ptA.py.toFixed(1)}" x2="${ptB.px.toFixed(1)}" y2="${ptB.py.toFixed(1)}" stroke="${color}" stroke-width="1" stroke-dasharray="2,3" opacity="0.3" />`);
+  });
+  curve.segments.forEach(seg => {
+    if (seg.length > 1) {
+      const ptsStr = seg.map(p => `${p.px.toFixed(1)},${p.py.toFixed(1)}`).join(" ");
+      const dashAttr = isDashed ? ' stroke-dasharray="3,3"' : '';
+      svgParts.push(`<polyline fill="none" stroke="${color}" stroke-width="1.3" stroke-linejoin="round" stroke-linecap="round"${dashAttr} points="${ptsStr}" />`);
+    }
+    seg.forEach(p => {
+      svgParts.push(`<circle cx="${p.px.toFixed(1)}" cy="${p.py.toFixed(1)}" r="${dotRadius}" fill="${color}" />`);
+    });
+  });
+}
+
+function drawHistoryChart(container, m) {
+  if (!m.ready) {
+    container.innerHTML = m.emptyHtml;
+    return;
+  }
+
+  const svgParts = [`<svg id="histSvg" viewBox="0 0 ${m.W} ${m.totalH}" style="width:100%;height:auto;display:block;font-family:system-ui,-apple-system,sans-serif">`];
+  m.timeMarks.forEach(tm => {
+    svgParts.push(`<line x1="${tm.gx.toFixed(1)}" y1="${m.topActY}" x2="${tm.gx.toFixed(1)}" y2="${m.tempBot}" stroke="var(--line)" stroke-width="1" stroke-dasharray="2,2" />`);
+    svgParts.push(`<text x="${tm.gx.toFixed(1)}" y="${m.totalH - 12}" font-size="11" fill="var(--mut)" text-anchor="middle">${tm.label}</text>`);
+  });
+
+  m.tracks.forEach(({r, ry, blocks, winBlocks}) => {
+    svgParts.push(`<text x="${m.x0 - 8}" y="${(ry + 11).toFixed(1)}" font-size="11" font-weight="600" fill="var(--fg)" text-anchor="end">${r.label}</text>`);
+    svgParts.push(`<rect x="${m.x0}" y="${ry}" width="${m.chartW}" height="${m.actRowH}" rx="3" fill="var(--bg)" stroke="var(--line)" />`);
     if (r.isEvent) {
-      visibleEvents.forEach(ve => {
-        svgParts.push(`<rect x="${ve.bx.toFixed(1)}" y="${ry}" width="${ve.bw.toFixed(1)}" height="${actRowH}" rx="3" fill="rgba(245,158,11,0.12)" stroke="#f59e0b" stroke-width="1.2" />`);
+      m.visibleEvents.forEach(ve => {
+        svgParts.push(`<rect x="${ve.bx.toFixed(1)}" y="${ry}" width="${ve.bw.toFixed(1)}" height="${m.actRowH}" rx="3" fill="rgba(245,158,11,0.12)" stroke="#f59e0b" stroke-width="1.2" />`);
         if (ve.bw >= 68) {
           svgParts.push(`<text x="${(ve.bx + 8).toFixed(1)}" y="${(ry + 10.5).toFixed(1)}" font-size="9" fill="#f59e0b" font-weight="bold">⚡</text>`);
           svgParts.push(`<text x="${(ve.bx + 20).toFixed(1)}" y="${(ry + 10.5).toFixed(1)}" font-size="8.5" fill="#f59e0b" font-weight="600">${esc(ve.shortReason)} (${esc(ve.durText)})</text>`);
@@ -1045,305 +1892,221 @@ function renderHistoryChart() {
       });
       return;
     }
-
-    let curBlockStart = -1, curBlockEnd = -1;
-    const emitBlock = (start, end) => {
-      const segX = Math.max(x0, x1 - (start + 0.5) * slotW);
-      const segXEnd = Math.min(x1, x1 - (end - 0.5) * slotW);
-      const segW = Math.max(2, segXEnd - segX);
+    blocks.forEach(b => {
+      const segX = Math.max(m.x0, m.x1 - (b.start + 0.5) * m.slotW);
+      const segW = Math.max(2, Math.min(m.x1, m.x1 - (b.end - 0.5) * m.slotW) - segX);
       const rx = Math.min(2, Math.max(1, Math.floor(segW / 2)));
-      svgParts.push(`<rect x="${segX.toFixed(1)}" y="${ry}" width="${segW.toFixed(1)}" height="${actRowH}" rx="${rx}" fill="${r.color}" />`);
-    };
-
-    for (let k = 0; k < ordered.length; k++) {
-      const item = ordered[k];
-      const active = (item.p[5] & r.bit) !== 0;
-      if (active) {
-        if (curBlockStart === -1) {
-          curBlockStart = item.slotsAgo;
-          curBlockEnd = item.slotsAgo;
-        } else if (curBlockEnd - item.slotsAgo === 1) {
-          curBlockEnd = item.slotsAgo;
-        } else {
-          emitBlock(curBlockStart, curBlockEnd);
-          curBlockStart = item.slotsAgo;
-          curBlockEnd = item.slotsAgo;
-        }
-      } else if (curBlockStart !== -1) {
-        emitBlock(curBlockStart, curBlockEnd);
-        curBlockStart = -1;
-        curBlockEnd = -1;
-      }
-    }
-    if (curBlockStart !== -1) {
-      emitBlock(curBlockStart, curBlockEnd);
-    }
-    // Render window pause blocks for zone rows
-    if (r.zoneIdx !== undefined) {
-      const zi = r.zoneIdx;
-      let winStart = -1, winEnd = -1;
-      const emitWinBlock = (start, end) => {
-        const segX = Math.max(x0, x1 - (start + 0.5) * slotW);
-        const segXEnd = Math.min(x1, x1 - (end - 0.5) * slotW);
-        const segW = Math.max(3, segXEnd - segX);
-        svgParts.push(`<rect x="${segX.toFixed(1)}" y="${ry}" width="${segW.toFixed(1)}" height="${actRowH}" rx="2" fill="${r.color}33" stroke="${r.color}" stroke-width="1.2" />`);
-        if (segW >= 14) {
-          svgParts.push(`<text x="${(segX + segW / 2).toFixed(1)}" y="${(ry + 10).toFixed(1)}" font-size="8.5" text-anchor="middle" fill="${r.color}">🪟</text>`);
-        }
-      };
-      for (let k = 0; k < ordered.length; k++) {
-        const item = ordered[k];
-        const winActive = (((item.p[5] >> 5) & 0x03) === (zi + 1));
-        if (winActive) {
-          if (winStart === -1) { winStart = item.slotsAgo; winEnd = item.slotsAgo; }
-          else if (winEnd - item.slotsAgo === 1) { winEnd = item.slotsAgo; }
-          else { emitWinBlock(winStart, winEnd); winStart = item.slotsAgo; winEnd = item.slotsAgo; }
-        } else if (winStart !== -1) {
-          emitWinBlock(winStart, winEnd);
-          winStart = -1; winEnd = -1;
-        }
-      }
-      if (winStart !== -1) emitWinBlock(winStart, winEnd);
-    }
+      svgParts.push(`<rect x="${segX.toFixed(1)}" y="${ry}" width="${segW.toFixed(1)}" height="${m.actRowH}" rx="${rx}" fill="${r.color}" />`);
+    });
+    winBlocks.forEach(wb => {
+      const segX = Math.max(m.x0, m.x1 - (wb.start + 0.5) * m.slotW);
+      const segW = Math.max(3, Math.min(m.x1, m.x1 - (wb.end - 0.5) * m.slotW) - segX);
+      svgParts.push(`<rect x="${segX.toFixed(1)}" y="${ry}" width="${segW.toFixed(1)}" height="${m.actRowH}" rx="2" fill="${r.color}33" stroke="${r.color}" stroke-width="1.2" />`);
+      if (segW >= 14) svgParts.push(`<text x="${(segX + segW / 2).toFixed(1)}" y="${(ry + 10).toFixed(1)}" font-size="8.5" text-anchor="middle" fill="${r.color}">🪟</text>`);
+    });
   });
 
-  // Temperature chart header & legends
-  svgParts.push(`<text x="${x0}" y="${tempHeaderY - 2}" font-size="11" font-weight="600" fill="var(--fg)">Temperaturi Zone (°C)</text>`);
-  let tempLegStr = zones.map((z, idx) => `<tspan fill="${zoneColors[idx % zoneColors.length]}">— ${esc(z.name)}</tspan>`).join("   ");
-  tempLegStr += `   <tspan fill="#94a3b8">-- Afară (axa dr., °C)</tspan>`;
-  svgParts.push(`<text x="${x1}" y="${tempHeaderY - 2}" font-size="11" text-anchor="end">${tempLegStr}</text>`);
+  svgParts.push(`<text x="${m.x0}" y="${m.tempHeaderY - 2}" font-size="11" font-weight="600" fill="var(--fg)">Temperaturi Zone (°C)</text>`);
+  const tempLegStr = m.zones.map((z, idx) => `<tspan fill="${m.zoneColors[idx % m.zoneColors.length]}">— ${esc(z.name)}</tspan>`).join("   ") +
+    `   <tspan fill="#94a3b8">-- Afară (axa dr., °C)</tspan>`;
+  svgParts.push(`<text x="${m.x1}" y="${m.tempHeaderY - 2}" font-size="11" text-anchor="end">${tempLegStr}</text>`);
+  svgParts.push(`<rect x="${m.x0}" y="${m.tempTop}" width="${m.chartW}" height="${m.tempH}" rx="4" fill="var(--bg)" stroke="var(--line)" />`);
 
-  // Temperature background & horizontal grid
-  svgParts.push(`<rect x="${x0}" y="${tempTop}" width="${chartW}" height="${tempH}" rx="4" fill="var(--bg)" stroke="var(--line)" />`);
-  const tStep = (maxT - minT > 8) ? 3 : 2;
-  for (let t = minT; t <= maxT; t += tStep) {
-    const gy = tempToY(t);
-    svgParts.push(`<line x1="${x0}" y1="${gy.toFixed(1)}" x2="${x1}" y2="${gy.toFixed(1)}" stroke="var(--line)" stroke-width="1" />`);
-    svgParts.push(`<text x="${x0 - 8}" y="${(gy + 4).toFixed(1)}" font-size="10" fill="var(--mut)" text-anchor="end">${t}°</text>`);
+  for (let t = m.minT; t <= m.maxT; t += m.tStep) {
+    const gy = m.tempToY(t);
+    svgParts.push(`<line x1="${m.x0}" y1="${gy.toFixed(1)}" x2="${m.x1}" y2="${gy.toFixed(1)}" stroke="var(--line)" stroke-width="1" />`);
+    svgParts.push(`<text x="${m.x0 - 8}" y="${(gy + 4).toFixed(1)}" font-size="10" fill="var(--mut)" text-anchor="end">${t}°</text>`);
+  }
+  for (let t = m.minOutT; t <= m.maxOutT; t += m.outStep) {
+    const gy = m.outTempToY(t);
+    svgParts.push(`<line x1="${(m.x1 - 3).toFixed(1)}" y1="${gy.toFixed(1)}" x2="${(m.x1 + 3).toFixed(1)}" y2="${gy.toFixed(1)}" stroke="#94a3b8" stroke-width="1" opacity="0.6" />`);
+    svgParts.push(`<text x="${(m.x1 + 8).toFixed(1)}" y="${(gy + 3.5).toFixed(1)}" font-size="10" fill="#94a3b8" text-anchor="start">${t}°</text>`);
   }
 
-  // Right-side Y-axis for outdoor temperature
-  const outStep = (maxOutT - minOutT > 10) ? 4 : ((maxOutT - minOutT > 6) ? 3 : 2);
-  for (let t = minOutT; t <= maxOutT; t += outStep) {
-    const gy = outTempToY(t);
-    svgParts.push(`<line x1="${(x1 - 3).toFixed(1)}" y1="${gy.toFixed(1)}" x2="${(x1 + 3).toFixed(1)}" y2="${gy.toFixed(1)}" stroke="#94a3b8" stroke-width="1" opacity="0.6" />`);
-    svgParts.push(`<text x="${(x1 + 8).toFixed(1)}" y="${(gy + 3.5).toFixed(1)}" font-size="10" fill="#94a3b8" text-anchor="start">${t}°</text>`);
-  }
+  const dotRadius = m.range === "1h" ? 2.5 : 1.5;
+  drawCurveSvg(svgParts, m.outCurve, "#94a3b8", true, dotRadius);
+  m.zoneCurves.forEach(zc => drawCurveSvg(svgParts, zc, zc.color, false, dotRadius));
 
-  // Helper to render temperature curves with gap detection (dotted across small gap, clean break across large gap)
-  const maxGapSlots = (selectedHistRange === "1h") ? 2 : (isMultiDay ? 3 : 4);
-  const maxBridgeGap = (selectedHistRange === "1h") ? 2 : (isMultiDay ? 3 : 4);
-  const renderCurve = (pointsList, color, isDashed = false) => {
-    if (!pointsList.length) return;
-    const segments = [];
-    let curSeg = [];
-    pointsList.forEach(pt => {
-      if (curSeg.length > 0) {
-        const prev = curSeg[curSeg.length - 1];
-        if (prev.slotsAgo - pt.slotsAgo > maxGapSlots) {
-          segments.push(curSeg);
-          curSeg = [];
-        }
-      }
-      curSeg.push(pt);
-    });
-    if (curSeg.length > 0) segments.push(curSeg);
-
-    // Draw faint dotted connecting lines ONLY across small gaps (<= maxBridgeGap slots)
-    // Large downtime gaps (> maxBridgeGap) remain authentic blank breaks without misleading lines!
-    for (let si = 0; si < segments.length - 1; si++) {
-      const segA = segments[si];
-      const segB = segments[si + 1];
-      const ptA = segA[segA.length - 1];
-      const ptB = segB[0];
-      const gapSlots = Math.abs(ptA.slotsAgo - ptB.slotsAgo);
-      if (gapSlots <= maxBridgeGap) {
-        svgParts.push(`<line x1="${ptA.px.toFixed(1)}" y1="${ptA.py.toFixed(1)}" x2="${ptB.px.toFixed(1)}" y2="${ptB.py.toFixed(1)}" stroke="${color}" stroke-width="1" stroke-dasharray="2,3" opacity="0.3" />`);
-      }
-    }
-
-    // Draw solid line segments and sample dots
-    segments.forEach(seg => {
-      if (seg.length > 1) {
-        const ptsStr = seg.map(p => `${p.px.toFixed(1)},${p.py.toFixed(1)}`).join(" ");
-        const dashAttr = isDashed ? ' stroke-dasharray="3,3"' : '';
-        svgParts.push(`<polyline fill="none" stroke="${color}" stroke-width="1.3" stroke-linejoin="round" stroke-linecap="round"${dashAttr} points="${ptsStr}" />`);
-      }
-      seg.forEach(p => {
-        svgParts.push(`<circle cx="${p.px.toFixed(1)}" cy="${p.py.toFixed(1)}" r="${selectedHistRange === '1h' ? 2.5 : 1.5}" fill="${color}" />`);
-      });
-    });
-  };
-
-  // Outdoor temperature polyline (plotted on separate right Y-axis)
-  const outPoints = [];
-  ordered.forEach(item => {
-    const p = item.p;
-    if (p[4] !== null && p[4] !== undefined && p[4] > -40 && p[4] < 55) {
-      outPoints.push({
-        px: x1 - item.slotsAgo * slotW,
-        py: outTempToY(p[4]),
-        slotsAgo: item.slotsAgo
-      });
-    }
-  });
-  renderCurve(outPoints, "#94a3b8", true);
-
-  // Zone temperature polylines
-  zones.forEach((z, idx) => {
-    const k = idx + 1;
-    const color = zoneColors[idx % zoneColors.length];
-    const zPoints = [];
-    ordered.forEach(item => {
-      const p = item.p;
-      if (p[k] !== null && p[k] !== undefined && p[k] > 0) {
-        zPoints.push({
-          px: x1 - item.slotsAgo * slotW,
-          py: tempToY(p[k]),
-          slotsAgo: item.slotsAgo
-        });
-      }
-    });
-    renderCurve(zPoints, color, false);
-  });
-
-  // Hairline cursor line
-  svgParts.push(`<line id="histCursorLine" x1="0" y1="${topActY}" x2="0" y2="${tempBot}" stroke="#facc15" stroke-width="1.5" stroke-dasharray="3,2" style="display:none;pointer-events:none" />`);
-
-  // Transparent hover overlay
-  svgParts.push(`<rect id="histOverlay" x="${x0}" y="${topActY}" width="${chartW}" height="${tempBot - topActY}" fill="transparent" style="cursor:crosshair" />`);
-  svgParts.push(`</svg>`);
-
+  svgParts.push(`<line id="histCursorLine" x1="0" y1="${m.topActY}" x2="0" y2="${m.tempBot}" stroke="#facc15" stroke-width="1.5" stroke-dasharray="3,2" style="display:none;pointer-events:none" />`);
+  svgParts.push(`<rect id="histOverlay" x="${m.x0}" y="${m.topActY}" width="${m.chartW}" height="${m.tempBot - m.topActY}" fill="transparent" style="cursor:crosshair" /></svg>`);
   container.innerHTML = svgParts.join("");
 
-  const overlay = $("histOverlay");
-  const curLine = $("histCursorLine");
-
-  const updateInfoBar = (item, timeStr, isCurrent, nearReboot) => {
-    const bar = $("histInfoBar");
-    if (!bar) return;
-
-    let row1 = `<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;height:24px;overflow-x:auto">`;
-    row1 += `<div style="display:flex;align-items:center;gap:8px;flex-shrink:0">`;
-    row1 += `<div style="display:flex;align-items:center;gap:5px;font-weight:600;color:var(--fg);white-space:nowrap"><span>${isCurrent ? '⏱️' : '📅'}</span> <span>${esc(timeStr)}</span></div>`;
-
-    if (item) {
-      const p = item.p;
-      const bOn = (p[5] & 1) !== 0;
-      row1 += `<span style="padding:2px 8px;border-radius:4px;font-weight:600;font-size:11px;white-space:nowrap;background:${bOn ? 'rgba(239,68,68,0.15);color:#ef4444;border:1px solid rgba(239,68,68,0.4)' : 'rgba(100,116,139,0.15);color:var(--mut);border:1px solid var(--line)'}">
-        ${bOn ? '🔥 Cazan PORNIT' : '⚪ Cazan Oprit'}
-      </span>`;
-      if (p[4] !== null && p[4] !== undefined) {
-        row1 += `<span style="padding:2px 8px;border-radius:4px;font-size:11px;background:rgba(148,163,184,0.1);border:1px solid #64748b;color:#94a3b8;white-space:nowrap">
-          🌡️ Afară: ${p[4].toFixed(1)}°C
-        </span>`;
-      }
-    } else {
-      row1 += `<span class="s" style="color:var(--mut);white-space:nowrap">Fără date temperatură în acest interval</span>`;
-    }
-    row1 += `</div>`;
-
-    row1 += `<div style="display:flex;align-items:center;gap:6px;flex-shrink:0">`;
-    if (nearReboot) {
-      const rawReason = String(nearReboot.reason || '');
-      const shortReason = nearReboot.shortReason || 'Restart';
-      const labelText = nearReboot.startStr ? `${shortReason}: ${nearReboot.startStr} → ${nearReboot.endStr} (${nearReboot.durText})` : `${shortReason}`;
-      row1 += `<span style="padding:2px 8px;border-radius:4px;font-weight:600;font-size:11px;background:rgba(245,158,11,0.15);border:1px solid #f59e0b;color:#f59e0b;white-space:nowrap" title="${esc(rawReason)} · ${esc(nearReboot.intervalLabel || '')}">
-        ⚡ ${esc(labelText)}
-      </span>`;
-    }
-    row1 += `</div></div>`;
-
-    let row2 = `<div style="display:flex;align-items:center;gap:8px;height:24px;overflow-x:auto">`;
-    zones.forEach((z, idx) => {
-      const color = zoneColors[idx % zoneColors.length];
-      if (item) {
-        const p = item.p;
-        const bit = 1 << (idx + 2);
-        const vOn = (p[5] & bit) !== 0;
-        const winActive = (((p[5] >> 5) & 0x03) === (idx + 1));
-        const temp = (p[idx + 1] !== null && p[idx + 1] !== undefined) ? p[idx + 1].toFixed(1) + '°C' : '--';
-        let stateLabel = vOn ? 'vană deschisă' : 'închis';
-        let stateColor = vOn ? 'var(--ok)' : 'var(--mut)';
-        if (winActive) {
-          stateLabel = vOn ? '🪟 geam deschis' : '🪟 pauză geam';
-          stateColor = color;
-        }
-        row2 += `<span style="padding:2px 8px;border-radius:4px;font-size:11px;background:rgba(255,255,255,0.03);border:1px solid var(--line);color:var(--fg);white-space:nowrap">
-          <b style="color:${color}">${esc(z.name)}</b>: ${temp} <span style="color:${stateColor};font-weight:500">(${stateLabel})</span>
-        </span>`;
-      } else {
-        row2 += `<span style="padding:2px 8px;border-radius:4px;font-size:11px;background:rgba(255,255,255,0.03);border:1px solid var(--line);color:var(--mut);white-space:nowrap">
-          <b style="color:${color}">${esc(z.name)}</b>: --
-        </span>`;
-      }
-    });
-    row2 += `</div>`;
-
-    bar.innerHTML = row1 + row2;
-  };
-
-  const latestItem = ordered[ordered.length - 1];
-  const nowH = String(new Date().getHours()).padStart(2, "0");
-  const nowM = String(new Date().getMinutes()).padStart(2, "0");
-  updateInfoBar(latestItem, `Acum (${nowH}:${nowM})`, true, null);
+  const overlay = $("histOverlay"), curLine = $("histCursorLine");
+  const nowH = String(new Date().getHours()).padStart(2, "0"), nowM = String(new Date().getMinutes()).padStart(2, "0");
+  renderHistoryInfoBar(m.latestItem, `Acum (${nowH}:${nowM})`, true, null, m.zones, m.zoneColors);
 
   if (overlay) {
     overlay.onmousemove = e => {
       const rect = overlay.getBoundingClientRect();
       const frac = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
-      const cursorSlotsAgo = (1 - frac) * totalWindowSlots;
-
-      const xPos = x0 + frac * chartW;
+      const cursorSlotsAgo = (1 - frac) * m.totalWindowSlots;
+      const xPos = m.x0 + frac * m.chartW;
       if (curLine) {
         curLine.setAttribute("x1", xPos.toFixed(1));
         curLine.setAttribute("x2", xPos.toFixed(1));
         curLine.style.display = "block";
       }
-
-      // Calculate exact day and clock time under cursor
-      const hoursAgo = isMultiDay ? (cursorSlotsAgo * 0.5) : (cursorSlotsAgo * (5 / 60));
+      const hoursAgo = m.isMultiDay ? (cursorSlotsAgo * 0.5) : (cursorSlotsAgo * (5 / 60));
       const curDate = new Date(Date.now() - hoursAgo * 3600 * 1000);
-      const daysFull = ["Duminică", "Luni", "Marți", "Miercuri", "Joi", "Vineri", "Sâmbătă"];
-      const dFull = daysFull[curDate.getDay()];
-      const ch = String(curDate.getHours()).padStart(2, "0");
-      const cm = String(curDate.getMinutes()).padStart(2, "0");
-      const agoText = hoursAgo < 0.05 ? '' : (hoursAgo < 1 ? ` (-${Math.round(hoursAgo * 60)}m)` : ` (-${hoursAgo.toFixed(1)}h)`);
-      const timeStr = `${dFull} ${ch}:${cm}${agoText}`;
+      const ch = String(curDate.getHours()).padStart(2, "0"), cm = String(curDate.getMinutes()).padStart(2, "0");
+      const agoText = hoursAgo < 0.05 ? "" : (hoursAgo < 1 ? ` (-${Math.round(hoursAgo * 60)}m)` : ` (-${hoursAgo.toFixed(1)}h)`);
+      const timeStr = `${DAYS_FULL[curDate.getDay()]} ${ch}:${cm}${agoText}`;
 
-      // Find closest sample in ordered
       let closest = null, minDiff = 99999;
-      ordered.forEach(item => {
+      m.ordered.forEach(item => {
         const diff = Math.abs(item.slotsAgo - cursorSlotsAgo);
         if (diff < minDiff) { minDiff = diff; closest = item; }
       });
-
-      // Check if cursor is inside or near ANY visible event box (pinpoint precision)
       let nearReboot = null;
-      visibleEvents.forEach(ve => {
-        if (xPos >= ve.bx - 4 && xPos <= ve.bx + ve.bw + 4) {
-          nearReboot = ve;
-        }
+      m.visibleEvents.forEach(ve => {
+        if (xPos >= ve.bx - 4 && xPos <= ve.bx + ve.bw + 4) nearReboot = ve;
       });
-
-      const maxTipDist = (selectedHistRange === "1h") ? 1.5 : (isMultiDay ? 3 : 5);
-      if (!closest || minDiff > maxTipDist) {
-        updateInfoBar(null, timeStr, false, nearReboot);
-        return;
-      }
-
-      updateInfoBar(closest, timeStr, false, nearReboot);
+      const maxTipDist = (m.range === "1h") ? 1.5 : (m.isMultiDay ? 3 : 5);
+      renderHistoryInfoBar((closest && minDiff <= maxTipDist) ? closest : null, timeStr, false, nearReboot, m.zones, m.zoneColors);
     };
-
     overlay.onmouseleave = () => {
       if (curLine) curLine.style.display = "none";
-      updateInfoBar(latestItem, `Acum (${nowH}:${nowM})`, true, null);
+      renderHistoryInfoBar(m.latestItem, `Acum (${nowH}:${nowM})`, true, null, m.zones, m.zoneColors);
     };
   }
 }
 
+function renderHistoryChart() {
+  const container = $("histSvgContainer");
+  if (!container) return;
+  const isMultiDay = (selectedHistRange === "3d" || selectedHistRange === "5d");
+  const data = isMultiDay ? histData5d : histData24h;
+  const model = prepareHistoryChartData(selectedHistRange, data, Z);
+  drawHistoryChart(container, model);
+}
+
 // FR-47: Live TPI Algorithm Inspector & Calculation Breakdown
 
+function renderTpiInspector() {
+  const box = $("tpiInspectorBox");
+  if (!box || !Z || !Z.zones) return;
+
+  const outT = (ST && ST.outdoorTemp !== undefined) ? ST.outdoorTemp : (RAW["api/boiler/status"] ? RAW["api/boiler/status"].outdoorTemp : null);
+  let outCompPct = 0;
+  if (outT !== null && outT < 15.0) {
+    outCompPct = Math.min(30, Math.max(0, Math.round((15.0 - outT) * 1.5)));
+  }
+
+  let html = `<div style="font-weight:600;font-size:14px;margin-bottom:8px">🧠 3.2 Diagnoză Algoritm TPI – Calcul în timp real per zonă (FR-47)</div>
+  <div class="scroll"><table style="font-size:12px;width:100%">
+    <thead>
+      <tr>
+        <th>Zonă</th>
+        <th>Curent / Țintă</th>
+        <th>Deficit (P)</th>
+        <th>Compensare Meteo (${outT !== null ? outT.toFixed(1) + '°C' : '--'})</th>
+        <th>Inerție NVS (I)</th>
+        <th>Duty Calculat</th>
+        <th>Timp Ciclu (1h)</th>
+        <th>Stare Vană</th>
+      </tr>
+    </thead>
+    <tbody>`;
+
+  Z.zones.forEach((z, i) => {
+    const cur = (z.sensorValid && typeof z.currentTemp === "number") ? z.currentTemp.toFixed(1) + '°C' : '--';
+    const tgt = (typeof z.effectiveTarget === "number") ? z.effectiveTarget.toFixed(1) + '°C' : '--';
+    const err = z.sensorValid ? (z.effectiveTarget - z.currentTemp) : 0;
+    const isDeficit = err >= 0.39;
+    const pPct = isDeficit ? 100 : Math.max(0, Math.round((err / 1.5) * 100));
+    const learned = Math.round(z.learnedDuty || 0);
+    const duty = (z.dutyPct !== undefined) ? z.dutyPct : (z.duty <= 1.0 ? Math.round((z.duty || 0) * 100) : Math.round(z.duty || 0));
+    const onMin = (z.onTimeSec !== undefined && z.onTimeSec > 0) ? Math.round(z.onTimeSec / 60) : Math.round(duty * 0.6);
+    const pauseMin = Math.max(0, 60 - onMin);
+
+    let pCol = isDeficit ? `<b style="color:var(--heat)">Deficit ≥0.4° (+100%)</b>` : `+${pPct}%`;
+    let meteoCol = isDeficit ? `<span class="s">–</span>` : (outCompPct > 0 ? `+${outCompPct}%` : `0%`);
+    let learnedCol = isDeficit ? `<span class="s">–</span>` : `+${learned}%`;
+    let dutyCol = (duty >= 99) ? `<b style="color:var(--heat)">100% continuu</b>` : `<b>${duty}%</b>`;
+    let timeCol = (duty >= 99) ? `60 min deschis` : `${onMin} min deschis / ${pauseMin} min pauză`;
+    
+    let stCol = z.relayEngaged
+      ? `<span style="color:var(--ok);font-weight:600">● Vana DESCHISĂ</span>`
+      : (z.demand ? `<span style="color:var(--heat)">⏳ Interlock deschidere</span>` : `<span class="s">○ Vana închisă (pauză)</span>`);
+
+    html += `<tr>
+      <td><b>${esc(z.name)}</b></td>
+      <td>${cur} / ${tgt}</td>
+      <td>${pCol}</td>
+      <td>${meteoCol}</td>
+      <td>${learnedCol}</td>
+      <td>${dutyCol}</td>
+      <td>${timeCol}</td>
+      <td>${stCol}</td>
+    </tr>`;
+  });
+
+  const wasDetailsOpen = box.querySelector("details")?.open;
+  html += `</tbody></table></div>
+  <details class="s" style="margin-top:8px;font-size:12px;line-height:1.4;color:var(--mut)" ${wasDetailsOpen ? 'open' : ''}>
+    <summary style="cursor:pointer;font-weight:600">ℹ️ Cum funcționează algoritmul TPI la încălzirea în pardoseală (clic pentru detalii)</summary>
+    <div style="margin-top:4px;padding:6px 10px;background:var(--bg);border-radius:6px;border:1px solid var(--line)">
+      Ciclul de bază este de 60 min. Când diferența față de țintă este ≥ 0.4°C (deficit termic), vana stă deschisă 100% continuu pentru a încălzi șapa masivă de beton. Când ajunge la sub 0.4°C de țintă, TPI modulează fin: <code>Duty = Deficit / 1.5°C + Compensație Meteo + Inerție NVS</code>. Vana se deschide doar minutele calculate per oră, apoi intră în pauză permițând șapei să radieze căldura lin, fără oscilații sau supraîncălzire.
+    </div>
+  </details>`;
+
+  box.innerHTML = html;
+}
+
+async function loadHistoryChart(force = false) {
+  if (histLoading) return;
+  histLoading = true;
+  lastHistFetch = Date.now();
+  const summaryEl = $("histSummary");
+  if (summaryEl) summaryEl.textContent = "Se actualizează...";
+
+  const isMultiDay = (selectedHistRange === "3d" || selectedHistRange === "5d");
+  const ep = isMultiDay ? "api/history?range=5d" : "api/history?range=24h";
+
+  try {
+    const r = await fetch(ep);
+    if (!r.ok) throw new Error("HTTP " + r.status);
+    const j = await r.json();
+    if (isMultiDay) histData5d = j;
+    else histData24h = j;
+
+    renderHistoryChart();
+    renderTpiInspector();
+    renderGasMeter();
+
+    if (summaryEl) {
+      const nowStr = (ST && ST.time) ? ST.time.slice(0, 5) : new Date().toLocaleTimeString().slice(0, 5);
+      summaryEl.textContent = `Actualizat ${nowStr}`;
+    }
+  } catch(e) {
+    if (summaryEl) summaryEl.textContent = "Eroare la încărcare: " + e.message;
+  } finally {
+    histLoading = false;
+  }
+}
+
+const grpHist = $("grpHistory");
+if (grpHist) {
+  grpHist.addEventListener("toggle", () => {
+    if (grpHist.open && (!histData24h || !histData5d)) loadHistoryChart();
+  });
+}
+const btnRefHist = $("btnRefreshHist");
+if (btnRefHist) {
+  btnRefHist.onclick = () => loadHistoryChart(true);
+}
+const rangeTabs = $("histRangeTabs");
+if (rangeTabs) {
+  rangeTabs.addEventListener("click", e => {
+    const btn = e.target.closest("button.hist-range-btn");
+    if (!btn) return;
+    rangeTabs.querySelectorAll(".hist-range-btn").forEach(b => b.classList.remove("on"));
+    btn.classList.add("on");
+    selectedHistRange = btn.dataset.range;
+    renderHistoryChart();
+    loadHistoryChart();
+  });
+}
 let gasFormOpen = false;
 let gasReadingsSeen = -1;
 
@@ -1566,110 +2329,6 @@ function renderGasMeter() {
   };
   loadGasReadings();
 }
-
-function renderTpiInspector() {
-  const box = $("tpiInspectorBox");
-  if (!box || !Z || !Z.zones) return;
-
-  const outT = (ST && ST.outdoorTemp !== undefined) ? ST.outdoorTemp : (RAW["api/boiler/status"] ? RAW["api/boiler/status"].outdoorTemp : null);
-  let outCompPct = 0;
-  if (outT !== null && outT < 15.0) {
-    outCompPct = Math.min(30, Math.max(0, Math.round((15.0 - outT) * 1.5)));
-  }
-
-  let html = `<div style="font-weight:600;font-size:14px;margin-bottom:8px">🧠 3.2 Diagnoză Algoritm TPI – Calcul în timp real per zonă (FR-47)</div>
-  <div class="scroll"><table style="font-size:12px;width:100%">
-    <thead>
-      <tr>
-        <th>Zonă</th>
-        <th>Curent / Țintă</th>
-        <th>Deficit (P)</th>
-        <th>Compensare Meteo (${outT !== null ? outT.toFixed(1) + '°C' : '--'})</th>
-        <th>Inerție NVS (I)</th>
-        <th>Duty Calculat</th>
-        <th>Timp Ciclu (1h)</th>
-        <th>Stare Vană</th>
-      </tr>
-    </thead>
-    <tbody>`;
-
-  Z.zones.forEach((z, i) => {
-    const cur = (z.sensorValid && typeof z.currentTemp === "number") ? z.currentTemp.toFixed(1) + '°C' : '--';
-    const tgt = (typeof z.effectiveTarget === "number") ? z.effectiveTarget.toFixed(1) + '°C' : '--';
-    const err = z.sensorValid ? (z.effectiveTarget - z.currentTemp) : 0;
-    const isDeficit = err >= 0.39;
-    const pPct = isDeficit ? 100 : Math.max(0, Math.round((err / 1.5) * 100));
-    const learned = Math.round(z.learnedDuty || 0);
-    const duty = (z.dutyPct !== undefined) ? z.dutyPct : (z.duty <= 1.0 ? Math.round((z.duty || 0) * 100) : Math.round(z.duty || 0));
-    const onMin = (z.onTimeSec !== undefined && z.onTimeSec > 0) ? Math.round(z.onTimeSec / 60) : Math.round(duty * 0.6);
-    const pauseMin = Math.max(0, 60 - onMin);
-
-    let pCol = isDeficit ? `<b style="color:var(--heat)">Deficit ≥0.4° (+100%)</b>` : `+${pPct}%`;
-    let meteoCol = isDeficit ? `<span class="s">–</span>` : (outCompPct > 0 ? `+${outCompPct}%` : `0%`);
-    let learnedCol = isDeficit ? `<span class="s">–</span>` : `+${learned}%`;
-    let dutyCol = (duty >= 99) ? `<b style="color:var(--heat)">100% continuu</b>` : `<b>${duty}%</b>`;
-    let timeCol = (duty >= 99) ? `60 min deschis` : `${onMin} min deschis / ${pauseMin} min pauză`;
-    
-    let stCol = z.relayEngaged
-      ? `<span style="color:var(--ok);font-weight:600">● Vana DESCHISĂ</span>`
-      : (z.demand ? `<span style="color:var(--heat)">⏳ Interlock deschidere</span>` : `<span class="s">○ Vana închisă (pauză)</span>`);
-
-    html += `<tr>
-      <td><b>${esc(z.name)}</b></td>
-      <td>${cur} / ${tgt}</td>
-      <td>${pCol}</td>
-      <td>${meteoCol}</td>
-      <td>${learnedCol}</td>
-      <td>${dutyCol}</td>
-      <td>${timeCol}</td>
-      <td>${stCol}</td>
-    </tr>`;
-  });
-
-  const wasDetailsOpen = box.querySelector("details")?.open;
-  html += `</tbody></table></div>
-  <details class="s" style="margin-top:8px;font-size:12px;line-height:1.4;color:var(--mut)" ${wasDetailsOpen ? 'open' : ''}>
-    <summary style="cursor:pointer;font-weight:600">ℹ️ Cum funcționează algoritmul TPI la încălzirea în pardoseală (clic pentru detalii)</summary>
-    <div style="margin-top:4px;padding:6px 10px;background:var(--bg);border-radius:6px;border:1px solid var(--line)">
-      Ciclul de bază este de 60 min. Când diferența față de țintă este ≥ 0.4°C (deficit termic), vana stă deschisă 100% continuu pentru a încălzi șapa masivă de beton. Când ajunge la sub 0.4°C de țintă, TPI modulează fin: <code>Duty = Deficit / 1.5°C + Compensație Meteo + Inerție NVS</code>. Vana se deschide doar minutele calculate per oră, apoi intră în pauză permițând șapei să radieze căldura lin, fără oscilații sau supraîncălzire.
-    </div>
-  </details>`;
-
-  box.innerHTML = html;
-}
-
-async function loadHistoryChart(force = false) {
-  if (histLoading) return;
-  histLoading = true;
-  lastHistFetch = Date.now();
-  const summaryEl = $("histSummary");
-  if (summaryEl) summaryEl.textContent = "Se actualizează...";
-
-  const isMultiDay = (selectedHistRange === "3d" || selectedHistRange === "5d");
-  const ep = isMultiDay ? "api/history?range=5d" : "api/history?range=24h";
-
-  try {
-    const r = await fetch(ep);
-    if (!r.ok) throw new Error("HTTP " + r.status);
-    const j = await r.json();
-    if (isMultiDay) histData5d = j;
-    else histData24h = j;
-
-    renderHistoryChart();
-    renderTpiInspector();
-    renderGasMeter();
-
-    if (summaryEl) {
-      const nowStr = (ST && ST.time) ? ST.time.slice(0, 5) : new Date().toLocaleTimeString().slice(0, 5);
-      summaryEl.textContent = `Actualizat ${nowStr}`;
-    }
-  } catch(e) {
-    if (summaryEl) summaryEl.textContent = "Eroare la încărcare: " + e.message;
-  } finally {
-    histLoading = false;
-  }
-}
-
 function renderSetup() {
   if (busy("setup") || dirtyRows.size) return;
   const sensorOpts = cur => {
@@ -1707,445 +2366,6 @@ function renderSensors() {
   }).join("");
 }
 
-const MOMENT_LABELS = [
-  "P1: Trezire",
-  "P2: Plecat / Zi",
-  "P3: Seară",
-  "P4: Somn / Noapte"
-];
-const DAY_TABS = [
-  {idx: 1, key: "mon", label: "Luni"},
-  {idx: 2, key: "tue", label: "Marți"},
-  {idx: 3, key: "wed", label: "Miercuri"},
-  {idx: 4, key: "thu", label: "Joi"},
-  {idx: 5, key: "fri", label: "Vineri"},
-  {idx: 6, key: "sat", label: "Sâmbătă"},
-  {idx: 0, key: "sun", label: "Duminică"}
-];
-
-let schedDirty = false;
-let schedState = null;
-let activeDayIndex = 1; // 1 = Monday
-
-function isSchedBusy() {
-  const sf = $("saveSched") ? $("saveSched").closest("details, section") : null;
-  return schedDirty || editing || (sf && sf.contains(document.activeElement));
-}
-
-
-
-function initSchedStateFromS() {
-  if (!S) return;
-  const zones = S.zones || [];
-  const defaultNames = ["Trezire", "Plecat", "Seară", "Noapte"];
-  schedState = {
-    mode: S.scheduleMode || "5+2",
-    enabled: !!S.enabled,
-    momentNames: (S.momentNames && S.momentNames.length === 4) ? [...S.momentNames] : defaultNames,
-    awayTemps: {},
-    constantTemps: {},
-    days: []
-  };
-
-  zones.forEach(z => {
-    schedState.awayTemps[z.id] = (S.awayTemps && S.awayTemps[z.id] !== undefined) ? S.awayTemps[z.id] : (z.away !== undefined ? z.away : 18.0);
-    schedState.constantTemps[z.id] = z.day !== undefined ? z.day : 22.0;
-  });
-
-  const defaultTimes = ["06:30", "08:30", "17:00", "22:30"];
-  const defaultWeTimes = ["07:30", "09:30", "18:00", "23:00"];
-
-  for (let d = 0; d < 7; d++) {
-    const isWk = (d === 0 || d === 6);
-    const dayMoments = [];
-    const srcMoments = (S.days && S.days[d]) ? S.days[d] : (isWk ? S.weekend_moments : S.weekday_moments) || [];
-    
-    for (let m = 0; m < 4; m++) {
-      const srcM = srcMoments[m] || {};
-      const t = srcM.time || (isWk ? defaultWeTimes[m] : defaultTimes[m]);
-      const temps = {};
-      zones.forEach(z => {
-        if (srcM.temps && srcM.temps[z.id] !== undefined) {
-          temps[z.id] = srcM.temps[z.id];
-        } else {
-          temps[z.id] = m === 3 ? (z.night || 21.0) : (z.day || 23.0);
-        }
-      });
-      dayMoments.push({moment: m + 1, time: t, temps: temps});
-    }
-    schedState.days.push(dayMoments);
-  }
-
-  if (schedState.days[1] && schedState.days[1][0] && schedState.days[1][0].temps) {
-    zones.forEach(z => {
-      if (schedState.days[1][0].temps[z.id] !== undefined) {
-        schedState.constantTemps[z.id] = schedState.days[1][0].temps[z.id];
-      }
-    });
-  }
-}
-
-function renderMomentsTableHtml(moments, groupTag, extraActions = "") {
-  const zones = S.zones || [];
-  let h = `<div class="scroll" style="margin-top:6px"><table class="sched-moment-tbl">`;
-  h += `<thead><tr><th>Moment</th><th>Oră (24h)</th>`;
-  zones.forEach(z => { h += `<th>${esc(z.name)}</th>`; });
-  h += `</tr></thead><tbody>`;
-
-  const curDow = (S && typeof S.dayOfWeek === "number") ? S.dayOfWeek : new Date().getDay();
-  const isWknd = (S && typeof S.isWeekend === "boolean") ? S.isWeekend : (curDow === 0 || curDow === 6);
-  let groupIsActive = false;
-  if (S && S.enabled && (!schedState || schedState.mode !== "constant")) {
-    if (groupTag === "unified") groupIsActive = true;
-    else if (groupTag === "wd") groupIsActive = !isWknd;
-    else if (groupTag === "we") groupIsActive = isWknd;
-    else if (groupTag && groupTag.startsWith("d")) {
-      const tagDow = parseInt(groupTag.substring(1), 10);
-      groupIsActive = (tagDow === curDow);
-    }
-  }
-
-  moments.forEach((m, idx) => {
-    const isAct = groupIsActive && (S && S.activeMoment === (idx + 1));
-    const actMark = isAct
-      ? `<span style="color:var(--ok);font-size:13px;width:14px;display:inline-block;text-align:center" title="Moment activ acum">●</span>`
-      : `<span style="color:var(--mut);opacity:0.4;font-size:13px;width:14px;display:inline-block;text-align:center" title="Moment inactiv">○</span>`;
-    h += `<tr class="${isAct ? 'chg' : ''}">`;
-    const mName = (schedState && schedState.momentNames && schedState.momentNames[idx]) ? schedState.momentNames[idx] : MOMENT_LABELS[idx];
-    h += `<td><div style="display:flex;align-items:center;gap:6px">
-      ${actMark}<span class="s" style="font-weight:bold">P${idx + 1}:</span>
-      <input type="text" class="mom-name" data-m="${idx}" value="${esc(mName)}" maxlength="15" title="Redenumește momentul" style="width:105px;font-weight:600;padding:2px 4px;font-size:13px">
-    </div></td>`;
-    h += `<td><input type="text" class="time24" data-group="${groupTag}" data-m="${idx}" value="${esc(m.time)}" placeholder="06:30" maxlength="5"></td>`;
-    zones.forEach(z => {
-      const val = (m.temps && m.temps[z.id] !== undefined) ? Number(m.temps[z.id]).toFixed(1) : "22.0";
-      h += `<td><input type="number" step="0.5" min="5" max="28" class="n sched-t" data-group="${groupTag}" data-m="${idx}" data-z="${z.id}" value="${val}"></td>`;
-    });
-    h += `</tr>`;
-  });
-
-  h += `</tbody></table></div>`;
-  if (extraActions) {
-    h += `<div class="row" style="margin-top:8px;gap:6px">${extraActions}</div>`;
-  }
-  return h;
-}
-
-function renderSchedule() {
-  if (!S) return;
-  if (!schedDirty && !editing) {
-    initSchedStateFromS();
-  }
-  if (!schedState) return;
-
-  $("schedOn").checked = schedState.enabled;
-
-  if ($("schedActiveBadge")) {
-    const isConst = (schedState && schedState.mode === "constant") || (S && S.scheduleMode === "constant");
-    const isAway = (S && S.away) || (Z && Z.away);
-    let badgeText = "";
-    if (!S || !S.enabled) {
-      badgeText = `<span class="INFO">○ Oprit</span>`;
-    } else if (isAway) {
-      badgeText = `<span class="INFO">● Activ (Mod Plecat)</span>`;
-    } else if (isConst) {
-      badgeText = `<span class="OK">● Activ (Constant 24/7)</span>`;
-    } else {
-      const actM = S.activeMoment ? `P${S.activeMoment}` : "";
-      badgeText = `<span class="OK">● Activ</span> ${actM ? `(${actM})` : ''}`;
-    }
-    $("schedActiveBadge").innerHTML = badgeText;
-  }
-
-  document.querySelectorAll(".sched-mode-btn").forEach(btn => {
-    btn.classList.toggle("on", btn.dataset.mode === schedState.mode);
-  });
-
-  const descEl = $("schedModeDesc");
-  if (descEl) {
-    const descs = {
-      "5+2": "Program diferențiat: 4 momente zilnice pentru Luni–Vineri și 4 momente pentru Weekend.",
-      "unified": "Program unificat: același set de 4 momente aplicat în fiecare zi a săptămânii (Luni–Duminică).",
-      "7day": "Program pe 7 zile: câte 4 momente configurabile independent pentru fiecare zi a săptămânii.",
-      "constant": "Temperatură constantă: o singură valoare țintă 24/7 menținută continuu pentru fiecare cameră."
-    };
-    descEl.textContent = descs[schedState.mode] || "";
-  }
-
-  const c = $("schedContent");
-  if (c) {
-    const zones = S.zones || [];
-    if (schedState.mode === "constant") {
-      let h = `<div class="scroll"><table style="max-width:480px"><thead><tr><th>Cameră</th><th>Temperatură țintă (°C)</th></tr></thead><tbody>`;
-      zones.forEach(z => {
-        const val = Number(schedState.constantTemps[z.id] !== undefined ? schedState.constantTemps[z.id] : 22.0).toFixed(1);
-        h += `<tr><td><b>${esc(z.name)}</b></td><td><input type="number" step="0.5" min="5" max="28" class="n const-t" data-z="${z.id}" value="${val}"></td></tr>`;
-      });
-      h += `</tbody></table></div>`;
-      c.innerHTML = h;
-    } else if (schedState.mode === "unified") {
-      c.innerHTML = renderMomentsTableHtml(schedState.days[1], "unified");
-    } else if (schedState.mode === "5+2") {
-      let h = `<div style="font-weight:600;margin-top:4px">Momente Luni – Vineri:</div>`;
-      h += renderMomentsTableHtml(schedState.days[1], "wd");
-      h += `<div style="font-weight:600;margin-top:14px">Momente Weekend (Sâmbătă – Duminică):</div>`;
-      h += renderMomentsTableHtml(schedState.days[0], "we", `
-        <button type="button" class="sm" id="btnCopyWdToWe">Copiază L–V în Weekend</button>
-        <button type="button" class="sm" id="btnCopyWeToWd">Copiază Weekend în L–V</button>
-      `);
-      c.innerHTML = h;
-    } else if (schedState.mode === "7day") {
-      let h = `<div class="row" id="dayTabs" style="gap:4px;margin-bottom:8px">`;
-      DAY_TABS.forEach(d => {
-        h += `<button type="button" class="sm day-tab-btn ${d.idx === activeDayIndex ? 'on' : ''}" data-day="${d.idx}">${d.label}</button>`;
-      });
-      h += `</div>`;
-      const curTab = DAY_TABS.find(d => d.idx === activeDayIndex) || DAY_TABS[0];
-      const copyActions = `
-        <button type="button" class="sm" id="btnCopyDayToAll">Copiază ${curTab.label} la toate zilele</button>
-        <button type="button" class="sm" id="btnCopyDayToWd">Copiază la L–V</button>
-        <button type="button" class="sm" id="btnCopyDayToWe">Copiază la Weekend</button>
-      `;
-      h += renderMomentsTableHtml(schedState.days[activeDayIndex], `day_${activeDayIndex}`, copyActions);
-      c.innerHTML = h;
-    }
-  }
-
-  const awayCont = $("awayInputs");
-  if (awayCont) {
-    const zones = S.zones || [];
-    awayCont.innerHTML = zones.map(z => {
-      const val = Number(schedState.awayTemps[z.id] !== undefined ? schedState.awayTemps[z.id] : 18.0).toFixed(1);
-      return `<label class="slot-chip" style="display:inline-flex;gap:6px;align-items:center">
-        <span>${esc(z.name)}:</span>
-        <input type="number" step="0.5" min="5" max="28" class="n away-t" data-z="${z.id}" value="${val}">
-        <span class="s">°C</span>
-      </label>`;
-    }).join("");
-  }
-
-
-}
-
-// ---- Engineering view: every API value with its name, explanation and requirement (FR-8.1)
-function flatten(v, path, out) {
-  if (v !== null && typeof v === "object") {
-    const arr = Array.isArray(v);
-    for (const k of Object.keys(v)) flatten(v[k], arr ? `${path}[${k}]` : (path ? `${path}.${k}` : k), out);
-  } else out[path] = v;
-  return out;
-}
-const docKey = path => path.replace(/\[\d+\]/g, "[]");
-const docOf = path => DOC.doc[docKey(path)] || ["(fără explicație)", ""];
-
-function showValue(path, v) {
-  const k = docKey(path);
-  if (k === "zones[].state") return `${v} · ${STATE_RO[v] || "stare necunoscută – defect (FR-8.4)"}`;
-  if (k === "zones[].relayPin" || k === "pumpRelayPin") { const r = RELAYS.find(([p]) => p === v); return r ? `${v} · ${r[1].split(" (")[0]}` : String(v); }
-  if (/Epoch$/.test(k) && v > 0) return `${v} · ${new Date(v * 1000).toLocaleString("ro-RO")}`;
-  return typeof v === "string" ? `"${v}"` : String(v);
-}
-
-function updateWatch() {
-  const now = new Date().toLocaleTimeString("ro-RO");
-  const flat = {};
-  for (const ep of DOC.endpoints) {
-    if (RAW[ep]) for (const [p, v] of Object.entries(flatten(RAW[ep], "", {}))) flat[`${ep} › ${p}`] = v;
-  }
-  changed = new Set();
-  const hadPrev = Object.keys(prevFlat).length > 0;
-  for (const [sig, v] of Object.entries(flat)) {
-    if (hadPrev && prevFlat[sig] !== v) {
-      changed.add(sig);
-      const vol = (docOf(sig.split(" › ")[1])[2] === "v");
-      if (!vol || $("traceAll").checked) trace.push([now, sig, sig in prevFlat ? prevFlat[sig] : "(nou)", v]);
-    }
-  }
-  if (trace.length > 5000) trace.splice(0, trace.length - 5000);
-  prevFlat = flat;
-  renderWatch();
-  renderTrace();
-}
-
-function renderWatch() {
-  const f = $("filter").value.trim().toLowerCase();
-  let html = "", n = 0, group = "";
-  for (const [sig, v] of Object.entries(prevFlat)) {
-    const [ep, path] = sig.split(" › ");
-    const d = docOf(path);
-    if (f && !(sig.toLowerCase().includes(f) || d[0].toLowerCase().includes(f))) continue;
-    if (ep !== group) { group = ep; html += `<tr class="grp"><td colspan="3">${esc(ep)}</td></tr>`; }
-    html += `<tr data-sig="${esc(sig)}" class="${changed.has(sig) ? "chg" : ""}"><td>${esc(path)}</td><td class="v">${esc(showValue(path, v))}</td><td>${esc(d[0])}</td></tr>`;
-    if (openSig === sig) html += `<tr class="det"><td colspan="3">Cerința: ${esc(d[1] || "–")} · sursa: GET ${esc(ep)} · cheie: ${esc(docKey(path))}</td></tr>`;
-    n++;
-  }
-  $("watch").innerHTML = "<tr><th>Semnal (nume API)</th><th>Valoare</th><th>Explicație</th></tr>" + html;
-  $("watchInfo").textContent = `${n} valori`;
-}
-
-function renderTrace() {
-  $("traceInfo").textContent = `${trace.length} schimbări`;
-  $("traceTable").innerHTML = "<tr><th>Ora</th><th>Semnal</th><th>Înainte</th><th>Acum</th></tr>" + trace.slice(-300).reverse().map(t =>
-    `<tr><td>${t[0]}</td><td>${esc(t[1])}</td><td>${esc(String(t[2]))}</td><td>${esc(String(t[3]))}</td></tr>`).join("");
-}
-
-$("watch").addEventListener("click", e => {
-  const tr = e.target.closest("tr[data-sig]");
-  if (!tr) return;
-  openSig = openSig === tr.dataset.sig ? null : tr.dataset.sig;
-  renderWatch();
-});
-$("filter").addEventListener("input", renderWatch);
-$("clearTrace").onclick = () => { trace = []; renderTrace(); };
-$("csv").onclick = () => {
-  const q = s => `"${String(s).replace(/"/g, '""')}"`;
-  const csv = "time,signal,before,now\n" + trace.map(t => t.map(q).join(",")).join("\n");
-  const a = document.createElement("a");
-  a.href = URL.createObjectURL(new Blob([csv], {type: "text/csv"}));
-  a.download = "trace-" + new Date().toISOString().slice(0, 19).replace(/:/g, "") + ".csv";
-  a.click();
-  URL.revokeObjectURL(a.href);
-};
-
-// FR-10.5: live pin levels read from the chip
-function renderPins() {
-  const pins = (D && D.pins) || [];
-  $("pinsTable").innerHTML = "<tr><th>I/O Funcție</th><th>GPIO</th><th>Stare Fizică</th></tr>" +
-    pins.map(p => `<tr><td><b>${p.name}</b></td><td><code>GPIO${p.gpio}</code></td><td><span style="color:${p.level ? 'var(--heat, #f59e0b)' : 'var(--mut, #888)'};font-weight:600">${p.level ? "● 1 (ACTIV / HIGH)" : "○ 0 (INACTIV / LOW)"}</span></td></tr>`).join("");
-}
-
-// FR-10.6: Hardware & memory internals
-function renderMem() {
-  const m = RAW["api/diag/mem"];
-  if (!m) return;
-  const kb = v => (v / 1024).toFixed(1) + " KB";
-  const mb = v => (v / (1024 * 1024)).toFixed(1) + " MB";
-
-  if ($("chipInfoLine")) {
-    const tempStr = (typeof m.chipTemp === "number" && m.chipTemp > 0) ? `${m.chipTemp.toFixed(1)}°C` : "N/A";
-    $("chipInfoLine").innerHTML = `<b>ESP32-WROOM-32E</b> (D0WD-V3, rev ${m.chipRev !== undefined ? m.chipRev : 3}, ${m.chipCores || 2} nuclee)<br>` +
-      `⏱️ Ceas CPU: <b>${m.cpuFreqMHz || 240} MHz</b><br>` +
-      `🌡️ Temp. internă cip: <b>${tempStr}</b>`;
-  }
-  if ($("memInfoLine")) {
-    $("memInfoLine").innerHTML = `Liber RAM: <b>${kb(m.free)}</b> / Total: ${kb(m.heapSize)}<br>` +
-      `📉 Minim istoric: <b>${kb(m.minFreeEver)}</b><br>` +
-      `🧱 Bloc maxim continuu: <b>${kb(m.largestBlock)}</b>`;
-  }
-  if ($("partInfoLine")) {
-    const fsKb = m.fsTotal ? `${kb(m.fsUsed)} / ${kb(m.fsTotal)} (${Math.round((m.fsUsed / m.fsTotal) * 100)}% plin)` : "—";
-    $("partInfoLine").innerHTML = `Flash fizic: <b>${m.flashSize ? mb(m.flashSize) : "4.0 MB"}</b> (${m.flashSpeed ? (m.flashSpeed / 1000000) : 40} MHz)<br>` +
-      `🚀 Slot OTA activ: <b><code>${m.partRunning || "ota_0"}</code></b> (pasiv: <code>${m.partNext || "ota_1"}</code>)<br>` +
-      `📁 LittleFS: <b>${fsKb}</b>`;
-  }
-}
-
-let inFlight = false;
-async function refresh() {
-  // One refresh at a time, endpoints one after another: the board serves one client request per loop pass
-  if (inFlight) { again = true; return; }  // a change made meanwhile (add / delete a zone) is shown by one more pass
-  inFlight = true;
-  try {
-    const admin = isAdmin();
-    const debugOpen = admin && ($("grpDebug") && $("grpDebug").open);
-    const eps = debugOpen
-      ? DOC.endpoints
-      : (admin ? ["api/zones", "api/ble/sensors", "api/boiler/status", "api/diag/status", "api/schedule"]
-               : ["api/zones", "api/ble/sensors", "api/boiler/status", "api/diag/status"]);
-    for (const ep of eps) RAW[ep] = ep === "api/setup/discovered-sensors" ? await api("api/setup/discovered-sensors") : await api(ep);
-    Z = RAW["api/zones"]; B = RAW["api/ble/sensors"].sensors; ST = RAW["api/boiler/status"]; D = RAW["api/diag/status"];
-    S = RAW["api/schedule"] || S;
-    $("devBanner").style.display = ST && ST.profile === "dev-open" ? "inline-block" : "none";
-    if (ST && $("fwInfo")) {
-      $("fwInfo").textContent = `· FW v${ST.firmwareVersion || "1.11.05.24"} (${(ST.gitCommit || "").split("-")[0]}) · UI v1.11.07.01 (LittleFS)`;
-    }
-    updateAdminBtn();
-    const now = Date.now();
-    for (const zid in pendingSetpoints) {
-      if (!pendingSetpoints[zid].timer && now > pendingSetpoints[zid].holdUntil) {
-        delete pendingSetpoints[zid];
-      }
-    }
-    renderHeader(); renderRooms(); renderAlerts();
-    if (admin) {
-      renderChecks(); renderSetup(); renderSensors();
-      if (!isSchedBusy()) renderSchedule();
-      if ($("grpHistory") && $("grpHistory").open) {
-        renderTpiInspector();
-        renderGasMeter();
-        if (!histData24h || (Date.now() - lastHistFetch > 60000)) loadHistoryChart();
-      }
-      if (debugOpen) { renderPins(); renderMem(); updateWatch(); }
-      if (!busy("loc") && RAW["api/setup/location"]) $("loc").value = RAW["api/setup/location"].coords;
-    }
-    if (Date.now() >= errUntil) $("toast").textContent = "";
-  } catch (e) { showErr("Conexiune pierdută (" + e.message + ")"); }
-  inFlight = false;
-  if (again) { again = false; refresh(); }
-}
-
-$("rooms").addEventListener("click", async e => {
-  const b = e.target.closest("button");
-  if (b && b.dataset.a) {
-    const i = +b.dataset.i, z = Z && Z.zones && Z.zones[i];
-    if (!z) return;
-    const zid = (z.id !== undefined) ? z.id : (i + 1);
-
-    if (b.dataset.a === "clr") {
-      delete pendingSetpoints[zid];
-      try {
-        await api("api/zones/hold/clear", {id: zid});
-        refresh();
-      } catch (err) { showErr(err.message); }
-      return;
-    }
-
-    // 1. Calculate new target optimistically from persistent pendingSetpoints or effectiveTarget
-    const step = b.dataset.a === "up" ? STEP : -STEP;
-    const pVal = pendingSetpoints[zid];
-    const curTarget = (pVal !== undefined && typeof pVal.target === "number")
-      ? pVal.target
-      : (typeof z.effectiveTarget === "number" ? z.effectiveTarget : 20.0);
-    const nextTarget = Math.min(MAX_T, Math.max(MIN_T, +(curTarget + step).toFixed(1)));
-
-    // Cancel in-flight debounce timer if user is clicking rapidly
-    if (pVal && pVal.timer) clearTimeout(pVal.timer);
-
-    pendingSetpoints[zid] = {
-      target: nextTarget,
-      holdUntil: Date.now() + 2500,
-      timer: setTimeout(async () => {
-        try {
-          await api("api/zones/setpoint", {id: zid, target: nextTarget.toFixed(1)});
-        } catch (err) {
-          showErr(err.message);
-        } finally {
-          setTimeout(() => {
-            if (pendingSetpoints[zid] && pendingSetpoints[zid].target === nextTarget) {
-              delete pendingSetpoints[zid];
-            }
-          }, 1200);
-          refresh();
-        }
-      }, 350)
-    };
-
-    // 2. Instant DOM update with zero flicker
-    const card = b.closest(".room");
-    if (card) {
-      const spVal = card.querySelector(".sp-val");
-      if (spVal) spVal.textContent = nextTarget.toFixed(1) + "°";
-      const clrBtn = card.querySelector(".sp-clr");
-      if (clrBtn) clrBtn.classList.remove("hidden");
-    }
-    return;
-  }
-  if (e.target.closest(".ctl")) return;
-});
-
-// FR-65.1 / FR-65.6: save the settings file; send a chosen file unchanged and show what the controller did with it
-const REASON_RO = {unknown: "nume necunoscut", invalid: "valoare nepermisă", "no-zone": "zonă inexistentă",
-  "relay-taken": "releu folosit de altă zonă", "pump-relay": "releul pompei", "valve-energised": "robinet deschis", duplicate: "id repetat"};
 function renderImport(j, changes) {
   const sk = (j.skipped || []).map(x => `<tr><td><code>${esc(x.name)}</code></td><td>${esc(REASON_RO[x.reason] || x.reason)} (${esc(x.reason)})</td></tr>`).join("");
   const ch = (changes || []);
@@ -2424,152 +2644,6 @@ $("cfgFile").onchange = async e => {
   }
 };
 
-$("away").onclick = async () => {
-  const nextAway = !Z.away;
-  Z.away = nextAway;
-  $("away").classList.toggle("on", nextAway);
-  try {
-    await api("api/schedule/enable", {away: nextAway ? 1 : 0});
-  } catch (err) {
-    showErr(err.message);
-  } finally {
-    refresh();
-  }
-};
-
-let timer = null;
-function startTimer() { clearInterval(timer); timer = setInterval(() => { if (!document.hidden) refresh(); }, isAdmin() ? 3000 : 5000); }
-
-let pendingAdminCallback = null;
-
-function updateAdminBtn() {
-  const btn = $("toggleAdmin");
-  if (btn) {
-    if (isAdmin()) {
-      btn.textContent = "✕ Ieși Admin";
-      btn.style.borderColor = "var(--line)";
-      btn.style.color = "var(--mut)";
-      btn.title = "Ieși din panoul de administrare";
-    } else {
-      btn.textContent = "⚙️ Admin";
-      btn.style.borderColor = "var(--line)";
-      btn.style.color = "var(--fg)";
-      btn.title = "Deschide panoul de administrare";
-    }
-  }
-}
-
-function openAdminAuthModal(cb) {
-  pendingAdminCallback = cb || null;
-  const modal = $("adminAuthModal");
-  if (modal) {
-    modal.style.display = "flex";
-    $("adminAuthErr").textContent = "";
-    $("adminAuthPass").value = "";
-    setTimeout(() => $("adminAuthPass").focus(), 50);
-  }
-}
-
-function closeAdminAuthModal() {
-  const modal = $("adminAuthModal");
-  if (modal) modal.style.display = "none";
-  pendingAdminCallback = null;
-}
-
-async function submitAdminAuth() {
-  const pass = ($("adminAuthPass").value || "").trim();
-  const errBox = $("adminAuthErr");
-  if (!pass) {
-    errBox.textContent = "Introduceți parola administrator.";
-    return;
-  }
-  errBox.textContent = "Se verifică...";
-  errBox.style.color = "var(--mut)";
-
-  const userCandidates = ["bogdan", "admin"];
-  let ok = false;
-  let authHeader = "";
-
-  for (const u of userCandidates) {
-    try {
-      const candidateAuth = "Basic " + btoa(u + ":" + pass);
-      const r = await fetch("api/auth/verify", {
-        method: "POST",
-        headers: { "Authorization": candidateAuth }
-      });
-      if (r.ok) {
-        ok = true;
-        authHeader = candidateAuth;
-        sessionStorage.setItem("sh_admin_user", u);
-        break;
-      }
-    } catch (_) {}
-  }
-
-  if (!ok) {
-    for (const u of userCandidates) {
-      try {
-        const candidateAuth = "Basic " + btoa(u + ":" + pass);
-        const r = await fetch("api/boiler/off", {
-          method: "POST",
-          headers: { "Authorization": candidateAuth }
-        });
-        if (r.status !== 401) {
-          ok = true;
-          authHeader = candidateAuth;
-          sessionStorage.setItem("sh_admin_user", u);
-          break;
-        }
-      } catch (_) {}
-    }
-  }
-
-  if (ok) {
-    sessionStorage.setItem("sh_admin_auth", authHeader);
-    sessionStorage.setItem("sh_admin_pass", pass);
-    document.body.classList.add("admin");
-    location.hash = "admin";
-    updateAdminBtn();
-    closeAdminAuthModal();
-    startTimer();
-    refresh();
-    if (pendingAdminCallback) {
-      const cb = pendingAdminCallback;
-      pendingAdminCallback = null;
-      cb();
-    }
-  } else {
-    errBox.textContent = "Parolă incorectă!";
-    errBox.style.color = "var(--bad)";
-    $("adminAuthPass").focus();
-  }
-}
-
-$("toggleAdmin").onclick = e => {
-  e.preventDefault();
-  if (isAdmin()) {
-    sessionStorage.removeItem("sh_admin_auth");
-    sessionStorage.removeItem("sh_admin_pass");
-    sessionStorage.removeItem("sh_admin_user");
-    document.body.classList.remove("admin");
-    location.hash = "";
-    updateAdminBtn();
-    startTimer();
-    refresh();
-  } else {
-    const cachedAuth = sessionStorage.getItem("sh_admin_auth");
-    if (cachedAuth) {
-      document.body.classList.add("admin");
-      location.hash = "admin";
-      updateAdminBtn();
-      startTimer();
-      refresh();
-    } else {
-      openAdminAuthModal();
-    }
-  }
-};
-
 const btnSaveCreds = $("btnSaveAdminCreds");
 if (btnSaveCreds) {
   btnSaveCreds.addEventListener("click", async () => {
@@ -2649,36 +2723,6 @@ if (btnSaveCreds) {
     }
   });
 }
-const grpHist = $("grpHistory");
-if (grpHist) {
-  grpHist.addEventListener("toggle", () => {
-    if (grpHist.open && (!histData24h || !histData5d)) loadHistoryChart();
-  });
-}
-const btnRefHist = $("btnRefreshHist");
-if (btnRefHist) {
-  btnRefHist.onclick = () => loadHistoryChart(true);
-}
-const rangeTabs = $("histRangeTabs");
-if (rangeTabs) {
-  rangeTabs.addEventListener("click", e => {
-    const btn = e.target.closest("button.hist-range-btn");
-    if (!btn) return;
-    rangeTabs.querySelectorAll(".hist-range-btn").forEach(b => b.classList.remove("on"));
-    btn.classList.add("on");
-    selectedHistRange = btn.dataset.range;
-    renderHistoryChart();
-    loadHistoryChart();
-  });
-}
-const savedAuth = sessionStorage.getItem("sh_admin_auth");
-if (savedAuth && location.hash === "#admin") {
-  document.body.classList.add("admin");
-} else {
-  if (location.hash === "#admin") location.hash = "";
-}
-updateAdminBtn();
-
 // Commissioning: a row being edited is not overwritten by the refresh until it is saved
 $("setup").addEventListener("input", e => { const tr = e.target.closest("tr[data-z]"); if (tr) dirtyRows.add(tr.dataset.z); });
 $("setup").addEventListener("change", e => { const tr = e.target.closest("tr[data-z]"); if (tr) dirtyRows.add(tr.dataset.z); });
@@ -2711,9 +2755,6 @@ $("setup").addEventListener("click", async e => {
   }
 });
 
-// FR-11.3: one Save for all zones; the controller checks them together on the configuration that results
-const SAVE_WHY = {"sensor-taken": "senzorul e la altă zonă", "relay-taken": "releul e la altă zonă", "pump-relay": "releul e al pompei",
-  "valve-energised": "supapa e deschisă", invalid: "valoare nepermisă (o zonă pornită are nevoie de senzor)", duplicate: "zonă dublă"};
 $("zonesSave").onclick = async () => {
   const zones = [...document.querySelectorAll("#setup tr[data-z]")].map(tr => {
     const f = n => tr.querySelector(`[data-f="${n}"]`);
@@ -2739,241 +2780,123 @@ $("zonesSave").onclick = async () => {
   if (!dirtyRows.size) refresh();
 };
 
-// While the schedule form is being edited, refreshes must not overwrite the inputs (PB-66, C-14)
-const schedForm = $("saveSched") ? $("saveSched").closest("details, section") : document;
-function markSchedDirty() {
-  schedDirty = true;
-  $("undoSched").style.display = "";
-}
-function syncSchedInput(t) {
-  markSchedDirty();
-  editing = true;
-  if (!schedState) return;
-
-  if (t.id === "schedOn") {
-    schedState.enabled = t.checked;
-  } else if (t.classList.contains("mom-name")) {
-    const m = +t.dataset.m, val = t.value.trim();
-    if (schedState.momentNames && val) {
-      schedState.momentNames[m] = val;
-      // Mirror name in other moment name inputs if visible
-      document.querySelectorAll(`.mom-name[data-m="${m}"]`).forEach(inp => {
-        if (inp !== t) inp.value = val;
-      });
-    }
-  } else if (t.classList.contains("time24")) {
-    const grp = t.dataset.group, m = +t.dataset.m, val = t.value.trim();
-    if (grp === "unified") {
-      for (let d = 0; d < 7; d++) schedState.days[d][m].time = val;
-    } else if (grp === "wd") {
-      for (let d = 1; d <= 5; d++) schedState.days[d][m].time = val;
-    } else if (grp === "we") {
-      schedState.days[0][m].time = val; schedState.days[6][m].time = val;
-    } else if (grp && grp.startsWith("day_")) {
-      const d = +grp.split("_")[1];
-      schedState.days[d][m].time = val;
-    }
-  } else if (t.classList.contains("sched-t")) {
-    const grp = t.dataset.group, m = +t.dataset.m, z = t.dataset.z, val = parseFloat(t.value);
-    if (!isNaN(val)) {
-      if (grp === "unified") {
-        for (let d = 0; d < 7; d++) schedState.days[d][m].temps[z] = val;
-      } else if (grp === "wd") {
-        for (let d = 1; d <= 5; d++) schedState.days[d][m].temps[z] = val;
-      } else if (grp === "we") {
-        schedState.days[0][m].temps[z] = val; schedState.days[6][m].temps[z] = val;
-      } else if (grp && grp.startsWith("day_")) {
-        const d = +grp.split("_")[1];
-        schedState.days[d][m].temps[z] = val;
-      }
-    }
-  } else if (t.classList.contains("const-t")) {
-    const z = t.dataset.z, val = parseFloat(t.value);
-    if (!isNaN(val)) {
-      schedState.constantTemps[z] = val;
-      for (let d = 0; d < 7; d++) schedState.days[d][0].temps[z] = val;
-    }
-  } else if (t.classList.contains("away-t")) {
-    const z = t.dataset.z, val = parseFloat(t.value);
-    if (!isNaN(val)) {
-      schedState.awayTemps[z] = val;
-    }
-  }
-}
-
-schedForm.addEventListener("input", e => syncSchedInput(e.target));
-schedForm.addEventListener("change", e => syncSchedInput(e.target));
-schedForm.addEventListener("focusin", () => editing = true);
-schedForm.addEventListener("focusout", () => {
-  setTimeout(() => {
-    if (schedForm && !schedForm.contains(document.activeElement) && !schedDirty) editing = false;
-  }, 50);
-});
-
-// Interactive clicks for Mode, Day Tabs, Copy, Quick Away, Legacy Slots
-schedForm.addEventListener("click", e => {
-  // Mode selection button
-  const modeBtn = e.target.closest(".sched-mode-btn");
-  if (modeBtn && schedState) {
-    schedState.mode = modeBtn.dataset.mode;
-    markSchedDirty();
-    renderSchedule();
-    return;
-  }
-
-  // 7-Day Day tab button
-  const dayBtn = e.target.closest(".day-tab-btn");
-  if (dayBtn) {
-    activeDayIndex = +dayBtn.dataset.day;
-    renderSchedule();
-    return;
-  }
-
-
-
-  // Copy helpers for 5+2
-  if (e.target.id === "btnCopyWdToWe" && schedState) {
-    for (let m = 0; m < 4; m++) {
-      schedState.days[0][m] = JSON.parse(JSON.stringify(schedState.days[1][m]));
-      schedState.days[6][m] = JSON.parse(JSON.stringify(schedState.days[1][m]));
-    }
-    markSchedDirty();
-    renderSchedule();
-    return;
-  }
-  if (e.target.id === "btnCopyWeToWd" && schedState) {
-    for (let d = 1; d <= 5; d++) {
-      for (let m = 0; m < 4; m++) {
-        schedState.days[d][m] = JSON.parse(JSON.stringify(schedState.days[0][m]));
-      }
-    }
-    markSchedDirty();
-    renderSchedule();
-    return;
-  }
-
-  // Copy helpers for 7day
-  if (e.target.id === "btnCopyDayToAll" && schedState) {
-    const src = schedState.days[activeDayIndex];
-    for (let d = 0; d < 7; d++) {
-      if (d !== activeDayIndex) {
-        schedState.days[d] = JSON.parse(JSON.stringify(src));
-      }
-    }
-    markSchedDirty();
-    renderSchedule();
-    return;
-  }
-  if (e.target.id === "btnCopyDayToWd" && schedState) {
-    const src = schedState.days[activeDayIndex];
-    for (let d = 1; d <= 5; d++) {
-      schedState.days[d] = JSON.parse(JSON.stringify(src));
-    }
-    markSchedDirty();
-    renderSchedule();
-    return;
-  }
-  if (e.target.id === "btnCopyDayToWe" && schedState) {
-    const src = schedState.days[activeDayIndex];
-    schedState.days[0] = JSON.parse(JSON.stringify(src));
-    schedState.days[6] = JSON.parse(JSON.stringify(src));
-    markSchedDirty();
-    renderSchedule();
-    return;
-  }
-
-
-});
-
-$("undoSched").onclick = () => {
-  schedDirty = false;
-  editing = false;
-  $("undoSched").style.display = "none";
-  $("schedMsg").textContent = "Modificări anulate.";
-  initSchedStateFromS();
-  renderSchedule();
-};
-
-$("saveSched").onclick = async () => {
-  if (!schedState) return;
-  try {
-    $("schedMsg").textContent = "Se salvează...";
-    // 1. Enable / disable
-    await api("api/schedule/enable", {enabled: $("schedOn").checked ? 1 : 0});
-
-    // 1b. Customizable moment names
-    if (schedState.momentNames && schedState.momentNames.length === 4) {
-      await api("api/schedule/names", {names: schedState.momentNames}, true);
-    }
-
-    // 2. Mode
-    const mode = schedState.mode;
-    await api("api/schedule/mode", {mode: mode});
-
-    // 3. Save moments according to mode
-    if (mode === "constant") {
-      const temps = {};
-      (S.zones || []).forEach(z => {
-        const v = parseFloat(schedState.constantTemps[z.id] || 22.0);
-        temps[z.id] = v;
-      });
-      await api("api/schedule/moment", {day: "all", moment: 1, time: "00:00", temps: temps}, true);
-      for (const z of (S.zones || [])) {
-        await api("api/schedule/level", {zone: z.id, level: "day", temp: temps[z.id]});
-      }
-    } else if (mode === "unified") {
-      for (let m = 0; m < 4; m++) {
-        const mom = schedState.days[1][m];
-        await api("api/schedule/moment", {day: "all", moment: m + 1, time: mom.time, temps: mom.temps}, true);
-      }
-    } else if (mode === "5+2") {
-      for (let m = 0; m < 4; m++) {
-        const momWd = schedState.days[1][m];
-        await api("api/schedule/moment", {day: "weekday", moment: m + 1, time: momWd.time, temps: momWd.temps}, true);
-        const momWe = schedState.days[0][m];
-        await api("api/schedule/moment", {day: "weekend", moment: m + 1, time: momWe.time, temps: momWe.temps}, true);
-      }
-    } else if (mode === "7day") {
-      const dayKeys = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"];
-      for (let d = 0; d < 7; d++) {
-        for (let m = 0; m < 4; m++) {
-          const mom = schedState.days[d][m];
-          await api("api/schedule/moment", {day: dayKeys[d], moment: m + 1, time: mom.time, temps: mom.temps}, true);
-        }
-      }
-    }
-
-    // 4. Save Away temps
-    for (const z of (S.zones || [])) {
-      const aw = parseFloat(schedState.awayTemps[z.id] || 18.0);
-      await api("api/schedule/level", {zone: z.id, level: "away", temp: aw});
-    }
-
-    schedDirty = false;
-    editing = false;
-    $("undoSched").style.display = "none";
-    $("schedMsg").textContent = "Program salvat cu succes.";
-    setTimeout(() => { if ($("schedMsg").textContent === "Program salvat cu succes.") $("schedMsg").textContent = ""; }, 4000);
-    refresh();
-  } catch (e) {
-    $("schedMsg").textContent = "Eroare: " + e.message;
-  }
-};
-
 $("saveLoc").onclick = async () => {
   try { await api("api/setup/location", {coords: $("loc").value}); $("locMsg").textContent = "Salvat."; }
   catch (e) { $("locMsg").textContent = "Respins: " + e.message; }
   refresh();
 };
+// ---- Engineering view: every API value with its name, explanation and requirement (FR-8.1)
+function flatten(v, path, out) {
+  if (v !== null && typeof v === "object") {
+    const arr = Array.isArray(v);
+    for (const k of Object.keys(v)) flatten(v[k], arr ? `${path}[${k}]` : (path ? `${path}.${k}` : k), out);
+  } else out[path] = v;
+  return out;
+}
+const docKey = path => path.replace(/\[\d+\]/g, "[]");
+const docOf = path => DOC.doc[docKey(path)] || ["(fără explicație)", ""];
 
-window.clearWindowPause = async function(id) {
-  try {
-    await fetch(`/api/zones/window/clear?id=${encodeURIComponent(id)}`, { method: "POST" });
-    refresh();
-  } catch (e) {
-    console.error("clearWindowPause error:", e);
+function showValue(path, v) {
+  const k = docKey(path);
+  if (k === "zones[].state") return `${v} · ${STATE_RO[v] || "stare necunoscută – defect (FR-8.4)"}`;
+  if (k === "zones[].relayPin" || k === "pumpRelayPin") { const r = RELAYS.find(([p]) => p === v); return r ? `${v} · ${r[1].split(" (")[0]}` : String(v); }
+  if (/Epoch$/.test(k) && v > 0) return `${v} · ${new Date(v * 1000).toLocaleString("ro-RO")}`;
+  return typeof v === "string" ? `"${v}"` : String(v);
+}
+
+function updateWatch() {
+  const now = new Date().toLocaleTimeString("ro-RO");
+  const flat = {};
+  for (const ep of DOC.endpoints) {
+    if (RAW[ep]) for (const [p, v] of Object.entries(flatten(RAW[ep], "", {}))) flat[`${ep} › ${p}`] = v;
   }
+  changed = new Set();
+  const hadPrev = Object.keys(prevFlat).length > 0;
+  for (const [sig, v] of Object.entries(flat)) {
+    if (hadPrev && prevFlat[sig] !== v) {
+      changed.add(sig);
+      const vol = (docOf(sig.split(" › ")[1])[2] === "v");
+      if (!vol || $("traceAll").checked) trace.push([now, sig, sig in prevFlat ? prevFlat[sig] : "(nou)", v]);
+    }
+  }
+  if (trace.length > 5000) trace.splice(0, trace.length - 5000);
+  prevFlat = flat;
+  renderWatch();
+  renderTrace();
+}
+
+function renderWatch() {
+  const f = $("filter").value.trim().toLowerCase();
+  let html = "", n = 0, group = "";
+  for (const [sig, v] of Object.entries(prevFlat)) {
+    const [ep, path] = sig.split(" › ");
+    const d = docOf(path);
+    if (f && !(sig.toLowerCase().includes(f) || d[0].toLowerCase().includes(f))) continue;
+    if (ep !== group) { group = ep; html += `<tr class="grp"><td colspan="3">${esc(ep)}</td></tr>`; }
+    html += `<tr data-sig="${esc(sig)}" class="${changed.has(sig) ? "chg" : ""}"><td>${esc(path)}</td><td class="v">${esc(showValue(path, v))}</td><td>${esc(d[0])}</td></tr>`;
+    if (openSig === sig) html += `<tr class="det"><td colspan="3">Cerința: ${esc(d[1] || "–")} · sursa: GET ${esc(ep)} · cheie: ${esc(docKey(path))}</td></tr>`;
+    n++;
+  }
+  $("watch").innerHTML = "<tr><th>Semnal (nume API)</th><th>Valoare</th><th>Explicație</th></tr>" + html;
+  $("watchInfo").textContent = `${n} valori`;
+}
+
+function renderTrace() {
+  $("traceInfo").textContent = `${trace.length} schimbări`;
+  $("traceTable").innerHTML = "<tr><th>Ora</th><th>Semnal</th><th>Înainte</th><th>Acum</th></tr>" + trace.slice(-300).reverse().map(t =>
+    `<tr><td>${t[0]}</td><td>${esc(t[1])}</td><td>${esc(String(t[2]))}</td><td>${esc(String(t[3]))}</td></tr>`).join("");
+}
+
+$("watch").addEventListener("click", e => {
+  const tr = e.target.closest("tr[data-sig]");
+  if (!tr) return;
+  openSig = openSig === tr.dataset.sig ? null : tr.dataset.sig;
+  renderWatch();
+});
+$("filter").addEventListener("input", renderWatch);
+$("clearTrace").onclick = () => { trace = []; renderTrace(); };
+$("csv").onclick = () => {
+  const q = s => `"${String(s).replace(/"/g, '""')}"`;
+  const csv = "time,signal,before,now\n" + trace.map(t => t.map(q).join(",")).join("\n");
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(new Blob([csv], {type: "text/csv"}));
+  a.download = "trace-" + new Date().toISOString().slice(0, 19).replace(/:/g, "") + ".csv";
+  a.click();
+  URL.revokeObjectURL(a.href);
 };
+
+// FR-10.5: live pin levels read from the chip
+function renderPins() {
+  const pins = (D && D.pins) || [];
+  $("pinsTable").innerHTML = "<tr><th>I/O Funcție</th><th>GPIO</th><th>Stare Fizică</th></tr>" +
+    pins.map(p => `<tr><td><b>${p.name}</b></td><td><code>GPIO${p.gpio}</code></td><td><span style="color:${p.level ? 'var(--heat, #f59e0b)' : 'var(--mut, #888)'};font-weight:600">${p.level ? "● 1 (ACTIV / HIGH)" : "○ 0 (INACTIV / LOW)"}</span></td></tr>`).join("");
+}
+
+// FR-10.6: Hardware & memory internals
+function renderMem() {
+  const m = RAW["api/diag/mem"];
+  if (!m) return;
+  const kb = v => (v / 1024).toFixed(1) + " KB";
+  const mb = v => (v / (1024 * 1024)).toFixed(1) + " MB";
+
+  if ($("chipInfoLine")) {
+    const tempStr = (typeof m.chipTemp === "number" && m.chipTemp > 0) ? `${m.chipTemp.toFixed(1)}°C` : "N/A";
+    $("chipInfoLine").innerHTML = `<b>ESP32-WROOM-32E</b> (D0WD-V3, rev ${m.chipRev !== undefined ? m.chipRev : 3}, ${m.chipCores || 2} nuclee)<br>` +
+      `⏱️ Ceas CPU: <b>${m.cpuFreqMHz || 240} MHz</b><br>` +
+      `🌡️ Temp. internă cip: <b>${tempStr}</b>`;
+  }
+  if ($("memInfoLine")) {
+    $("memInfoLine").innerHTML = `Liber RAM: <b>${kb(m.free)}</b> / Total: ${kb(m.heapSize)}<br>` +
+      `📉 Minim istoric: <b>${kb(m.minFreeEver)}</b><br>` +
+      `🧱 Bloc maxim continuu: <b>${kb(m.largestBlock)}</b>`;
+  }
+  if ($("partInfoLine")) {
+    const fsKb = m.fsTotal ? `${kb(m.fsUsed)} / ${kb(m.fsTotal)} (${Math.round((m.fsUsed / m.fsTotal) * 100)}% plin)` : "—";
+    $("partInfoLine").innerHTML = `Flash fizic: <b>${m.flashSize ? mb(m.flashSize) : "4.0 MB"}</b> (${m.flashSpeed ? (m.flashSpeed / 1000000) : 40} MHz)<br>` +
+      `🚀 Slot OTA activ: <b><code>${m.partRunning || "ota_0"}</code></b> (pasiv: <code>${m.partNext || "ota_1"}</code>)<br>` +
+      `📁 LittleFS: <b>${fsKb}</b>`;
+  }
+}
 
 // Firmware Live Console & Log Stream
 let consoleSeq = 0, consolePaused = false, consolePollTimer = null, lastSecEventsFetch = 0;
@@ -3029,67 +2952,6 @@ async function loadSecEvents() {
     box.innerHTML = `<div style="font-weight:600;font-size:12px;margin:8px 0 4px 0">Evenimente de securitate (${d.count}):</div>` +
       d.events.slice().reverse().slice(0, 20).map(e => `<div class="s" style="color:var(--mut)">${esc(e.time > 1700000000 ? new Date(e.time * 1000).toLocaleString() : "+" + e.time + " s")} · ${esc(names[e.type] || e.type)} · ${esc(e.source)}${e.client ? " · " + esc(e.client) : ""}</div>`).join("");
   } catch (e) { box.innerHTML = ""; }
-}
-
-let dtcEventsLoaded = false;
-async function loadDtcEvents(force = false) {
-  const box = $("persistentDtcHistory");
-  if (!box) return;
-  if (dtcEventsLoaded && !force) return;
-  box.innerHTML = `<div class="s" style="color:var(--mut)">Se încarcă istoricul din memoria flash...</div>`;
-  try {
-    const d = await (await fetch("api/diag/events")).json();
-    if (!d || !d.events || d.events.length === 0) {
-      box.innerHTML = `<div class="s" style="color:var(--mut);padding:4px 0">Niciun eveniment diagnostic înregistrat în memoria flash.</div>`;
-      dtcEventsLoaded = true;
-      return;
-    }
-    const typeMap = {
-      "dtc-raised": '<span style="color:var(--bad);font-weight:600">🔴 Ridicat</span>',
-      "dtc-cleared": '<span style="color:var(--ok);font-weight:600">🟢 Curățat</span>',
-      "restart": '<span style="color:#f59e0b;font-weight:600">⚡ Restart</span>'
-    };
-    box.innerHTML = `<div class="scroll" style="margin-top:6px;max-height:260px;overflow-y:auto"><table style="font-size:11px;width:100%;border-collapse:collapse">
-      <thead><tr>
-        <th style="padding:4px 6px">Dată / Oră</th>
-        <th style="padding:4px 6px">Stare</th>
-        <th style="padding:4px 6px">Cod</th>
-        <th style="padding:4px 6px">Descriere &amp; Cauză</th>
-        <th style="padding:4px 6px">Zonă / Țintă</th>
-      </tr></thead>
-      <tbody>` +
-      d.events.map(e => {
-        const timeStr = (e.time > 1700000000) ? new Date(e.time * 1000).toLocaleString('ro-RO') : `+${e.time}s uptime`;
-        let codeStr = '—';
-        let descStr = '';
-        let targetStr = 'Global';
-
-        if (e.type === 'restart') {
-          const rInfo = RESET_REASONS[e.value] || {title: "Repornire sistem (motiv " + e.value + ")", desc: "Reset placă ESP32"};
-          codeStr = '<code style="color:#f59e0b;font-weight:bold">SYS-REBOOT</code>';
-          descStr = `<b>${esc(rInfo.title)}</b><div class="s" style="color:var(--mut);margin-top:2px">${esc(rInfo.desc)}</div>`;
-          targetStr = 'Sistem (Restaurat)';
-        } else {
-          const cleanCode = String(e.code || '').replace("DTC-", "");
-          const info = DTC_INFO[cleanCode] || {title: "Cod eroare diagnostic", cause: "Eveniment înregistrat de DiagnosticEngine."};
-          codeStr = e.code ? `<code><b>${esc(e.code)}</b></code>` : '—';
-          descStr = `<b>${esc(info.title)}</b><div class="s" style="color:var(--mut);margin-top:2px">${esc(info.cause)}</div>`;
-          targetStr = e.zone ? `Zona ${e.zone}` : 'Global';
-        }
-
-        return `<tr>
-          <td style="white-space:nowrap;padding:5px 6px"><b>${esc(timeStr)}</b></td>
-          <td style="white-space:nowrap;padding:5px 6px">${typeMap[e.type] || esc(e.type)}</td>
-          <td style="white-space:nowrap;padding:5px 6px">${codeStr}</td>
-          <td style="padding:5px 6px">${descStr}</td>
-          <td style="white-space:nowrap;padding:5px 6px">${esc(targetStr)}</td>
-        </tr>`;
-      }).join("") +
-      `</tbody></table></div>`;
-    dtcEventsLoaded = true;
-  } catch(err) {
-    box.innerHTML = `<div class="s" style="color:var(--err)">Eroare la încărcarea istoricului: ${esc(err.message)}</div>`;
-  }
 }
 
 async function sendConsoleCmd() {
@@ -3162,7 +3024,6 @@ if (grpDbg) {
     }
   });
 }
-
 startTimer();
 refresh();
 </script>

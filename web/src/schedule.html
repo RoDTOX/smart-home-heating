@@ -1,0 +1,38 @@
+  <!-- 1. Confort & Programare (Default: OPEN) -->
+  <details class="adm-card" id="grpSched">
+    <summary><h2>1. Confort &amp; Programare (Honeywell)</h2></summary>
+    <div class="adm-body" id="schedSection">
+      <div style="font-weight:600;margin:6px 0 4px">1.1 Mod Programare &amp; Programe Zilnice</div>
+      <div class="row" style="justify-content:space-between">
+        <label style="font-weight:600"><input type="checkbox" id="schedOn"> Program activ</label>
+        <div id="schedActiveBadge" class="s"></div>
+      </div>
+      
+      <div style="margin-top:10px"><b>Tip program:</b></div>
+      <div class="row" id="schedModeTabs" style="gap:6px;margin:6px 0 10px 0">
+        <button type="button" class="sm sched-mode-btn" data-mode="5+2">5 + 2 Zile (L–V / S–D)</button>
+        <button type="button" class="sm sched-mode-btn" data-mode="unified">Zilnic unificat (L–D)</button>
+        <button type="button" class="sm sched-mode-btn" data-mode="7day">7 Zile individuale</button>
+        <button type="button" class="sm sched-mode-btn" data-mode="constant">Constant 24/7</button>
+      </div>
+      <div id="schedModeDesc" class="s" style="margin-bottom:12px"></div>
+
+      <!-- Dynamic mode view -->
+      <div id="schedContent"></div>
+
+      <!-- Configurable Away Mode Temperatures -->
+      <div class="sched-away-card">
+        <div style="font-weight:600;margin-bottom:4px">1.2 Temperaturi Mod Plecat (Away)</div>
+        <div class="s" style="margin-bottom:8px">Temperaturi menținute când este activat butonul „Plecat” din antet.</div>
+        <div id="awayInputs" class="row" style="gap:10px;flex-wrap:wrap"></div>
+      </div>
+
+      <!-- Actions -->
+      <div class="row" style="margin-top:14px">
+        <button id="saveSched" class="on">Salvează programul</button>
+        <button id="undoSched" type="button" style="display:none">↩ Anulează modificările</button>
+        <span id="schedMsg" class="s" style="font-weight:600"></span>
+      </div>
+    </div>
+  </details>
+

@@ -1,0 +1,50 @@
+  <!-- 5. Instrumente Inginerie & Debug (Default: COLLAPSED) -->
+  <details class="adm-card" id="grpDebug">
+    <summary><h2>5. Instrumente Inginerie &amp; Debug</h2></summary>
+    <div class="adm-body">
+      <div style="font-weight:600;margin:6px 0 4px">5.1 Jurnal &amp; Consolă Live (Firmware Stream)</div>
+      <div class="row" style="gap:8px;align-items:center;flex-wrap:wrap">
+        <button type="button" id="clearConsoleBtn">Golește ecran</button>
+        <button type="button" id="pauseConsoleBtn">Pauză stream</button>
+        <label><input type="checkbox" id="consoleAutoScroll" checked> Auto-scroll</label>
+        <span id="consoleStatus" class="s" style="color:var(--ok)">● Conectat la stream</span>
+      </div>
+      <pre id="consoleTerminal" style="background:#0d1117;color:#58a6ff;padding:10px 12px;border-radius:6px;border:1px solid var(--line);font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:11.5px;line-height:1.45;height:240px;overflow-y:auto;white-space:pre-wrap;word-break:break-all;margin-top:6px"></pre>
+      <div id="secEventsBox"></div>
+      <div class="row" style="margin-top:6px;gap:8px">
+        <input id="consoleInput" class="w" placeholder="Comandă consolă (ex: help, status, zones, boiler, dtc, tpi)...">
+        <button type="button" id="consoleSendBtn">Trimite</button>
+      </div>
+      <div style="font-weight:600;margin:18px 0 8px">5.2 Hardware, Memorie &amp; Stare Pini (I/O) (FR-10.5, FR-10.6)</div>
+      <div id="hwDashboard" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:10px;margin-bottom:12px">
+        <div style="background:var(--card);border:1px solid var(--line);border-radius:8px;padding:10px">
+          <div class="s" style="color:var(--mut);font-weight:600">⚡ Cip &amp; CPU ESP32</div>
+          <div id="chipInfoLine" style="margin-top:4px;font-size:13px;line-height:1.4">—</div>
+        </div>
+        <div style="background:var(--card);border:1px solid var(--line);border-radius:8px;padding:10px">
+          <div class="s" style="color:var(--mut);font-weight:600">💾 Memorie RAM</div>
+          <div id="memInfoLine" style="margin-top:4px;font-size:13px;line-height:1.4">—</div>
+        </div>
+        <div style="background:var(--card);border:1px solid var(--line);border-radius:8px;padding:10px">
+          <div class="s" style="color:var(--mut);font-weight:600">📁 Flash, Partiții &amp; LittleFS</div>
+          <div id="partInfoLine" style="margin-top:4px;font-size:13px;line-height:1.4">—</div>
+        </div>
+      </div>
+      <div style="font-weight:600;font-size:13px;margin:8px 0 4px">Stare I/O Pini &amp; Relee (nivel fizic cip: 1 = HIGH, 0 = LOW)</div>
+      <table class="mono" id="pinsTable"></table>
+      <details id="dbgTrace" style="margin-top:18px">
+        <summary style="font-weight:600;cursor:pointer">5.3 Trace – Schimbări în timp real cât timp pagina e deschisă</summary>
+            <div class="row"><button id="csv">Export CSV</button><button id="clearTrace">Golește</button>
+        <label><input type="checkbox" id="traceAll"> și valorile care se schimbă continuu (ore, vechimi, memorie)</label><span id="traceInfo" class="s"></span></div>
+      <div id="trace" class="scroll"><table class="mono" id="traceTable"></table></div>
+
+      </details>
+      <details id="dbgWatch" style="margin-top:18px">
+        <summary style="font-weight:600;cursor:pointer">5.4 Semnale – Tot ce raportează API-ul (FR-8.1)</summary>
+            <div class="row"><input class="w" id="filter" placeholder="Filtru: nume sau explicație (ex. zones[0], relay, boiler)"><span id="watchInfo" class="s"></span></div>
+      <div class="s">Atinge un rând pentru cerință. Galben = s-a schimbat la ultima citire.</div>
+      <div class="scroll"><table id="watch" class="mono"></table></div>
+
+      </details>
+    </div>
+  </details>

@@ -1,0 +1,45 @@
+  <!-- 4. Configurare Instalație (Default: COLLAPSED) -->
+  <details class="adm-card" id="grpSetup">
+    <summary><h2>4. Configurare Instalație</h2></summary>
+    <div class="adm-body">
+      <div style="font-weight:600;margin:6px 0 4px">4.1 Zone &amp; Circuite Termice – punere în funcțiune (FR-11.3)</div>
+      <div class="s">Adaugi zone pe ieșirile libere ale plăcii. O zonă se pornește doar cu senzor; un releu și un senzor servesc o singură zonă; releul nu e al pompei.</div>
+      <div class="row"><button id="zoneAdd">Adaugă zonă</button><button id="zonesSave">Salvează zonele</button><span id="zoneMsg" class="s"></span></div>
+      <div class="scroll"><table id="setup"></table></div>
+      <datalist id="macList"></datalist>
+
+      <div style="font-weight:600;margin:18px 0 4px">4.2 Senzori BLE (FR-11.5)</div>
+      <div class="row"><button id="searchToggle">Caută senzori</button><button id="searchStop" style="display:none">Stop</button><span id="searchInfo" class="s"></span></div>
+      <div class="s">Căutarea ține până apeși Stop, cel mult 10 minute. În afara căutării controlerul ține doar senzorii zonelor.</div>
+      <div class="scroll"><table id="sensors"></table></div>
+
+      <div style="font-weight:600;margin:18px 0 4px">4.3 Sistem &amp; Mentenanță (Locație)</div>
+      <div class="row">Locație (lat,lon) <input id="loc" placeholder="45.65,25.60"><button id="saveLoc">Salvează</button><span id="locMsg" class="s"></span></div>
+      
+      <div style="font-weight:600;margin:18px 0 4px">4.4 Credențiale Administrare (FR-59)</div>
+      <div class="s">Setează utilizatorul și parola de administrare în NVS (OTA &amp; API). Un utilizator personalizat (diferit de „admin”) și o parolă personalizată sting DTC-403.</div>
+      <div class="row" style="gap:8px;align-items:center;flex-wrap:wrap">
+        <input id="cfgAdminCurrentPass" type="password" placeholder="Parolă curentă (opțional pt. default)" style="width:200px">
+        <input id="cfgAdminUser" placeholder="Utilizator nou (1-31 car.)" style="width:160px">
+        <input id="cfgAdminPass" type="password" placeholder="Parolă nouă (8-63 car.)" style="width:160px">
+        <button type="button" id="btnSaveAdminCreds">Schimbă credențialele</button>
+        <span id="cfgAdminCredMsg" class="s"></span>
+      </div>
+
+      <div style="font-weight:600;margin:18px 0 4px">4.5 Salvare &amp; Restaurare Configurație (Export / Import)</div>
+      <div class="row"><button id="cfgExport">Export setări</button><button id="cfgImportBtn">Import setări…</button>
+        <input type="file" id="cfgFile" accept=".json,application/json" style="display:none"><span id="cfgMsg" class="s"></span></div>
+      <div class="s">Fișierul conține locația, numele camerelor, senzorii și programul, nu parole. Păstrează-l privat.</div>
+      <div id="cfgPreview" style="display:none;margin-top:12px;padding:12px;background:var(--bg);border-radius:10px;border:1px solid var(--line)"></div>
+      <div id="cfgReport" class="s"></div>
+
+      <div style="font-weight:600;margin:18px 0 6px">4.6 Actualizare Firmware (OTA)</div>
+      <div class="row" style="align-items:center;gap:12px;margin:8px 0">
+        <a href="/update" target="_blank" rel="noopener" style="background:#1e293b;border:1px solid #38bdf8;color:#38bdf8;font-weight:600;display:inline-flex;align-items:center;gap:8px;padding:8px 16px;border-radius:6px;cursor:pointer;font-size:13px;text-decoration:none">
+          <span style="font-size:15px">🚀</span> Deschide Actualizare Firmware OTA ↗
+        </a>
+        <span class="s" style="color:var(--mut)">(upload fișier .bin direct pe portul 80)</span>
+      </div>
+    </div>
+  </details>
+

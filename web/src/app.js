@@ -1,0 +1,2 @@
+startTimer();
+refresh();
