@@ -6,6 +6,7 @@
 #include "Config.h"
 #include "ParamStore.h"
 #include "BoilerRadioTrigger.h"
+#include "SafetySupervisor.h"
 
 #define MAX_THERMAL_ZONES 32  // zone slots reserved statically (FR-69); the zones in use are getZoneCount()
 
@@ -140,9 +141,8 @@ struct ThermalZoneStatus {
     bool frostActive;
     bool demand;
     bool relayEngaged;
-    uint32_t stateChangedMs;
-    uint32_t energisedMs;  // millis() when the valve was energised: interlockDelay counts from here (FR-2)
     bool isManualHold;
+    uint32_t stateChangedMs;
     uint32_t holdStartMs;  // boostDuration counts from here (FR-39)
 };
 
@@ -181,8 +181,8 @@ public:
     void setSeasonMode(uint8_t mode);      // 0 AUTO, 1 ON, 2 OFF (FR-12.2)
     void seasonNewDay(float prevDayMean);  // a new previous-day mean arrived (FR-12.2)
     bool setTargetTemperatureChecked(size_t index, float target);  // false: not a valid boost step (FR-1.2)
-    uint32_t getInterlockDelayMs() const { return _interlockDelayMs; }
-    uint32_t getPumpOverrunMs() const { return _pumpOverrunMs; }
+    uint32_t getInterlockDelayMs() const { return _safety.getInterlockDelayMs(); }
+    uint32_t getPumpOverrunMs() const { return _safety.getPumpOverrunMs(); }
     // Requirements §6 ranges are enforced by ParamStore: a setter returns false and changes nothing when out of range
     bool setInterlockDelaySec(uint32_t sec);
     bool setOverrunSec(uint32_t sec);
@@ -205,7 +205,7 @@ public:
     void setActuatorNormallyClosed(bool nc);
 
     // Frost Protection (<12C)
-    float getFreezeProtectionTemp() const { return _freezeProtectionTemp; }
+    float getFreezeProtectionTemp() const { return _safety.getFreezeProtectionTemp(); }
     bool setFreezeProtectionTemp(float temp);
     bool isFrostProtectionActive() const { return _frostProtectionActive; }
 
@@ -379,13 +379,7 @@ private:
     bool _boilerDemand;
     bool _pumpControlEnabled;
     bool _pumpActive;
-    bool _boilerWasOn;          // boiler state seen at the last tick: its fall starts the overrun (FR-3)
-    bool _overrunActive;        // FR-3: the flame was lit and the OFF is sent, the keeper valve is held
-    uint32_t _overrunUntilMs;
-    int8_t _overrunKeeperZone;
-    bool _holdLogged = false;                          // FR-62.1: the held close of the keeper valve is logged once
-    bool _valveReady[MAX_THERMAL_ZONES] = {false};     // FR-62.1: interlock end seen for the energised valve
-    float _freezeProtectionTemp;
+    SafetySupervisor _safety;
     bool _frostProtectionActive;
     bool _antiSeizeRunning;
     uint32_t _antiSeizeStartMs;
@@ -397,9 +391,6 @@ private:
     bool _bootWarmupActive;
     uint32_t _bootWarmupStartMs;
 
-    // Hydraulic timings (requirements §6, loaded from ParamStore)
-    uint32_t _interlockDelayMs;
-    uint32_t _pumpOverrunMs;
     bool _openLoopBypass;
 
     uint32_t _lastBoilerOffTime;
@@ -409,8 +400,8 @@ private:
     volatile uint32_t _nvsSavePendingMs;
 
     void applyRelay(uint8_t pin, bool active, uint8_t reason = RS_NONE);
-    bool valveOpen(size_t index, uint32_t now) const;  // energised for at least interlockDelay (FR-2)
-    bool anyValveOpen(uint32_t now) const;
+    bool valveOpen(size_t index, uint32_t now) const { return _safety.valveOpen(index, now); }
+    bool anyValveOpen(uint32_t now) const { return _safety.anyValveOpen(now); }
     void trackBoilerState(uint32_t now);                // starts and ends the overrun window (FR-3)
     void arbitrateValves(uint32_t now, bool& anyReady, bool& anyReadyFrost);  // FR-37, FR-3, FR-3.2
     void arbitrateNow();

@@ -5,6 +5,14 @@ Corelat cu planul activ: [`docs/plan.md`](file:///c:/Users/BSeceleanu/.github_re
 Entries before 29.10.2026 (the system before the lean clean-up):
 [`archive/changelog_until_2026-10-21.md`](archive/changelog_until_2026-10-21.md).
 
+## [12.11.2026] - Flash Deduplication & Step I-4 `SafetySupervisor` Extraction (D-62)
+
+- **Who / when / why:** Overnight continuation under read-only `claude-fable-5-2` + `claude-opus-4-6` safety review on branch `claude/vibrant-ride-95fick`. Reclaimed Flash headroom below the `1 306 624 B` `.bin` OTA limit (clarifying `R-2`: earlier `1 299 649 B` numbers were ELF Flash rather than `.bin`, while `ba61543` `.bin` was `1 305 968 B`), and extracted `SafetySupervisor` cleanly out of `ThermalZoneManager`.
+- **Changed:**
+  - `37ee751`: `src/WebApi.cpp` (`sendScheduleJson()`) and `src/ThermalZoneManager.cpp` (`appendBoolField()`, `appendDayMomentsJson()` inside `getScheduleJson()`), saving `3 920 B` (`esp32dev` `.bin` `1 302 048 B`, `esp32release` `.bin` `1 302 064 B`).
+  - Step I-4: `include/SafetySupervisor.h`, `src/SafetySupervisor.cpp`, `include/ThermalZoneManager.h`, `src/ThermalZoneManager.cpp`, `platformio.ini`, `test/test_safety/test_safety.cpp`. Moved `arbitrateValves`, `trackBoilerState`, `evaluateFrost`, `boilerOnPermitted`, and per-zone valve/interlock/overrun timing state into pure `SafetySupervisor` (`0` `Arduino.h`, `0` `millis()`, caller-passed `now`). Added 5 Unity host tests checking FR-2, FR-1.3, FR-3, FR-3.2, FR-16.1, FR-37, and FR-51 invariants every simulated second; logged `PB-127` for `FR-4` burner guard host test deferred in `BoilerRadioTrigger`.
+- **Verified (PC / Build — pending board flash & acceptance):** `pio test -e native` -> 28/28 PASS (9 suites, `test_safety` 5/5 PASS); `pio run -e esp32dev` -> `1 302 832 B` (`3 792 B` margin under `1 306 624 B`, incl. `appendIdTempField` `String(t, 1)` rounding parity fix); `pio run -e esp32release` -> `1 302 848 B` (`3 776 B` margin); `python tools/sh_process_check.py` -> 0 errors PASS.
+
 ## [11.11.2026] - Step I-3 Simulated House Host Harness (D-62)
 
 - **Who / when / why:** Step I-3 of the Improvement plan in [`docs/plan.md`](plan.md): create a fast PC-only 2-node thermal house simulation to exercise control and upcoming `SafetySupervisor` invariants over multi-day runs.

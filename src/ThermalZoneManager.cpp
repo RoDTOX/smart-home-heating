@@ -28,11 +28,6 @@ ThermalZoneManager::ThermalZoneManager()
       _boilerDemand(false),
       _pumpControlEnabled(false),
       _pumpActive(false),
-      _boilerWasOn(false),
-      _overrunActive(false),
-      _overrunUntilMs(0),
-      _overrunKeeperZone(-1),
-      _freezeProtectionTemp(12.0f),
       _frostProtectionActive(false),
       _antiSeizeRunning(false),
       _antiSeizeStartMs(0),
@@ -43,8 +38,6 @@ ThermalZoneManager::ThermalZoneManager()
       _windowThreshold(1.2f),
       _bootWarmupActive(true),
       _bootWarmupStartMs(0),
-      _interlockDelayMs(180000UL),
-      _pumpOverrunMs(180000UL),
       _openLoopBypass(false),
       _lastBoilerOffTime(0),
       _lastBoilerOnTime(0),
@@ -91,6 +84,7 @@ ThermalZoneManager::ThermalZoneManager()
 }
 
 static_assert(MAX_THERMAL_ZONES == PARAM_ZONES, "ParamStore zone records must match the zone count");
+static_assert(MAX_THERMAL_ZONES <= SafetySupervisor::MAX_ZONES, "SafetySupervisor zone capacity must cover MAX_THERMAL_ZONES");
 static_assert(sizeof(ScheduleConfig) <= 1984, "ScheduleConfig must fit in single NVS blob");
 
 // A slot that is not a zone: no output (pin 0), switched off, so no loop over the slots can act on it
@@ -108,11 +102,11 @@ void ThermalZoneManager::clearZoneSlot(size_t i) {
 }
 
 void ThermalZoneManager::loadConfig() {
-    _interlockDelayMs = (uint32_t)paramStore.get(Param::InterlockDelay) * 1000UL;
-    _pumpOverrunMs = (uint32_t)paramStore.get(Param::Overrun) * 1000UL;
+    _safety.setInterlockDelayMs((uint32_t)paramStore.get(Param::InterlockDelay) * 1000UL);
+    _safety.setPumpOverrunMs((uint32_t)paramStore.get(Param::Overrun) * 1000UL);
     _hysteresis = paramStore.getf(Param::Hysteresis);
     _sensorTimeoutSec = (uint32_t)paramStore.get(Param::SensorTimeout);
-    _freezeProtectionTemp = paramStore.getf(Param::FrostTemp);
+    _safety.setFreezeProtectionTemp(paramStore.getf(Param::FrostTemp));
     _windowThreshold = paramStore.getf(Param::WindowThreshold);
 
     _heatingType = (uint8_t)paramStore.get(Param::HeatingType);
@@ -274,7 +268,7 @@ void ThermalZoneManager::applyRelay(uint8_t pin, bool active, uint8_t reason) {
 uint8_t ThermalZoneManager::eventContext() const {
     uint8_t c = 0;
     if (boilerRadio.isLastCommandOn()) c |= EVCTX_BOILER_ON;
-    if (_overrunActive) c |= EVCTX_OVERRUN;
+    if (_safety.isOverrunActive()) c |= EVCTX_OVERRUN;
     if (boilerRadio.getPendingAction() == PENDING_OFF) c |= EVCTX_PENDING_OFF;
     if (boilerRadio.getPendingAction() == PENDING_ON) c |= EVCTX_PENDING_ON;
     if (_autoMode) c |= EVCTX_AUTO;
@@ -358,8 +352,8 @@ void ThermalZoneManager::setActuatorNormallyClosed(bool nc) {
 bool ThermalZoneManager::setFreezeProtectionTemp(float temp) {
     if (temp < paramStore.getf(Param::ValidMin) + 0.05f) return false;  // validMin stays below frostTemp (FR-53)
     if (!paramStore.setf(Param::FrostTemp, temp)) return false;
-    _freezeProtectionTemp = paramStore.getf(Param::FrostTemp);
-    netConsole.printf("[Thermal] Frost protection threshold: %.1f C\n", _freezeProtectionTemp);
+    _safety.setFreezeProtectionTemp(paramStore.getf(Param::FrostTemp));
+    netConsole.printf("[Thermal] Frost protection threshold: %.1f C\n", _safety.getFreezeProtectionTemp());
     return true;
 }
 
@@ -387,14 +381,14 @@ bool ThermalZoneManager::setWindowThreshold(float threshold) {
 
 bool ThermalZoneManager::setInterlockDelaySec(uint32_t sec) {
     if (!paramStore.set(Param::InterlockDelay, (int32_t)sec)) return false;
-    _interlockDelayMs = sec * 1000UL;
+    _safety.setInterlockDelayMs(sec * 1000UL);
     netConsole.printf("[Thermal] Actuator interlock: %u s\n", sec);
     return true;
 }
 
 bool ThermalZoneManager::setOverrunSec(uint32_t sec) {
     if (!paramStore.set(Param::Overrun, (int32_t)sec)) return false;
-    _pumpOverrunMs = sec * 1000UL;
+    _safety.setPumpOverrunMs(sec * 1000UL);
     netConsole.printf("[Thermal] Overrun: %u s\n", sec);
     return true;
 }
@@ -643,8 +637,7 @@ ThermalZoneManager::ZoneResult ThermalZoneManager::deleteZone(size_t index) {
         for (uint8_t l = 0; l < LEVEL_COUNT; l++) _scheduleConfig.levelTemps[l][j] = _scheduleConfig.levelTemps[l][j + 1];
         paramStore.saveLearned(j, paramStore.learned(j + 1));
     }
-    if (_overrunKeeperZone == (int8_t)index) _overrunKeeperZone = -1;
-    else if (_overrunKeeperZone > (int8_t)index) _overrunKeeperZone--;
+    _safety.onZoneRemoved(index);
     size_t last = _zoneCount - 1;
     clearZoneSlot(last);
     for (uint8_t l = 0; l < LEVEL_COUNT; l++) _scheduleConfig.levelTemps[l][last] = f.levelTemps[l][last];
@@ -747,9 +740,9 @@ void ThermalZoneManager::setRelayManual(size_t index, bool on) {
         if (!st.relayEngaged) {
             applyRelay(_configs[index].relayPin, true, RS_MANUAL);
             st.relayEngaged = true;
-            st.energisedMs = now;
+            _safety.syncValveState(index, true, now);
             st.stateChangedMs = now;
-            eventLog.add(EV_INTERLOCK, 0, RS_MANUAL, _configs[index].id, _interlockDelayMs / 1000, 1);
+            eventLog.add(EV_INTERLOCK, 0, RS_MANUAL, _configs[index].id, _safety.getInterlockDelayMs() / 1000, 1);
         }
         st.demand = true;
         if (st.state != ZONE_FROST_GUARD && st.state != ZONE_HEATING) st.state = ZONE_WARMING_UP;
@@ -758,7 +751,7 @@ void ThermalZoneManager::setRelayManual(size_t index, bool on) {
         for (size_t j = 0; j < MAX_THERMAL_ZONES; j++) {
             if (j != index && _statuses[j].demand && valveOpen(j, now)) otherOpen = true;
         }
-        if (!otherOpen && st.demand && valveOpen(index, now)) _overrunKeeperZone = (int8_t)index;  // FR-3: the last valve
+        if (!otherOpen && st.demand && valveOpen(index, now)) _safety.setOverrunKeeperZone((int8_t)index);  // FR-3: the last valve
         st.demand = false;
         arbitrateNow();  // closes the valve unless the boiler burns or the overrun runs (FR-3)
         if (st.relayEngaged) netConsole.printf("[Thermal][MANUAL] Zone %u valve held open: boiler ON or overrun (FR-3)\n", _configs[index].id);
@@ -1414,6 +1407,13 @@ static void appendBoolField(String& out, const char* key, bool val) {
     out += val ? "true," : "false,";
 }
 
+static void appendIdTempField(String& out, uint8_t id, float temp) {
+    char buf[12];
+    snprintf(buf, sizeof(buf), "\"%u\":", (unsigned)id);
+    out += buf;
+    out += String(temp, 1);
+}
+
 static void appendDayMomentsJson(String& out, const ScheduleConfig& sched,
                                  const ThermalZoneConfig* configs, size_t zoneCount,
                                  size_t dayIdx) {
@@ -1429,8 +1429,7 @@ static void appendDayMomentsJson(String& out, const ScheduleConfig& sched,
             float t = sched.days[dayIdx][m].temps[z] > 0
                 ? decodeTempByte(sched.days[dayIdx][m].temps[z])
                 : sched.levelTemps[m == 3 ? LEVEL_NIGHT : LEVEL_DAY][z];
-            snprintf(buf, sizeof(buf), "\"%u\":%.1f", (unsigned)configs[z].id, (double)t);
-            out += buf;
+            appendIdTempField(out, configs[z].id, t);
         }
         out += "}}";
     }
@@ -1470,9 +1469,9 @@ String ThermalZoneManager::getScheduleJson() const {
     json += "\",";
     appendBoolField(json, "openLoopBypass", _openLoopBypass);
     json += "\"interlockDelaySec\":";
-    json += _interlockDelayMs / 1000;
+    json += _safety.getInterlockDelayMs() / 1000;
     json += ",\"pumpOverrunSec\":";
-    json += _pumpOverrunMs / 1000;
+    json += _safety.getPumpOverrunMs() / 1000;
     json += ',';
     appendBoolField(json, "pumpControlEnabled", _pumpControlEnabled);
     json += "\"momentNames\":[";
@@ -1492,9 +1491,7 @@ String ThermalZoneManager::getScheduleJson() const {
         float t = _scheduleConfig.awayTemps[z] > 0
             ? decodeTempByte(_scheduleConfig.awayTemps[z])
             : _scheduleConfig.levelTemps[LEVEL_AWAY][z];
-        char zBuf[24];
-        snprintf(zBuf, sizeof(zBuf), "\"%u\":%.1f", (unsigned)_configs[z].id, (double)t);
-        json += zBuf;
+        appendIdTempField(json, _configs[z].id, t);
     }
     json += "},\"days\":[";
     for (size_t d = 0; d < 7; d++) {
@@ -1586,102 +1583,75 @@ void ThermalZoneManager::checkAntiSeizeSchedule(uint32_t now) {
     }
 }
 
-// FR-2: a valve counts for the interlock once it has been energised for interlockDelay (wrap-safe)
-bool ThermalZoneManager::valveOpen(size_t index, uint32_t now) const {
-    return index < MAX_THERMAL_ZONES && _statuses[index].relayEngaged &&
-           (uint32_t)(now - _statuses[index].energisedMs) >= _interlockDelayMs;
-}
-
-bool ThermalZoneManager::anyValveOpen(uint32_t now) const {
-    for (size_t i = 0; i < MAX_THERMAL_ZONES; i++) {
-        if (valveOpen(i, now)) return true;
-    }
-    return false;
-}
-
 bool ThermalZoneManager::boilerOnPermitted() const {
-    if (!_autoMode && _openLoopBypass) return true;  // FR-1.3: MANUAL with openLoopBypass needs no valve
-    return anyValveOpen(millis());
+    return _safety.boilerOnPermitted(millis(), _autoMode, _openLoopBypass);  // FR-2 & FR-1.3
 }
 
 // FR-3: the overrun starts with the OFF of a lit flame (a start cancelled before the ON never lit it, FR-3.2) and
 // lasts `overrun`; the compare is wrap-safe (PB-7)
 void ThermalZoneManager::trackBoilerState(uint32_t now) {
-    bool lit = boilerRadio.isLastCommandOn();
-    if (_boilerWasOn && !lit) {
-        _overrunActive = true;
-        _overrunUntilMs = now + _pumpOverrunMs;
-        eventLog.add(EV_OVERRUN, 0, RS_NONE, 0, _pumpOverrunMs / 1000, 1);
-        netConsole.printf("[Thermal] Overrun started: the last valve stays open for %u s (FR-3).\n", _pumpOverrunMs / 1000);
-    } else if (lit) {
-        _overrunActive = false;
-    } else if (_overrunActive && (int32_t)(now - _overrunUntilMs) >= 0) {
-        _overrunActive = false;
+    SafetySupervisor::OverrunTransition tr = _safety.trackBoilerState(now, boilerRadio.isLastCommandOn());
+    if (tr == SafetySupervisor::OverrunTransition::Started) {
+        eventLog.add(EV_OVERRUN, 0, RS_NONE, 0, _safety.getPumpOverrunMs() / 1000, 1);
+        netConsole.printf("[Thermal] Overrun started: the last valve stays open for %u s (FR-3).\n",
+                          _safety.getPumpOverrunMs() / 1000);
+    } else if (tr == SafetySupervisor::OverrunTransition::Finished) {
         eventLog.add(EV_OVERRUN, 0, RS_NONE, 0, 0, 2);
         netConsole.println(F("[Thermal] Overrun finished (FR-3)."));
     }
-    _boilerWasOn = lit;
 }
 
 // FR-37, FR-3: every valve follows its zone's demand. The last valve that was open stays open while the boiler is
 // ON or PENDING_OFF and during the overrun; it closes at the next tick after that. A valve counts for the boiler
 // once it has been energised for interlockDelay (FR-2), frost zones included (FR-16.1).
 void ThermalZoneManager::arbitrateValves(uint32_t now, bool& anyReady, bool& anyReadyFrost) {
-    anyReady = false;
-    anyReadyFrost = false;
+    uint32_t demandMask = 0;
+    uint32_t frostMask = 0;
     for (size_t i = 0; i < MAX_THERMAL_ZONES; i++) {
-        if (_statuses[i].demand && valveOpen(i, now)) {
-            anyReady = true;
-            if (_statuses[i].frostActive) anyReadyFrost = true;
-            _overrunKeeperZone = (int8_t)i;
-        }
+        uint32_t bit = 1UL << i;
+        if (_statuses[i].demand) demandMask |= bit;
+        if (_statuses[i].frostActive) frostMask |= bit;
     }
-    bool holdWanted = !anyReady && _overrunKeeperZone >= 0 && (boilerRadio.isLastCommandOn() || _overrunActive);
+
+    SafetySupervisor::ValveAction actions[MAX_THERMAL_ZONES];
+    _safety.arbitrateValves(now, boilerRadio.isLastCommandOn(), demandMask, frostMask,
+                            MAX_THERMAL_ZONES, anyReady, anyReadyFrost, actions);
+
     for (size_t i = 0; i < MAX_THERMAL_ZONES; i++) {
         ThermalZoneStatus& st = _statuses[i];
-        if (st.demand) {
-            if ((int8_t)i == _overrunKeeperZone) _holdLogged = false;
-            if (!st.relayEngaged) {
+        const SafetySupervisor::ValveAction& act = actions[i];
+
+        if (act.has(SafetySupervisor::VA_OPEN_CHANGED)) {
+            bool open = act.has(SafetySupervisor::VA_OPEN_TARGET);
+            if (open) {
                 applyRelay(_configs[i].relayPin, true, st.frostActive ? RS_FROST : (_autoMode ? RS_DEMAND : RS_MANUAL));
                 st.relayEngaged = true;
-                st.energisedMs = now;
                 st.stateChangedMs = now;
-                eventLog.add(EV_INTERLOCK, 0, RS_NONE, _configs[i].id, _interlockDelayMs / 1000, 1);
+                eventLog.add(EV_INTERLOCK, 0, RS_NONE, _configs[i].id, _safety.getInterlockDelayMs() / 1000, 1);
                 if (st.state != ZONE_FROST_GUARD) st.state = ZONE_WARMING_UP;
                 netConsole.printf("[Thermal] Actuator Zone %u (%s) opening on pin %u. Waiting %u s...\n",
-                    _configs[i].id, _configs[i].name, _configs[i].relayPin, _interlockDelayMs / 1000);
-            } else if ((st.state == ZONE_WARMING_UP || st.state == ZONE_IDLE) && valveOpen(i, now)) {
-                st.state = ZONE_HEATING;
+                    _configs[i].id, _configs[i].name, _configs[i].relayPin, _safety.getInterlockDelayMs() / 1000);
+            } else {
+                bool wasHeld = act.has(SafetySupervisor::VA_OVERRUN_END);
+                applyRelay(_configs[i].relayPin, false,
+                           wasHeld ? RS_OVERRUN_END
+                                   : (st.state == ZONE_FAULT_TIMEOUT ? RS_SENSOR_LOSS : (_autoMode ? RS_NO_DEMAND : RS_MANUAL)));
+                st.relayEngaged = false;
                 st.stateChangedMs = now;
-                netConsole.printf("[Thermal] Actuator Zone %u (%s) fully OPEN. Circuit ready!\n", _configs[i].id, _configs[i].name);
+                if (st.state == ZONE_HEATING || st.state == ZONE_WARMING_UP || st.state == ZONE_FROST_GUARD) st.state = ZONE_IDLE;
+                netConsole.printf("[Thermal] Zone %u (%s) closed relay on pin %u.\n", _configs[i].id, _configs[i].name, _configs[i].relayPin);
             }
-        } else if (st.relayEngaged) {
-            if (holdWanted && (int8_t)i == _overrunKeeperZone) {  // FR-3
-                if (!_holdLogged) {
-                    _holdLogged = true;
-                    eventLog.add(EV_OVERRUN, 0, RS_NO_DEMAND, _configs[i].id, 0, 3);
-                }
-                continue;
-            }
-            bool wasHeld = _holdLogged && (int8_t)i == _overrunKeeperZone;
-            applyRelay(_configs[i].relayPin, false,
-                       wasHeld ? RS_OVERRUN_END
-                               : (st.state == ZONE_FAULT_TIMEOUT ? RS_SENSOR_LOSS : (_autoMode ? RS_NO_DEMAND : RS_MANUAL)));
-            if (wasHeld) _holdLogged = false;
-            st.relayEngaged = false;
+        } else if (st.demand && (st.state == ZONE_WARMING_UP || st.state == ZONE_IDLE) && _safety.valveOpen(i, now)) {
+            st.state = ZONE_HEATING;
             st.stateChangedMs = now;
-            if (st.state == ZONE_HEATING || st.state == ZONE_WARMING_UP || st.state == ZONE_FROST_GUARD) st.state = ZONE_IDLE;
-            if ((int8_t)i == _overrunKeeperZone) _overrunKeeperZone = -1;
-            netConsole.printf("[Thermal] Zone %u (%s) closed relay on pin %u.\n", _configs[i].id, _configs[i].name, _configs[i].relayPin);
+            netConsole.printf("[Thermal] Actuator Zone %u (%s) fully OPEN. Circuit ready!\n", _configs[i].id, _configs[i].name);
         }
-    }
-    // FR-62.1: the interlock of a valve ends when it has been energised for interlockDelay (FR-2)
-    for (size_t i = 0; i < MAX_THERMAL_ZONES; i++) {
-        if (!_statuses[i].relayEngaged) {
-            _valveReady[i] = false;
-        } else if (!_valveReady[i] && valveOpen(i, now)) {
-            _valveReady[i] = true;
-            eventLog.add(EV_INTERLOCK, 0, RS_NONE, _configs[i].id, (now - _statuses[i].energisedMs) / 1000, 2);
+
+        if (act.has(SafetySupervisor::VA_HOLD_STARTED)) {
+            eventLog.add(EV_OVERRUN, 0, RS_NO_DEMAND, _configs[i].id, 0, 3);
+        }
+        if (act.has(SafetySupervisor::VA_INTERLOCK_DONE)) {
+            eventLog.add(EV_INTERLOCK, 0, RS_NONE, _configs[i].id, act.interlockElapsedSec, 2);
         }
     }
 }
@@ -1697,22 +1667,18 @@ void ThermalZoneManager::arbitrateNow() {
 // frostTemp + 1.5 C; the interlock (FR-2) and the burner guard (FR-4) still apply, because it is only a demand
 void ThermalZoneManager::evaluateFrost(size_t index, bool found, float currentTemp) {
     ThermalZoneStatus& st = _statuses[index];
-    bool wasActive = st.frostActive;
-    if (found && currentTemp < _freezeProtectionTemp) {
-        st.frostActive = true;
-    } else if (st.frostActive && (!found || currentTemp >= _freezeProtectionTemp + 1.5f)) {
-        st.frostActive = false;
-    }
+    SafetySupervisor::FrostEvalResult res = _safety.evaluateFrost(st.frostActive, found, currentTemp);
+    st.frostActive = res.frostActive;
     if (st.frostActive) {
         _frostProtectionActive = true;
         st.demand = true;
         st.state = ZONE_FROST_GUARD;
-        if (!wasActive) {
+        if (res.becameActive) {
             eventLog.add(EV_FROST, 0, RS_FROST, _configs[index].id, 0, 1);
             netConsole.printf("[Thermal][FROST GUARD] Heating triggered on Zone %u (%s): %.1f C < %.1f C\n",
-                _configs[index].id, _configs[index].name, currentTemp, _freezeProtectionTemp);
+                _configs[index].id, _configs[index].name, currentTemp, _safety.getFreezeProtectionTemp());
         }
-    } else if (wasActive) {
+    } else if (res.becameInactive) {
         eventLog.add(EV_FROST, 0, RS_FROST, _configs[index].id, 1, 0);
         st.demand = false;  // AUTO recomputes it right after; MANUAL returns to the user's request (closed)
         if (st.state == ZONE_FROST_GUARD) st.state = st.relayEngaged ? ZONE_HEATING : ZONE_IDLE;
@@ -1924,7 +1890,7 @@ void ThermalZoneManager::update(BoilerRadioTrigger& boiler) {
     // 3. Pump guard (FR-14.2, FR-14.3, FR-14.5): ON only while a valve is open, the held overrun valve included
     if (_pumpControlEnabled) {
         bool pumpWanted = anyValveOpen(now);
-        if (pumpWanted != _pumpActive && (_autoMode || !pumpWanted || anyFrostZoneReady || _overrunActive)) {
+        if (pumpWanted != _pumpActive && (_autoMode || !pumpWanted || anyFrostZoneReady || _safety.isOverrunActive())) {
             applyRelay(PIN_RELAY_SPARE, pumpWanted, RS_PUMP_GUARD);
             _pumpActive = pumpWanted;
             netConsole.printf("[Thermal] Circulation Pump (Relay 4) %s.\n", pumpWanted ? "STARTED" : "STOPPED");
