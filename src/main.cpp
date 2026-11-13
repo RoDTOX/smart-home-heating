@@ -155,6 +155,12 @@ void updateWifiWatchdog() {
     if (!_wifiWasConnected) {
       _wifiWasConnected = true;
       _wifiDisconnectMs = 0;
+      if (softApActive) {
+        WiFi.softAPdisconnect(true);
+        WiFi.mode(WIFI_STA);
+        softApActive = false;
+        netConsole.println(F("[WiFi] Fallback AP stopped after STA connected"));
+      }
       ledWrite(LOW, RS_WIFI);
       netConsole.printf("[WiFi][RECOVERED] Reconnected successfully! Local IP: %s (RSSI: %d dBm)\n",
                         WiFi.localIP().toString().c_str(), WiFi.RSSI());
