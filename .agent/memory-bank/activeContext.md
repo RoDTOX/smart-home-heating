@@ -15,10 +15,8 @@ Only what holds now and what comes next. A line that no longer holds is replaced
   - **Diagnostic Event History Clearing (UI / API / CLI / Tests):** Added `clearEvents()` to `DiagnosticEngine`, `POST /api/diag/events/clear` to WebApi, `clear-events` command to CLI and Web UI button in diagnostics section to wipe persistent LittleFS event ring on demand; updated automated test suite teardown in `sh_test_system.py` to auto-clean test DTC debris.
   - **Native Unit Tests:** `pio test -e native` -> **37/37 test cases PASSED (100%)** across all 11 test suites.
   - **Process Check Metrics:** Warnings dropped from 76 to **43** (-43%); process warnings from 8 to **1**; `reqs` warnings to **0**; 0 errors, 1 known (`PB-12`), **PASS**.
-- **Live Board (`192.168.1.20`)**: Running firmware `v1.11.13.01` + LittleFS `index.html.gz` (`48 350 B`). All 3 zones active & idle at setpoints (`Living: 23.9°C`, `Kids: 24.0°C`, `Adults: 23.2°C` at target `23.0°C`).
+- **Live Board (`192.168.1.20`)**: Running firmware `v1.11.13.09` (commit `c23e5eb`) + LittleFS `index.html.gz` (`48 470 B`). All 3 zones active & idle at setpoints. Diagnostic event history successfully cleared (0 DTCs, clean restart boot record only).
 
 ## Next
-0. **Review with Owner:**
-   - Review cleared safety defects (0 release-blocking safety issues remain).
-   - Review 100% compliant DTC rules and updated DiagnosticEngine.
-   - Await user approval/instruction for OTA flash of HEAD (`2eca830`) to board or test execution.
+0. **UI / Lovable Enhancement:**
+   - With firmware, safety defects, DTC rules, traceability, and tests stabilized and verified on the live hardware, ready to proceed to UI improvements and Lovable integration as requested by owner.
