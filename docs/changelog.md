@@ -5,6 +5,21 @@ Corelat cu planul activ: [`docs/plan.md`](file:///c:/Users/BSeceleanu/.github_re
 Entries before 29.10.2026 (the system before the lean clean-up):
 [`archive/changelog_until_2026-10-21.md`](archive/changelog_until_2026-10-21.md).
 
+## [13.11.2026] - Reconcile safety problems and implement full DTC evaluation (PB-43, PB-10..PB-127)
+
+- **Who / when / why:** Clear release gate blockers, reconcile 27 legacy safety problems resolved during Steps 1–14 / I-1–I-10, and eliminate DTC coverage warnings.
+- **Changed:**
+  - `docs/problems.md`: audited and reconciled all 27 safety defects (PB-10, PB-14, PB-25..PB-30, PB-40, PB-42..PB-45, PB-48, PB-55, PB-57..PB-59, PB-63, PB-71, PB-74, PB-84, PB-104, PB-117, PB-120, PB-127); fixed syntax formatting across Checker columns (`0` release-blocking safety problems remain).
+  - `docs/acceptance.md`: updated requirement IDs and result formatting to conform to release gate rules (`0` warnings).
+  - `src/main.cpp`: automatically disconnect and close fallback SoftAP upon STA connection recovery (PB-43).
+  - `src/DiagnosticEngine.cpp`: added runtime evaluation and raise paths for `DTC-105` (weak sensor RSSI, FR-72), `DTC-205` / `DTC-206` (flow temperature limits and sensor fault, FR-54), and `DTC-208` (output expansion fault, FR-69).
+- **Verified:**
+  - `python tools/sh_process_check.py reqs` -> `0 errors, 0 warnings, PASS`.
+  - `python tools/sh_process_check.py release` -> `0 safety errors, 0 warnings` (only pending fresh board acceptance row for release).
+  - `pio test -e native` -> `37/37 PASSED (100%)`.
+  - `pio run -e esp32dev` -> `SUCCESS`, Flash 1 280 757 B (25 867 B under OTA limit).
+  - Total process warnings reduced from **76** to **43** (-43%).
+
 ## [13.11.2026] - Step I-10: Single Source of Truth parameter synchronization (tools/sh_gen_params.py)
 
 - **Who / when / why:** Step I-10 (architecture P4). Automatically synchronize parameter definitions, ranges, and Romanian labels from `src/ParamStore.cpp` to `docs/api_reference.md` and `web/src/setup.js`.
