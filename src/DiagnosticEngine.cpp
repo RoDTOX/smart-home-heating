@@ -173,6 +173,17 @@ String DiagnosticEngine::eventsJson() const {
   return json;
 }
 
+void DiagnosticEngine::clearEvents() {
+  _evHead = 0;
+  _evCount = 0;
+  _evDirty = 0;
+  memset(_events, 0, sizeof(_events));
+  if (_fsMounted && LittleFS.exists(EVENT_FILE)) {
+    LittleFS.remove(EVENT_FILE);
+  }
+  netConsole.println(F("[DIAG] Event history cleared."));
+}
+
 void DiagnosticEngine::raiseDtc(Dtc dtc, const char *message, DtcSeverity severity,
                                 uint8_t zone) {
   size_t idx = (size_t)dtc;

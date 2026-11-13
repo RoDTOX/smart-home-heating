@@ -514,6 +514,11 @@ void handleSerialCommand(String cmd) {
       netConsole.print(diagEngine.runSelfTest());
     } else if (upperCmd == "DIAG CLEAR") {
       diagEngine.clearAllDtcs();
+    } else if (upperCmd == "DIAG CLEAR-EVENTS" || upperCmd == "DIAG CLEAR EVENTS") {
+      diagEngine.clearEvents();
+    } else if (upperCmd == "DIAG CLEAR ALL") {
+      diagEngine.clearAllDtcs();
+      diagEngine.clearEvents();
     } else {
       DiagCheck checks[DIAG_CHECK_COUNT];
       diagEngine.runChecks(checks);

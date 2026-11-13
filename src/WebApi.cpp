@@ -1198,9 +1198,20 @@ void handleApiDiagSelfTest() {
 void handleApiDiagClear() {
   if (!requireAuth()) return;
   diagEngine.clearAllDtcs();
+  if (server.hasArg("events") && server.arg("events") == "1") {
+    diagEngine.clearEvents();
+  }
   sendCorsHeaders();
   server.send(200, "application/json",
               F("{\"status\":\"ok\",\"message\":\"All DTC codes cleared\"}"));
+}
+
+void handleApiDiagEventsClear() {
+  if (!requireAuth()) return;
+  diagEngine.clearEvents();
+  sendCorsHeaders();
+  server.send(200, "application/json",
+              F("{\"status\":\"ok\",\"message\":\"Diagnostic event history cleared\"}"));
 }
 
 void handleApiSetupActuatorType() {
@@ -1894,6 +1905,7 @@ void registerWebRoutes() {
   server.on("/api/diag/inject", HTTP_POST, handleApiDiagInjectPost);
   server.on("/api/diag/inject/clear", HTTP_POST, handleApiDiagInjectClear);
   server.on("/api/diag/events", HTTP_GET, handleApiDiagEvents);
+  server.on("/api/diag/events/clear", HTTP_POST, handleApiDiagEventsClear);
   server.on("/api/diag/log", HTTP_GET, handleApiDiagLog);
   server.on("/api/diag/mem", HTTP_GET, handleApiDiagMem);
   server.on("/api/web/update", HTTP_POST, handleWebUpdateDone, handleWebUpdateUpload);

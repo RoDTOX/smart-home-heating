@@ -5,6 +5,23 @@ Corelat cu planul activ: [`docs/plan.md`](file:///c:/Users/BSeceleanu/.github_re
 Entries before 29.10.2026 (the system before the lean clean-up):
 [`archive/changelog_until_2026-10-21.md`](archive/changelog_until_2026-10-21.md).
 
+## [13.11.2026] - Clear diagnostic event history option (UI, API, CLI) and automated test suite cleanup
+
+- **Who / when / why:** User request: allow manually clearing persistent LittleFS DTC event history (`/api/diag/events`) to remove test debris, provide explicit clear controls in UI and CLI, and prevent automated test runs from leaving residual DTC records.
+- **Changed:**
+  - `include/DiagnosticEngine.h`, `src/DiagnosticEngine.cpp`: implemented `clearEvents()` to wipe the in-memory 50-entry ring buffer and remove `/events.bin` from LittleFS.
+  - `src/WebApi.cpp`: added `POST /api/diag/events/clear` endpoint and added optional `?events=1` parameter to `POST /api/diag/clear`.
+  - `src/ConsoleCommands.cpp`: added `DIAG CLEAR-EVENTS` / `DIAG CLEAR ALL` commands for virtual console and Telnet.
+  - `tools/sh_esp_cli.py`: added `clear-events` action to CLI and REPL (`sh_esp_cli.py diag clear-events`); added `_auth_post` entry for `/api/diag/events/clear`.
+  - `tools/sh_test_system.py`: added automatic cleanup call to `/api/diag/events/clear` in teardown so test runs leave the event history clean.
+  - `web/src/diagnostics.html`, `web/src/diagnostics.js`: added "🗑️ Curăță istoric" button with confirmation dialog in the persistent history section header.
+  - `docs/api_reference.md`, `docs/requirements_and_features.md`: documented `/api/diag/events/clear` and `?events=1` on `/api/diag/clear` (FR-62).
+- **Verified:**
+  - `pio test -e native` -> `37/37 PASSED (100%)`.
+  - `pio run -e esp32dev` -> `SUCCESS`, Flash 1 281 597 B (25 027 B under OTA limit).
+  - `pio run -e esp32release` -> `SUCCESS`, Flash 1 281 609 B (25 015 B under OTA limit).
+  - `python tools/sh_process_check.py` -> 0 errors, 1 known (`PB-12`), PASS.
+
 ## [13.11.2026] - Reconcile safety problems and implement full DTC evaluation (PB-43, PB-10..PB-127)
 
 - **Who / when / why:** Clear release gate blockers, reconcile 27 legacy safety problems resolved during Steps 1–14 / I-1–I-10, and eliminate DTC coverage warnings.

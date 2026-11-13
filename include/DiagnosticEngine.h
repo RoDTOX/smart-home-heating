@@ -91,6 +91,7 @@ public:
     // Event history (FR-62)
     void recordRestart(uint32_t resetReason);
     String eventsJson() const;
+    void clearEvents();
 
     // Basic self-test (FR-10.4): checks with rules, no score
     void runChecks(DiagCheck (&out)[DIAG_CHECK_COUNT]) const;

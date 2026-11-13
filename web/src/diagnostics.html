@@ -11,6 +11,7 @@
             <summary style="cursor:pointer;font-weight:600;display:flex;align-items:center;gap:8px">
               <span style="flex:1">📜 2.3 Istoric persistent evenimente &amp; erori (LittleFS - ultimele 50)</span>
               <button type="button" class="s" style="padding:2px 8px;font-size:11px;background:none;border:1px solid var(--line);border-radius:4px;cursor:pointer;color:var(--mut)" onclick="event.stopPropagation();loadDtcEvents(true)">🔄 Reîmprospătează</button>
+              <button type="button" class="s danger" style="padding:2px 8px;font-size:11px;border-radius:4px;cursor:pointer" onclick="event.stopPropagation();clearDtcEvents()" title="Șterge istoricul diagnostic din memoria flash">🗑️ Curăță istoric</button>
             </summary>
             <div id="persistentDtcHistory" style="margin-top:6px"><div class="s" style="color:var(--mut)">Deschide pentru a încărca istoricul salvat în memoria flash...</div></div>
           </details>

@@ -399,6 +399,7 @@ class SystemTestSuite(SuiteBase, HealthTests, HydraulicsTests, ControlTests, UiH
             requests.post(f"{self.base_url}/api/boiler/off?force=true", timeout=self.timeout)
             requests.post(f"{self.base_url}/api/mode?mode=auto", timeout=self.timeout)
             requests.post(f"{self.base_url}/api/diag/clear", timeout=self.timeout)
+            requests.post(f"{self.base_url}/api/diag/events/clear", timeout=self.timeout)
             
             # Wipe test execution debris so user's active console stays pristine
             # C-30 / FR-75.1: CLEAR needs the login; best effort, only when SH_CONSOLE_PASSWORD is set

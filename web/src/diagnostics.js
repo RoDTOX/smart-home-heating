@@ -155,3 +155,14 @@ async function loadDtcEvents(force = false) {
   }
 }
 
+async function clearDtcEvents() {
+  if (!confirm("Sigur doriți să ștergeți tot istoricul evenimentelor din memoria flash?")) return;
+  try {
+    await api("api/diag/events/clear", {}, true);
+    await loadDtcEvents(true);
+  } catch(e) {
+    alert("Eroare la ștergerea istoricului: " + (e.message || e));
+  }
+}
+
+

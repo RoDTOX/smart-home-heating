@@ -40,6 +40,7 @@ _orig_post = requests.post
 def _auth_post(url, *args, **kwargs):
     if "auth" not in kwargs:
         for ep in ("/api/boiler/", "/api/mode", "/api/relay/test", "/api/diag/clear",
+                  "/api/diag/events/clear",
                   "/api/diag/exercise", "/api/config/import", "/api/setup/actuator",
                   "/api/setup/pump", "/api/setup/sensor-timeout"):
             if ep in url:
@@ -145,6 +146,30 @@ def cmd_ble(args):
         print(f"[-] Error: {e}")
 
 def cmd_diag(args):
+    action = getattr(args, "action", None)
+    if action == "clear":
+        url = f"http://{args.ip}:{args.port}/api/diag/clear"
+        try:
+            r = requests.post(url, timeout=DEFAULT_TIMEOUT)
+            if r.status_code == 200:
+                print("[+] All active DTC codes cleared.")
+            else:
+                print(f"[-] HTTP Error: {r.status_code} {r.text}")
+        except Exception as e:
+            print(f"[-] Error: {e}")
+        return
+    elif action in ("clear-events", "events-clear"):
+        url = f"http://{args.ip}:{args.port}/api/diag/events/clear"
+        try:
+            r = requests.post(url, timeout=DEFAULT_TIMEOUT)
+            if r.status_code == 200:
+                print("[+] Persistent diagnostic event history cleared from flash.")
+            else:
+                print(f"[-] HTTP Error: {r.status_code} {r.text}")
+        except Exception as e:
+            print(f"[-] Error: {e}")
+        return
+
     url = f"http://{args.ip}:{args.port}/api/diag/status"
     try:
         r = requests.get(url, timeout=DEFAULT_TIMEOUT)
@@ -423,9 +448,10 @@ def cmd_interactive_shell(args):
                 print("  off [--force]          - Turn gas boiler OFF via RF 433MHz")
                 print("  mode <auto|manual>     - Set controller operating mode")
                 print("  set <zone_id> <temp>   - Set zone target temperature (e.g. set 1 22.5)")
-                print("  diag                   - Diagnostic trouble codes & health score")
+                print("  diag [clear|clear-events] - Diagnostic trouble codes, health score, or clear")
                 print("  selftest               - Run diagnostic self-test suite")
                 print("  clear                  - Clear active diagnostic trouble codes (DTCs)")
+                print("  clear-events           - Clear persistent DTC & event history from flash")
                 print("  schedule [args]        - Schedule (on, off, level <z> <day|night|away> <t>, slots <weekday|weekend> <spec>, reset)")
                 print("  location [lat,lon]     - Get or set location for outdoor weather")
                 print("  time                   - System time, NTP & outdoor weather")
@@ -447,6 +473,9 @@ def cmd_interactive_shell(args):
                 cmd_selftest(args)
             elif cmd == "clear":
                 args.action = "clear"
+                cmd_diag(args)
+            elif cmd in ("clear-events", "events-clear"):
+                args.action = "clear-events"
                 cmd_diag(args)
             elif cmd in ("on", "off"):
                 args.force = cmd == "off" and "--force" in parts
@@ -514,7 +543,10 @@ def main():
     sub.add_parser("status", help="Get comprehensive system status report")
     sub.add_parser("ble", help="List BLE room thermometers registry")
     sub.add_parser("sensors", help="Alias for ble command")
-    sub.add_parser("diag", help="Show system diagnostics and active DTC codes")
+    p_diag = sub.add_parser("diag", help="Show system diagnostics and active DTC codes")
+    p_diag.add_argument("action", nargs="?", choices=["clear", "clear-events"], help="Optional action: clear active DTCs or clear persistent event history")
+    sub.add_parser("clear", help="Clear active diagnostic trouble codes (DTCs)")
+    sub.add_parser("clear-events", help="Clear persistent diagnostic event history from flash")
     sub.add_parser("selftest", help="Run comprehensive onboard self-test suite")
     p_loc = sub.add_parser("location", help="Get or set location (lat,lon) for outdoor weather")
     p_loc.add_argument("coords", nargs="?", default=None)
@@ -560,7 +592,9 @@ def main():
         cmd_status(args)
     elif args.command in ("ble", "sensors"):
         cmd_ble(args)
-    elif args.command == "diag":
+    elif args.command in ("diag", "clear", "clear-events"):
+        if args.command in ("clear", "clear-events"):
+            args.action = args.command
         cmd_diag(args)
     elif args.command == "selftest":
         cmd_selftest(args)

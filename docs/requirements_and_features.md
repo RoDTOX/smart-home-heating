@@ -417,6 +417,7 @@ one example:
   watchdog reset, controlled restart) are kept across reboots with time stamp (uptime if time is not set), written
   only when an event occurs. Alarms are shown in the page and `/api/status`; there is no push channel.
   - *Read:* `GET /api/diag/events` returns `{"count":n,"events":[{"time":n,"timeValid":bool,"type":"dtc-raised|dtc-cleared|restart","code":"DTC-nnn"|"","zone":n,"value":n}]}`, newest first, at most 50 (`time` is epoch seconds when `timeValid`, else uptime seconds). `restart` carries the reset reason in `value` (`esp_reset_reason_t`). The same code and zone is recorded at most 6 times per hour; further repeats are counted in `value` of the last record. Other event types (frost, FAULT, season change, OTA) are added by the steps that build them.
+  - *Clear:* `POST /api/diag/events/clear` (or `POST /api/diag/clear?events=1`) wipes the LittleFS event ring and RAM history (FR-62).
   - *Fallback:* event store cannot be written → events are kept in RAM until reboot, with a log line.
   - `interlock`: per zone, new = 1 when its valve is energised and `interlockDelay` starts (old = the delay in
     seconds), new = 2 when the valve counts as open (old = seconds elapsed) (FR-2).
