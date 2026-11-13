@@ -229,6 +229,7 @@ void ThermalZoneManager::loadSchedule() {
 }
 
 void ThermalZoneManager::saveSchedule() {
+    if (_scheduleBatch) return;
     const ScheduleConfig& cfg = _schedule.getConfig();
     paramStore.saveBlob("cfg3", &cfg, sizeof(cfg));
     ScheduleConfigV1 old;
@@ -245,6 +246,14 @@ void ThermalZoneManager::saveSchedule() {
     memcpy(old.weekday, cfg.weekday, sizeof(old.weekday));
     memcpy(old.weekend, cfg.weekend, sizeof(old.weekend));
     paramStore.saveBlob("cfg2", &old, sizeof(old));
+}
+
+void ThermalZoneManager::endScheduleBatch() {
+    if (_scheduleBatch) {
+        _scheduleBatch = false;
+        saveSchedule();
+        evaluateSchedule(millis());
+    }
 }
 
 void ThermalZoneManager::applyRelay(uint8_t pin, bool active, uint8_t reason) {

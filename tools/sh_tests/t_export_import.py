@@ -29,7 +29,8 @@ class ExportImportTests:
                    "rfSafetyHeartbeatEnabled", "freezeProtectionTemp", "sensorTimeoutSec", "hysteresis",
                    "windowThreshold", "openLoopBypass", "actuatorNormallyClosed", "pumpControlEnabled")
     FR65_TOP_KEYS = ("format", "firmwareVersion", "params", "zones", "schedule", "location", "learnedDuty")
-    FR65_ZONE_KEYS = ("id", "name", "mac", "sensorName", "relayPin", "enabled", "offset")
+    FR65_ZONE_KEYS = ("id", "name", "mac", "sensorName", "relayPin", "enabled", "offset",
+                      "solarGain", "circuits", "humidityComp", "heatingType")
     FR65_SCHEDULE_KEYS = ("enabled", "preheat", "window", "weekday", "weekend", "levels")
     FR65_SWITCHES = ("enabled", "preheat", "window")
     FR65_LEVELS = ("day", "night", "away")
@@ -104,7 +105,7 @@ class ExportImportTests:
         url = f"{self.base_url}/api/config/import"
         if timed:   # one attempt: a retry after a timeout would hide a late answer
             time.sleep(0.1)
-            return _orig_post(url, data=raw, headers=h, timeout=self.timeout)
+            return _orig_post(url, data=raw, headers=h, auth=self.api_auth(), timeout=self.timeout)
         return requests.post(url, data=raw, headers=h, timeout=self.timeout)
 
     def _fr65_report(self, r):
@@ -404,7 +405,7 @@ class ExportImportTests:
             r = requests.post(f"{b}/api/setup/map-zone", data={"zone": zid - 1, "name": new_name,
                                                                "offset": off}, timeout=to)
             assert r.status_code == 200, f"map-zone: HTTP {r.status_code}"
-            night = st((self._fr65_find(snap["schedule"]["levels"], zid) or {})["night"], 0.5, 30.0)   # levels 5-30 °C
+            night = st((self._fr65_find(snap["schedule"]["levels"], zid) or {})["night"], 0.5, 28.0)   # levels 5-28 °C (TARGET_MAX_C)
             r = requests.post(f"{b}/api/schedule/level", data={"zone": zid, "level": "night", "temp": night}, timeout=to)
             assert r.status_code == 200, f"schedule/level: HTTP {r.status_code}"
             wkend = "07:00=day,23:00=night" if snap["schedule"]["weekend"] != "07:00=day,23:00=night" \
@@ -556,8 +557,8 @@ class ExportImportTests:
             assert set(params) == set(self.FR65_PARAMS), \
                 f"params keys outside / missing: {sorted(set(params) ^ set(self.FR65_PARAMS))}"
             for z in exp.get("zones") or []:
-                assert set(z) == set(self.FR65_ZONE_KEYS), \
-                    f"zones[{z.get('id')}] keys differ: {sorted(set(z) ^ set(self.FR65_ZONE_KEYS))}"
+                assert set(z) - {"heatingTypeStr"} == set(self.FR65_ZONE_KEYS), \
+                    f"zones[{z.get('id')}] keys differ: {sorted((set(z) - {'heatingTypeStr'}) ^ set(self.FR65_ZONE_KEYS))}"
             sch = exp.get("schedule") or {}
             assert "away" not in sch, "schedule.away is exported: global away is state (FR-65.2)"
             assert set(sch) == set(self.FR65_SCHEDULE_KEYS), \
@@ -766,30 +767,30 @@ class ExportImportTests:
             snap = self._fr65_begin()
             zid = self._fr65_pick(snap, 1)[0]["id"]
             before = self._fr65_find(snap["schedule"]["levels"], zid) or {}
-            ok = {"day": 30.0, "away": 5.0}       # zone levels 5-30 °C (FR-29), both limits
+            ok = {"day": 28.0, "away": 5.0}       # zone levels 5-28 °C (FR-1.2, FR-29 C-36), both limits
             applied, kept, skipped = self._fr65_report(self._fr65_post(
                 {"format": 1, "schedule": {"levels": [{"id": zid, **ok}]}}))
             for lv in ok:
                 assert f"schedule.levels[{zid}].{lv}" in applied, \
                     f"level {lv} = {ok[lv]} not applied: {skipped.get(f'schedule.levels[{zid}].{lv}')!r}"
             assert f"schedule.levels[{zid}].night" in kept, "level missing from the file not reported kept"
-            bad = {"day": 4.9, "night": 30.1}
+            bad = {"day": 4.9, "night": 28.1}
             applied, _, skipped = self._fr65_report(self._fr65_post(
                 {"format": 1, "schedule": {"levels": [{"id": zid, **bad}]}}))
             for lv, v in bad.items():
                 n = f"schedule.levels[{zid}].{lv}"
                 assert skipped.get(n) == "invalid" and n not in applied, f"{n} = {v}: {skipped.get(n)!r}, expected 'invalid'"
             got = self._fr65_find(self._fr65_export()["schedule"]["levels"], zid) or {}
-            assert not self._fr65_diff(got.get("day"), 30.0) and not self._fr65_diff(got.get("away"), 5.0), \
+            assert not self._fr65_diff(got.get("day"), 28.0) and not self._fr65_diff(got.get("away"), 5.0), \
                 f"levels after import: {got}"
             assert not self._fr65_diff(got.get("night"), before.get("night")), f"night changed: {got.get('night')!r}"
             sch = requests.get(f"{self.base_url}/api/schedule", timeout=self.timeout).json()
             sl = (sch.get("zones") or [])[zid - 1]
-            assert not self._fr65_diff(sl.get("day"), 30.0) and not self._fr65_diff(sl.get("away"), 5.0), \
+            assert not self._fr65_diff(sl.get("day"), 28.0) and not self._fr65_diff(sl.get("away"), 5.0), \
                 f"/api/schedule zone {zid} after import: {sl}"
             latency = (time.time() - start) * 1000
             res = TestResult(test_id, name, req, "PASS", latency,
-                             f"zone {zid}: day 30.0 / away 5.0 applied, 4.9 and 30.1 skipped 'invalid'; restored")
+                             f"zone {zid}: day 28.0 / away 5.0 applied, 4.9 and 28.1 skipped 'invalid'; restored")
         except Exception as e:
             res = self._fr65_error(test_id, name, req, start, e)
         finally:
@@ -1000,8 +1001,8 @@ class ExportImportTests:
                 else "06:15=day,22:00=night"
             f["schedule"]["weekend"] = "08:00=day,23:00=night" if s["weekend"] != "08:00=day,23:00=night" \
                 else "08:15=day,23:00=night"
-            f["schedule"]["levels"] = [{"id": l["id"], **{lv: st(l[lv], 0.5, 30.0) for lv in self.FR65_LEVELS}}
-                                       for l in s["levels"]]   # levels 5-30 °C
+            f["schedule"]["levels"] = [{"id": l["id"], **{lv: st(l[lv], 0.5, 28.0) for lv in self.FR65_LEVELS}}
+                                       for l in s["levels"]]   # levels 5-28 °C (TARGET_MAX_C)
             if snap.get("location"):
                 lat, lon = (float(x) for x in snap["location"].split(","))
                 f["location"] = f"{st(lat, 0.01, 90.0):.4f},{lon:.4f}"
@@ -1431,7 +1432,7 @@ class ExportImportTests:
             alt = int(st(snap["params"]["actuatorDelaySec"], 10, 600))   # interlockDelay 120-600 s
             wkend = "07:10=day,23:10=night" if snap["schedule"]["weekend"] != "07:10=day,23:10=night" \
                 else "07:20=day,23:10=night"
-            night = st((self._fr65_find(snap["schedule"]["levels"], zid) or {})["night"], 0.5, 30.0)   # levels 5-30 °C
+            night = st((self._fr65_find(snap["schedule"]["levels"], zid) or {})["night"], 0.5, 28.0)   # levels 5-28 °C (TARGET_MAX_C)
             f = {"format": 1, "params": {"actuatorDelaySec": alt}, "zones": [{"id": zid, "name": token}],
                  "schedule": {"weekend": wkend, "levels": [{"id": zid, "night": night}]}}
             # entries: report name, alternatives of substrings that must all be on the same line as the name
@@ -1465,7 +1466,12 @@ class ExportImportTests:
                 else:
                     new.append(ln)
             # FR-65.6: one line per applied setting with its report name and new value, name and value on one line
+            # FR-76: location coordinates never reach console log
             for rep_name, alts in want:
+                if rep_name == "location":
+                    assert not any("location" in ln or f"{lat2:.4f}" in ln for ln in new), \
+                        f"coordinates leaked to console log per FR-76: {new[-8:]!r}"
+                    continue
                 hits = [ln for ln in new if rep_name in ln and any(all(s in ln for s in alt) for alt in alts)]
                 assert len(hits) == 1, \
                     f"console lines with {rep_name} and its value {alts}: {len(hits)}, expected 1; new lines {new[-8:]!r}"
@@ -1696,8 +1702,8 @@ class ExportImportTests:
             day = (self._fr65_find(snap["schedule"]["levels"], zid) or {})["day"]
             f = {"format": 1,
                  "zones": [{"id": zid, "name": "TC29 dup a"}, {"id": zid, "name": "TC29 dup b"}],
-                 # both values valid, inside the level range 5-30 °C (FR-29)
-                 "schedule": {"levels": [{"id": zid, "day": st(day, 0.5, 30.0)}, {"id": zid, "day": st(day, 1.0, 30.0)}]}}
+                 # both values valid, inside the level range 5-28 °C (FR-1.2, FR-29 C-36)
+                 "schedule": {"levels": [{"id": zid, "day": st(day, 0.5, 28.0)}, {"id": zid, "day": st(day, 1.0, 28.0)}]}}
             want = [f"zones[{zid}]", f"schedule.levels[{zid}].day"]
             # learnedDuty only for a zone surely learned (> 0 %), both entries with the stored value: nothing can change
             learned = self._fr65_find(snap.get("learnedDuty"), zid) or {}
@@ -1759,7 +1765,7 @@ class ExportImportTests:
             snap = self._fr65_begin()
             zid, b, to, st = self._fr65_pick(snap, 1)[0]["id"], self.base_url, self.timeout, self._fr65_step
             old = self._fr65_find(snap["schedule"]["levels"], zid) or {}
-            mine = {lv: st(old[lv], 0.5, 30.0) for lv in ("day", "night", "away")}    # levels 5-30 °C (FR-29)
+            mine = {lv: st(old[lv], 0.5, 28.0) for lv in ("day", "night", "away")}    # levels 5-28 °C (TARGET_MAX_C)
             for lv, v in mine.items():
                 r = requests.post(f"{b}/api/schedule/level", data={"zone": zid, "level": lv, "temp": v}, timeout=to)
                 assert r.status_code == 200, f"schedule/level {lv}: HTTP {r.status_code}"

@@ -214,6 +214,7 @@ void planZone(size_t i, ZonePlan& zp, Report& rep) {
     zp.target = cur.targetTemp;
 
     for (JsonPairConst kv : zp.obj) {
+        if (strcmp(kv.key().c_str(), "heatingTypeStr") == 0) continue; // read-only export label, ignore on import
         if (!oneOf(ZONE_FIELDS, kv.key().c_str())) rep.skip(zoneName(id, kv.key().c_str()), "unknown");
     }
     for (const char* f : ZONE_FIELDS) {
@@ -375,6 +376,7 @@ void importZones(JsonVariantConst zv, Report& rep) {
 String levelName(size_t id, const char* lv) { return "schedule.levels[" + String((unsigned)id) + "]." + lv; }
 
 void importSchedule(JsonVariantConst sv, Report& rep) {
+    thermalZones.beginScheduleBatch();
     bool isObj = sv.is<JsonObjectConst>();
     if (!sv.isNull() && !isObj) rep.skip("schedule", "invalid");
     JsonObjectConst so = isObj ? sv.as<JsonObjectConst>() : JsonObjectConst();
@@ -439,6 +441,7 @@ void importSchedule(JsonVariantConst sv, Report& rep) {
             rep.ok(name, String(t, 1));
         }
     }
+    thermalZones.endScheduleBatch();
 }
 
 void importLocation(JsonVariantConst lv, Report& rep) {
@@ -513,7 +516,6 @@ String configExportJson() {
         z["circuits"] = c.circuits;
         z["humidityComp"] = c.humidityComp;
         z["heatingType"] = c.heatingType;
-        z["heatingTypeStr"] = c.heatingType == 0 ? "floor" : "radiators";
     }
 
     JsonObject s = d["schedule"].to<JsonObject>();

@@ -279,6 +279,8 @@ public:
     // Schedule Persistence
     void loadSchedule();
     void saveSchedule();
+    void beginScheduleBatch() { _scheduleBatch = true; }
+    void endScheduleBatch();
 
     // Helpers
     // FR-8.4: displayed zone state code (FROST, DISABLED, FAULT, ACQUIRING, WINDOW, HEATING, IDLE)
@@ -291,6 +293,7 @@ private:
 
     // Schedule State
     Schedule _schedule;
+    bool _scheduleBatch = false;
     WindowDetectionState _windowStates[MAX_THERMAL_ZONES];
     TpiState _tpi[MAX_THERMAL_ZONES];
     uint8_t _zoneCount = 0;

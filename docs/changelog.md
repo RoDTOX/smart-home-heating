@@ -5,6 +5,24 @@ Corelat cu planul activ: [`docs/plan.md`](file:///c:/Users/BSeceleanu/.github_re
 Entries before 29.10.2026 (the system before the lean clean-up):
 [`archive/changelog_until_2026-10-21.md`](archive/changelog_until_2026-10-21.md).
 
+## [13.11.2026] - Fix TC29 export/import latency and test suite thresholds (PB-133)
+
+- **Who / when / why:** Resolve SWE.5 TC29 test suite failures and eliminate NVS write congestion during bulk configuration import.
+- **Changed:**
+  - `include/ThermalZoneManager.h`, `src/ThermalZoneManager.cpp`: added `beginScheduleBatch()` and `endScheduleBatch()` to batch schedule NVS blob saves during bulk operations; reduces flash write operations from 28 to 1 during config import.
+  - `src/ConfigTransfer.cpp`: wrapped `importSchedule()` in `beginScheduleBatch()` / `endScheduleBatch()`; removed redundant display label `heatingTypeStr` from `configExportJson()` to strictly conform to Format 1 schema and `ZONE_FIELDS`; ignored `heatingTypeStr` in `planZone()` on import for backward compatibility.
+  - `tools/sh_tests/t_export_import.py`:
+    - `FR65_ZONE_KEYS`: added `solarGain`, `circuits`, `humidityComp`, `heatingType` to reflect zone schema (`TC29.18`).
+    - `_fr65_post`: passed `auth=self.api_auth()` when `timed=True` (`TC29.16`).
+    - `TC29.10`, `TC29.16`, `TC29.26`, `TC29.32`, `TC29.37`: updated upper level threshold from 30.0 °C to 28.0 °C (`TARGET_MAX_C` per FR-1.2, FR-29, C-36).
+    - `TC29.26`: verified location coordinates do not leak to console logs per FR-76 privacy requirement.
+- **Verified:**
+  - `pio test -e native` -> 37/37 PASSED (100%).
+  - `pio run -e esp32dev` -> 1 280 021 B (margin 26 603 B under 1 306 624 B).
+  - Flashed board via OTA (`python tools/sh_ota_upload.py`) -> firmware `v1.11.13.01`.
+  - TC29 verification suite (`tools/sh_test_system.py --only tc29`): **37/37 runnable tests PASSED (100%)**, `TC29.16` import latency down from 3.39s to 0.71s (limit 2.0s).
+  - `python tools/sh_process_check.py`: `0` errors (`1` known `PB-12`, `PASS`).
+
 ## [13.11.2026] - Align web assets, API documentation and system tests to modular UI
 
 - **Who / when / why:** Board system test alignment after step I-9 UI modularization and history resolution upgrade. Resolved test failures in TC09.1, TC11.5, TC19.7, TC19.9, TC19.13, TC20.4, TC31.7, TC32.4, TC35.2, and TC42.3.
