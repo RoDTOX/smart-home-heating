@@ -5,6 +5,16 @@ Corelat cu planul activ: [`docs/plan.md`](file:///c:/Users/BSeceleanu/.github_re
 Entries before 29.10.2026 (the system before the lean clean-up):
 [`archive/changelog_until_2026-10-21.md`](archive/changelog_until_2026-10-21.md).
 
+## [13.11.2026] - Step I-10: Single Source of Truth parameter synchronization (tools/sh_gen_params.py)
+
+- **Who / when / why:** Step I-10 (architecture P4). Automatically synchronize parameter definitions, ranges, and Romanian labels from `src/ParamStore.cpp` to `docs/api_reference.md` and `web/src/setup.js`.
+- **Changed:**
+  - `tools/sh_gen_params.py`: created generator tool that extracts `P(...)` macros from `src/ParamStore.cpp`, generates/verifies the markdown table under `/api/config/system` in `docs/api_reference.md` and the `PARAM_LIMITS` object in `web/src/setup.js`. Supports `--check` mode (exit 0 if in sync, exit 1 if drift detected).
+  - `docs/plan.md`: marked Step I-9 and Step I-10 as DONE.
+- **Verified:**
+  - `python tools/sh_gen_params.py --check` -> `[PASS]` exit 0.
+  - `python tools/sh_process_check.py` -> 0 errors, 1 known (`PB-12`), PASS.
+
 ## [13.11.2026] - Fix TC29 export/import latency and test suite thresholds (PB-133)
 
 - **Who / when / why:** Resolve SWE.5 TC29 test suite failures and eliminate NVS write congestion during bulk configuration import.
