@@ -157,11 +157,11 @@ one example:
 - **FR-2 (Actuator opening interlock):** *[now]* {SW; test} Boiler ON is commanded only after at least one zone
   valve has been energised (opened) for ≥ `interlockDelay`. Values below the range in §6 are rejected.
   - *Fallback:* this is the safe state; if the demand ends during the interlock, FR-37 applies.
-- **FR-3 (Overrun after flame OFF):** *[now]* {SW; test} The last zone valve that was open stays open while the
+- **FR-3.1 (Overrun after lit flame):** *[now]* {SW; test} The last zone valve that was open stays open while the
   boiler is ON or `PENDING_OFF` (FR-32) and, if the flame was lit (§0), for `overrun` after the boiler OFF,
   independent of the pump setting. The boiler never burns with all zone valves closed.
-  - **FR-3.2 (No overrun without flame):** {SW; test} If the flame was never lit (§0: the start was cancelled
-    before the ON was sent), there is no overrun: valves without demand close at the next control tick (FR-37).
+- **FR-3.2 (No overrun without flame):** {SW; test} If the flame was never lit (§0: the start was cancelled
+  before the ON was sent), there is no overrun: valves without demand close at the next control tick (FR-37).
 - ~~**FR-38 (Flame-conditioned pump overrun):** retired, merged into FR-3 / FR-3.2.~~
 - **FR-4 (Burner anti-short-cycling):** *[now]* {SW; test} The burner stays ON for at least `burnerMinRun` and OFF
   for at least `burnerMinPause`, for every ON/OFF source (automatic, API, console); only a forced OFF (FR-17.3,
@@ -282,16 +282,16 @@ one example:
   accepted reading.
 - **FR-18 (Sensor timeout setting):** *[now]* {SW; test} `sensorTimeout` is set via API and console, stored in NVS; one value
   is used for control and for DTC-101 `ERR_SENSOR_TIMEOUT`.
-- **FR-40 (Window detection, simple & adaptive rules):** *[now]* {SW; test} Window detection monitors room cooling to declare aeration on each zone.
+- **FR-40.1 (Simple and adaptive window rules):** *[now]* {SW; test} Window detection monitors room cooling to declare aeration on each zone.
   Configurable `heatingType` (`0 = floor` / `1 = radiators`, default `floor`):
   - `floor` (underfloor heating / încălzire în pardoseală): window detection is visual/telemetry only (shows `🪟` on chart,
     status `windowDetected: true`, UI room badge), without closing that zone's valve or pausing heating (avoids thermal
     inertia recovery penalty of the slab).
-    Adaptive detection: evaluates both fast drops (≥ `windowThreshold` within 5 min) and gradual aeration trends
+    Adaptive detection: evaluates both short-interval drops (≥ `windowThreshold` within 5 min) and gradual aeration trends
     (temperature drop ≥ 0.40 °C within 15 min while room − outdoor ≥ 5 °C).
     Clears when temperature rebounds by ≥ 0.3 °C from the minimum, after 30 min timeout, or via `POST /api/zones/window/clear`.
   - `radiators` (calorifere): window detection closes that zone's valve for 30 min, or until the temperature rebounds
-    by 0.6 °C from the minimum, or until `POST /api/zones/window/clear` (traditional energy-saving pause for fast-response emitters,
+    by 0.6 °C from the minimum, or until `POST /api/zones/window/clear` (traditional energy-saving pause for high-reactivity emitters,
     using strict 5 min drop ≥ `windowThreshold` to prevent false valve pauses).
   - Used whenever FR-40.2 lacks outdoor or humidity data.
   - *Fallback:* a false detection ends after 30 min at most; frost protection overrides the pause.
@@ -325,7 +325,7 @@ one example:
     use 45 min (`2700000 ms`). The stagnation timer persists across TPI off-cycle pauses as long as thermal deficit and demand
     are active.
   - *Cross-zone heat misdirection detection:* if a zone demands heat for ≥ 3.5 h without temperature rise while an uncommanded,
-    closed zone overheats by ≥ +0.5 °C, DTC-202 is raised to flag swapped wiring, inverted relay mapping, or manifold cross-talk.
+    closed zone overheats by ≥ +0.5 °C, DTC-203 `ERR_ZONE_OVERHEAT` is raised to flag swapped wiring, inverted relay mapping, or manifold cross-talk.
   - If all demanding zones show it, or the flow temperature (FR-54) does not rise within 15 min of boiler ON, the
     controller re-sends ON once; if there is still no effect after another 15 min, DTC-204 `ERR_BOILER_NOT_HEATING`
     is raised.
@@ -357,7 +357,7 @@ one example:
 
 ### 3.7 Weather and predictive control
 
-- **FR-9 (Outdoor temperature):** *[now]* {SW; test} Outdoor temperature from Open-Meteo every 15 min; retry after 5 min on
+- **FR-9.1 (Outdoor temperature fetch):** *[now]* {SW; test} Outdoor temperature from Open-Meteo every 15 min; retry after 5 min on
   failure.
   - *Fallback:* last value is used for 6 h, then functions that need it use their own fallback;
     DTC-401 `WARN_WIFI_SIGNAL_DEGRADED` covers a network loss.
@@ -389,20 +389,15 @@ one example:
 
   | Check | `OK` when |
   |---|---|
-  | `wifi` | Wi-Fi up and RSSI not below the DTC-401 limit (§5) |
-  | `heap` | free heap not below the DTC-402 limit (§5) |
+  | `wifi` | Wi-Fi up and RSSI not below the DTC-401 `WARN_WIFI_SIGNAL_DEGRADED` limit (§5) |
+  | `heap` | free heap not below the DTC-402 `WARN_HEAP_FRAGMENTATION` limit (§5) |
   | `ble` | BLE scan running |
-  | `sensors` | every switched-on zone has an accepted reading within `sensorTimeout` (the DTC-101 rule); value: zones with a reading / zones switched on; `INFO` while no zone is switched on |
+  | `sensors` | every switched-on zone has an accepted reading within `sensorTimeout` (the DTC-101 `ERR_SENSOR_TIMEOUT` rule); value: zones with a reading / zones switched on; `INFO` while no zone is switched on |
   | `time` | clock synchronised |
   | `weather` | outdoor temperature not older than 6 h (FR-9 fallback) |
   | `radio` | always `INFO`: last command and its age; the 433 MHz link has no return channel, so the boiler's reaction cannot be checked |
 
   The full self-test is FR-60.
-- **FR-62 (Event history and alarms):** *[now]* {SW; test} The last 50 safety events (DTC raised / cleared, frost, FAULT,
-  watchdog reset, controlled restart) are kept across reboots with time stamp (uptime if time is not set), written
-  only when an event occurs. Alarms are shown in the page and `/api/status`; there is no push channel.
-  - *Read:* `GET /api/diag/events` returns `{"count":n,"events":[{"time":n,"timeValid":bool,"type":"dtc-raised|dtc-cleared|restart","code":"DTC-nnn"|"","zone":n,"value":n}]}`, newest first, at most 50 (`time` is epoch seconds when `timeValid`, else uptime seconds). `restart` carries the reset reason in `value` (`esp_reset_reason_t`). The same code and zone is recorded at most 6 times per hour; further repeats are counted in `value` of the last record. Other event types (frost, FAULT, season change, OTA) are added by the steps that build them.
-  - *Fallback:* event store cannot be written → events are kept in RAM until reboot, with a log line.
 - **FR-62.1 (Event log of safety and I/O):** *[now]* {SW; test} Next to the DTC history of FR-62 the controller keeps an
   event log in which a failed test or an odd moment in the house can be explained from the log alone (C-37, PB-121).
   Every entry has a time stamp (local time as the text `yymmddhhmmss` when the clock is set, else uptime seconds as text, `timeValid` false), a
@@ -418,6 +413,11 @@ one example:
     requested state (0 OFF, 1 ON). The same refusal repeated within 10 s is one entry.
   - `pending`: the pending boiler action changes (FR-32); old and new = 0 none, 1 OFF, 2 ON; the reason says why
     (`guard-run`, `guard-pause`: queued; `queue`: executed; `demand-lost`, `interlock`, `user`, `demand`: cancelled).
+- **FR-62.2 (Safety events and DTC history):** *[now]* {SW; test} The last 50 safety events (DTC raised / cleared, frost, FAULT,
+  watchdog reset, controlled restart) are kept across reboots with time stamp (uptime if time is not set), written
+  only when an event occurs. Alarms are shown in the page and `/api/status`; there is no push channel.
+  - *Read:* `GET /api/diag/events` returns `{"count":n,"events":[{"time":n,"timeValid":bool,"type":"dtc-raised|dtc-cleared|restart","code":"DTC-nnn"|"","zone":n,"value":n}]}`, newest first, at most 50 (`time` is epoch seconds when `timeValid`, else uptime seconds). `restart` carries the reset reason in `value` (`esp_reset_reason_t`). The same code and zone is recorded at most 6 times per hour; further repeats are counted in `value` of the last record. Other event types (frost, FAULT, season change, OTA) are added by the steps that build them.
+  - *Fallback:* event store cannot be written → events are kept in RAM until reboot, with a log line.
   - `interlock`: per zone, new = 1 when its valve is energised and `interlockDelay` starts (old = the delay in
     seconds), new = 2 when the valve counts as open (old = seconds elapsed) (FR-2).
   - `overrun`: new = 1 start (old = `overrun` in seconds), 2 end, 3 the close of the last valve is held because the
@@ -468,8 +468,7 @@ one example:
 
 ### 3.9 Interfaces and security
 
-- **FR-75 (Console access):** *[now]* {SW; inspection} Groups FR-75.1 ... FR-75.6. In a release build commands over HTTP and Telnet need a password; reading the log does not on the home network (C-30, owner 03.11.2026). FR-75.1 ... FR-75.5 describe the release build; FR-75.6 allows an open development build.
-  - **FR-75.1 (Login):** {SW; test} `POST /api/console/send` needs HTTP Basic authentication (user `console`) and the Telnet console asks `Password:` before any command, except `HELP` and `STATUS`. Without a valid login HTTP answers 401 and no command runs. The Serial console needs no login (physical access). `GET /api/console/logs` and `GET /api/security/events` need no login on the home network; on the setup access point `SmartHeating-Setup` they need the login too and are refused with 401 while no password is set (owner 03.11.2026).
+- **FR-75.1 (Login):** {SW; test} `POST /api/console/send` needs HTTP Basic authentication (user `console`) and the Telnet console asks `Password:` before any command, except `HELP` and `STATUS`. Without a valid login HTTP answers 401 and no command runs. The Serial console needs no login (physical access). `GET /api/console/logs` and `GET /api/security/events` need no login on the home network; on the setup access point `SmartHeating-Setup` they need the login too and are refused with 401 while no password is set (owner 03.11.2026).
   - **FR-75.2 (First password):** {SW; test} A controller has no console password at delivery and no default password. While none is set, HTTP and Telnet accept only `HELP` and `STATUS`. The first password is set only from Serial with `PASSWD <new>` (8–63 characters) and counts as initial: the first network login must change it with `PASSWD <old> <new>` (the new one differs from the old one) before any other command is accepted (HTTP 403 `password change required`, Telnet the same text). Later changes need the old password, on any interface.
   - **FR-75.3 (Storage):** {SW; test} The password is stored as a salted SHA-256 hash (a random 16 byte salt per unit) in NVS, written only on change, never as plain text. If the store cannot be read, every login is refused (fail closed) and the console stays at `HELP` and `STATUS`. A factory reset (FR-66) removes the password.
   - **FR-75.4 (Lockout):** {SW; test} After `loginAttempts` failed logins in a row from one client address that address is refused for `loginLockout` (HTTP 429, Telnet closes). The state is kept in RAM, a failure writes no NVS, and heating, the page and other clients are not affected. One Telnet session at a time; a Telnet login that is not finished within `telnetLoginTimeout` closes the connection.
@@ -535,8 +534,6 @@ one example:
 - ~~**FR-15.2 (Compatibility statement):** retired, merged into FR-15.1.~~
 - **FR-34 (Telemetry history):** *[now]* {SW; test} History in LittleFS: 24 h at 5 min and 5 days at 30 min resolution, served by
   GET /api/history?range=24h|5d. The web UI presents a 24h timeline / history chart (grpHistory) displaying burner flame and per-zone valve binary activations labeled by configured zone names, outdoor and room temperatures, and time-cursor inspection.
-- **FR-35 (Burner counters):** *[now]* {SW; test} Burner time counters: total, today, yesterday, this month, last month,
-  current burn; reported in boiler status. Zone-level heating runtime counters (todaySec, yesterdaySec) are reported in `/api/zones` and on zone cards.
 - **FR-35.1 (Gas meter readings and boiler flow setpoint):** *[now]* {SW; test} The readings of the physical gas meter that the user types are data: kept, never overwritten, used for the consumption estimate (C-25).
   - *Reading:* the user types the meter index (m³, 3 decimals, 0–999999) in the page (`Citire contor`) and may give the time of the reading (default: now). Each typed reading is stored as one entry `{reading time (epoch), index, burner runtime (s) when it was typed}`; a reading with a given time in the past has no runtime (unknown) and is not used for the measured flow. Only a typed reading writes an entry: not a change of `boilerSetTemp`, `boilerFlowObserved`, `boilerPowerKw`, `gasPrice` or `gasFlameRate`, not an import, not a restore. A reading outside the range, or with a time in the future, is refused (HTTP 400) and writes nothing.
   - *Storage:* the entries are in a LittleFS file that a firmware flash does not erase; the last reading (index, time) and the burner runtime at that time are in NVS, written only on change (NFR-2.9). Entries survive a flash and a reset; the configuration export and import neither carry nor delete them (FR-65.1). Up to 1000 entries (about 8 KB). Over 1000, the oldest entry is replaced by the new one (about 10 years of readings typed now and then) and the self-test (FR-10.4) reports `INFO` with the number of replaced entries; nothing is replaced before the log is full.
@@ -547,6 +544,8 @@ one example:
   - *Old log:* the first start of the firmware with this requirement ignores the old ring `/gas_calib.json` of the earlier firmware (it holds test entries) and removes it; the new log starts empty and is seeded only by readings the owner confirms (first reading 2265.304 m³ taken 03.11.2026 15:39, `docs/gas_meter_readings_03_11.md`). No entry of the old ring is carried over.
   - *Tests:* no system test types a reading, writes an entry or changes the stored reading on the controller; tests that exercise the endpoint use a test-only mode that does not store (the owner's data is never test data).
   - *Report:* `/api/boiler/status` reports the last reading with its time, the estimated index, `gasFlowMeasured` (m³/h or null), the number of stored readings, gas today, yesterday and this month; `GET /api/boiler/gas-readings` lists all readings (time, index). The page lists them with date and time and never calls a reading a calibration. The page shows gas of today, yesterday and this month, and their cost, only when a flow has been measured (`gasFlowMeasured` not null); before that it shows `—` and says that the consumption is calculated after two readings, because the starting flow `gasFlameRate` is not the flow of this installation. The page also shows the boiler ON time of today. No reading is a default: a controller without a reading shows `—` and estimates nothing.
+- **FR-35.2 (Burner runtime counters):** *[now]* {SW; test} Burner time counters: total, today, yesterday, this month, last month,
+  current burn; reported in boiler status. Zone-level heating runtime counters (todaySec, yesterdaySec) are reported in `/api/zones` and on zone cards.
 - **FR-41 (Wi-Fi supervisor):** *[now]* {SW; test} Wi-Fi is checked every 10 s and reconnected; after 90 s down the stack is
   re-initialised. DTC-401 `WARN_WIFI_SIGNAL_DEGRADED` while down or RSSI < −82 dBm. Control continues (NFR-1.1).
 - **FR-42 (Configuration API limits):** *[now]* {SW; test} `/api/config/system` exposes hydraulic and radio timings and rejects
@@ -657,8 +656,8 @@ one example:
 - **FR-74 (Delete a zone):** *[now]* {SW; test} The user deletes a zone in the engineering view or by API. Its
   mapping, levels and learned duty are removed, its relay output is free again (the valve is closed, because a zone
   with an energised valve is not deleted), and the zones after it move up by one number. Everything that belongs to
-  a zone moves with it (mapping, target, offset, levels, learned duty, sensor timeout state, DTC-101
-  `ERR_SENSOR_TIMEOUT`); a DTC of the deleted zone is cleared. Success answers HTTP 200. A zone whose valve is energised is not deleted (FR-3, as FR-11.3): HTTP
+  a zone moves with it (mapping, target, offset, levels, learned duty, sensor timeout state, DTC-101 `ERR_SENSOR_TIMEOUT`);
+  a DTC of the deleted zone is cleared. Success answers HTTP 200. A zone whose valve is energised is not deleted (FR-3, as FR-11.3): HTTP
   409, nothing changes, the request can be repeated once the valve is closed. A zone number that does not exist
   returns HTTP 400.
 - **FR-68 (Commissioning checklist):** *[now, documentation]* {install; inspection} Commissioning follows a checklist; the installer records the result in the commissioning document (the controller does not store it):

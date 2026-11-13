@@ -119,8 +119,8 @@ class SafetySupervisorTests:
             self._ss_cleanup()
 
     def test_tc33_3_full_burn_interlock_overrun_burner_guard(self):
-        """SWE.5-TC33.3: A full burn - ON after interlockDelay, last valve held while ON and for overrun after OFF, OFF after burnerMinRun (FR-2, FR-3, FR-4)"""
-        test_id, name, req = "SWE.5-TC33.3", "Full Burn: Interlock, Overrun, Burner Guard", "FR-2, FR-3, FR-4"
+        """SWE.5-TC33.3: A full burn - ON after interlockDelay, last valve held while ON and for overrun after OFF, OFF after burnerMinRun (FR-2, FR-3.1, FR-4)"""
+        test_id, name, req = "SWE.5-TC33.3", "Full Burn: Interlock, Overrun, Burner Guard", "FR-2, FR-3.1, FR-4"
         start = time.time()
         b, to = self.base_url, self.timeout
         saved = None

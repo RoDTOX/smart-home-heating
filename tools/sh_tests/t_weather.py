@@ -27,8 +27,8 @@ class WeatherTests:
         return False
 
     def test_tc35_1_weather_values_and_previous_day_mean(self):
-        """SWE.5-TC35.1: outdoor temperature, state ok, age and the previous-day mean are reported (FR-9, FR-12.2)"""
-        test_id, name, req = "SWE.5-TC35.1", "Weather Values And Previous Day Mean", "FR-9"
+        """SWE.5-TC35.1: outdoor temperature, state ok, age and the previous-day mean are reported (FR-9.1, FR-12.2)"""
+        test_id, name, req = "SWE.5-TC35.1", "Weather Values And Previous Day Mean", "FR-9.1, FR-12.2"
         start = time.time()
         try:
             self._wx_hook(refresh=1)
@@ -44,8 +44,8 @@ class WeatherTests:
             return TestResult(test_id, name, req, "FAIL", (time.time() - start) * 1000, str(e))
 
     def test_tc35_2_held_then_lost_after_6_h(self):
-        """SWE.5-TC35.2: after a failed poll the last value is held for 6 h, then it is lost (FR-9 fallback)"""
-        test_id, name, req = "SWE.5-TC35.2", "Weather Held Then Lost", "FR-9"
+        """SWE.5-TC35.2: after a failed poll the last value is held for 6 h, then it is lost (FR-9.1 fallback)"""
+        test_id, name, req = "SWE.5-TC35.2", "Weather Held Then Lost", "FR-9.1"
         start = time.time()
         try:
             self._wx_hook(refresh=1)

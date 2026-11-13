@@ -6,10 +6,10 @@ from .base import *  # noqa: F401,F403
 class UiHistoryTests:
 
     def test_tc19_2_temperature_boundary_clamping(self):
-        """SWE.5-TC19.2: Out-of-Bounds Temperature Clamping (FR-1)"""
+        """SWE.5-TC19.2: Out-of-Bounds Temperature Clamping (FR-1.2)"""
         test_id = "SWE.5-TC19.2"
         name = "Out-of-Bounds Temperature Clamping"
-        req = "FR-1"
+        req = "FR-1.2"
         start = time.time()
         orig_target = 22.0
         try:
@@ -49,10 +49,10 @@ class UiHistoryTests:
             return TestResult(test_id, name, req, "FAIL", (time.time() - start)*1000, str(e))
 
     def test_tc19_3_invalid_zone_index_handling(self):
-        """SWE.5-TC19.3: Invalid Zone Index Handling (HTTP 400) (FR-1, FR-8)"""
+        """SWE.5-TC19.3: Invalid Zone Index Handling (HTTP 400) (FR-1.2, FR-8.1)"""
         test_id = "SWE.5-TC19.3"
         name = "Invalid Zone Index Handling (HTTP 400)"
-        req = "FR-1, FR-8"
+        req = "FR-1.2, FR-8.1"
         start = time.time()
         try:
             r = requests.post(f"{self.base_url}/api/zones/setpoint?id=99&target=21.0", timeout=self.timeout)
@@ -328,10 +328,10 @@ class UiHistoryTests:
     # ---------------------------------------------------------
 
     def test_tc21_1_gas_model_schema(self):
-        """SWE.5-TC21.1: Boiler Runtime Telemetry Schema for Gas Model (FR-35)"""
+        """SWE.5-TC21.1: Boiler Runtime Telemetry Schema for Gas Model (FR-35.2)"""
         test_id = "SWE.5-TC21.1"
         name = "Boiler Runtime Schema for Gas Model"
-        req = "FR-35"
+        req = "FR-35.2"
         start = time.time()
         try:
             r = requests.get(f"{self.base_url}/api/boiler/status", timeout=self.timeout)
@@ -349,10 +349,10 @@ class UiHistoryTests:
             return TestResult(test_id, name, req, "FAIL", (time.time() - start)*1000, str(e))
 
     def test_tc21_2_gas_model_calculations(self):
-        """SWE.5-TC21.2: Calibrated Gas Consumption Model (0.40m³ ACM, 0.60m³/h, 3.30 Lei) (FR-35)"""
+        """SWE.5-TC21.2: Calibrated Gas Consumption Model (0.40m³ ACM, 0.60m³/h, 3.30 Lei) (FR-35.2)"""
         test_id = "SWE.5-TC21.2"
         name = "Calibrated Gas Model Calculations"
-        req = "FR-35"
+        req = "FR-35.2"
         start = time.time()
         try:
             r = requests.get(f"{self.base_url}/api/boiler/status", timeout=self.timeout)
@@ -738,10 +738,10 @@ class UiHistoryTests:
             return TestResult(test_id, name, req, "FAIL", (time.time() - start) * 1000, str(e))
 
     def test_tc19_15_zone_heating_runtime_telemetry(self):
-        """SWE.5-TC19.15: Zone Heating Runtime Telemetry Counters (FR-35)"""
+        """SWE.5-TC19.15: Zone Heating Runtime Telemetry Counters (FR-35.2)"""
         test_id = "SWE.5-TC19.15"
         name = "Zone Heating Runtime Telemetry Counters"
-        req = "FR-35"
+        req = "FR-35.2"
         start = time.time()
         try:
             r = requests.get(f"{self.base_url}/api/zones", timeout=self.timeout)

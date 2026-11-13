@@ -189,8 +189,8 @@ class EventLogTests:
                 pass
 
     def test_tc40_5_full_burn_logged(self):
-        """SWE.5-TC40.5: A full burn shows valve open, interlock start and end, boiler ON, guard refusal, overrun hold and end, valve close, with times and the boiler-side state (FR-62.1, FR-2, FR-3, FR-4)"""
-        test_id, name, req = "SWE.5-TC40.5", "Full Burn Logged", "FR-62.1, FR-2, FR-3, FR-4"
+        """SWE.5-TC40.5: A full burn shows valve open, interlock start and end, boiler ON, guard refusal, overrun hold and end, valve close, with times and the boiler-side state (FR-62.1, FR-2, FR-3.1, FR-4)"""
+        test_id, name, req = "SWE.5-TC40.5", "Full Burn Logged", "FR-62.1, FR-2, FR-3.1, FR-4"
         start = time.time()
         b, to = self.base_url, self.timeout
         saved = None

@@ -8,10 +8,10 @@ class ControlTests:
     # ---------------------------------------------------------
 
     def test_tc11_1_zone_setpoint_read(self):
-        """SWE.5-TC11.1: Thermal Zone Setpoint Initial Query (FR-1)"""
+        """SWE.5-TC11.1: Thermal Zone Setpoint Initial Query (FR-29)"""
         test_id = "SWE.5-TC11.1"
         name = "Zone Setpoint Initial Query"
-        req = "FR-1"
+        req = "FR-29"
         start = time.time()
         try:
             r = requests.get(f"{self.base_url}/api/zones", timeout=self.timeout)
@@ -25,10 +25,10 @@ class ControlTests:
             return TestResult(test_id, name, req, "FAIL", (time.time() - start)*1000, str(e))
 
     def test_tc11_2_zone_setpoint_mutation(self):
-        """SWE.5-TC11.2: Zone Setpoint Dynamic Mutation (FR-1)"""
+        """SWE.5-TC11.2: Zone Setpoint Dynamic Mutation (FR-29)"""
         test_id = "SWE.5-TC11.2"
         name = "Zone Setpoint Dynamic Mutation"
-        req = "FR-1"
+        req = "FR-29"
         start = time.time()
         try:
             r_init = requests.get(f"{self.base_url}/api/zones", timeout=self.timeout)
@@ -48,10 +48,10 @@ class ControlTests:
             return TestResult(test_id, name, req, "FAIL", (time.time() - start)*1000, str(e))
 
     def test_tc11_3_zone_setpoint_restoration(self):
-        """SWE.5-TC11.3: Zone Setpoint NVS Restoration (FR-1)"""
+        """SWE.5-TC11.3: Zone Setpoint NVS Restoration (FR-30)"""
         test_id = "SWE.5-TC11.3"
         name = "Zone Setpoint NVS Restoration"
-        req = "FR-1"
+        req = "FR-30"
         start = time.time()
         try:
             # Restore to standard 22.0°C
@@ -67,10 +67,10 @@ class ControlTests:
             return TestResult(test_id, name, req, "FAIL", (time.time() - start)*1000, str(e))
 
     def test_tc11_4_operating_mode_contract(self):
-        """SWE.5-TC11.4: Operating Mode Contract (Auto vs Manual) (FR-1)"""
+        """SWE.5-TC11.4: Operating Mode Contract (Auto vs Manual) (FR-1.3)"""
         test_id = "SWE.5-TC11.4"
         name = "Operating Mode Contract (Auto vs Manual)"
-        req = "FR-1"
+        req = "FR-1.3"
         start = time.time()
         try:
             r = requests.get(f"{self.base_url}/api/boiler/status", timeout=self.timeout)
@@ -87,10 +87,10 @@ class ControlTests:
     # ---------------------------------------------------------
 
     def test_tc12_1_ntp_time_sync(self):
-        """SWE.5-TC12.1: NTP Clock Sync & Europe/Bucharest POSIX (FR-12)"""
+        """SWE.5-TC12.1: NTP Clock Sync & Europe/Bucharest POSIX (FR-12.1)"""
         test_id = "SWE.5-TC12.1"
         name = "NTP Clock Sync & Bucharest POSIX"
-        req = "FR-12"
+        req = "FR-12.1"
         start = time.time()
         try:
             r = requests.get(f"{self.base_url}/api/setup/time", timeout=self.timeout)
@@ -104,10 +104,10 @@ class ControlTests:
             return TestResult(test_id, name, req, "FAIL", (time.time() - start)*1000, str(e))
 
     def test_tc12_2_heating_season_detection(self):
-        """SWE.5-TC12.2: Heating Season Calendar Detection (FR-12)"""
+        """SWE.5-TC12.2: Heating Season Calendar Detection (FR-12.2)"""
         test_id = "SWE.5-TC12.2"
         name = "Heating Season Calendar Detection"
-        req = "FR-12"
+        req = "FR-12.2"
         start = time.time()
         try:
             r = requests.get(f"{self.base_url}/api/setup/time", timeout=self.timeout)
@@ -121,10 +121,10 @@ class ControlTests:
             return TestResult(test_id, name, req, "FAIL", (time.time() - start)*1000, str(e))
 
     def test_tc12_3_outdoor_weather_telemetry(self):
-        """SWE.5-TC12.3: Outdoor Weather Telemetry via Open-Meteo (FR-9, FR-12)"""
+        """SWE.5-TC12.3: Outdoor Weather Telemetry via Open-Meteo (FR-9.1, FR-12.2)"""
         test_id = "SWE.5-TC12.3"
         name = "Outdoor Weather Telemetry (Open-Meteo)"
-        req = "FR-9, FR-12"
+        req = "FR-9.1, FR-12.2"
         start = time.time()
         try:
             r = requests.get(f"{self.base_url}/api/setup/time", timeout=self.timeout)
@@ -142,10 +142,10 @@ class ControlTests:
     # ---------------------------------------------------------
 
     def test_tc13_1_console_help_execution(self):
-        """SWE.5-TC13.1: Network Console Remote HELP Execution (FR-7)"""
+        """SWE.5-TC13.1: Network Console Remote HELP Execution (FR-7.3)"""
         test_id = "SWE.5-TC13.1"
         name = "Console Remote HELP Execution"
-        req = "FR-7"
+        req = "FR-7.3"
         start = time.time()
         try:
             r = requests.post(f"{self.base_url}/api/console/send?cmd=HELP", timeout=self.timeout)
@@ -161,10 +161,10 @@ class ControlTests:
             return TestResult(test_id, name, req, "FAIL", (time.time() - start)*1000, str(e))
 
     def test_tc13_2_console_log_tail(self):
-        """SWE.5-TC13.2: Network Console Log Buffer Tail Verification (FR-7)"""
+        """SWE.5-TC13.2: Network Console Log Buffer Tail Verification (FR-7.3)"""
         test_id = "SWE.5-TC13.2"
         name = "Console Log Buffer Tail Verification"
-        req = "FR-7"
+        req = "FR-7.3"
         start = time.time()
         try:
             time.sleep(0.12)

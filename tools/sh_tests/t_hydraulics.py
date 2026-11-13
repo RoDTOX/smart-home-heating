@@ -8,10 +8,10 @@ class HydraulicsTests:
     # ---------------------------------------------------------
 
     def test_tc06_1_actuator_polarity_read(self):
-        """SWE.5-TC06.1: Actuator Polarity Initial Query (FR-15)"""
+        """SWE.5-TC06.1: Actuator Polarity Initial Query (FR-15.1)"""
         test_id = "SWE.5-TC06.1"
         name = "Actuator Polarity Initial Query"
-        req = "FR-15"
+        req = "FR-15.1"
         start = time.time()
         try:
             r = requests.get(f"{self.base_url}/api/zones", timeout=self.timeout)
@@ -24,10 +24,10 @@ class HydraulicsTests:
             return TestResult(test_id, name, req, "FAIL", (time.time() - start)*1000, str(e))
 
     def test_tc06_2_actuator_polarity_toggle(self):
-        """SWE.5-TC06.2: Actuator Polarity Dynamic Toggle (NC <-> NO) (FR-15)"""
+        """SWE.5-TC06.2: Actuator Polarity Dynamic Toggle (NC <-> NO) (FR-15.1)"""
         test_id = "SWE.5-TC06.2"
         name = "Actuator Polarity Dynamic Toggle"
-        req = "FR-15"
+        req = "FR-15.1"
         start = time.time()
         try:
             r_cur = requests.get(f"{self.base_url}/api/zones", timeout=self.timeout)
@@ -48,10 +48,10 @@ class HydraulicsTests:
             return TestResult(test_id, name, req, "FAIL", (time.time() - start)*1000, str(e))
 
     def test_tc06_3_actuator_polarity_restore(self):
-        """SWE.5-TC06.3: Actuator Polarity NVS Restoration (FR-15)"""
+        """SWE.5-TC06.3: Actuator Polarity NVS Restoration (FR-15.1)"""
         test_id = "SWE.5-TC06.3"
         name = "Actuator Polarity NVS Restoration"
-        req = "FR-15"
+        req = "FR-15.1"
         start = time.time()
         try:
             # Restore to standard NC polarity
@@ -71,10 +71,10 @@ class HydraulicsTests:
     # ---------------------------------------------------------
 
     def test_tc07_1_gpa_pump_controller(self):
-        """SWE.5-TC07.1: Hydraulic GPA Pump Configuration (Relay 4) (FR-14)"""
+        """SWE.5-TC07.1: Hydraulic GPA Pump Configuration (Relay 4) (FR-14.1)"""
         test_id = "SWE.5-TC07.1"
         name = "Hydraulic GPA Pump Configuration"
-        req = "FR-14"
+        req = "FR-14.1"
         start = time.time()
         try:
             r = requests.get(f"{self.base_url}/api/zones", timeout=self.timeout)
@@ -108,10 +108,10 @@ class HydraulicsTests:
             return TestResult(test_id, name, req, "FAIL", (time.time() - start)*1000, str(e))
 
     def test_tc07_3_pump_overrun_dissipation_contract(self):
-        """SWE.5-TC07.3: Pump Overrun Residual Heat Dissipation (180s) (FR-3, FR-14)"""
+        """SWE.5-TC07.3: Pump Overrun Residual Heat Dissipation (180s) (FR-3.1, FR-14.3)"""
         test_id = "SWE.5-TC07.3"
         name = "Pump Overrun Heat Dissipation (180s)"
-        req = "FR-3, FR-14"
+        req = "FR-3.1, FR-14.3"
         start = time.time()
         try:
             r = requests.get(f"{self.base_url}/api/zones", timeout=self.timeout)
@@ -127,10 +127,10 @@ class HydraulicsTests:
             return TestResult(test_id, name, req, "FAIL", (time.time() - start)*1000, str(e))
 
     def test_tc07_4_frost_guard_standby(self):
-        """SWE.5-TC07.4: Emergency Frost Guard Standby (<12°C) (FR-16)"""
+        """SWE.5-TC07.4: Emergency Frost Guard Standby (<12°C) (FR-16.1)"""
         test_id = "SWE.5-TC07.4"
         name = "Emergency Frost Guard Standby (<12°C)"
-        req = "FR-16"
+        req = "FR-16.1"
         start = time.time()
         try:
             r = requests.get(f"{self.base_url}/api/zones", timeout=self.timeout)
@@ -146,10 +146,10 @@ class HydraulicsTests:
             return TestResult(test_id, name, req, "FAIL", (time.time() - start)*1000, str(e))
 
     def test_tc07_5_anti_seize_epoch_contract(self):
-        """SWE.5-TC07.5: Hydronic Calendar Anti-Seize UNIX Epoch Contract (FR-14, FR-19)"""
+        """SWE.5-TC07.5: Hydronic Calendar Anti-Seize UNIX Epoch Contract (FR-14.1, FR-19)"""
         test_id = "SWE.5-TC07.5"
         name = "Hydronic Anti-Seize UNIX Epoch Contract"
-        req = "FR-14, FR-19"
+        req = "FR-14.1, FR-19"
         start = time.time()
         try:
             r = requests.get(f"{self.base_url}/api/boiler/status", timeout=self.timeout)
@@ -185,10 +185,10 @@ class HydraulicsTests:
             return TestResult(test_id, name, req, "FAIL", (time.time() - start)*1000, str(e))
 
     def test_tc08_2_boiler_idempotency_noop(self):
-        """SWE.5-TC08.2: Boiler Anti-Spam Idempotency No-Op Filter (FR-17, FR-32)"""
+        """SWE.5-TC08.2: Boiler Anti-Spam Idempotency No-Op Filter (FR-17.6, FR-32)"""
         test_id = "SWE.5-TC08.2"
         name = "Anti-Spam Idempotency No-Op Filter"
-        req = "FR-17, FR-32"
+        req = "FR-17.6, FR-32"
         start = time.time()
         try:
             # Resend OFF while already in OFF state
@@ -206,10 +206,10 @@ class HydraulicsTests:
             return TestResult(test_id, name, req, "FAIL", (time.time() - start)*1000, str(e))
 
     def test_tc08_3_boiler_zero_burst_skip(self):
-        """SWE.5-TC08.3: Zero RF Burst Emission on Duplicate Command (FR-17)"""
+        """SWE.5-TC08.3: Zero RF Burst Emission on Duplicate Command (FR-17.6)"""
         test_id = "SWE.5-TC08.3"
         name = "Zero RF Burst Emission Verification"
-        req = "FR-17"
+        req = "FR-17.6"
         start = time.time()
         try:
             r = requests.post(f"{self.base_url}/api/boiler/off", timeout=self.timeout)
@@ -226,10 +226,10 @@ class HydraulicsTests:
     # ---------------------------------------------------------
 
     def test_tc09_1_anti_short_cycling_reversal(self):
-        """SWE.5-TC09.1: Boiler 60s Reversal Anti-Short-Cycling Guard (FR-4, FR-17)"""
+        """SWE.5-TC09.1: Boiler 60s Reversal Anti-Short-Cycling Guard (FR-4, FR-17.4)"""
         test_id = "SWE.5-TC09.1"
         name = "Boiler 60s Reversal Interlock Guard"
-        req = "FR-4, FR-17"
+        req = "FR-4, FR-17.4"
         start = time.time()
         try:
             r_stat = requests.get(f"{self.base_url}/api/boiler/status", timeout=self.timeout)
@@ -266,10 +266,10 @@ class HydraulicsTests:
             return TestResult(test_id, name, req, "FAIL", (time.time() - start)*1000, str(e))
 
     def test_tc09_2_http_429_telemetry(self):
-        """SWE.5-TC09.2: Deterministic HTTP 429 & waitSec Telemetry (FR-17)"""
+        """SWE.5-TC09.2: Deterministic HTTP 429 & waitSec Telemetry (FR-17.4)"""
         test_id = "SWE.5-TC09.2"
         name = "Deterministic HTTP 429 & waitSec"
-        req = "FR-17"
+        req = "FR-17.4"
         start = time.time()
         try:
             r = requests.post(f"{self.base_url}/api/boiler/on", timeout=self.timeout)
@@ -296,10 +296,10 @@ class HydraulicsTests:
     # ---------------------------------------------------------
 
     def test_tc10_1_rapid_spam_injection(self):
-        """SWE.5-TC10.1: Rapid Boiler Spam Injection Loop (FR-17)"""
+        """SWE.5-TC10.1: Rapid Boiler Spam Injection Loop (FR-17.5)"""
         test_id = "SWE.5-TC10.1"
         name = "Rapid Boiler Spam Injection Loop"
-        req = "FR-17"
+        req = "FR-17.5"
         start = time.time()
         try:
             requests.post(f"{self.base_url}/api/diag/clear", timeout=self.timeout)
@@ -321,10 +321,10 @@ class HydraulicsTests:
             return TestResult(test_id, name, req, "FAIL", (time.time() - start)*1000, str(e))
 
     def test_tc10_2_dtc201_fault_logging(self):
-        """SWE.5-TC10.2: DTC-201 Fault Logging (FR-10, FR-17)"""
+        """SWE.5-TC10.2: DTC-201 Fault Logging (FR-10.2, FR-17.5)"""
         test_id = "SWE.5-TC10.2"
         name = "DTC-201 Logging"
-        req = "FR-10, FR-17"
+        req = "FR-10.2, FR-17.5"
         start = time.time()
         try:
             r = requests.get(f"{self.base_url}/api/diag/status", timeout=self.timeout)
@@ -340,10 +340,10 @@ class HydraulicsTests:
             return TestResult(test_id, name, req, "FAIL", (time.time() - start)*1000, str(e))
 
     def test_tc10_3_dtc_clear_and_recovery(self):
-        """SWE.5-TC10.3: Diagnostic DTC Clear (FR-10, FR-17)"""
+        """SWE.5-TC10.3: Diagnostic DTC Clear (FR-10.2, FR-17.5)"""
         test_id = "SWE.5-TC10.3"
         name = "DTC Clear"
-        req = "FR-10, FR-17"
+        req = "FR-10.2, FR-17.5"
         start = time.time()
         try:
             # Defuse any pending startup scheduled by the spam test

@@ -134,10 +134,10 @@ class SafetyFeatureTests:
     # ---------------------------------------------------------
 
     def test_tc26_1_open_window_telemetry_schema(self):
-        """SWE.5-TC26.1: Open Window Telemetry Schema Integration (FR-40)"""
+        """SWE.5-TC26.1: Open Window Telemetry Schema Integration (FR-40.1)"""
         test_id = "SWE.5-TC26.1"
         name = "Open Window Telemetry Schema"
-        req = "FR-40"
+        req = "FR-40.1"
         start = time.time()
         try:
             r = requests.get(f"{self.base_url}/api/zones", timeout=self.timeout)
@@ -155,10 +155,10 @@ class SafetyFeatureTests:
             return TestResult(test_id, name, req, "FAIL", (time.time() - start)*1000, str(e))
 
     def test_tc26_2_open_window_threshold_mutation_persistence(self):
-        """SWE.5-TC26.2: One Window Threshold for All Zones (FR-40)"""
+        """SWE.5-TC26.2: One Window Threshold for All Zones (FR-40.1)"""
         test_id = "SWE.5-TC26.2"
         name = "Global Window Threshold"
-        req = "FR-40"
+        req = "FR-40.1"
         start = time.time()
         orig = None
         try:
@@ -183,10 +183,10 @@ class SafetyFeatureTests:
                     print(f"  [!] TC26.2 could not restore windowThreshold {orig}: HTTP {r.status_code}")
 
     def test_tc26_3_open_window_clear_api(self):
-        """SWE.5-TC26.3: Open Window Manual Clear API (/api/zones/window/clear) (FR-40)"""
+        """SWE.5-TC26.3: Open Window Manual Clear API (/api/zones/window/clear) (FR-40.1)"""
         test_id = "SWE.5-TC26.3"
         name = "Open Window Manual Clear API"
-        req = "FR-40"
+        req = "FR-40.1"
         start = time.time()
         try:
             r0 = requests.post(f"{self.base_url}/api/zones/window/clear?id=0", timeout=self.timeout)
@@ -202,10 +202,10 @@ class SafetyFeatureTests:
             return TestResult(test_id, name, req, "FAIL", (time.time() - start)*1000, str(e))
 
     def test_tc26_4_open_window_safety_cutoff_contract(self):
-        """SWE.5-TC26.4: Open Window Thermodynamic Safety Cutoff Contract (FR-40)"""
+        """SWE.5-TC26.4: Open Window Thermodynamic Safety Cutoff Contract (FR-40.1)"""
         test_id = "SWE.5-TC26.4"
         name = "Open Window Safety Cutoff Contract"
-        req = "FR-40"
+        req = "FR-40.1"
         start = time.time()
         try:
             # 1. Verify live zones adhere strictly to [0.8, 2.0]°C limits
@@ -432,10 +432,10 @@ class SafetyFeatureTests:
             return TestResult(test_id, name, req, "FAIL", (time.time() - start) * 1000, str(e))
 
     def test_tc26_6_heating_type_and_window_action(self):
-        """SWE.5-TC26.6: Heating type configuration and window action contract (FR-40)"""
+        """SWE.5-TC26.6: Heating type configuration and window action contract (FR-40.1)"""
         test_id = "SWE.5-TC26.6"
         name = "Heating Type and Window Action Contract"
-        req = "FR-40"
+        req = "FR-40.1"
         start = time.time()
         try:
             r = requests.get(f"{self.base_url}/api/config/system", timeout=self.timeout)
@@ -471,10 +471,10 @@ class SafetyFeatureTests:
             return TestResult(test_id, name, req, "FAIL", (time.time() - start) * 1000, str(e))
 
     def test_tc26_7_adaptive_window_detection(self):
-        """SWE.5-TC26.7: Adaptive window detection contract for underfloor heating (FR-40)"""
+        """SWE.5-TC26.7: Adaptive window detection contract for underfloor heating (FR-40.1)"""
         test_id = "SWE.5-TC26.7"
         name = "Adaptive Window Detection Contract"
-        req = "FR-40"
+        req = "FR-40.1"
         start = time.time()
         try:
             r = requests.get(f"{self.base_url}/api/zones", timeout=self.timeout)

@@ -8,10 +8,10 @@ class HealthTests:
     # ---------------------------------------------------------
 
     def test_tc01_1_status_schema(self):
-        """SWE.5-TC01.1: System Status & Boiler Payload Schema (FR-1, FR-8, NFR-1.1)"""
+        """SWE.5-TC01.1: System Status & Boiler Payload Schema (FR-1.3, FR-8.1, NFR-1.1)"""
         test_id = "SWE.5-TC01.1"
         name = "System Status Payload Schema"
-        req = "FR-1, FR-8, NFR-1.1"
+        req = "FR-1.3, FR-8.1, NFR-1.1"
         start = time.time()
         try:
             r = requests.get(f"{self.base_url}/api/boiler/status", timeout=self.timeout)
@@ -138,10 +138,10 @@ class HealthTests:
             return TestResult(test_id, name, req, "FAIL", (time.time() - start)*1000, str(e))
 
     def test_tc03_1_ble_scanner_running(self):
-        """SWE.5-TC03.1: NimBLE Passive Scanner Running Status (FR-6, FR-28)"""
+        """SWE.5-TC03.1: NimBLE Passive Scanner Running Status (FR-6.1, FR-28)"""
         test_id = "SWE.5-TC03.1"
         name = "NimBLE Scanner Running Status"
-        req = "FR-6, FR-28"
+        req = "FR-6.1, FR-28"
         start = time.time()
         try:
             r = requests.get(f"{self.base_url}/api/ble/sensors", timeout=self.timeout)
@@ -154,10 +154,10 @@ class HealthTests:
             return TestResult(test_id, name, req, "FAIL", (time.time() - start)*1000, str(e))
 
     def test_tc03_2_xiaomi_bthome_direct(self):
-        """SWE.5-TC03.2: Xiaomi BTHome v2 Direct Ingestion Contract (FR-6, FR-11)"""
+        """SWE.5-TC03.2: Xiaomi BTHome v2 Direct Ingestion Contract (FR-6.2, FR-11.4)"""
         test_id = "SWE.5-TC03.2"
         name = "Xiaomi BTHome v2 Direct Ingestion"
-        req = "FR-6, FR-11"
+        req = "FR-6.2, FR-11.4"
         start = time.time()
         try:
             r = requests.get(f"{self.base_url}/api/ble/sensors", timeout=self.timeout)
@@ -322,10 +322,10 @@ class HealthTests:
         return r.json()
 
     def test_tc32_1_event_history_format(self):
-        """SWE.5-TC32.1: Event History Record Fields, Newest First, At Most 50 (FR-62)"""
+        """SWE.5-TC32.1: Event History Record Fields, Newest First, At Most 50 (FR-62.2)"""
         test_id = "SWE.5-TC32.1"
         name = "Event History Format"
-        req = "FR-62"
+        req = "FR-62.2"
         start = time.time()
         try:
             data = self._t32_events()
@@ -349,10 +349,10 @@ class HealthTests:
             return TestResult(test_id, name, req, "FAIL", (time.time() - start)*1000, str(e))
 
     def test_tc32_2_dtc_raise_and_clear_recorded(self):
-        """SWE.5-TC32.2: Every DTC Raise and Clear Is Recorded in the Event History (FR-62, FR-17.5)"""
+        """SWE.5-TC32.2: Every DTC Raise and Clear Is Recorded in the Event History (FR-62.2, FR-17.5)"""
         test_id = "SWE.5-TC32.2"
         name = "DTC Raise and Clear Recorded"
-        req = "FR-62, FR-17.5"
+        req = "FR-62.2, FR-17.5"
         start = time.time()
         try:
             requests.post(f"{self.base_url}/api/diag/clear", timeout=self.timeout)
