@@ -315,6 +315,15 @@ void DiagnosticEngine::evaluateSensors() {
       snprintf(buf, sizeof(buf), "%s battery low (%u%%)", s->name, s->battery);
       raiseDtc(Dtc::WARN_BATTERY_LOW, buf, SEV_WARNING);
     }
+
+    // Weak sensor signal (FR-72, DTC-105: RSSI < -90 dBm)
+    if (s->rssi < -90) {
+      char buf[48];
+      snprintf(buf, sizeof(buf), "%s RSSI degraded (%d dBm)", s->name, s->rssi);
+      raiseDtc(Dtc::WARN_SENSOR_WEAK_SIGNAL, buf, SEV_WARNING);
+    } else if (s->rssi >= -88) {
+      clearDtc(Dtc::WARN_SENSOR_WEAK_SIGNAL);
+    }
   }
 }
 
@@ -378,6 +387,29 @@ void DiagnosticEngine::evaluateSystem() {
     raiseDtc(Dtc::WARN_BOILER_LINK_NOT_FAILSAFE, "Boiler link heartbeat disabled or not fail-safe", SEV_WARNING);
   } else {
     clearDtc(Dtc::WARN_BOILER_LINK_NOT_FAILSAFE);
+  }
+
+  // FR-54: Flow temperature limit (DTC-205, DTC-206)
+  float flowObs = paramStore.getf(Param::BoilerFlowObserved);
+  float flowSet = paramStore.getf(Param::BoilerSetTemp);
+  if (flowObs > 0.0f && flowSet > 0.0f) {
+    if (flowObs > flowSet + 15.0f && flowObs > 65.0f) {
+      raiseDtc(Dtc::ERR_FLOW_OVER_LIMIT, "Flow temperature exceeds safe limit", SEV_ERROR);
+    } else if (flowObs <= flowSet + 10.0f) {
+      clearDtc(Dtc::ERR_FLOW_OVER_LIMIT);
+    }
+    if (flowObs < 5.0f || flowObs > 95.0f) {
+      raiseDtc(Dtc::WARN_FLOW_SENSOR_FAULT, "Flow sensor reading implausible", SEV_WARNING);
+    } else {
+      clearDtc(Dtc::WARN_FLOW_SENSOR_FAULT);
+    }
+  }
+
+  // FR-69: Output expansion monitoring (DTC-208)
+  if (thermalZones.getZoneCount() > 4) {
+    raiseDtc(Dtc::ERR_OUTPUT_EXPANSION_FAULT, "Output expansion not responding", SEV_ERROR);
+  } else {
+    clearDtc(Dtc::ERR_OUTPUT_EXPANSION_FAULT);
   }
 }
 
