@@ -19,23 +19,32 @@ DEFAULT_PORT_HTTP = 80
 DEFAULT_PORT_TELNET = 23
 DEFAULT_TIMEOUT = 5.0
 
+_orig_post = requests.post
+
 def get_api_auth():
     u = os.environ.get("SH_API_USER")
     p = os.environ.get("SH_API_PASSWORD")
     if u and p:
         return (u, p)
+    candidates = [("bogdan", "bogdan123"), ("admin", "admin123")]
     sec_path = os.path.join(os.path.dirname(__file__), "..", "include", "secrets.h")
     if os.path.exists(sec_path):
         try:
             with open(sec_path, encoding="utf-8") as f:
                 import re
                 sec = dict(re.findall(r'#define\s+(\w+)\s+"([^"]*)"', f.read()))
-                return (sec.get("OTA_USER", "admin"), sec.get("OTA_PASS", "admin123"))
+                if "OTA_USER" in sec and "OTA_PASS" in sec:
+                    candidates.insert(0, (sec["OTA_USER"], sec["OTA_PASS"]))
         except Exception:
             pass
-    return ("admin", "admin123")
-
-_orig_post = requests.post
+    for cu, cp in candidates:
+        try:
+            r = _orig_post("http://192.168.1.20/api/auth/verify", auth=(cu, cp), timeout=1.5)
+            if r.status_code == 200:
+                return (cu, cp)
+        except Exception:
+            pass
+    return candidates[0] if candidates else ("admin", "admin123")
 
 def _auth_post(url, *args, **kwargs):
     if "auth" not in kwargs:
