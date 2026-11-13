@@ -181,6 +181,7 @@ void DiagnosticEngine::clearEvents() {
   if (_fsMounted && LittleFS.exists(EVENT_FILE)) {
     LittleFS.remove(EVENT_FILE);
   }
+  recordRestart((uint32_t)esp_reset_reason());
   netConsole.println(F("[DIAG] Event history cleared."));
 }
 
