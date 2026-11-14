@@ -1,0 +1,598 @@
+<!doctype html>
+<html lang="ro">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Smart Home Heating — machetă panou</title>
+<!-- Machetă: fonturile vin de la Google doar aici. Pe placă se includ local. -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root{
+  --ui:'Plus Jakarta Sans',system-ui,-apple-system,'Segoe UI',sans-serif;
+  --mono:'JetBrains Mono',ui-monospace,Consolas,monospace;
+  --bg:#16171b;--surface:#1f2025;--elev:#2a2b32;--border:#2f3038;--fg:#ececf1;--muted:#9a9ba6;
+  --heat:#ffa63d;--glow:rgba(255,179,92,.35);--idle:#6b8cae;--ok:#3ec27a;--warn:#f2c230;
+  --danger:#ef5350;--frost:#5fd0e8;--radius:16px;--blur:0px;
+}
+*{box-sizing:border-box}
+html{min-height:100%}
+body{margin:0;min-height:100vh;font-family:var(--ui);color:var(--fg);background:var(--bg) fixed;
+  -webkit-font-smoothing:antialiased;font-size:14px;line-height:1.45}
+button,select{font:inherit;color:inherit}
+button{cursor:pointer;background:none;border:0;padding:0}
+h1,h2,h3,p,ul{margin:0;padding:0}
+ul{list-style:none}
+.mono{font-family:var(--mono);font-variant-numeric:tabular-nums}
+.muted{color:var(--muted)}
+.ic{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex:none}
+.s12{width:12px;height:12px}.s14{width:14px;height:14px}.s20{width:20px;height:20px}
+.s24{width:24px;height:24px}.s40{width:40px;height:40px}
+:focus-visible{outline:2px solid var(--heat);outline-offset:2px}
+
+/* ---------- header ---------- */
+header{position:relative;z-index:10;background:var(--surface);border-bottom:1px solid var(--border);
+  backdrop-filter:blur(var(--blur));-webkit-backdrop-filter:blur(var(--blur));padding:10px 20px}
+.hbar{max-width:1440px;margin:0 auto;display:flex;align-items:center;justify-content:space-between;gap:12px}
+.brand{display:flex;align-items:center;gap:8px;flex:none}
+.brand .logo{width:32px;height:32px;border-radius:12px;border:1px solid var(--border);background:var(--elev);
+  color:var(--heat);display:flex;align-items:center;justify-content:center}
+.brand h1{font-size:16px;font-weight:800;letter-spacing:-.025em;white-space:nowrap}
+.strip{display:none;align-items:center;gap:20px;font-size:12px;flex:none;white-space:nowrap}
+.strip>div{display:flex;align-items:center;gap:8px}
+.strip .sep{width:1px;height:16px;background:var(--border)}
+.strip b{font-weight:600}
+.ctrls{display:flex;align-items:center;gap:8px;flex:none}
+.seg{display:flex;align-items:center;gap:2px;padding:2px;border-radius:12px;border:1px solid var(--border);background:var(--elev)}
+.seg button{border-radius:8px;padding:6px 10px;font-size:12px;font-weight:600;white-space:nowrap;color:var(--muted);
+  display:inline-flex;align-items:center;gap:6px;transition:background .15s,color .15s}
+.seg button[aria-pressed=true]{background:var(--surface);color:var(--fg)}
+.seg.themes button[aria-pressed=true]{background:var(--heat);color:#16171b}
+.seg button:disabled{opacity:.45;cursor:not-allowed}
+#themeSel{display:none;min-height:36px;border-radius:12px;border:1px solid var(--border);background:var(--elev);
+  padding:0 10px;font-size:12px;font-weight:600}
+#themeSel option{background:#1f2025;color:#ececf1}
+
+/* ---------- layout ---------- */
+main{position:relative;z-index:10;max-width:1440px;margin:0 auto;padding:20px}
+.grid{display:grid;grid-template-columns:1fr;gap:16px}
+.col{display:flex;flex-direction:column;gap:14px;min-width:0}
+.col.zones{gap:12px}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);
+  backdrop-filter:blur(var(--blur));-webkit-backdrop-filter:blur(var(--blur));padding:16px}
+[data-theme=smartiva-glass] .card{box-shadow:inset 0 1px 0 rgba(255,255,255,.18),0 18px 40px -22px rgba(0,0,0,.6)}
+.row{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.lbl{font-size:12px;font-weight:500;color:var(--muted);display:flex;align-items:center;gap:8px}
+.tiny{font-size:11px;color:var(--muted)}
+.ttl{font-size:14px;font-weight:700;display:flex;align-items:center;gap:8px}
+.ttl .ic{color:var(--heat)}
+.split{border-top:1px solid var(--border);margin-top:16px;padding-top:12px}
+.g3{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+.g4{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+.kv .k{font-size:11px;font-weight:500;color:var(--muted);display:flex;align-items:center;gap:4px}
+.kv .v{margin-top:2px;font-weight:700;font-size:12px}
+.kv .v.big{font-size:16px}
+
+/* clock */
+.clock{margin-top:8px;display:flex;align-items:baseline;gap:6px}
+.clock .hm{font-size:30px;font-weight:700;letter-spacing:-.025em;line-height:1.2}
+.clock .ss{font-size:16px;font-weight:500;color:var(--muted)}
+
+/* weather */
+.wx-now{margin-top:12px;display:flex;align-items:center;justify-content:space-between;gap:16px}
+.wx-now .l{display:flex;align-items:center;gap:12px}
+.wx-now .t{font-size:30px;font-weight:700;line-height:1}
+.wx-now .r{font-size:12px;color:var(--muted);display:flex;flex-direction:column;gap:4px;align-items:flex-end}
+.wx-now .r div{display:flex;align-items:center;gap:6px;font-variant-numeric:tabular-nums}
+.city{font-size:14px;font-weight:700;display:flex;align-items:center;gap:8px}
+.city .ic{color:var(--heat)}
+.ibtn{width:32px;height:32px;border-radius:8px;border:1px solid var(--border);background:var(--elev);
+  display:flex;align-items:center;justify-content:center}
+.fc{display:flex;flex-direction:column;align-items:center;text-align:center}
+.fc .d{font-size:11px;font-weight:600;color:var(--muted)}
+.fc .ic{margin:6px 0}
+.fc .t{font-size:12px;font-weight:600}
+.fc .t span{margin-left:4px;font-weight:400;color:var(--muted)}
+
+/* boiler */
+.boiler .top{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
+.boiler .who{display:flex;align-items:center;gap:12px;min-width:0}
+.flamebox{width:48px;height:48px;border-radius:16px;border:1px solid var(--border);background:var(--elev);
+  display:flex;align-items:center;justify-content:center;flex:none;color:var(--idle)}
+.boiler.on .flamebox{border-color:var(--heat);color:var(--heat);box-shadow:0 0 24px -4px var(--glow)}
+.boiler .state{font-size:16px;font-weight:700}
+.boiler.on .state{color:var(--heat)}
+.boiler .anti{text-align:right;flex:none}
+.boiler .anti .v{font-size:14px;font-weight:700;color:var(--ok)}
+.boiler .anti .v.wait{color:var(--warn)}
+
+/* gas */
+.gasrate{margin-top:12px;padding-bottom:12px;border-bottom:1px solid var(--border)}
+.gasrate .v{font-size:14px;font-weight:700;color:var(--heat)}
+.gasrate .lbl .ic{color:var(--heat)}
+
+/* ---------- zone card ---------- */
+.zone{padding:0;position:relative;overflow:hidden;--acc:var(--idle)}
+.zone.heating{box-shadow:0 8px 32px -12px var(--glow)}
+[data-theme=smartiva-glass] .zone.heating{box-shadow:inset 0 1px 0 rgba(255,255,255,.18),0 8px 32px -12px var(--glow)}
+.wave{display:none;pointer-events:none;position:absolute;left:0;right:0;bottom:0;height:56px;overflow:hidden;opacity:.45}
+.zone.heating .wave{display:block}
+.wave svg{height:100%;width:200%;display:block;animation:wave 9s linear infinite}
+.zhead{position:relative;z-index:1;display:flex;width:100%;min-height:96px;align-items:center;justify-content:space-between;
+  gap:12px;padding:12px 16px;text-align:left}
+.zhead .l{display:flex;align-items:center;gap:14px;min-width:0}
+.ring{transform:rotate(-90deg);flex:none}
+.ring circle{fill:none;stroke-width:4.5}
+.ring .bg{stroke:var(--border)}
+.ring .fg{stroke:var(--acc);stroke-linecap:round;transition:stroke-dashoffset .22s cubic-bezier(.16,1,.3,1)}
+.zname{font-size:18px;font-weight:700;letter-spacing:-.025em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.zmeta{margin-top:2px;font-size:12px;color:var(--muted);display:flex;flex-wrap:wrap;gap:2px 8px;font-variant-numeric:tabular-nums}
+.zstat{margin-top:6px;font-size:12px;font-weight:600;color:var(--acc);display:inline-flex;align-items:center;gap:6px;white-space:nowrap}
+.zhead .r{display:flex;align-items:center;gap:12px;flex:none}
+.ztemp{font-size:40px;font-weight:700;line-height:1;letter-spacing:-.025em}
+.deg{font-size:18px;vertical-align:top;margin-left:2px;color:var(--muted)}
+.chev{width:36px;height:36px;display:flex;align-items:center;justify-content:center;color:var(--muted)}
+.zbody{position:relative;z-index:1;border-top:1px solid var(--border);padding:16px 16px 20px;display:flex;flex-direction:column;gap:16px}
+
+.winbar{display:flex;align-items:center;justify-content:space-between;gap:12px;border-radius:12px;background:var(--elev);padding:10px 14px}
+.winbar[hidden]{display:none}
+.winbar .l{display:flex;align-items:center;gap:12px;min-width:0}
+.radar{position:relative;width:40px;height:40px;display:flex;align-items:center;justify-content:center;flex:none;color:var(--warn)}
+.radar i{position:absolute;inset:0;border-radius:50%;border:2px solid var(--warn);animation:radar 2s cubic-bezier(.16,1,.3,1) infinite}
+.radar i+i{border-width:1px;animation-delay:.7s}
+.winbar .t{font-size:14px;font-weight:700;color:var(--warn)}
+.winbar .s{font-size:12px;color:var(--muted)}
+.winbar button{min-height:40px;border-radius:12px;padding:8px 14px;font-size:12px;font-weight:700;white-space:nowrap;
+  background:var(--warn);color:#16171b;flex:none}
+
+.dialwrap{display:flex;flex-direction:column;align-items:center;user-select:none;-webkit-user-select:none}
+.dial{position:relative;width:268px;height:268px}
+.dial svg{width:100%;height:100%;overflow:visible;touch-action:none;cursor:pointer;display:block}
+.dial .track{fill:none;stroke:var(--border);stroke-width:11;stroke-linecap:round}
+.dial .arc{fill:none;stroke-width:11;stroke-linecap:round}
+.dial .tick{stroke:var(--border);stroke-width:1.2;stroke-linecap:round;opacity:.7}
+.dial .tick.on{stroke:var(--acc);stroke-width:1.6;opacity:.9}
+.dial text{font-family:var(--mono);font-size:11px;fill:var(--muted)}
+.dial .cur{fill:var(--fg);opacity:.85}
+.dial .thumb{fill:var(--surface);stroke:var(--acc);stroke-width:4}
+.readout{pointer-events:none;position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:0 32px}
+.readout .a{font-size:11px;font-weight:500;letter-spacing:.025em;color:var(--muted)}
+.readout .big{font-size:56px;font-weight:700;line-height:1;letter-spacing:-.025em}
+.readout .big .deg{font-size:20px}
+.readout .tg{margin-top:6px;font-size:14px;font-weight:600;display:flex;gap:6px;align-items:center}
+.readout .tg b{color:var(--acc);font-weight:600}
+.readout .eta{margin-top:2px;font-size:12px;font-weight:500;color:var(--acc)}
+.stepper{margin-top:4px;display:flex;align-items:center;gap:16px}
+.stepper button{width:48px;height:48px;border-radius:12px;border:1px solid var(--border);background:var(--elev);
+  display:flex;align-items:center;justify-content:center}
+.stepper .mid{min-width:88px;text-align:center}
+.stepper .mid b{display:block;font-size:16px;font-weight:700}
+.presets{display:flex;flex-wrap:wrap;align-items:center;justify-content:center;gap:8px}
+.presets button{min-height:40px;border-radius:12px;border:1px solid var(--border);background:var(--elev);
+  padding:6px 12px;font-size:12px;font-weight:600;white-space:nowrap;transition:background .15s}
+.presets button.on{background:var(--heat);border-color:transparent;color:#16171b}
+.presets button.on.frost{background:var(--frost)}
+
+/* ---------- charts ---------- */
+.chartbox{border-top:1px solid var(--border);padding-top:12px}
+.chead{margin-bottom:8px;font-size:12px}
+.legend{display:flex;flex-wrap:wrap;align-items:center;gap:4px 12px;font-size:11px;color:var(--muted)}
+.legend span{display:flex;align-items:center;gap:4px}
+.legend i{display:inline-block}
+.chart{width:100%}
+.chart svg{display:block}
+.chart .ax{font-size:10px;fill:var(--muted);font-family:var(--ui)}
+.chart .gl{stroke:var(--border);stroke-dasharray:3 3}
+
+/* ---------- system state ---------- */
+.dtc li{padding:10px 0}
+.dtc li+li{border-top:1px solid var(--border)}
+.dtc li:first-child{padding-top:0}.dtc li:last-child{padding-bottom:0}
+.dtc .code{font-size:12px;font-weight:700}
+.dtc .name{font-size:12px;font-weight:600}
+.dtc p{margin-top:4px;font-size:12px;color:var(--muted)}
+
+@keyframes wave{to{transform:translateX(-50%)}}
+@keyframes radar{0%{transform:scale(.85);opacity:.75}100%{transform:scale(1.9);opacity:0}}
+@keyframes flick{0%,100%{transform:scale(1) translateY(0);opacity:.95}50%{transform:scale(1.06) translateY(-1px);opacity:1}}
+.flick{animation:flick 1.8s ease-in-out infinite}
+@media (prefers-reduced-motion:reduce){.wave svg,.radar i,.flick{animation:none!important}}
+
+@media (min-width:1024px){.grid{grid-template-columns:1fr 1.6fr 1fr;align-items:start}}
+@media (min-width:1280px){.readout .big{font-size:62px}}
+@media (min-width:1536px){.strip{display:flex}}
+@media (max-width:1279px){.seg.themes button{padding:6px 8px;font-size:11px}}
+@media (max-width:1023px){.seg.themes{display:none}#themeSel{display:block}}
+@media (max-width:767px){
+  header{padding:10px 12px}main{padding:12px}.hbar{flex-wrap:wrap}
+  .brand h1{font-size:14px}.dial{width:244px;height:244px}.readout .big{font-size:48px}
+  .zname{font-size:16px}.stepper button{width:44px;height:44px}
+}
+</style>
+</head>
+<body>
+<header>
+  <div class="hbar">
+    <div class="brand"><div class="logo" id="logo"></div><h1>Smart Home Heating</h1></div>
+    <div class="strip" id="strip"></div>
+    <div class="ctrls">
+      <div class="seg themes" id="themeBtns" role="group" aria-label="Selector temă"></div>
+      <select id="themeSel" aria-label="Temă vizuală"></select>
+      <div class="seg" role="group" aria-label="Sursă date">
+        <button type="button" aria-pressed="true">Mock</button>
+        <button type="button" aria-pressed="false" disabled title="Se leagă la placă în pasul următor">Date Live</button>
+      </div>
+      <div class="seg" id="viewBtns"></div>
+    </div>
+  </div>
+</header>
+
+<main>
+  <div class="grid">
+    <div class="col" id="left"></div>
+    <div class="col zones" id="zones"></div>
+    <div class="col" id="right"></div>
+  </div>
+</main>
+
+<script>
+'use strict';
+/* ================= icons (Lucide, inline) ================= */
+const I={
+thermo:'<path d="M14 4v10.54a4 4 0 1 1-4 0V4a2 2 0 0 1 4 0Z"/>',
+flame:'<path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z"/>',
+pause:'<circle cx="12" cy="12" r="10"/><line x1="10" x2="10" y1="15" y2="9"/><line x1="14" x2="14" y1="15" y2="9"/>',
+clock:'<circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>',
+pin:'<path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/>',
+down:'<path d="m6 9 6 6 6-6"/>',up:'<path d="m18 15-6-6-6 6"/>',
+refresh:'<path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/>',
+drops:'<path d="M7 16.3c2.2 0 4-1.83 4-4.05 0-1.16-.57-2.26-1.71-3.19S7.29 6.75 7 5.3c-.29 1.45-1.14 2.84-2.29 3.76S3 11.1 3 12.25c0 2.22 1.8 4.05 4 4.05z"/><path d="M12.56 6.6A10.97 10.97 0 0 0 14 3.02c.5 2.5 2 4.9 4 6.5s3 3.5 3 5.5a6.98 6.98 0 0 1-11.91 4.97"/>',
+wind:'<path d="M17.7 7.7a2.5 2.5 0 1 1 1.8 4.3H2"/><path d="M9.6 4.6A2 2 0 1 1 11 8H2"/><path d="M12.6 19.4A2 2 0 1 0 14 16H2"/>',
+fuel:'<line x1="3" x2="15" y1="22" y2="22"/><line x1="4" x2="14" y1="9" y2="9"/><path d="M14 22V4a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v18"/><path d="M14 13h2a2 2 0 0 1 2 2v2a2 2 0 0 0 2 2a2 2 0 0 0 2-2V9.83a2 2 0 0 0-.59-1.42L18 5"/>',
+activity:'<path d="M22 12h-4l-3 9L9 3l-3 9H2"/>',
+check:'<circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/>',
+alert:'<path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><path d="M12 9v4"/><path d="M12 17h.01"/>',
+snow:'<line x1="2" x2="22" y1="12" y2="12"/><line x1="12" x2="12" y1="2" y2="22"/><path d="m20 16-4-4 4-4"/><path d="m4 8 4 4-4 4"/><path d="m16 4-4 4-4-4"/><path d="m8 20 4-4 4 4"/>',
+minus:'<path d="M5 12h14"/>',plus:'<path d="M5 12h14"/><path d="M12 5v14"/>',
+home:'<path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/>',
+gear:'<path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/>',
+timer:'<line x1="10" x2="14" y1="2" y2="2"/><line x1="12" x2="15" y1="14" y2="11"/><circle cx="12" cy="14" r="8"/>',
+cloud:'<path d="M17.5 19H9a7 7 0 1 1 6.71-9h1.79a4.5 4.5 0 1 1 0 9Z"/>',
+rain:'<path d="M4 14.899A7 7 0 1 1 15.71 8h1.79a4.5 4.5 0 0 1 2.5 8.242"/><path d="M16 14v6"/><path d="M8 14v6"/><path d="M12 16v6"/>',
+csnow:'<path d="M4 14.899A7 7 0 1 1 15.71 8h1.79a4.5 4.5 0 0 1 2.5 8.242"/><path d="M8 15h.01"/><path d="M8 19h.01"/><path d="M12 17h.01"/><path d="M12 21h.01"/><path d="M16 15h.01"/><path d="M16 19h.01"/>',
+sun:'<circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/>',
+csun:'<path d="M12 2v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="M20 12h2"/><path d="m19.07 4.93-1.41 1.41"/><path d="M15.947 12.65a4 4 0 0 0-5.925-4.128"/><path d="M13 22H7a5 5 0 1 1 4.9-6H13a3 3 0 0 1 0 6Z"/>',
+moon:'<path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/>'
+};
+const ic=(n,c='',st='')=>`<svg class="ic ${c}"${st?` style="${st}"`:''} viewBox="0 0 24 24" aria-hidden="true">${I[n]}</svg>`;
+function wmo(code,day,c){
+  const k=(n,col)=>ic(n,c,`color:var(--${col})`);
+  if(code===0)return day?k('sun','warn'):k('moon','idle');
+  if(code<=2)return day?k('csun','warn'):k('moon','idle');
+  if((code>=51&&code<=67)||(code>=80&&code<=82))return k('rain','idle');
+  if((code>=71&&code<=77)||code===85||code===86)return k('csnow','frost');
+  return k('cloud','muted');
+}
+const WMO_RO={0:'Senin',1:'Mai mult senin',2:'Parțial noros',3:'Noros',61:'Ploaie slabă'};
+
+/* ================= themes ================= */
+const THEMES={
+'ha-charcoal':{label:'HA Charcoal',bg:'#16171b',surface:'#1f2025',elev:'#2a2b32',border:'#2f3038',fg:'#ececf1',muted:'#9a9ba6',heat:'#ffa63d',glow:'rgba(255,179,92,.35)',idle:'#6b8cae',ok:'#3ec27a',warn:'#f2c230',danger:'#ef5350',frost:'#5fd0e8',radius:'16px',blur:'0px'},
+'glass-glow':{label:'Glass Glow',bg:'linear-gradient(135deg,#0f1b2d 0%,#2a1738 100%)',surface:'rgba(255,255,255,.08)',elev:'rgba(255,255,255,.14)',border:'rgba(255,255,255,.22)',fg:'#ffffff',muted:'rgba(255,255,255,.65)',heat:'#ff9a4d',glow:'rgba(255,176,102,.45)',idle:'#7fb2ff',ok:'#5ee0a0',warn:'#ffd75e',danger:'#ff6b6b',frost:'#7de3ff',radius:'28px',blur:'24px'},
+'smartiva-dark':{label:'Smartiva Dark',bg:'#000000',surface:'#0b0b0d',elev:'#15151a',border:'#26262c',fg:'#fafafa',muted:'#8a8a94',heat:'#ff8a1f',glow:'rgba(255,138,31,.5)',idle:'#5d7a99',ok:'#2fd37a',warn:'#ffc61a',danger:'#ff4040',frost:'#4cc9e6',radius:'20px',blur:'0px'},
+'nordic-light':{label:'Nordic Light',bg:'#f6f3ee',surface:'#ffffff',elev:'#efe9e1',border:'#e3dbd0',fg:'#2b2622',muted:'#8b8178',heat:'#f08a3c',glow:'rgba(245,178,122,.35)',idle:'#7e9bb5',ok:'#3f9f6f',warn:'#d9a21b',danger:'#d94a46',frost:'#4fb8d0',radius:'20px',blur:'0px'},
+'smartiva-glass':{label:'Smartiva Glass',bg:'radial-gradient(circle at 78% 36%,rgba(255,145,36,.22) 0%,transparent 44%),radial-gradient(circle at 18% 72%,rgba(62,125,178,.22) 0%,transparent 48%),linear-gradient(135deg,#1a2028 0%,#282e35 50%,#191d24 100%)',surface:'rgba(255,255,255,.085)',elev:'rgba(255,255,255,.14)',border:'rgba(255,255,255,.18)',fg:'#f5f7fa',muted:'rgba(232,238,245,.66)',heat:'#e8f117',glow:'rgba(232,241,23,.35)',idle:'#78a9d6',ok:'#4ade80',warn:'#ffb72b',danger:'#ff5a5f',frost:'#59d2ff',radius:'24px',blur:'28px'}
+};
+let themeId='smartiva-glass';
+try{const t=localStorage.getItem('shh-theme');if(t&&THEMES[t])themeId=t}catch(e){}
+function applyTheme(id){
+  themeId=id;const t=THEMES[id],r=document.documentElement;
+  for(const k in t)if(k!=='label')r.style.setProperty('--'+k,t[k]);
+  r.dataset.theme=id;
+  try{localStorage.setItem('shh-theme',id)}catch(e){}
+  document.querySelectorAll('#themeBtns button[data-t]').forEach(b=>b.setAttribute('aria-pressed',b.dataset.t===id));
+  $('#themeSel').value=id;
+}
+
+/* ================= mock data ================= */
+const $=s=>document.querySelector(s);
+const f1=v=>v.toFixed(1), p2=n=>String(n).padStart(2,'0');
+const mmss=s=>p2(Math.floor(s/60))+':'+p2(s%60);
+function hist(base,target,shift,heating){
+  const a=[];
+  for(let h=0;h<24;h++){
+    const outdoor=+(5.2+3.4*Math.sin(((h-9)/24)*Math.PI*2)).toFixed(1);
+    const tg=+(target+(h<5?-.8:0)).toFixed(1);
+    const wave=Math.sin(((h+shift)/6)*Math.PI)*.35;
+    const last=h===23, temp=last?base:+(tg-.15+wave).toFixed(1);
+    let valve=0;
+    if(last&&heating)valve=.92;
+    else if(temp<tg-.05||(h>=5&&h<=8))valve=+Math.min(1,.45+Math.abs(tg-temp)*.9).toFixed(2);
+    a.push({temp,target:tg,outdoor,valve});
+  }
+  return a;
+}
+const S={
+  zones:[
+    {id:'living',name:'Living + Bucătărie',short:'Living',cur:24.1,target:24.5,hum:44,valve:true,window:false,online:true,relay:'CH1',k:1.5,hist:hist(24.1,24.5,0,true)},
+    {id:'copii',name:'Dormitor Copii',short:'Copii',cur:24.0,target:24.0,hum:47,valve:false,window:false,online:true,relay:'CH2',k:1.65,hist:hist(24.0,24.0,2,false)},
+    {id:'mare',name:'Dormitor Mare',short:'Dormitor',cur:23.3,target:23.0,hum:45,valve:false,window:false,online:true,relay:'CH3',k:1.55,hist:hist(23.3,23.0,4,false)}
+  ],
+  boiler:{on:true,anti:0,overrun:0,todayMin:134},
+  weather:{city:'București',temp:5.4,hum:76,wind:14,code:2,day:true,at:'13:40',
+    fc:[{d:'Sâm',c:3,lo:2,hi:9},{d:'Dum',c:61,lo:3,hi:7},{d:'Lun',c:1,lo:0,hi:8},{d:'Mar',c:0,lo:-1,hi:10}]},
+  gas:{price:3.12,flow:1.23,today:4.82,yesterday:5.31,month:142.4},
+  dtc:[
+    {code:'OK',name:'Fără erori active',sev:'ok',active:true,at:'13:15',text:'Toate zonele și senzorii BLE răspund.'},
+    {code:'DTC-102',name:'Baterie slabă senzor',sev:'warn',active:false,at:'08:42',text:'Dormitor Mare — avertisment închis după schimbarea bateriei.'}
+  ]
+};
+const demo=new URLSearchParams(location.search).get('demo');
+if(demo==='geam')S.zones[1].window=true;
+if(demo==='senzor'){S.zones[2].online=false;
+  S.dtc=[{code:'DTC-101',name:'Senzor fără semnal',sev:'danger',active:true,at:'13:52',text:'Dormitor Mare — fără date de la senzor. Zona trece pe protecție.'},S.dtc[1]];}
+let expanded='living';
+const PRESETS=[['comfort','Confort',24.5],['sleep','Somn',22],['eco','Eco',20.5],['frost','Anti-îngheț',7]];
+const MIN=5,MAX=30,COL={heating:'heat',window:'warn','sensor-error':'danger',frost:'frost',idle:'idle'};
+const SICON={heating:'flame',window:'wind','sensor-error':'alert',frost:'snow',idle:'check'};
+
+function status(z){
+  const pct=Math.round((Math.min(MAX,Math.max(MIN,z.cur))-MIN)/(MAX-MIN)*100);
+  if(!z.online)return{s:'sensor-error',t:'Senzor fără semnal',pct};
+  if(z.window)return{s:'window',t:'Fereastră deschisă',pct};
+  if(z.target<=8)return{s:'frost',t:z.valve?'Anti-îngheț activ':'Anti-îngheț',pct};
+  if(z.valve)return{s:'heating',t:'Încălzire activă',pct};
+  return{s:'idle',t:'La țintă',pct};
+}
+function heatUp(z){
+  const d=z.target-z.cur;
+  if(d<=.05)return{need:false,t:'La temperatură'};
+  const slope=Math.max(.35,z.k-Math.max(0,z.cur-S.weather.temp)*.015);
+  return{need:true,t:'~'+Math.max(3,Math.round(d/slope*60))+' min până la țintă'};
+}
+function evalValves(){
+  S.zones.forEach(z=>{
+    if(!z.online||z.window){z.valve=false;return}
+    const d=z.target-z.cur;
+    if(d>.2)z.valve=true;else if(d<=0)z.valve=false;
+  });
+  const any=S.zones.some(z=>z.valve),b=S.boiler;
+  if(any&&!b.on&&b.anti<=0){b.on=true;b.overrun=0}
+  else if(!any&&b.on){b.on=false;b.anti=180;b.overrun=180}
+}
+
+/* ================= charts ================= */
+function smooth(p){
+  let d='M'+p[0][0].toFixed(1)+' '+p[0][1].toFixed(1);
+  for(let i=0;i<p.length-1;i++){
+    const a=p[i-1]||p[i],b=p[i],c=p[i+1],e=p[i+2]||c;
+    d+=` C${(b[0]+(c[0]-a[0])/6).toFixed(1)} ${(b[1]+(c[1]-a[1])/6).toFixed(1)} ${(c[0]-(e[0]-b[0])/6).toFixed(1)} ${(c[1]-(e[1]-b[1])/6).toFixed(1)} ${c[0].toFixed(1)} ${c[1].toFixed(1)}`;
+  }
+  return d;
+}
+function drawChart(el,o){
+  const W=el.clientWidth||300,H=o.h,L=34,R=6,T=6,B=18,pw=W-L-R,ph=H-T-B,n=24;
+  const y=v=>T+ph-(v/28)*ph, x=o.bars?i=>L+(i+.5)*pw/n:i=>L+i*pw/(n-1);
+  let s=`<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" role="img" aria-label="${o.label}">`;
+  [0,7,14,21,28].forEach(v=>{
+    if(o.grid)s+=`<line class="gl" x1="${L}" x2="${W-R}" y1="${y(v)}" y2="${y(v)}"/>`;
+    s+=`<text class="ax" x="${L-6}" y="${y(v)+3.5}" text-anchor="end">${v}°</text>`;
+  });
+  [0,6,12,18].forEach(i=>s+=`<text class="ax" x="${x(i)}" y="${H-4}" text-anchor="middle">${p2(i)}:00</text>`);
+  if(o.bars)o.bars.forEach((v,i)=>{if(v>0){const bh=v/4*ph;
+    s+=`<rect x="${x(i)-3}" y="${T+ph-bh}" width="6" height="${bh}" rx="2" style="fill:var(--heat);opacity:.55"/>`}});
+  o.lines.forEach(l=>{
+    const pts=l.v.map((v,i)=>[x(i),y(v)]);let d;
+    if(l.step){d='M'+pts[0][0]+' '+pts[0][1];for(let i=1;i<pts.length;i++)d+=` H${pts[i][0]} V${pts[i][1]}`}
+    else d=smooth(pts);
+    s+=`<path d="${d}" fill="none" style="stroke:var(--${l.c});stroke-width:${l.w};opacity:${l.o||1}"${l.dash?` stroke-dasharray="${l.dash}"`:''}/>`;
+  });
+  el.innerHTML=s+'</svg>';
+}
+function paintCharts(){
+  const g=$('#gchart');
+  if(g)drawChart(g,{h:152,grid:true,label:'Temperaturi 24 de ore, toate zonele',lines:[
+    {v:S.zones[0].hist.map(p=>p.outdoor),c:'idle',w:1.5,dash:'3 3'},
+    {v:S.zones[2].hist.map(p=>p.temp),c:'frost',w:1.8},
+    {v:S.zones[1].hist.map(p=>p.temp),c:'ok',w:1.8},
+    {v:S.zones[0].hist.map(p=>p.temp),c:'heat',w:2}]});
+  const z=S.zones.find(z=>z.id===expanded),c=$('#zchart');
+  if(z&&c)drawChart(c,{h:116,label:'Istoric 24 de ore '+z.name,bars:z.hist.map(p=>p.valve),lines:[
+    {v:z.hist.map(p=>p.outdoor),c:'idle',w:1.5,o:.75},
+    {v:z.hist.map((p,i)=>i>=21?z.target:p.target),c:'heat',w:1.5,dash:'4 4',step:true},
+    {v:z.hist.map(p=>p.temp),c:'fg',w:2}]});
+}
+
+/* ================= static columns ================= */
+function buildSides(){
+  const w=S.weather,g=S.gas;
+  $('#logo').innerHTML=ic('thermo');
+  $('#viewBtns').innerHTML=`<button type="button" aria-pressed="true">${ic('home','s14')}<span>Panou</span></button>
+    <button type="button" aria-pressed="false" disabled title="Nu face parte din machetă">${ic('gear','s14')}<span>Admin</span></button>`;
+  $('#left').innerHTML=`
+  <section class="card" aria-label="Ceas sistem">
+    <div class="row"><div class="lbl">${ic('clock','s14')}<span>Ora sistem</span></div><span class="tiny">ESP32 Controller</span></div>
+    <div class="clock mono"><span class="hm" id="hm"></span><span class="ss" id="ss"></span></div>
+    <div class="lbl" id="date" style="margin-top:4px;font-weight:400"></div>
+  </section>
+  <section class="card" aria-label="Vremea de afară">
+    <div class="row"><div class="city">${ic('pin')}<span>${w.city}</span></div>
+      <div class="row"><span class="tiny">Open-Meteo · ${w.at}</span>
+      <button type="button" class="ibtn" aria-label="Actualizează vremea">${ic('refresh','s14')}</button></div></div>
+    <div class="wx-now"><div class="l">${wmo(w.code,w.day,'s40')}<div><div class="t mono">${f1(w.temp)}°C</div>
+      <div class="lbl" style="margin-top:4px">${WMO_RO[w.code]||''}</div></div></div>
+      <div class="r"><div>${ic('drops','s14')}<span>Umiditate ${w.hum}%</span></div><div>${ic('wind','s14')}<span>Vânt ${w.wind} km/h</span></div></div></div>
+    <div class="g4 split">${w.fc.map(d=>`<div class="fc"><span class="d">${d.d}</span>${wmo(d.c,true,'s20')}
+      <div class="t mono">${d.hi}°<span>${d.lo}°</span></div></div>`).join('')}</div>
+  </section>
+  <section class="card boiler" id="boiler" aria-label="Stare centrală termică">
+    <div class="top"><div class="who"><div class="flamebox" id="bicon"></div>
+      <div><div class="lbl">Centrală termică</div><div class="state" id="bstate"></div></div></div>
+      <div class="anti"><div class="tiny" style="display:flex;align-items:center;gap:4px;justify-content:flex-end">${ic('timer','s14')}<span>Anti-cycling</span></div>
+      <div class="v mono" id="banti"></div></div></div>
+    <div class="g3 split">
+      <div class="kv"><div class="k">Tur / Retur</div><div class="v mono muted" title="Apare când sunt montați senzorii de pe distribuitor">— / —</div></div>
+      <div class="kv"><div class="k">Post-circulare</div><div class="v mono" id="bover"></div></div>
+      <div class="kv"><div class="k">Pornită azi</div><div class="v mono" id="btoday"></div></div>
+    </div>
+  </section>
+  <section class="card" aria-label="Consum gaz și cost în Lei">
+    <div class="row"><h3 class="ttl">${ic('fuel')}Consum Gaz &amp; Cost</h3><span class="tiny mono">${g.price.toFixed(2)} Lei/m³</span></div>
+    <div class="row gasrate"><div class="lbl">${ic('flame')}<span>Debit mediu măsurat</span></div><span class="v mono">${g.flow.toFixed(2)} m³/h</span></div>
+    <div class="g3" style="margin-top:12px">${[['Astăzi',g.today,2,2],['Ieri',g.yesterday,2,2],['Luna curentă',g.month,0,1]].map(r=>
+      `<div class="kv"><div class="k">${r[0]}</div><div class="v big mono">${(r[1]*g.price).toFixed(r[2])} Lei</div><div class="tiny mono">${r[1].toFixed(r[3])} m³</div></div>`).join('')}</div>
+  </section>`;
+  const alert=S.dtc.some(d=>d.active&&d.sev!=='ok');
+  $('#right').innerHTML=`
+  <section class="card" aria-label="Telemetrie globală 24 ore">
+    <h3 class="ttl" style="margin-bottom:8px">${ic('activity')}Telemetrie 24h · Toate Zonele</h3>
+    <div class="legend" style="margin-bottom:8px">${[['heat',S.zones[0].short],['ok',S.zones[1].short],['frost',S.zones[2].short],['idle','Exterior']].map(l=>
+      `<span><i style="width:12px;height:6px;border-radius:2px;background:var(--${l[0]})"></i>${l[1]}</span>`).join('')}</div>
+    <div class="chart" id="gchart" style="height:152px"></div>
+  </section>
+  <section class="card" aria-label="Stare sistem">
+    <h3 class="ttl">${alert?ic('alert','',`color:var(--danger)`):ic('check','',`color:var(--ok)`)}Stare sistem</h3>
+    <ul class="dtc" style="margin-top:12px">${S.dtc.map(d=>`<li><div class="row"><div class="row" style="justify-content:flex-start">
+      <span class="code mono" style="color:var(--${d.sev})">${d.code}</span><span class="name">${d.name}</span></div>
+      <span class="tiny mono">${d.active?'Activ':'Istoric'} · ${d.at}</span></div><p>${d.text}</p></li>`).join('')}</ul>
+  </section>`;
+}
+const ZI=['Duminică','Luni','Marți','Miercuri','Joi','Vineri','Sâmbătă'],
+ LUNI=['Ianuarie','Februarie','Martie','Aprilie','Mai','Iunie','Iulie','August','Septembrie','Octombrie','Noiembrie','Decembrie'];
+function paintLive(){
+  const n=new Date(),b=S.boiler,w=S.weather;
+  $('#hm').textContent=p2(n.getHours())+':'+p2(n.getMinutes());$('#ss').textContent=p2(n.getSeconds());
+  $('#date').textContent=`${ZI[n.getDay()]}, ${n.getDate()} ${LUNI[n.getMonth()]} ${n.getFullYear()}`;
+  $('#boiler').classList.toggle('on',b.on);
+  $('#bicon').innerHTML=b.on?ic('flame','s24 flick'):ic('pause','s24');
+  $('#bstate').textContent=b.on?'Pornită':'Oprită';
+  const a=$('#banti');a.textContent=b.anti>0?mmss(b.anti):'Pregătit';a.classList.toggle('wait',b.anti>0);
+  $('#bover').textContent=b.overrun>0?mmss(b.overrun):'Oprită';
+  $('#btoday').textContent=Math.floor(b.todayMin/60)+' h '+p2(b.todayMin%60)+' min';
+  const badge=b.on?'Centrală ON':b.anti>0?'Pauză '+mmss(b.anti):'Centrală Standby',col=b.on?'heat':'idle';
+  $('#strip').innerHTML=`<div>${wmo(w.code,w.day,'')}<b>${w.city}</b><b class="mono" style="font-weight:700">${f1(w.temp)}°C</b>
+    <span class="muted">·</span><span class="muted">${w.hum}% · ${w.wind} km/h</span></div><span class="sep"></span>
+    <div style="color:var(--${col})">${ic(b.on?'flame':'pause',b.on?'flick':'')}<b class="mono" style="font-weight:700">${badge}</b></div>`;
+}
+
+/* ================= zone cards ================= */
+const polar=(r,a)=>{const t=(a-90)*Math.PI/180;return[144+r*Math.cos(t),144+r*Math.sin(t)]};
+function arc(a0,a1){const s=polar(116,a1),e=polar(116,a0);return`M ${s[0].toFixed(2)} ${s[1].toFixed(2)} A 116 116 0 ${a1-a0<=180?0:1} 0 ${e[0].toFixed(2)} ${e[1].toFixed(2)}`}
+const ratio=t=>Math.max(0,Math.min(1,(t-MIN)/(MAX-MIN)));
+function buildZones(){
+  $('#zones').innerHTML=S.zones.map(z=>{
+    const ex=z.id===expanded;
+    let ticks='';for(let i=0;i<46;i++){const a=225+i/45*270,p=polar(96,a),q=polar(102,a);
+      ticks+=`<line class="tick" x1="${p[0].toFixed(1)}" y1="${p[1].toFixed(1)}" x2="${q[0].toFixed(1)}" y2="${q[1].toFixed(1)}"/>`}
+    const pmin=polar(132,225),pmax=polar(132,495);
+    return `<section class="card zone" data-z="${z.id}" aria-label="Zonă ${z.name}">
+    <div class="wave" aria-hidden="true"><svg viewBox="0 0 800 80" preserveAspectRatio="none"><defs><linearGradient id="wv-${z.id}" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" style="stop-color:var(--heat);stop-opacity:0"/><stop offset="1" style="stop-color:var(--heat);stop-opacity:.48"/></linearGradient></defs>
+      <path d="M0,36 C100,10 200,62 300,36 C400,10 500,62 600,36 C700,10 750,50 800,36 L800,80 L0,80 Z" fill="url(#wv-${z.id})"/></svg></div>
+    <button type="button" class="zhead" aria-expanded="${ex}">
+      <div class="l"><svg class="ring" width="52" height="52" viewBox="0 0 52 52" aria-hidden="true"><circle class="bg" cx="26" cy="26" r="23.75"/>
+        <circle class="fg" data-k="ring" cx="26" cy="26" r="23.75" stroke-dasharray="149.23"/></svg>
+        <div style="min-width:0"><h3 class="zname">${z.name}</h3>
+        <div class="zmeta"><span>Umiditate ${z.hum}%</span><span aria-hidden="true">·</span><span data-k="mtarget"></span><span aria-hidden="true">·</span><span class="mono">${z.relay}</span></div>
+        <div class="zstat" data-k="stat"></div></div></div>
+      <div class="r"><div class="ztemp mono">${f1(z.cur)}<span class="deg">°</span></div><span class="chev" aria-hidden="true">${ic(ex?'up':'down','s20')}</span></div>
+    </button>
+    ${ex?`<div class="zbody">
+      <div class="winbar" data-k="win" role="alert" hidden><div class="l"><div class="radar"><i></i><i></i>${ic('wind','s20')}</div>
+        <div><div class="t">Fereastră deschisă detectată</div><div class="s">Circuitul ${z.relay} este oprit temporar.</div></div></div>
+        <button type="button" data-act="resume">Reia încălzirea</button></div>
+      <div class="dialwrap"><div class="dial">
+        <svg data-k="dial" viewBox="0 0 288 288" role="slider" tabindex="0" aria-label="Termostat ${z.name}" aria-valuemin="${MIN}" aria-valuemax="${MAX}">
+          <defs><linearGradient id="dg-${z.id}" x1="0" y1="1" x2="1" y2="0"><stop offset="0" style="stop-color:var(--frost)"/>
+            <stop offset=".45" style="stop-color:var(--idle)"/><stop offset="1" style="stop-color:var(--acc)"/></linearGradient></defs>
+          <g data-k="ticks">${ticks}</g><path class="track" d="${arc(225,495)}"/><path class="arc" data-k="arc" stroke="url(#dg-${z.id})"/>
+          <text x="${pmin[0].toFixed(1)}" y="${(pmin[1]+12).toFixed(1)}" text-anchor="middle">${MIN}°</text>
+          <text x="${pmax[0].toFixed(1)}" y="${(pmax[1]+12).toFixed(1)}" text-anchor="middle">${MAX}°</text>
+          <circle class="cur" data-k="cur" r="4.5"/><circle class="thumb" data-k="thumb" r="11"/></svg>
+        <div class="readout"><span class="a">Actual</span><div class="big mono">${f1(z.cur)}<span class="deg">°</span></div>
+          <div class="tg"><span class="muted">Țintă</span><b class="mono" data-k="rtarget"></b></div><div class="eta" data-k="eta"></div></div></div>
+        <div class="stepper"><button type="button" data-act="step" data-d="-0.5" aria-label="Scade temperatura țintă pentru ${z.name}">${ic('minus','s20')}</button>
+          <div class="mid"><span class="tiny">Reglaj fin</span><b class="mono" data-k="fine"></b></div>
+          <button type="button" data-act="step" data-d="0.5" aria-label="Crește temperatura țintă pentru ${z.name}">${ic('plus','s20')}</button></div></div>
+      <div class="presets">${PRESETS.map(p=>`<button type="button" class="${p[0]==='frost'?'frost':''}" data-act="preset" data-t="${p[2]}">${p[1]} ${p[2]%1?p[2].toFixed(1):p[2]+(p[0]==='frost'?'':'.0')}°</button>`).join('')}</div>
+      <div class="chartbox"><div class="row chead"><span class="lbl">Istoric 24h · ${z.name}</span>
+        <div class="legend"><span><i style="width:12px;height:2px;background:var(--fg)"></i>Zonă</span>
+        <span><i style="width:12px;border-top:1px dashed var(--heat)"></i>Țintă</span>
+        <span><i style="width:6px;height:8px;border-radius:2px;background:var(--heat)"></i>Ardere</span></div></div>
+        <div class="chart" id="zchart" style="height:116px"></div></div>
+    </div>`:''}
+    </section>`}).join('');
+  S.zones.forEach(paintZone);
+}
+function paintZone(z){
+  const el=document.querySelector(`[data-z="${z.id}"]`),q=k=>el.querySelector(`[data-k="${k}"]`),st=status(z),hu=heatUp(z);
+  el.style.setProperty('--acc',`var(--${COL[st.s]})`);
+  el.classList.toggle('heating',z.valve);
+  q('ring').style.strokeDashoffset=149.23*(1-Math.max(4,Math.min(100,st.pct))/100);
+  q('mtarget').textContent='Țintă '+f1(z.target)+'°C';
+  q('stat').innerHTML=ic(SICON[st.s],'s14')+`<span>${st.t}</span>`+(z.valve&&hu.need?`<span aria-hidden="true">·</span><span class="mono">${hu.t}</span>`:'');
+  el.querySelector('.zhead').setAttribute('aria-label',`${z.name}, ${f1(z.cur)} grade Celsius, ${st.t}`);
+  if(z.id!==expanded)return;
+  const tr=ratio(z.target),ta=225+tr*270,tp=polar(116,ta),cp=polar(116,225+ratio(z.cur)*270);
+  q('arc').setAttribute('d',tr>.005?arc(225,ta):'');
+  q('thumb').setAttribute('cx',tp[0]);q('thumb').setAttribute('cy',tp[1]);
+  q('cur').setAttribute('cx',cp[0]);q('cur').setAttribute('cy',cp[1]);
+  q('ticks').querySelectorAll('line').forEach((l,i)=>l.classList.toggle('on',i/45<=tr));
+  const d=q('dial');d.setAttribute('aria-valuenow',z.target);d.setAttribute('aria-valuetext',f1(z.target)+' grade Celsius');
+  q('rtarget').textContent=f1(z.target)+'°C';q('fine').textContent=f1(z.target)+' °C';
+  q('eta').textContent=z.window?'Încălzire suspendată':!z.online?'Așteaptă senzorul':hu.t;
+  q('win').hidden=!z.window;
+  el.querySelectorAll('[data-act=preset]').forEach(b=>b.classList.toggle('on',Math.abs(z.target-b.dataset.t)<.05&&!z.window));
+}
+function setTarget(z,t){
+  z.target=+Math.max(MIN,Math.min(MAX,t)).toFixed(1);
+  evalValves();S.zones.forEach(paintZone);paintLive();paintCharts();
+}
+
+/* ================= events ================= */
+let drag=null;
+function fromPointer(e){
+  const r=drag.rect,px=e.clientX-(r.left+r.width/2),py=e.clientY-(r.top+r.height/2);
+  let a=Math.atan2(px,-py)*180/Math.PI;if(a<0)a+=360;
+  let rel=a-225;if(rel<0)rel+=360;
+  if(rel>270)rel=rel>315?0:270;
+  setTarget(drag.z,Math.round((MIN+rel/270*(MAX-MIN))*2)/2);
+}
+const zonesEl=$('#zones');
+zonesEl.addEventListener('click',e=>{
+  const sec=e.target.closest('[data-z]');if(!sec)return;
+  const z=S.zones.find(z=>z.id===sec.dataset.z),act=e.target.closest('[data-act]');
+  if(e.target.closest('.zhead')){expanded=expanded===z.id?null:z.id;buildZones();paintCharts();return}
+  if(!act)return;
+  if(act.dataset.act==='step')setTarget(z,z.target+ +act.dataset.d);
+  if(act.dataset.act==='preset')setTarget(z,+act.dataset.t);
+  if(act.dataset.act==='resume'){z.window=false;setTarget(z,z.target)}
+});
+zonesEl.addEventListener('pointerdown',e=>{
+  const d=e.target.closest('[data-k=dial]');if(!d)return;
+  drag={z:S.zones.find(z=>z.id===d.closest('[data-z]').dataset.z),rect:d.getBoundingClientRect()};
+  d.setPointerCapture(e.pointerId);fromPointer(e);
+});
+zonesEl.addEventListener('pointermove',e=>{if(drag)fromPointer(e)});
+['pointerup','pointercancel'].forEach(t=>zonesEl.addEventListener(t,()=>{drag=null}));
+zonesEl.addEventListener('keydown',e=>{
+  const d=e.target.closest('[data-k=dial]');if(!d)return;
+  const z=S.zones.find(z=>z.id===d.closest('[data-z]').dataset.z);
+  if(e.key==='ArrowUp'||e.key==='ArrowRight'){e.preventDefault();setTarget(z,z.target+.5)}
+  if(e.key==='ArrowDown'||e.key==='ArrowLeft'){e.preventDefault();setTarget(z,z.target-.5)}
+});
+
+/* ================= start ================= */
+$('#themeBtns').innerHTML=Object.keys(THEMES).map(id=>`<button type="button" data-t="${id}">${THEMES[id].label}</button>`).join('')
+  +'<button type="button" disabled title="Se face separat, la sfârșit">Meteo Dinamic</button>';
+$('#themeSel').innerHTML=Object.keys(THEMES).map(id=>`<option value="${id}">${THEMES[id].label}</option>`).join('');
+$('#themeBtns').addEventListener('click',e=>{const b=e.target.closest('[data-t]');if(b)applyTheme(b.dataset.t)});
+$('#themeSel').addEventListener('change',e=>applyTheme(e.target.value));
+applyTheme(themeId);
+evalValves();buildSides();buildZones();paintLive();paintCharts();
+setInterval(()=>{const b=S.boiler;if(b.anti>0)b.anti--;if(b.overrun>0)b.overrun--;evalValves();paintLive()},1000);
+let rz;addEventListener('resize',()=>{cancelAnimationFrame(rz);rz=requestAnimationFrame(paintCharts)});
+</script>
+</body>
+</html>

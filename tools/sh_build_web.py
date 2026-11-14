@@ -7,6 +7,7 @@ Runs automatically via PlatformIO (extra_scripts = pre:tools/sh_build_web.py) or
   python tools/sh_build_web.py          # build .pio/build/index.html.gz
   python tools/sh_build_web.py --sync   # also update web/index.html if assembled output changed
 """
+import base64
 import gzip
 import os
 import re
@@ -37,6 +38,27 @@ JS_ORDER = (
 )
 
 
+# FR-8.1 (C-47): the page loads nothing from another host, so its fonts are embedded as base64 woff2
+FONTS = (
+    ("Plus Jakarta Sans", "400 800", "jakarta-latin.woff2",
+     "U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+2000-206F,U+20AC,U+2122,U+2212,U+2215"),
+    ("Plus Jakarta Sans", "400 800", "jakarta-latin-ext.woff2",
+     "U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+1E00-1E9F,U+20A0-20AB,U+20AD-20C0,U+2113"),
+    ("JetBrains Mono", "400 700", "jetbrains-latin.woff2",
+     "U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+2000-206F,U+20AC,U+2122,U+2212,U+2215"),
+)
+
+
+def _fonts_css(project_dir):
+    out = []
+    for family, weight, name, urange in FONTS:
+        with open(os.path.join(project_dir, "web", "src", "fonts", name), "rb") as f:
+            b64 = base64.b64encode(f.read()).decode("ascii")
+        out.append("@font-face{font-family:'%s';font-style:normal;font-weight:%s;font-display:swap;"
+                   "src:url(data:font/woff2;base64,%s) format('woff2');unicode-range:%s}" % (family, weight, b64, urange))
+    return "\n".join(out)
+
+
 def _read_part(project_dir, name):
     path = os.path.join(project_dir, "web", "src", name)
     with open(path, "r", encoding="utf-8") as f:
@@ -54,6 +76,7 @@ def assemble_html(project_dir=PROJECT_DIR):
     scripts = "\n".join(_read_part(project_dir, name) for name in JS_ORDER)
     replacements = {
         "{{STYLES}}": _read_part(project_dir, "styles.css"),
+        "{{FONTS}}": _fonts_css(project_dir),
         "{{CARD_ROOMS}}": _read_part(project_dir, "rooms.html"),
         "{{CARD_SCHEDULE}}": _read_part(project_dir, "schedule.html"),
         "{{CARD_DIAGNOSTICS}}": _read_part(project_dir, "diagnostics.html"),
@@ -81,6 +104,7 @@ def source_files(project_dir=PROJECT_DIR):
         p = os.path.join(src_dir, name)
         if os.path.isfile(p):
             files.append(p)
+    files += [os.path.join(src_dir, "fonts", f[2]) for f in FONTS]
     return files
 
 

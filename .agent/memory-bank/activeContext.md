@@ -15,8 +15,8 @@ Only what holds now and what comes next. A line that no longer holds is replaced
   - **Diagnostic Event History Clearing (UI / API / CLI / Tests):** Added `clearEvents()` to `DiagnosticEngine`, `POST /api/diag/events/clear` to WebApi, `clear-events` command to CLI and Web UI button in diagnostics section to wipe persistent LittleFS event ring on demand; updated automated test suite teardown in `sh_test_system.py` to auto-clean test DTC debris.
   - **Native Unit Tests:** `pio test -e native` -> **37/37 test cases PASSED (100%)** across all 11 test suites.
   - **Process Check Metrics:** Warnings dropped from 76 to **43** (-43%); process warnings from 8 to **1**; `reqs` warnings to **0**; 0 errors, 1 known (`PB-12`), **PASS**.
-- **Live Board (`192.168.1.20`)**: Running firmware `v1.11.13.09` (commit `c23e5eb`) + LittleFS `index.html.gz` (`48 470 B`). All 3 zones active & idle at setpoints. Diagnostic event history successfully cleared (0 DTCs, clean restart boot record only).
+- **Live Board (`192.168.1.20`)**: Running firmware `v1.11.13.10` (built 15.11.2026 from the working tree before the commit of C-47 / C-48; page limit 262 144 B) + LittleFS `index.html.gz` (`142 023 B`, the themed panel of FR-8.1, C-47). All 3 zones active & idle at setpoints after the restart.
 
 ## Next
-0. **UI / Lovable Enhancement:**
-   - With firmware, safety defects, DTC rules, traceability, and tests stabilized and verified on the live hardware, ready to proceed to UI improvements and Lovable integration as requested by owner.
+0. **Page as a themed panel (C-47, C-48, D-63) - built, on the board, owner test pending:**
+   - Owner tests hands-on: target from dial and steppers, `Înapoi la program`, `Plecat`, `Reia încălzirea`, themes, phone and wall-tablet width. Open: full `sh_test_system.py` run, reflash from the clean commit, theme `Meteo Dinamic`, `design/aistudio/` (generated React source, untracked) keep or delete.

@@ -1,3 +1,45 @@
-<ul class="alerts" id="alerts"></ul>
-<div class="grid" id="rooms"></div>
-
+<div class="panel">
+  <div class="pcol">
+    <div class="card" aria-label="Ceas și temperatura de afară">
+      <div class="pr">
+        <div>
+          <div class="lbl"><span id="pIcClock"></span><span>Ora sistem</span></div>
+          <div class="clock mn"><span class="hm" id="pHm">--:--</span><span class="ss" id="pSs"></span></div>
+          <div class="lbl" id="pDate" style="margin-top:4px;font-weight:400"></div>
+        </div>
+        <div class="outd">
+          <div class="lbl" style="justify-content:flex-end"><span>Afară</span></div>
+          <div class="t mn" id="pOut">--</div>
+        </div>
+      </div>
+    </div>
+    <div class="card boiler" id="pBoiler" aria-label="Centrală termică">
+      <div class="pr" style="align-items:flex-start">
+        <div class="who"><div class="flamebox" id="pBIcon"></div>
+          <div><div class="lbl">Centrală termică</div><div class="state" id="pBState">--</div></div></div>
+        <div class="anti"><div class="tiny">Pauză arzător</div><div class="v mn" id="pBPause">--</div></div>
+      </div>
+      <div class="g3 split">
+        <div class="kv"><div class="k">Pornită azi</div><div class="v mn" id="pBToday">--</div></div>
+        <div class="kv"><div class="k">Ieri</div><div class="v mn" id="pBYest">--</div></div>
+        <div class="kv"><div class="k">Ardere curentă</div><div class="v mn" id="pBBurn">--</div></div>
+      </div>
+    </div>
+    <div class="card" aria-label="Consum gaz și cost">
+      <div class="pr"><h3 class="ttl"><span id="pIcGas"></span>Consum gaz &amp; cost</h3><span class="tiny mn" id="pGPrice"></span></div>
+      <div id="pGas"></div>
+    </div>
+  </div>
+  <div class="pcol zones" id="rooms"></div>
+  <div class="pcol">
+    <div class="card" aria-label="Temperaturi în ultimele 24 de ore">
+      <h3 class="ttl" style="margin-bottom:8px"><span id="pIcChart"></span>Ultimele 24 h · toate camerele</h3>
+      <div class="legend" id="pLegend" style="margin-bottom:8px"></div>
+      <div class="chart" id="pChart"></div>
+    </div>
+    <div class="card" aria-label="Stare sistem">
+      <h3 class="ttl"><span id="pIcState"></span>Stare sistem</h3>
+      <ul class="alerts" id="alerts"></ul>
+    </div>
+  </div>
+</div>

@@ -5,6 +5,24 @@ Corelat cu planul activ: [`docs/plan.md`](file:///c:/Users/BSeceleanu/.github_re
 Entries before 29.10.2026 (the system before the lean clean-up):
 [`archive/changelog_until_2026-10-21.md`](archive/changelog_until_2026-10-21.md).
 
+## [15.11.2026] - Family view of the page as a themed panel; page limit 262 144 B (C-47, C-48, D-63)
+
+- **Who / when / why:** Owner request (chat 15.11.2026): the look generated in Google AI Studio (`design/aistudio/`, React) rebuilt in the plain HTML / CSS / JS of the board, without the values the controller does not have. Light mode of the chain.
+- **Changed:**
+  - `docs/requirements_and_features.md`: FR-8.1 family view rewritten (three-column panel, expandable room cards with dial, five themes, nothing loaded from another host, no unmeasured values); FR-8.6 page limit 61 440 B -> 262 144 B; out of scope narrowed to kiosk mode. `docs/requirements_review.md` rows C-47, C-48; decision D-63.
+  - `web/src/rooms.html`, `rooms.js`, `styles.css`, `shell.html`, `core.js`: the panel (clock / boiler / gas, room cards, 24 h charts read from `api/history?range=24h` at most every 5 min, card `Stare sistem`), themes kept in `localStorage`; the admin view is unchanged and takes the colours of the theme.
+  - `web/src/fonts/`: Plus Jakarta Sans (latin, latin-ext) and JetBrains Mono (latin), SIL Open Font License, from Google Fonts; `tools/sh_build_web.py` embeds them as base64 (`{{FONTS}}`).
+  - `src/WebApi.cpp`: `PAGE_MAX_BYTES` 61 440 -> 262 144.
+  - `tools/sh_tests/t_ui_history.py`: TC19.11 and TC19.16 follow the new FR-8.1 text, new TC19.22, TC19.23; `tools/sh_tests/t_webassets.py`: `MAX_PAGE` 262 144, new TC38.6, upload helper waits 90 s instead of 30 s (the board reads a refused 264 KB file in full, about 25 s, before it answers 413).
+  - `design/mock/panou.html`: the design reference with mock data.
+- **Verified:**
+  - Red run on the old page / firmware: TC19.11, TC19.16, TC19.22, TC19.23 and TC38.6 FAIL, TC19.17, TC19.21, TC21.14 PASS.
+  - `pio run` -> SUCCESS, `firmware.bin` 1 287 904 B (18 720 B under the OTA limit). Flashed over the network with the boiler OFF; page 142 023 B gzip uploaded (HTTP 200, LittleFS free 1 208 320 B).
+  - On the board, called one by one (not through the runner, whose clean-up clears the event history): TC19.7, 19.9, 19.11–19.14, 19.16, 19.17, 19.20–19.23, TC21.7, 21.10, 21.14, TC29.38, TC32.6, TC38.1–38.3, 38.5, 38.6 PASS.
+  - `python tools/sh_process_check.py` and `... board` -> 0 errors, PASS (warning: the board runs a build made before this commit).
+  - Local read-only preview with live data: panel in Smartiva Glass and Nordic Light, card expand, stepper, toast, admin view rendered.
+- **Not done:** the full `sh_test_system.py` run; commands from the page on the real board (target, boost reset, Away, window resume) wait for the owner's hands-on test; code and safety review agents not run (light mode, no safety-list file touched); theme `Meteo Dinamic`.
+
 ## [13.11.2026] - Clear diagnostic event history option (UI, API, CLI) and automated test suite cleanup
 
 - **Who / when / why:** User request: allow manually clearing persistent LittleFS DTC event history (`/api/diag/events`) to remove test debris, provide explicit clear controls in UI and CLI, and prevent automated test runs from leaving residual DTC records.

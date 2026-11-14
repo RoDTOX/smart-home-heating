@@ -703,3 +703,20 @@ Owner: "timpul in loc de unix, sa fie yymmddhhmmss". `time` in `/api/diag/log` i
 **Affects**: `docs/plan.md`; later, per step: `platformio.ini`, `test/`, `src/ThermalZoneManager.cpp`, new `SafetySupervisor`, `Schedule`, `ModeManager` modules, `tools/sh_tests/`, `tools/sh_process_check.py`, `web/`.
 **Consequences**: The plan runs before Phase 5 and adds no feature. No requirement changes. Architecture §3.2 already allocates the modules, so it needs no edit until I-8 changes the rule text of §3.3.
 
+
+---
+## 2026-11-15 — Family view of the page becomes a themed panel (D-63, C-47)
+
+**Context**: The owner explored a new look for the page in Lovable, Google Stitch and Google AI Studio (`DESIGN.md`, `docs/ui_lovable_spec.md`). The AI Studio result (React, Tailwind, Recharts, fonts from Google) pleased the owner but cannot run on the board as generated and shows values the controller does not have (flame modulation, pressure, forecast, wind, comfort presets). A plain HTML / CSS / JS replica with mock data (`design/mock/panou.html`, 42 KB, 14 KB gzip) was accepted as the design reference.
+**Decision** (owner, chat 15.11.2026):
+- The family view of FR-8.1 is replaced by the panel; the admin view stays as it is.
+- Steppers [−] [+] sit in the expanded room card, not on the collapsed one.
+- Weather shows only the outdoor temperature; a forecast would be a new firmware function, not part of this change.
+- The presets Confort / Somn / Eco are not built: the controller follows the schedule; the card offers boost and `Înapoi la program`.
+- The boiler card sits in the left column above the gas card; the diagnostics card is named `Stare sistem`.
+- The heat colour of the theme `Smartiva Glass` stays yellow-green as generated.
+- Fonts are part of the page (downloaded once from Google Fonts with the owner's consent); the page loads nothing from another host.
+- "kiosk / wall-tablet UI" in the out-of-scope list narrows to kiosk mode; the layout fits a landscape wall tablet.
+**Decided by**: owner (2026-11-15).
+**Affects**: `docs/requirements_and_features.md` (FR-8.1, §1), `docs/requirements_review.md` (C-47), `web/src/`, `tools/sh_build_web.py`, `tools/sh_tests/t_ui_history.py`.
+**Consequences**: Three page tests change with the requirement (TC19.11, TC19.16; TC19.17 keeps its meaning). The page is uploaded to LittleFS without a firmware flash (FR-8.6). The theme `Meteo Dinamic` and the hosted dashboard are not part of this change.

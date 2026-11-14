@@ -9,15 +9,19 @@
 </style>
 </head>
 <body>
-<main>
-<header>
-  <h1>Încălzire</h1>
-  <div class="meta"><span id="clock">--:--</span><span id="outdoor">afară --</span><span id="boiler">centrala --</span><span id="level"></span></div>
-  <div style="display:flex;align-items:center;gap:8px">
-    <button id="away">Plecat</button>
-    <button type="button" id="toggleAdmin" class="btn-top-admin" style="background:var(--card);border:1px solid var(--line);border-radius:8px;padding:6px 12px;font-size:13px;color:var(--fg);cursor:pointer;font-weight:500;display:flex;align-items:center;gap:5px">⚙️ Admin</button>
+<header class="hbar">
+  <div class="hin">
+    <div class="brand"><div class="logo" id="logo"></div><h1>Încălzire</h1></div>
+    <div class="meta"><span id="clock">--:--</span><span id="outdoor">afară --</span><span id="boiler">centrala --</span><span id="level"></span></div>
+    <div class="ctrls">
+      <div class="seg themes" id="themeBtns" role="group" aria-label="Temă"></div>
+      <select id="themeSel" aria-label="Temă"></select>
+      <button id="away">Plecat</button>
+      <button type="button" id="toggleAdmin" class="btn-top-admin">⚙️ Admin</button>
+    </div>
   </div>
 </header>
+<main>
 
 <div id="adminAuthModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:9999;align-items:center;justify-content:center;backdrop-filter:blur(3px)">
   <div style="background:var(--card);border:1px solid var(--line);border-radius:12px;padding:20px;max-width:320px;width:90%;box-shadow:0 8px 32px rgba(0,0,0,0.5)">

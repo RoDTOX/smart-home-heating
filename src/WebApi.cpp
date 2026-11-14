@@ -35,7 +35,7 @@
 // FR-8.5 / FR-8.6: the page is a gzip file on LittleFS; an embedded stub answers when it is missing or corrupt
 static const char PAGE_FILE[] = "/index.html.gz";
 static const char PAGE_TMP[] = "/index.html.tmp";
-static const size_t PAGE_MAX_BYTES = 61440;
+static const size_t PAGE_MAX_BYTES = 262144;  // FR-8.6 (C-48): the page carries its fonts
 static const size_t PAGE_MIN_BYTES = 100;
 static const size_t FS_FLOOR_BYTES = 24576;  // free LittleFS kept for the gas log, events and history
 static const char STUB_HTML[] PROGMEM =

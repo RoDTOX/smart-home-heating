@@ -81,6 +81,8 @@ async function refresh() {
     for (const ep of eps) RAW[ep] = ep === "api/setup/discovered-sensors" ? await api("api/setup/discovered-sensors") : await api(ep);
     Z = RAW["api/zones"]; B = RAW["api/ble/sensors"].sensors; ST = RAW["api/boiler/status"]; D = RAW["api/diag/status"];
     S = RAW["api/schedule"] || S;
+    // FR-8.1 (C-47): the 24 h charts of the panel, read at most every 5 min, in the same one-request-at-a-time pass
+    if (panelHistDue()) { try { PH = await api("api/history?range=24h"); phAt = Date.now(); paintCharts(); } catch (e) {} }
     $("devBanner").style.display = ST && ST.profile === "dev-open" ? "inline-block" : "none";
     if (ST && $("fwInfo")) {
       $("fwInfo").textContent = `· FW v${ST.firmwareVersion || "1.11.05.24"} (${(ST.gitCommit || "").split("-")[0]}) · UI v1.11.07.01 (LittleFS)`;

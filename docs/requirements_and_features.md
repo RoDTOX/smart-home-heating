@@ -5,7 +5,7 @@
 QA-11, QA-12, QA-13, QA-14, QA-16 ([`process_review.md`](process_review.md)); v2.2 adds the owner decisions D37,
 D38, D39 and the architecture observations O-12, O-13, O-14, O-15, and closes the review (applied as listed in
 `requirements_review.md` §6 and §8); v2.3 adds O-16, v2.4 the 10 s bound of NFR-1.8, v2.5 the proxy clause of FR-8.1, v2.6 the owner's page test
-(C-3…C-8) v2.7 the configuration export / import FR-65.1, FR-65.2, FR-65.3, FR-65.4, FR-65.5, FR-65.6, FR-65.7, FR-65.8 (C-9) v2.8 zones added and deleted by the user and the sensor search (C-10, C-11) v2.9 one Save for all zones (C-12) and v2.10 the zone target out of the settings file (C-13), v2.11 pre-import diff preview and vertical zone controls (FR-8.1, PB-70), changes after closure
+(C-3…C-8) v2.7 the configuration export / import FR-65.1, FR-65.2, FR-65.3, FR-65.4, FR-65.5, FR-65.6, FR-65.7, FR-65.8 (C-9) v2.8 zones added and deleted by the user and the sensor search (C-10, C-11) v2.9 one Save for all zones (C-12) and v2.10 the zone target out of the settings file (C-13), v2.11 pre-import diff preview and vertical zone controls (FR-8.1, PB-70), v2.12 the family view as a panel with themes (FR-8.1, C-47), changes after closure
 (`requirements_review.md` §9).
 **Replaces:** the Romanian specification of 07.10.2026 (v1). IDs are kept where the meaning did not change.
 **Related:** [`plan.md`](plan.md), [`changelog.md`](changelog.md), [`hardware_esp32_relay.md`](hardware_esp32_relay.md),
@@ -75,7 +75,8 @@ at its target (NFR-4.1) without manual tuning after commissioning (FR-68).
 - **Interface:** local REST/JSON API, console (Serial, Telnet, HTTP), one web page.
 - **All control runs on the controller** (NFR-1.1).
 
-**Out of scope:** cloud services, remote fleet management, Home Assistant integration, kiosk / wall-tablet UI,
+**Out of scope:** cloud services, remote fleet management, Home Assistant integration, kiosk mode (screen lock, screensaver, always-on display; the page layout itself fits a
+landscape wall tablet, FR-8.1),
 floor cooling (no dew-point logic), push notifications (alarms are page-only, FR-62).
 
 ---
@@ -484,10 +485,27 @@ one example:
   lines; `CLEAR` empties the log buffer.
 - ~~**FR-7.2 (Web console page `/console`):** retired, page removed.~~
 - **FR-8.1 (Web page):** *[now]* {SW; test, inspection} One page served at `/`:
-  - family view: rooms (temperature, relative humidity e.g. 💧 X% RH, active heating state with TPI cycle minutes and duty percentage, TPI pause status, boost indicator, without redundant setpoints in subtitles), outdoor weather, boost, one global Home / Away switch,
-    active alarms; each room card provides direct vertical setpoint steppers ([+], target, [-], boost reset) visible
-    without expanding; the header says in words what the schedule does now and when it changes next (e.g.
-    `Program: zi până la 22:30, apoi noapte`), or why the house does not follow it (away, schedule off);
+  - family view: a panel in three columns from 1024 px page width, one column below it (C-47; design reference
+    `design/mock/panou.html`):
+    - header: the time of the controller, the outdoor temperature, the boiler state, one global Home / Away switch,
+      the theme selector, and in words what the schedule does now and when it changes next (e.g.
+      `Program: zi până la 22:30, apoi noapte`), or why the house does not follow it (away, schedule off);
+    - left column: clock and date of the controller with the outdoor temperature; the boiler card (ON / OFF as
+      commanded - the controller has no flame signal -, the remaining pause of FR-4, the boiler ON time of today);
+      the gas card with the figures and rules of FR-35.1 (today, yesterday, this month, cost, measured flow, price);
+    - centre column: one card per room. Collapsed, a card shows the room name, temperature, relative humidity
+      (`Umiditate X%`), target, the state text of FR-8.4, the active heating state with TPI cycle minutes and duty
+      percentage, the TPI pause status and the boost indicator. A tap expands one card at a time; the expanded card
+      adds a dial with the target on a 270° arc over the range of FR-1.2, the steppers [−] and [+] (0.5 °C), the
+      button `Înapoi la program` while a boost is active (boost reset), the open-window notice with the button
+      `Reia încălzirea` (FR-40) and the 24 h chart of the room (room and outdoor temperature, FR-34);
+    - right column: the 24 h chart of all rooms and the outdoor temperature (FR-34) and the card `Stare sistem`:
+      the active alarms (DTC code and text, FR-10.2), or that there is none;
+    - five colour themes (`HA Charcoal`, `Glass Glow`, `Smartiva Dark`, `Nordic Light`, `Smartiva Glass`); the
+      choice is kept in the browser, the first visit shows `Smartiva Glass`;
+    - a value the controller does not measure or receive is not shown (no flame modulation, water pressure, weather
+      forecast, wind); flow / return temperatures appear only with the sensors of FR-54;
+    - the page loads nothing from another host: fonts and icons are part of the page;
   - admin view (`#admin`) is the engineering view, like the watch window of a bus or debugger tool: every value the
     API reports (zones, boiler, sensors, parameters, schedule, diagnostics, time and weather, system) is shown with its
     API name (e.g. `zones[2].relayEngaged`) and a short explanation, and on tap the requirement it belongs to; a value
@@ -515,7 +533,7 @@ one example:
     page works as served directly: every URL the page requests is relative to the page address (no leading `/`).
 - ~~**FR-8.2 (Remote access via Tailscale):** retired, user network setup, not product behaviour.~~
 - **FR-8.5 (Page served from LittleFS):** *[now]* {SW; test} The page is the gzip file `/index.html.gz` on LittleFS, outside the firmware image (C-35, D-55); `GET /` answers it with `Content-Encoding: gzip` and the header `X-Page-Source: littlefs`. When the file is missing, shorter than 100 B or does not start with the gzip bytes `1F 8B`, `GET /` answers an embedded stub page of at most 1024 B with the header `X-Page-Source: stub`; the stub says the page is missing and offers `/update` and a form to upload the page (FR-8.6). Every API works without the page.
-- **FR-8.6 (Page upload):** *[now]* {SW; test} `POST /api/web/update` (multipart, one file) replaces the page without a reboot: the file is written to a temporary name and renamed over `/index.html.gz` only when it is complete, starts with `1F 8B` and is at most 61 440 B; the answer is HTTP 200 `{"status":"ok","bytes":n,"fsFree":n}`. A file not gzip → HTTP 400, too big → HTTP 413, free LittleFS that would drop below 24 576 B (floor for gas readings, events and history) → HTTP 507; in each case the old page stays. The release profile needs the OTA credentials (HTTP 401 without, FR-58, FR-75.6); the development profile is open. `POST /api/web/remove` (same authentication) deletes the page file so the stub can be tested and shown. The gas readings and the events are never touched by it, and LittleFS is never formatted by it.
+- **FR-8.6 (Page upload):** *[now]* {SW; test} `POST /api/web/update` (multipart, one file) replaces the page without a reboot: the file is written to a temporary name and renamed over `/index.html.gz` only when it is complete, starts with `1F 8B` and is at most 262 144 B (C-48: the page carries its fonts, FR-8.1); the answer is HTTP 200 `{"status":"ok","bytes":n,"fsFree":n}`. A file not gzip → HTTP 400, too big → HTTP 413, free LittleFS that would drop below 24 576 B (floor for gas readings, events and history) → HTTP 507; in each case the old page stays. The release profile needs the OTA credentials (HTTP 401 without, FR-58, FR-75.6); the development profile is open. `POST /api/web/remove` (same authentication) deletes the page file so the stub can be tested and shown. The gas readings and the events are never touched by it, and LittleFS is never formatted by it.
 - **FR-8.4 (Zone states):** *[now]* {SW; test} The API reports each zone in exactly one of these states, the first that
   applies from the top; the page shows the code and the text. Any other value is a defect.
 
