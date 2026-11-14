@@ -642,9 +642,9 @@ class UiHistoryTests:
         return self._gas_result("SWE.5-TC21.13", "Gas Estimate Uses Measured Flow", run)
 
     def test_tc19_11_zone_card_direct_setpoint_steppers(self):
-        """SWE.5-TC19.11: Zone Card Direct Vertical Setpoint Steppers (FR-8.1)"""
+        """SWE.5-TC19.11: Room Card Expands To Dial, Steppers, Boost Reset And Window Notice (FR-8.1, C-47)"""
         test_id = "SWE.5-TC19.11"
-        name = "Zone Card Vertical Setpoint Controls"
+        name = "Room Card Expands To Dial And Steppers"
         req = "FR-8.1"
         start = time.time()
         try:
@@ -654,10 +654,13 @@ class UiHistoryTests:
             html = r.text
             assert 'data-a="up"' in html, "Missing setpoint increase button [+] on room cards"
             assert 'data-a="dn"' in html, "Missing setpoint decrease button [-] on room cards"
-            assert 'room-main' in html, "Missing .room-main flex container for quick-view text"
-            assert 'ctl' in html, "Missing .ctl container for vertical setpoint steppers"
+            # FR-8.1 (C-47): a tap expands one card; the expanded card has a dial, the boost reset and the window notice
+            assert 'aria-expanded' in html, "Room card does not expose its expanded / collapsed state"
+            assert 'role="slider"' in html, "Missing the dial (slider) of the expanded room card"
+            assert "Înapoi la program" in html, "Missing the boost reset button 'Înapoi la program'"
+            assert "Reia încălzirea" in html, "Missing the open-window button 'Reia încălzirea'"
             return TestResult(test_id, name, req, "PASS", latency,
-                              "served page has direct vertical setpoint steppers on room cards with room-main quick-view")
+                              "served page has expandable room cards with dial, steppers, boost reset and window notice")
         except Exception as e:
             return TestResult(test_id, name, req, "FAIL", (time.time() - start) * 1000, str(e))
 
@@ -789,8 +792,8 @@ class UiHistoryTests:
             assert r_page.status_code == 200, f"page: HTTP {r_page.status_code}"
             html = r_page.text
 
-            # Room card subtitle improvements: no redundant target in subText, clean humidity with RH
-            assert "💧" in html and "% RH" in html, "Missing humidity % RH formatting in page"
+            # Room card texts of FR-8.1 (C-47): humidity reads `Umiditate X%`
+            assert "Umiditate " in html, "Missing humidity text 'Umiditate X%' in page"
             assert "Boost manual" in html, "Missing 'Boost manual' status in page"
             assert "Încălzire TPI" in html and "min/h" in html, "Missing 'Încălzire TPI · X min/h' formatting in page"
             assert "Pauză ciclu (menține din șapă)" in html, "Missing TPI pause description in page"
@@ -825,6 +828,58 @@ class UiHistoryTests:
             assert "onclick=\"clearWindowPause(" in html, "window clear button missing on the room card"
             assert re.search(r'if\s*\(\s*b\s*&&\s*b\.dataset\.a\s*\)', handler),                 "the click handler of the room cards takes every button as a stepper: the window clear button (no data-a) ends in 'Cannot read properties of undefined (reading effectiveTarget)'"
             return TestResult(test_id, name, req, "PASS", latency, "stepper handler acts only on buttons with a setpoint action")
+        except Exception as e:
+            return TestResult(test_id, name, req, "FAIL", (time.time() - start) * 1000, str(e))
+
+    def test_tc19_22_family_panel_layout_and_themes(self):
+        """SWE.5-TC19.22: Family view is a three-column panel with five themes kept in the browser (FR-8.1, C-47)"""
+        test_id = "SWE.5-TC19.22"
+        name = "Family Panel Layout And Themes"
+        req = "FR-8.1"
+        start = time.time()
+        try:
+            r = requests.get(f"{self.base_url}/", timeout=self.timeout)
+            latency = (time.time() - start) * 1000
+            assert r.status_code == 200, f"page: HTTP {r.status_code}"
+            html = r.text
+            # three columns from 1024 px page width
+            assert re.search(r"min-width\s*:\s*1024px", html), "No layout switch at 1024 px page width"
+            # five colour themes, the choice kept in the browser, first visit Smartiva Glass
+            for theme in ("HA Charcoal", "Glass Glow", "Smartiva Dark", "Nordic Light", "Smartiva Glass"):
+                assert theme in html, f"Theme '{theme}' missing from the page"
+            assert "localStorage" in html, "The theme choice is not kept in the browser"
+            assert re.search(r"""theme\w*\s*=\s*["']smartiva-glass["']""", html, re.I), \
+                "The first visit does not start with the theme Smartiva Glass"
+            # right column: Stare sistem; left column: boiler card with the ON time of today and the pause of FR-4
+            assert "Stare sistem" in html, "Missing the card 'Stare sistem'"
+            assert "Centrală termică" in html, "Missing the boiler card"
+            assert "boilerCooldownSec" in html, "The boiler card does not show the remaining pause (FR-4)"
+            assert "boilerRuntime.todaySec" in html, "The boiler card has no source for the ON time of today"
+            return TestResult(test_id, name, req, "PASS", latency,
+                              "three-column panel, five themes kept in the browser, boiler card and Stare sistem present")
+        except Exception as e:
+            return TestResult(test_id, name, req, "FAIL", (time.time() - start) * 1000, str(e))
+
+    def test_tc19_23_page_self_contained_and_no_unmeasured_values(self):
+        """SWE.5-TC19.23: Page loads nothing from another host and shows no value the controller lacks (FR-8.1, C-47)"""
+        test_id = "SWE.5-TC19.23"
+        name = "Page Self-Contained, No Unmeasured Values"
+        req = "FR-8.1"
+        start = time.time()
+        try:
+            r = requests.get(f"{self.base_url}/", timeout=self.timeout)
+            latency = (time.time() - start) * 1000
+            assert r.status_code == 200, f"page: HTTP {r.status_code}"
+            html = r.text
+            # nothing from another host: no absolute URL in src / href / url() / @import, fonts are part of the page
+            ext = re.findall(r"""(?:src|href)\s*=\s*["']\s*(?:https?:)?//[^"']+|url\(\s*["']?\s*(?:https?:)?//[^)]+|@import[^;]+""", html)
+            assert not ext, f"The page loads from another host: {ext[:3]}"
+            assert "@font-face" in html and "data:font/woff2" in html, "The fonts are not part of the page"
+            # a value the controller does not measure or receive is not shown
+            for word in ("Presiune", "Debit instantaneu", "Prognoz", "Vânt "):
+                assert word not in html, f"The page shows a value the controller does not have: '{word}'"
+            return TestResult(test_id, name, req, "PASS", latency,
+                              "no request to another host, fonts embedded, no flame modulation / pressure / forecast / wind")
         except Exception as e:
             return TestResult(test_id, name, req, "FAIL", (time.time() - start) * 1000, str(e))
 

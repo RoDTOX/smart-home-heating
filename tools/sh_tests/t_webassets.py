@@ -4,7 +4,7 @@ import gzip as _gzip
 import os as _os
 
 FLOOR = 24576
-MAX_PAGE = 61440
+MAX_PAGE = 262144  # FR-8.6 (C-48)
 
 
 class WebAssetTests:
@@ -12,7 +12,7 @@ class WebAssetTests:
         return requests.get(f"{self.base_url}/", timeout=self.timeout, headers={"Accept-Encoding": "identity"})
 
     def _upload(self, data, name="index.html.gz"):
-        return requests.post(f"{self.base_url}/api/web/update", files={"f": (name, data)}, timeout=30)
+        return requests.post(f"{self.base_url}/api/web/update", files={"f": (name, data)}, timeout=90)  # C-48: a refused 264 KB file is read in full first (~25 s)
 
     def _raw_page(self):
         r = requests.get(f"{self.base_url}/", timeout=self.timeout, stream=True, headers={"Accept-Encoding": "gzip"})
@@ -33,7 +33,7 @@ class WebAssetTests:
             return TestResult(test_id, name, req, "FAIL", (time.time() - start) * 1000, str(e))
 
     def test_tc38_2_refused_uploads_keep_page(self):
-        """SWE.5-TC38.2: a file that is not gzip -> 400, over 61 440 B -> 413; the old page stays (FR-8.6)"""
+        """SWE.5-TC38.2: a file that is not gzip -> 400, over 262 144 B -> 413; the old page stays (FR-8.6, C-48)"""
         test_id, name, req = "SWE.5-TC38.2", "Refused Uploads Keep The Page", "FR-8.6"
         start = time.time()
         try:
@@ -87,6 +87,27 @@ class WebAssetTests:
             st = requests.get(f"{self.base_url}/api/boiler/status", timeout=self.timeout)
             assert st.status_code == 200, "the API stopped answering without the page"
             return TestResult(test_id, name, req, "PASS", (time.time() - start) * 1000, f"stub {len(p.content)} B")
+        except Exception as e:
+            return TestResult(test_id, name, req, "FAIL", (time.time() - start) * 1000, str(e))
+        finally:
+            if saved[:2] == b"\x1f\x8b":
+                try:
+                    self._upload(saved)
+                except Exception:
+                    pass
+
+    def test_tc38_6_page_up_to_limit_accepted(self):
+        """SWE.5-TC38.6: a gzip page of 200 000 B (under 262 144 B) is accepted with HTTP 200; the page is restored (FR-8.6, C-48)"""
+        test_id, name, req = "SWE.5-TC38.6", "Page Up To The Limit Accepted", "FR-8.6"
+        start = time.time()
+        _, saved = self._raw_page()
+        try:
+            body = _gzip.compress(_os.urandom(200000 - 23), 0)  # stored gzip: 10 B header + 5 B block + data + 8 B trailer
+            assert 190000 < len(body) <= MAX_PAGE, f"test file is {len(body)} B"
+            r = self._upload(body)
+            assert r.status_code == 200, f"{len(body)} B page: HTTP {r.status_code} {r.text[:120]}"
+            assert r.json().get("bytes") == len(body), f"answer {r.text[:120]}"
+            return TestResult(test_id, name, req, "PASS", (time.time() - start) * 1000, f"{len(body)} B accepted")
         except Exception as e:
             return TestResult(test_id, name, req, "FAIL", (time.time() - start) * 1000, str(e))
         finally:

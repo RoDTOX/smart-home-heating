@@ -159,6 +159,8 @@ class SystemTestSuite(SuiteBase, HealthTests, HydraulicsTests, ControlTests, UiH
             self.test_tc19_15_zone_heating_runtime_telemetry,
             self.test_tc19_16_history_24h_chart_and_card_subtitles,
             self.test_tc19_17_window_clear_button_not_handled_as_stepper,
+            self.test_tc19_22_family_panel_layout_and_themes,
+            self.test_tc19_23_page_self_contained_and_no_unmeasured_values,
             # Group 20: LittleFS Flash Telemetry History Buffer (FR-34)
             self.test_tc20_1_history_schema_24h,
             self.test_tc20_2_history_schema_5d,
@@ -306,6 +308,7 @@ class SystemTestSuite(SuiteBase, HealthTests, HydraulicsTests, ControlTests, UiH
             self.test_tc38_3_upload_round_trip_and_floor,
             self.test_tc38_4_stub_when_page_missing,
             self.test_tc38_5_memory_reports_littlefs,
+            self.test_tc38_6_page_up_to_limit_accepted,
             self.test_tc39_1_target_ceiling_28,
             self.test_tc40_1_log_format,
             self.test_tc40_2_relay_changes_logged,
