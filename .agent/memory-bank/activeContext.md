@@ -18,5 +18,5 @@ Only what holds now and what comes next. A line that no longer holds is replaced
 - **Live Board (`192.168.1.20`)**: Running firmware `v1.11.13.10` (built 15.11.2026 from the working tree before the commit of C-47 / C-48; page limit 262 144 B) + LittleFS `index.html.gz` (`142 023 B`, the themed panel of FR-8.1, C-47). All 3 zones active & idle at setpoints after the restart.
 
 ## Next
-0. **Page as a themed panel (C-47, C-48, D-63) - built, on the board, owner test pending:**
-   - Owner tests hands-on: target from dial and steppers, `Înapoi la program`, `Plecat`, `Reia încălzirea`, themes, phone and wall-tablet width. Open: full `sh_test_system.py` run, reflash from the clean commit, theme `Meteo Dinamic`, `design/aistudio/` (generated React source, untracked) keep or delete.
+0. **Page as a themed panel (C-47, C-48, D-63) - on the board, owner OK 15.11.2026 (chat):**
+   - Open: full `sh_test_system.py` run, reflash from the clean commit, theme `Meteo Dinamic`, `design/aistudio/` (generated React source, untracked) keep or delete.
