@@ -1,314 +1,248 @@
 <div align="center">
 
-# 🔥 Smart Home Heating — Autonomous Underfloor Heating Controller
+# 🔥 Smart Home Heating
 
 <p align="center">
-  <img src="https://readme-typing-svg.demolab.com?font=Fira+Code&weight=600&size=16&pause=1000&color=F59E0B&center=true&vCenter=true&width=620&lines=Autonomous+Multi-Zone+Underfloor+Heating;TPI+Screed+Pulse+Control+%E2%80%A2+Weather-Shifted+Preheat;100%25+Local+%E2%80%A2+Zero+Cloud+%E2%80%A2+Embedded+Web+UI+%26+REST;Fail-Safe+Hydraulics+%E2%80%A2+Interlock+%26+Burner+Guard;Xiaomi+BLE+Sensors+%E2%80%A2+433.92+MHz+Boiler+RF+Link" alt="Typing SVG" />
+  <img src="https://readme-typing-svg.demolab.com?font=Fira+Code&weight=600&size=16&pause=1000&color=F59E0B&center=true&vCenter=true&width=620&lines=Autonomous+Multi-Zone+Underfloor+Heating;Install+Once,+Calibrate+Once,+Forget+It;100%25+Local+%E2%80%A2+Zero+Cloud+%E2%80%A2+Zero+Subscriptions;Rock-Solid+%C2%B10.3+%C2%B0C+Comfort+%E2%80%A2+No+Overshoot;Xiaomi+BLE+Sensors+%E2%80%A2+433+MHz+Boiler+Link" alt="Typing SVG" />
 </p>
 
 <p align="center">
-  <b>⚡ Install once, calibrate once, forget it — Precision climate control for high-inertia hydronic underfloor heating</b>
+  <b>⚡ Autonomous multi-zone underfloor heating controller — install once, calibrate once, forget it.</b><br/>
+  <i>Engineered for the heavy thermal inertia of concrete screed floors. Perfect comfort with zero cloud dependencies.</i>
 </p>
 
-<!-- Project Status & Specs (Row 1) -->
+<!-- Clean, User-Friendly Badges -->
 <p align="center">
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-blue.svg?style=flat-square" alt="License" /></a>
-  <a href="docs/hardware_esp32_relay.md"><img src="https://img.shields.io/badge/Hardware-ESP32--Relay%20X4%20V1.1-orange.svg?style=flat-square&logo=espressif" alt="Hardware" /></a>
-  <img src="https://img.shields.io/badge/Connectivity-Wi--Fi%20%7C%20BLE%20%7C%20433.92%20MHz-purple.svg?style=flat-square&logo=bluetooth" alt="Connectivity" />
-  <img src="https://img.shields.io/badge/Precision-%C2%B10.3%20%C2%B0C%20Target-brightgreen.svg?style=flat-square" alt="Precision" />
-  <img src="https://img.shields.io/badge/Safety-Fail--Safe%20Interlock%20%26%20Overrun-red.svg?style=flat-square" alt="Safety" />
-  <img src="https://img.shields.io/badge/PlatformIO-Passing%20(0%20errors)-success.svg?style=flat-square&logo=platformio" alt="Build" />
+  <img src="https://img.shields.io/badge/Privacy-100%25%20Local%20(No%20Cloud)-success.svg?style=flat-square" alt="Privacy" />
+  <img src="https://img.shields.io/badge/Hardware-ESP32%204--Relay%20Controller-orange.svg?style=flat-square&logo=espressif" alt="Hardware" />
+  <img src="https://img.shields.io/badge/Comfort-%C2%B10.3%20%C2%B0C%20Precision-brightgreen.svg?style=flat-square" alt="Precision" />
+  <img src="https://img.shields.io/badge/Web%20UI-Embedded%20Glass%20Dashboard-purple.svg?style=flat-square" alt="Web UI" />
+  <img src="https://img.shields.io/badge/Sensors-Xiaomi%20BLE%20Wireless-blue.svg?style=flat-square&logo=bluetooth" alt="Sensors" />
 </p>
 
-<!-- Tech Stack Tags (Row 2) -->
+<!-- Quick Navigation Bar -->
 <p align="center">
-  <img src="https://img.shields.io/badge/C%2B%2B17-00599C?style=flat-square&logo=cplusplus&logoColor=white" alt="C++17" />
-  <img src="https://img.shields.io/badge/ESP32-E7352C?style=flat-square&logo=espressif&logoColor=white" alt="ESP32" />
-  <img src="https://img.shields.io/badge/FreeRTOS-82BE27?style=flat-square&logo=freertos&logoColor=white" alt="FreeRTOS" />
-  <img src="https://img.shields.io/badge/LittleFS-008080?style=flat-square" alt="LittleFS" />
-  <img src="https://img.shields.io/badge/REST_API-009688?style=flat-square&logo=fastapi&logoColor=white" alt="REST API" />
-  <img src="https://img.shields.io/badge/Python_3.13-3776AB?style=flat-square&logo=python&logoColor=white" alt="Python" />
-  <img src="https://img.shields.io/badge/Open--Meteo-F58220?style=flat-square" alt="Open-Meteo" />
-</p>
-
-<!-- Navigation Bar -->
-<p align="center">
-  <a href="#-key-features">✨ <b>Features</b></a> •
-  <a href="#%EF%B8%8F-how-it-works--architecture">⚙️ <b>Architecture</b></a> •
-  <a href="#-hardware-specifications--reference-install">📐 <b>Hardware</b></a> •
-  <a href="#%EF%B8%8F-embedded-web-ui-smartiva-glass">🎛️ <b>Web UI</b></a> •
-  <a href="#-quick-start--build-guide">🚀 <b>Quick Start</b></a> •
-  <a href="#-wireless-ota-updates">📡 <b>Wireless OTA</b></a> •
-  <a href="#%EF%B8%8F-cli-tool--rest-api-reference">🛠️ <b>CLI & API</b></a> •
-  <a href="#-safety-invariants--failsafes">🔒 <b>Safety</b></a> •
-  <a href="#-documentation--links">📄 <b>Docs</b></a>
+  <a href="#-key-benefits">🌟 <b>Benefits</b></a> •
+  <a href="#-the-live-dashboard">📱 <b>Live UI</b></a> •
+  <a href="#-how-it-works">💡 <b>How It Works</b></a> •
+  <a href="#-quick-start">🚀 <b>Quick Start</b></a> •
+  <a href="#%EF%B8%8F-technical-specifications">🛠️ <b>Tech Specs</b></a> •
+  <a href="#-rest-api--cli">🔌 <b>API & CLI</b></a> •
+  <a href="#-safety--failsafes">🔒 <b>Safety</b></a> •
+  <a href="#-docs">📄 <b>Docs</b></a>
 </p>
 
 <br/>
 
+<!-- Hero Presentation Showcase -->
 <p align="center">
-  <img src="docs/smart_heating_banner.png" alt="Smart Home Heating Controller Hardware and Glass Dashboard UI Presentation" width="100%" />
+  <img src="docs/smart_heating_banner.png" alt="Smart Home Heating Hardware Controller and Tablet Dashboard Presentation" width="100%" />
 </p>
 
----
+<br/>
 
 </div>
 
-## 🌟 Key Features
+---
+
+## 🌟 Key Benefits
 
 <table>
   <tr>
     <td width="50%" valign="top">
-      <img src="https://img.shields.io/badge/PRIVACY-100%25%20LOCAL-success?style=flat-square" alt="Privacy" /><br/>
-      <b>🛡️ 100% Local & Cloud-Independent</b><br/>
-      Operates fully autonomously on the ESP32. <b>Zero external cloud accounts</b>, zero subscription fees, and no remote telemetry tracking. High-performance REST API and single-page web UI run self-contained out of Flash LittleFS.
+      <b>🛡️ 100% Local & Cloud-Free</b><br/>
+      Runs completely on your local network. <b>No cloud accounts</b>, no third-party servers, and no monthly subscriptions. If your internet goes down, your heating keeps working without interruption.
     </td>
     <td width="50%" valign="top">
-      <img src="https://img.shields.io/badge/CONTROL-TPI%20SCREED%20PULSE-orange?style=flat-square" alt="TPI Control" /><br/>
-      <b>⏱️ TPI Screed Pulse Modulation</b><br/>
-      Calculates hourly pulse-width modulation (PWM) fractions specifically tuned for heavy concrete screed inertia. Automatically prevents the severe overshooting and undershooting inherent to traditional bang-bang thermostats.
+      <b>🌡️ Rock-Solid ±0.3 °C Comfort</b><br/>
+      Underfloor heating is slow to warm up and slow to cool down. Traditional thermostats cause severe temperature swings. Our pulsed screed algorithm eliminates overheating and cold spots automatically.
     </td>
   </tr>
   <tr>
     <td width="50%" valign="top">
-      <img src="https://img.shields.io/badge/WEATHER-PREDICTIVE%20PREHEAT-blue?style=flat-square" alt="Weather" /><br/>
-      <b>🌤️ Weather-Shifted Predictive Pre-Heat</b><br/>
-      Integrates directly with Open-Meteo outdoor temperature telemetry. Shifts scheduled temperature transitions earlier based on outdoor chill (<b>2.0h earlier at +5 °C, 3.5h earlier at −5 °C</b>) so rooms reach target temperature right on time.
+      <b>🌤️ Smart Weather Pre-Heat</b><br/>
+      Checks local outdoor temperatures automatically. On freezing winter mornings, it starts warming the slab earlier so your rooms are at the exact target temperature when you wake up.
     </td>
     <td width="50%" valign="top">
-      <img src="https://img.shields.io/badge/SAFETY-MULTI--TIER%20FAILSAFE-red?style=flat-square" alt="Safety" /><br/>
-      <b>🔒 Multi-Tier Hydraulic Safety Invariants</b><br/>
-      Hardcoded embedded interlocks: <b>actuator opening delay</b> before boiler ignition, burner anti-short-cycling guard, minimum pump overrun dissipation, <b>frost protection (&lt;12 °C)</b>, and sensor loss fallback duty.
+      <b>📡 Zero-Wire Room Sensors</b><br/>
+      Listens passively to affordable Xiaomi BLE thermometers placed in each room. <b>No wires across walls</b>, no pairing procedures, and batteries last up to 2 years.
     </td>
   </tr>
   <tr>
     <td width="50%" valign="top">
-      <img src="https://img.shields.io/badge/SENSORS-PASSIVE%20BLE%20NIMBLE-blueviolet?style=flat-square" alt="BLE" /><br/>
-      <b>📡 Passive Xiaomi BLE Scanning</b><br/>
-      Reads room temperature & humidity directly from off-the-shelf Xiaomi LYWSD03MMC sensors (PVVX / BTHome V2 firmware). Background passive listening requires zero Bluetooth pairing and consumes <b>zero sensor battery life</b>.
+      <b>🔥 Wireless Boiler Control</b><br/>
+      Triggers your gas boiler wirelessly using a 433.92 MHz radio signal. <b>No drilling walls or pulling cables</b> between your heating manifold and the boiler.
     </td>
     <td width="50%" valign="top">
-      <img src="https://img.shields.io/badge/BOILER%20LINK-433.92%20MHZ%20OOK-brightgreen?style=flat-square" alt="Boiler Link" /><br/>
-      <b>🔥 Wireless 433.92 MHz Boiler Actuation</b><br/>
-      Emulates wireless thermostat radio commands via on-board 433.92 MHz OOK transmitter to toggle condensing gas boiler dry contacts. <b>Eliminates wall drilling and cable runs</b> between the heating manifold and the boiler.
-    </td>
-  </tr>
-  <tr>
-    <td width="50%" valign="top">
-      <img src="https://img.shields.io/badge/UI-SMARTIVA%20GLASS-informational?style=flat-square" alt="UI" /><br/>
-      <b>💎 Modern Glass Dashboard Web UI</b><br/>
-      Stunning single-page application with 5 dark and glassmorphism themes (<i>Smartiva Glass, HA Charcoal, Glass Glow, Smartiva Dark, Nordic Light</i>). Features interactive radial zone dials, 24h historical telemetry curves, and real-time gas cost estimation.
-    </td>
-    <td width="50%" valign="top">
-      <img src="https://img.shields.io/badge/DIAGNOSTICS-DTC%20FLIGHT%20RECORDER-purple?style=flat-square" alt="Diagnostics" /><br/>
-      <b>🩺 Automotive DTC Diagnostic Engine</b><br/>
-      Standardized Diagnostic Trouble Codes (e.g. <code>DTC-101</code> sensor timeout, <code>DTC-201</code> interlock violation) stored in a persistent LittleFS flight recorder ring buffer with instant CLI / UI inspection and clearing tools.
+      <b>🔒 Industrial-Grade Safety Guards</b><br/>
+      Built-in hardware interlocks: delays boiler ignition until valves physically open, prevents burner wear, runs pump overrun, and protects against frozen pipes (&lt;12 °C).
     </td>
   </tr>
 </table>
 
 ---
 
-## ⚙️ How It Works & Architecture
+## 📱 The Live Dashboard
 
-Hydronic underfloor heating possesses enormous thermal mass. Once a concrete screed warms up, it continues emitting heat for hours; conversely, heating a cold floor takes hours before room air temperature responds.
-
-```text
-┌─────────────────────────┐
-│ Xiaomi BLE Sensors      │──(Passive BLE Scan)──┐
-│ (LYWSD03MMC / BTHome)   │                      │
-└─────────────────────────┘                      ▼
-┌─────────────────────────┐           ┌─────────────────────┐         ┌──────────────────────┐
-│ Open-Meteo Weather API  │──(REST)──►│   ESP32-Relay X4    │──Relays─► Thermal Actuators    │
-│ (Outdoor Temperature)   │           │  Heating Controller │         │ (230V NC Manifold)   │
-└─────────────────────────┘           └──────────┬──────────┘         └──────────────────────┘
-                                                 │
-                                                 └──(433.92 MHz OOK)─► Gas Boiler (Dry Contact)
-```
-
-### The Three-Tier Control Loop
-
-1. **Target Schedules & Offsets:** Each zone defines individual setpoints for **Day**, **Night**, and **Away** modes. Slots (e.g., `06:30=day, 22:30=night`) coordinate transitions. Temporary +/- adjustments (**Boost**) remain active until the next slot boundary.
-2. **Predictive Weather Compensation:** Rather than waiting for the morning slot to trigger heating, the controller samples outdoor temperature and shifts startup earlier (e.g., 2.0h at 5 °C; 3.5h at −5 °C).
-3. **TPI Screed Pulse Modulation:** Instead of crude thermostat cycling, every 60 minutes each zone opens its electrothermal valve for a calculated fraction of the hour (`error / 1.5 °C + learned base duty`, minimum pulse 10 min).
-
----
-
-## 📐 Hardware Specifications & Reference Install
-
-The reference installation controls a 7-circuit underfloor heating manifold partitioned into 3 independent zones, paired with an **Immergas Victrix Tera 24** condensing boiler.
-
-```text
-       +-------------------------------------------------------+
-       | [Power Supply: 230V AC or 5V DC]                      |
-       |                                                       |
-       |   +--------------------------+    [Status LED: IO23]  |
-       |   |    ESP32-WROOM-32E       |    [RF 433 MHz: IO19]  |
-       |   | Dual-Core 240MHz, 4MB FL |                        |
-       |   +--------------------------+    [Relay 1: GPIO32]   |
-       |                                   [Relay 2: GPIO33]   |
-       |   [Prog Header: TX1, RX3, GND]    [Relay 3: GPIO25]   |
-       |   [Buttons: IO0 (Boot), RST]      [Relay 4: GPIO26]   |
-       +-------------------------------------------------------+
-```
-
-| Component | Designator / Pin | Function / Reference Assignment |
-|---|---|---|
-| **MCU Board** | ESP32-Relay X4 V1.1 | ESP32-D0WD-V3, 4 MB SPI Flash, 320 KB SRAM |
-| **Relay 1** | `GPIO32` (Active HIGH) | **Zone 1:** Living Room + Kitchen + Hallway (3 manifold circuits) |
-| **Relay 2** | `GPIO33` (Active HIGH) | **Zone 2:** Children's Bedroom (2 manifold circuits) |
-| **Relay 3** | `GPIO25` (Active HIGH) | **Zone 3:** Master Bedroom (2 manifold circuits) |
-| **Relay 4** | `GPIO26` (Active HIGH) | Auxiliary dry contact / Secondary GPA pump |
-| **RF Transmitter** | `GPIO19` (Data) | 433.92 MHz OOK wireless boiler trigger (train of 409 transitions) |
-| **Status LED** | `GPIO23` (Active LOW) | Onboard indicator (fast pulses during command activity, solid standby) |
-| **Sensors** | BLE Passive Scan | Xiaomi Mijia LYWSD03MMC running custom PVVX / BTHome V2 firmware |
-| **Bypass** | Hydraulic | Bathroom towel radiators remain permanently open for continuous circulation |
-
----
-
-## 🎛️ Embedded Web UI ("Smartiva Glass")
-
-The on-board web interface is served directly from the ESP32 Flash via **LittleFS** with zero external dependencies (embedded fonts and CSS, no internet CDN calls required).
+The web interface is hosted directly on the ESP32 chip. It loads instantly in any browser on phone, tablet, or PC without needing an app store download or internet connection.
 
 <p align="center">
-  <img src="docs/ui_dashboard.jpg" alt="Smartiva Glass Live Dashboard Web UI Preview" width="100%" />
+  <img src="docs/ui_dashboard.jpg" alt="Smartiva Glass Live Dashboard Preview" width="100%" />
 </p>
 
-### Interface Capabilities
-- **Glassmorphism Design:** Five selectable visual themes stored in `localStorage` (*Smartiva Glass*, *HA Charcoal*, *Glass Glow*, *Smartiva Dark*, *Nordic Light*).
-- **Zone Room Cards:** Real-time temperature, humidity, target setpoint, radial dial adjustments, and valve pulse status.
-- **Telemetry Charts:** 24-hour historical temperature trendlines read from `/api/history`.
-- **Boiler & Gas Telemetry:** Burner runtime, pause counter, estimated gas volume (`m³/h`), and real-time heating cost calculation.
-- **Admin Management Console (`#admin`):** Full configuration of schedules, slot times, sensor MAC pairings, temperature offsets, and diagnostic event history.
+### What You Get:
+- **Interactive Temperature Dials:** Tap `+` or `-` to temporarily boost room warmth — resets automatically at the next schedule slot.
+- **5 Sleek Themes:** Switch between *Smartiva Glass*, *HA Charcoal*, *Glass Glow*, *Smartiva Dark*, and *Nordic Light*.
+- **24-Hour Telemetry Curves:** Live charts show room temperatures, outdoor weather trends, and valve activity.
+- **Gas & Cost Estimation:** Displays live burner status, daily running hours, and calculates estimated gas consumption and cost.
+- **One-Touch Away Mode:** Drop all rooms to energy-saving temperatures with a single tap when leaving the house.
 
 ---
 
-## 🚀 Quick Start & Build Guide
+## 💡 How It Works
 
-### 1. Configuration (`include/secrets.h`)
+Underfloor hydronic heating requires a different approach than fast radiators. Because concrete absorbs heat slowly and releases it over hours, ordinary ON/OFF thermostats constantly overshoot.
 
-Create an untracked `include/secrets.h` file containing your local network credentials:
+```text
+  Xiaomi BLE Sensors                  ESP32 4-Relay Controller              Floor Manifold & Boiler
+ ┌───────────────────┐              ┌──────────────────────────┐          ┌──────────────────────────┐
+ │  Living Room 23°  │──(Wireless)─►│                          │──Relays─►│ 230V Thermal Actuators   │
+ │  Kids Room   22°  │   Bluetooth  │  TPI Pulse Modulation    │          │ (Opens circuits in slab) │
+ │  Bedroom     21°  │              │  + Weather Pre-Heat      │          └──────────────────────────┘
+ └───────────────────┘              │                          │                    │
+ ┌───────────────────┐              │                          │──(433 MHz)────────►│ Gas Boiler (Ignition)    │
+ │ Open-Meteo API    │───(Wi-Fi)───►│                          │   Radio Link       └──────────────────────────┘
+ └───────────────────┘              └──────────────────────────┘
+```
+
+1. **Schedule What You Need:** Set target temperatures for **Day**, **Night**, and **Away** (e.g. `06:30=Day (23 °C)`, `22:30=Night (21 °C)`).
+2. **Weather Anticipation:** If it's +5 °C outside, heating starts 2 hours early; if it's −5 °C, it starts 3.5 hours early.
+3. **Pulsed Valve Cycles:** Every hour, each zone opens its manifold valve for the exact duration required to hold the target temperature within ±0.3 °C.
+
+---
+
+## 🚀 Quick Start
+
+### 1. Configure Wi-Fi (`include/secrets.h`)
+Create an untracked `include/secrets.h` file:
 
 ```c
 #pragma once
-
-#define DEFAULT_WIFI_SSID "Your_WiFi_SSID"
+#define DEFAULT_WIFI_SSID "Your_WiFi_Name"
 #define DEFAULT_WIFI_PASS "Your_WiFi_Password"
 #define OTA_USER          "admin"
 #define OTA_PASS          "Your_Admin_Password"
 ```
 
-### 2. Compile & Flash Initial Binary
-
+### 2. Build & Flash (First Time USB)
 ```bash
-# Compile firmware using PlatformIO
-pio run -e esp32dev
-
-# Upload via USB serial bridge (first time flash)
+# Compile and flash via PlatformIO
 pio run -e esp32dev --target upload
 ```
 
-### 3. Verify System Operations
-
-After flashing, run the comprehensive automated validation suite against the active device:
-
+### 3. Future Updates (100% Wireless OTA)
+Once flashed, you never need USB cables again:
 ```bash
-python tools/sh_process_check.py
-python tools/sh_test_system.py
-```
-
----
-
-## 📡 Wireless OTA Updates
-
-Once the initial binary is flashed, all subsequent firmware and web interface updates are performed wirelessly over Wi-Fi without opening the electrical enclosure.
-
-### Option A: Python CLI Tool (Recommended)
-
-```bash
-# Compile and stream firmware over the local network
+# Compile and stream firmware over Wi-Fi
 pio run -e esp32dev
 python tools/sh_ota_upload.py
 ```
-
-> [!NOTE]
-> `sh_ota_upload.py` performs rigorous safety validation before initiating upload, verifying image integrity, `secrets.h` presence, and partition size boundaries (working margin &le; 1 306 624 B).
-
-### Option B: Browser Web OTA Interface
-
-Navigate to `http://192.168.1.20/update`, log in with your configured admin credentials, select `.pio/build/esp32dev/firmware.bin`, and click **Update Firmware**. The system validates the binary, writes to the inactive OTA bank, and reboots in ~15 seconds.
+*(Or navigate to `http://192.168.1.20/update` in your browser).*
 
 ---
 
-## 🛠️ CLI Tool & REST API Reference
+<details>
+<summary>🛠️ <b>Click here for Technical Specifications & Hardware Pinout</b></summary>
 
-Full headless automation is available via the companion CLI tool [`tools/sh_esp_cli.py`](tools/sh_esp_cli.py) or direct REST endpoints.
+<br/>
 
-### Companion CLI Examples
+### Hardware Architecture (Reference Installation)
 
+| Component | Hardware Details | Function |
+|---|---|---|
+| **MCU Board** | ESP32-Relay X4 V1.1 (ESP32-WROOM-32E, 240 MHz, 4 MB Flash) | Core controller & web server (`192.168.1.20`) |
+| **Relay 1** | `GPIO32` (230V NC Actuators) | **Zone 1:** Living Room + Kitchen + Hallway (3 loops) |
+| **Relay 2** | `GPIO33` (230V NC Actuators) | **Zone 2:** Children's Bedroom (2 loops) |
+| **Relay 3** | `GPIO25` (230V NC Actuators) | **Zone 3:** Master Bedroom (2 loops) |
+| **Relay 4** | `GPIO26` (Dry Contact) | Auxiliary pump / GPA circuit (spare) |
+| **RF Transmitter** | `GPIO19` (433.92 MHz OOK) | Wireless boiler trigger (replaces wall thermostat) |
+| **Status LED** | `GPIO23` (Active LOW) | System status & communication pulses |
+| **Sensors** | Xiaomi LYWSD03MMC (BLE) | Passive broadcast scan (PVVX / BTHome V2 firmware) |
+| **Boiler** | Immergas Victrix Tera 24 | Condensing gas boiler with dry contact remote receiver |
+
+</details>
+
+---
+
+<details>
+<summary>🔌 <b>Click here for REST API & CLI Tool Reference</b></summary>
+
+<br/>
+
+### Companion Python CLI (`tools/sh_esp_cli.py`)
 ```bash
-# Display live system status and zone telemetry
+# View live status and room temperatures
 python tools/sh_esp_cli.py status
 
 # Set Zone 1 target temperature to 22.5 °C
 python tools/sh_esp_cli.py zone 1 target 22.5
 
-# Toggle global Away mode
+# Toggle Away mode
 python tools/sh_esp_cli.py away on
 python tools/sh_esp_cli.py away off
 
-# Display active schedules and slot definitions
-python tools/sh_esp_cli.py schedule
-
-# Inspect active DTC alarms and flight recorder history
+# Check diagnostics and event logs
 python tools/sh_esp_cli.py diag
-python tools/sh_esp_cli.py diag clear-events
 ```
 
 ### Core REST API Endpoints
 
-| Endpoint | Method | Description |
+| Endpoint | Method | Purpose |
 |---|---|---|
-| `/api/status` | `GET` | Complete controller telemetry: boiler state, flame, outdoor temp, and zones. |
-| `/api/zones` | `GET`, `POST` | Read all zone states or update target setpoints / temporary boost trims. |
-| `/api/schedule` | `GET`, `POST` | Inspect or update weekday/weekend slot boundaries and level setpoints. |
-| `/api/diag` | `GET` | Active Diagnostic Trouble Codes (DTCs), sensor RSSI, and uptime. |
-| `/api/diag/events` | `GET`, `POST` | Retrieve persistent DTC ring-buffer event history or clear event log. |
-| `/api/history` | `GET` | 24-hour historical room temperature and outdoor temperature curves. |
+| `/api/status` | `GET` | Complete controller status: boiler, flame, outdoor temp, and all zone values |
+| `/api/zones` | `GET`, `POST` | Read current room temperatures or set temporary target boosts |
+| `/api/schedule` | `GET`, `POST` | Inspect or update day/night time slot boundaries |
+| `/api/history` | `GET` | 24-hour historical temperature and weather data |
+| `/api/diag` | `GET` | Active diagnostic trouble codes (DTCs) and sensor RSSI levels |
 
-*Telnet console access is also enabled by default on port 23 (`telnet 192.168.1.20 23`).*
+*An interactive Telnet console is also available on port 23 (`telnet 192.168.1.20 23`).*
+
+</details>
 
 ---
 
-## 🔒 Safety Invariants & Failsafes
+<details>
+<summary>🔒 <b>Click here for Safety Invariants & Failsafes</b></summary>
 
-Heating controllers must be engineered with absolute defense-in-depth against hardware failure and thermal hazards:
+<br/>
 
-| Safety Guard | Invariant Rule | Failure Protection |
-|---|---|---|
-| **Actuator Interlock (FR-2)** | Delays boiler ON command by `interlockDelay` (~180s). | Prevents boiler pump from firing against fully closed electrothermal wax actuators. |
-| **Overrun Dissipation (FR-3)** | Last open valve remains open while boiler fires + `overrun` period. | Absorbs residual latent heat from the boiler heat exchanger. |
-| **Anti-Short-Cycling (FR-4)** | Enforces `burnerMinRun` and `burnerMinPause` cooldown timers. | Protects boiler combustion chamber and electronics from rapid cycling fatigue. |
-| **Frost Protection (FR-16)** | Activates zone valves and boiler immediately if any room drops &lt; 12.0 °C. | Prevents hydraulic pipe freezing during prolonged winter vacancies or Away mode. |
-| **Sensor Loss Guard (FR-51)** | Fallback to safe baseline duty cycle after `sensorTimeout` + raises `DTC-101`. | Prevents unmonitored freezing or continuous boiling if a wireless sensor battery dies. |
-| **Safe Boot State (NFR-1.4)** | Boots with all relays open, fires boiler OFF pulse, completes warm-up period. | Guarantees safe zero-heat state upon power restoration after electrical outages. |
+Heating systems must guarantee absolute physical protection against equipment failure:
+
+- **Actuator Delay Interlock (FR-2):** Delays boiler ignition (~180s) until thermal actuators have physically expanded and opened, preventing circulation pumps from dead-heading against closed valves.
+- **Overrun Heat Dissipation (FR-3):** Keeps the last open circuit open during boiler operation and for an overrun duration afterward to safely dissipate heat exchanger thermal mass.
+- **Burner Anti-Short-Cycling (FR-4):** Enforces mandatory minimum runtimes and cooldown pauses to protect boiler components from rapid on/off fatigue.
+- **Automatic Frost Protection (FR-16):** If any room temperature drops below 12.0 °C, valves and boiler fire immediately, regardless of Away mode or schedules.
+- **Sensor Loss Safeguard (FR-51):** If a wireless room thermometer fails to report, the zone switches to a safe fallback duty cycle and flags `DTC-101` rather than shutting down.
+- **Safe Boot State (NFR-1.4):** Upon boot, all relays stay OFF, a boiler OFF pulse is broadcast, and sensor calibration completes before any heat command is issued.
+
+</details>
 
 ---
 
 ## 📄 Documentation & Links
 
-- **[Project Migration Plan](docs/plan.md)** — Architectural migration status and roadmap.
-- **[Requirements & Specifications](docs/requirements_and_features.md)** — Complete functional and safety requirement catalog.
-- **[System Architecture](docs/architecture.md)** — Deep-dive into software design, TPI maths, and memory layout.
-- **[REST API Reference](docs/api_reference.md)** — Exhaustive documentation of all JSON endpoints.
-- **[Hardware & Wiring Guide](docs/hardware_esp32_relay.md)** — Pin assignments, PCB revisions, and serial programming.
-- **[Hydraulics & Failsafes](docs/underfloor_heating_hydraulics_and_failsafes.md)** — Mechanical plumbing design and thermal failsafes.
-- **[Changelog](docs/changelog.md)** — Detailed historical log of updates and verification records.
+- **[System Architecture](docs/architecture.md)** — In-depth software architecture, memory maps, and TPI control loop maths.
+- **[Requirements & Specifications](docs/requirements_and_features.md)** — Functional specifications and safety rules.
+- **[REST API Reference](docs/api_reference.md)** — Complete JSON endpoint documentation.
+- **[Hardware & Wiring Guide](docs/hardware_esp32_relay.md)** — Board pinout, electrical schematic, and wiring.
+- **[Hydraulics & Failsafes](docs/underfloor_heating_hydraulics_and_failsafes.md)** — Plumbing guidelines and bypass loops.
+- **[Project Plan](docs/plan.md)** & **[Changelog](docs/changelog.md)** — Migration steps and verification records.
 
 ---
 
 ## 📜 License & Credits
 
-- **Firmware & Tools:** [MIT License](LICENSE). Developed by [Bogdan Seceleanu](https://github.com/RoDTOX) with Google DeepMind Antigravity.
+- **Software & Firmware:** [MIT License](LICENSE). Developed by [Bogdan Seceleanu](https://github.com/RoDTOX) with Google DeepMind Antigravity.
 - **Reference Hardware:** ESP32-Relay X4 V1.1 / Espressif Systems.
-- **Sensors:** Xiaomi Mijia BLE (PVVX open-source firmware / BTHome V2).
+- **Sensors:** Xiaomi Mijia BLE (PVVX / BTHome open-source firmware).
