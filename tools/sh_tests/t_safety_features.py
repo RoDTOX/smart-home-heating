@@ -406,6 +406,13 @@ class SafetyFeatureTests:
             assert r.status_code == 200, f"Config query failed: {r.status_code}"
             data = r.json()
             assert "pumpControlEnabled" in data, "Missing pumpControlEnabled in config"
+            # PB-33: FR-14.1 - one relay may be the pump: the setting is a boolean and, when on, its relay is
+            # no relay of a zone
+            assert isinstance(data["pumpControlEnabled"], bool), f"pumpControlEnabled is not a boolean: {data['pumpControlEnabled']!r}"
+            if data["pumpControlEnabled"]:
+                zone_pins = [z["relayPin"] for z in data.get("zones", [])]
+                assert data["pumpRelayPin"] not in zone_pins, \
+                    f"Pump relay {data['pumpRelayPin']} is also the relay of a zone {zone_pins}"
             latency = (time.time() - start) * 1000
             details = f"GPA pump control enabled: {data.get('pumpControlEnabled')} (Relay 4 unmapped/free)"
             return TestResult(test_id, name, req, "PASS", latency, details)

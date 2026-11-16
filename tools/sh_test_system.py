@@ -440,22 +440,18 @@ class SystemTestSuite(SuiteBase, HealthTests, HydraulicsTests, ControlTests, UiH
     def compute_traceability_metrics(self):
         """Build bidirectional mapping between SWE.1 Requirements and SWE.5 Test Results"""
         def matches_requirement(token, req_id):
-            if token == req_id:
-                return True
-            # Sub-requirement matching: e.g. token 'FR-1.2' matches req_id 'FR-1'
-            if "." in token and token.split(".")[0] == req_id:
-                return True
-            # Parent requirement matching: e.g. token 'FR-26' matches req_id 'FR-26.1'
-            if "." in req_id and req_id.split(".")[0] == token:
-                return True
-            return False
+            # PB-38 (process R5): only a test that cites the requirement's own ID covers it; a test that cites
+            # the parent ('FR-26' for 'FR-26.1') or a child does not prove this requirement
+            return token == req_id
 
-        req_to_tests = {req_id: [] for req_id in SWE1_REQUIREMENTS.keys()}
+        # a parent only groups its children (requirements §0): it is not counted as a requirement to cover
+        parents = {r.rsplit(".", 1)[0] for r in SWE1_REQUIREMENTS if "." in r}
+        req_to_tests = {req_id: [] for req_id in SWE1_REQUIREMENTS.keys() if req_id not in parents}
 
         for res in self.results:
             tokens = [t.strip() for t in res.requirement.replace(";", ",").split(",") if t.strip()]
             for token in tokens:
-                for req_id in SWE1_REQUIREMENTS.keys():
+                for req_id in req_to_tests:
                     if matches_requirement(token, req_id):
                         if res not in req_to_tests[req_id]:
                             req_to_tests[req_id].append(res)
@@ -475,7 +471,7 @@ class SystemTestSuite(SuiteBase, HealthTests, HydraulicsTests, ControlTests, UiH
             else:
                 uncovered.append(req_id)
 
-        total_reqs = len(SWE1_REQUIREMENTS)
+        total_reqs = len(req_to_tests)
         covered_count = len(covered)
         coverage_rate = (covered_count / total_reqs) * 100 if total_reqs > 0 else 0
 
@@ -513,8 +509,11 @@ class SystemTestSuite(SuiteBase, HealthTests, HydraulicsTests, ControlTests, UiH
         md.append("| Metrică de Calitate | Valoare Măsurată | Țintă Standard ASPICE | Status |")
         md.append("| :--- | :---: | :---: | :---: |")
         md.append(f"| **Cerințe Software Definite (SWE.1)** | `{trace['total_reqs']}` cerințe | Înregistru complet | ✅ Confirmat |")
-        md.append(f"| **Cerințe Acoperite de Teste (SWE.5)** | `{trace['covered_count']}` cerințe | 100% din cerințe | ✅ **{trace['coverage_rate']:.1f}% PASS** |")
-        md.append(f"| **Cerințe Neacoperite de Teste** | `{len(trace['uncovered_reqs'])}` cerințe | 0 cerințe neacoperite | ✅ **0 (None)** |")
+        n_unc = len(trace['uncovered_reqs'])
+        unc_cell = "✅ **0**" if n_unc == 0 else f"❌ **{n_unc}**: " + ", ".join(trace['uncovered_reqs'])
+        cov_mark = "✅" if n_unc == 0 else "❌"
+        md.append(f"| **Cerințe Acoperite de Teste (SWE.5)** | `{trace['covered_count']}` cerințe | 100% din cerințe | {cov_mark} **{trace['coverage_rate']:.1f}%** |")
+        md.append(f"| **Cerințe Neacoperite de Teste** | `{n_unc}` cerințe | 0 cerințe neacoperite | {unc_cell} |")
         md.append(f"| **Număr Total Teste Atomice Executate** | `{total}` teste atomice | >40 verificări | ✅ `{total}` Teste |")
         md.append(f"| **Rată Succes Execuție Teste** | `{test_rate:.1f}%` ({passed}/{total}) | 100% PASS | ✅ **PASS** |")
         avg_red = sum(len(t) for t in trace['req_to_tests'].values()) / trace['total_reqs'] if trace['total_reqs'] > 0 else 0
@@ -530,6 +529,8 @@ class SystemTestSuite(SuiteBase, HealthTests, HydraulicsTests, ControlTests, UiH
         md.append("| :---: | :--- | :--- | :---: | :---: | :---: |")
 
         for req_id, desc in SWE1_REQUIREMENTS.items():
+            if req_id not in trace['req_to_tests']:
+                continue  # a parent only groups
             tests_for_req = trace['req_to_tests'].get(req_id, [])
             test_ids = [f"`{t.test_id}`" for t in tests_for_req]
             test_count = len(tests_for_req)

@@ -414,6 +414,15 @@ def check_hollow_tests(rep, tests):
                 rep.warn(f"{where}: hollow test - title promises '{token}' but no assert/compare checks that value")
 
 
+def check_unregistered_tests(rep, tests):
+    """PB-86: a test method that the runner never calls does not run, so it proves nothing."""
+    called = set(re.findall(r"self\.(test_\w+)", read(TEST_FILE)))
+    for t in tests:
+        if t["func"] not in called:
+            rep.error(f"{t['file']}:{t['line']} {t['tc'] or t['func']}: test is defined but not in the run list of "
+                      f"{TEST_FILE}, it never runs")
+
+
 def scan_code_tags():
     """Return {req id: sorted [file:line]} for FR/NFR tags in firmware and UI sources."""
     tags = {}
@@ -490,6 +499,7 @@ def check_trace(rep, matrix_path=None):
             if not known(rid):
                 rep.error(f"{where}: {rid} not defined in {REQ_DOC}")
     check_hollow_tests(rep, tests)
+    check_unregistered_tests(rep, tests)
 
     for rid in sorted(set(registry) - set(reqs), key=sort_key):
         if not known(rid):

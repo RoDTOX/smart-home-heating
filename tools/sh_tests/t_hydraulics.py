@@ -82,6 +82,13 @@ class HydraulicsTests:
             data = r.json()
             assert "pumpEnabled" in data, "Missing pumpEnabled"
             assert "pumpActive" in data, "Missing pumpActive"
+            # PB-33: FR-14.1 - the pump is optional: while it is not configured it never runs, and the zone status
+            # tells the same as the setting
+            cfg = requests.get(f"{self.base_url}/api/config/system", timeout=self.timeout).json()
+            assert data["pumpEnabled"] is cfg["pumpControlEnabled"], \
+                f"pumpEnabled {data['pumpEnabled']} differs from the setting pumpControlEnabled {cfg['pumpControlEnabled']}"
+            if not cfg["pumpControlEnabled"]:
+                assert data["pumpActive"] is False, "Pump reported active while the pump is not configured (FR-14.1)"
             details = f"GPA Pump Enabled: {data.get('pumpEnabled')}, Active: {data.get('pumpActive')} (Relay 4)"
             return TestResult(test_id, name, req, "PASS", latency, details)
         except Exception as e:

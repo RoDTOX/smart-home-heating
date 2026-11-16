@@ -73,7 +73,15 @@ class HealthTests:
             data = r.json()
             rssi = data.get("rssi")
             assert rssi is not None and rssi < 0, f"Invalid RSSI value: {rssi}"
-            details = f"Wi-Fi RSSI: {rssi} dBm"
+            # PB-33: the FR-41 rule itself - DTC-401 is active exactly while the RSSI is below -82 dBm
+            # (the board answers, so Wi-Fi is up); 2 dB around the limit are left out, the RSSI moves between two reads
+            diag = requests.get(f"{self.base_url}/api/diag/status", timeout=self.timeout).json()
+            has_401 = any(d.get("code") == "DTC-401" for d in diag.get("dtcs", []))
+            if rssi >= -80:
+                assert not has_401, f"DTC-401 active at RSSI {rssi} dBm (FR-41: only below -82 dBm)"
+            elif rssi < -84:
+                assert has_401, f"DTC-401 not active at RSSI {rssi} dBm (FR-41: active below -82 dBm)"
+            details = f"Wi-Fi RSSI: {rssi} dBm, DTC-401 {'active' if has_401 else 'not active'}"
             return TestResult(test_id, name, req, "PASS", latency, details)
         except Exception as e:
             return TestResult(test_id, name, req, "FAIL", (time.time() - start)*1000, str(e))
