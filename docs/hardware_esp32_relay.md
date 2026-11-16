@@ -81,24 +81,17 @@ Odată ce firmware-ul a fost încărcat o singură dată prin cablu, **NU mai es
 
 ---
 
-## 5. Topologie Rețea Smart Home & Alocare IP-uri (ZTE F6600R)
+## 5. Cerințe de Rețea & Alocare IP
 
-Configurație permanentă salvată în routerul **ZTE F6600R (Digi)**:
+Pentru o funcționare stabilă și acces facil la Web UI și REST API, se recomandă alocarea unei rezervări statice DHCP în routerul local:
 
-| Nume Dispozitiv | Adresă MAC | Frecvență Wi-Fi | Adresă IP | Rol / Descriere |
-| :--- | :--- | :---: | :---: | :--- |
-| **`SmartHeating-ESP32`** | `20:50:0d:1a:72:14` | 2.4 GHz | **`192.168.1.20`** | **Controler Centrală & 4 Relee Pardoseală** |
-| **`Galaxy-A6`** | `bc:a5:8b:20:56:c1` | 5.0 GHz | **`192.168.1.28`** | **Home Server (Mosquitto MQTT, TeslaMate, Grafana, Nexus)** |
-| **`Acvariu-ESP8266`** | `40:f5:20:32:72:f4` | 2.4 GHz | **`192.168.1.32`** | **Controler Acvariu Aquatlantis** |
-| **`Laptop-BS`** | `e4:60:17:55:17:20` | 5.0 GHz (Wi-Fi 6) | `192.168.1.13` | Laptop Dezvoltare (BSECELEANU-NB) |
-| **`Telefon_Oppo`** | `96:bf:b8:77:17:22` | 5.0 GHz (Wi-Fi 6) | `192.168.1.15` | Telefon Personal (OPPO Find X8 Pro) |
-| **`DTOX-PC`** | `b4:2e:99:65:74:bc` | Cablu LAN1 | `192.168.1.10` / `.19` | PC Desktop Birou |
-| **`SmartMeterEV`** | `3c:0b:59:68:70:d0` | 2.4 GHz | `192.168.1.2` | Contor Inteligent Tablou (Încărcare EV / Tesla) |
-| **`SmartMeterGeneral`** | `3c:0b:59:68:98:63` | 2.4 GHz | `192.168.1.4` | Contor Inteligent Tablou (Consum General Apartament) |
-| **`Xiaomi-Air`** | `ec:4d:3e:64:43:39` | 2.4 GHz | `192.168.1.5` | Purificator Aer Xiaomi Zhimi |
-| **`Vac-Dreame`** | `00:ae:f7:5d:c6:a4` | 2.4 GHz | `192.168.1.6` | Robot Aspirator Dreame |
-| **`Clima-LG2`** | `24:e8:53:a5:04:37` | 2.4 GHz | `192.168.1.7` | Aer Condiționat LG ThinQ |
-| **`Frigider LG`** | `ac:b6:87:8b:07:98` | 2.4 GHz | `192.168.1.8` | Frigider LG Smart ThinQ |
-| **`Cam-Living`** | `94:f8:27:3e:8d:b7` | 2.4 GHz | `192.168.1.10` | Cameră Supraveghere Xiaomi Living |
-| **`LG_TV?`** | `24:e8:53:cf:c8:b4` | 2.4 GHz | Dinamic / Standby | Televizor LG Smart webOS (Wake-on-LAN) |
+| Nume Dispozitiv | Frecvență Wi-Fi | Adresă IP Implicită | Rol / Descriere |
+| :--- | :---: | :---: | :--- |
+| **`SmartHeating-ESP32`** | 2.4 GHz (802.11 b/g/n) | **`192.168.1.20`** | **Controler Centrală & 4 Relee Pardoseală** |
+
+- **Porturi utilizate:**
+  - HTTP `80` (Web UI & REST API)
+  - Telnet `23` (Consolă interactivă comenzi)
+  - NTP `123` (UDP, sincronizare ceas de rețea)
+  - HTTP/HTTPS `80/443` (Interogare API Open-Meteo)
 

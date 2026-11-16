@@ -333,7 +333,7 @@ if (btnSaveCreds) {
     try {
       const candidates = [];
       if (curP) candidates.push(curP);
-      candidates.push("21051990", "admin.shh2026", "admin123");
+      candidates.push("admin.shh2026", "admin123");
 
       let ok = false;
       let lastErr = "";

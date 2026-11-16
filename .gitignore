@@ -39,3 +39,9 @@ docs/system_test_report.md
 .claude/state/
 .agents/
 skills-lock.json
+
+# Private & raw local inputs (not pushed to GitHub)
+input/
+docs/bom_hardware_costs.md
+local/
+design/aistudio/
