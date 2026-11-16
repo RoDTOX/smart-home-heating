@@ -15,22 +15,43 @@ button.on{background:var(--fg);color:var(--inv)}button.danger{border-color:var(-
 .sched-moment-tbl td:first-child{text-align:left}
 .sched-mode-btn,.day-tab-btn{font-size:13px;padding:5px 11px;border-radius:8px}
 input.time24{width:68px;text-align:center;font-weight:600;font-size:14px;border-radius:6px}
-.sched-away-card{margin-top:14px;padding:12px;background:var(--bg);border-radius:10px;border:1px solid var(--line)}
+.sched-away-card{margin-top:14px;padding:12px;background:var(--elev);border-radius:16px;border:1px solid var(--line)}
 .s{color:var(--mut)}
-section,details.adm-card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:14px;margin-top:12px;backdrop-filter:blur(var(--blur));-webkit-backdrop-filter:blur(var(--blur))}
-section h2{font-size:16px;margin:0 0 10px}
+details.adm-card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);margin-top:12px;overflow:hidden;backdrop-filter:blur(var(--blur));-webkit-backdrop-filter:blur(var(--blur))}
+[data-theme=smartiva-glass] details.adm-card,[data-theme=meteo-dinamic] details.adm-card,[data-theme=meteo-dinamic] .card{box-shadow:inset 0 1px 0 rgba(255,255,255,.18),0 18px 40px -22px rgba(0,0,0,.6)}
 summary{cursor:pointer;user-select:none;list-style:none}
 summary::-webkit-details-marker{display:none}
 summary::marker{display:none}
-details.adm-card > summary{display:flex;align-items:center;justify-content:space-between}
-details.adm-card > summary h2{display:inline-block;font-size:16px;margin:0}
-details.adm-card > summary::after{content:'▼';font-size:12px;color:var(--mut);transition:transform 0.2s;flex-shrink:0;margin-left:8px}
-details.adm-card[open] > summary::after{transform:rotate(180deg)}
-details.adm-card[open] > summary{margin-bottom:12px;border-bottom:1px solid var(--line);padding-bottom:8px}
-details:not(.adm-card) > summary{display:flex;align-items:center;justify-content:space-between}
-details:not(.adm-card) > summary::after{content:'▼';font-size:11px;color:var(--mut);transition:transform 0.2s;flex-shrink:0;margin-left:8px}
-details:not(.adm-card)[open] > summary::after{transform:rotate(180deg)}
-.adm-body{margin-top:4px}
+details > summary{display:flex;align-items:center;justify-content:space-between;gap:8px}
+details > summary::after{content:'';width:8px;height:8px;border-right:2px solid var(--mut);border-bottom:2px solid var(--mut);transform:rotate(45deg);transition:transform .2s;flex:none;margin:0 6px 4px 8px}
+details[open] > summary::after{transform:rotate(225deg);margin-bottom:-4px}
+details.adm-card > summary{min-height:64px;padding:12px 16px;gap:12px}
+details.adm-card > summary h2{flex:1;min-width:0;font-size:16px;font-weight:700;letter-spacing:-.025em;margin:0}
+details.adm-card[open] > summary{border-bottom:1px solid var(--line)}
+.sico{width:40px;height:40px;border-radius:14px;border:1px solid var(--line);background:var(--elev);color:var(--idle);display:flex;align-items:center;justify-content:center;flex:none}
+details.adm-card[open] .sico{color:var(--heat);border-color:var(--heat);box-shadow:0 0 24px -6px var(--glow)}
+.adm-body{padding:4px 16px 16px}
+.admbar{display:flex;align-items:center;justify-content:space-between;gap:10px 16px;flex-wrap:wrap}
+.admbar .ttl{font-size:16px}
+.admnav{max-width:100%;overflow-x:auto}
+.sub{display:block;font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--mut);margin:20px 0 8px}
+.box{background:var(--elev);border:1px solid var(--line);border-radius:16px;padding:12px}
+.term{background:var(--elev);color:var(--fg);padding:10px 12px;border-radius:16px;border:1px solid var(--line);font:11.5px/1.45 var(--monof);height:240px;overflow-y:auto;white-space:pre-wrap;word-break:break-all;margin:6px 0 0}
+.btnlink{display:inline-flex;align-items:center;gap:8px;min-height:40px;padding:8px 14px;border-radius:12px;border:1px solid var(--line);background:var(--elev);color:var(--fg);font-size:13px;font-weight:600;text-decoration:none}
+.modal{display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:9999;align-items:center;justify-content:center;padding:16px;backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px)}
+.modal .card{max-width:340px;width:100%;background:var(--mcard,var(--card))}
+.modal input{width:100%;margin:12px 0 8px}
+#admin button,.modal button{min-height:40px;border-radius:12px;font-size:13px;font-weight:600;background:var(--elev)}
+#admin button.sm{min-height:34px;padding:5px 12px;font-size:12px;border-radius:10px}
+#admin button.on,.modal button.on{background:var(--heat);color:#16171b;border-color:transparent}
+#admin button.danger{background:none}
+#admin .seg button{min-height:34px;background:none}
+#admin .seg button[aria-pressed=true]{background:var(--heat);color:#16171b}
+#admin input:not([type=checkbox]):not([type=file]),#admin select,.modal input{min-height:40px;border-radius:12px;padding:6px 10px;background:var(--elev)}
+#admin input[type=checkbox]{width:18px;height:18px;accent-color:var(--heat);vertical-align:middle}
+#admin table{font-size:13px}
+#admin th{font-size:11px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--mut)}
+#admin .s{font-size:12px}
 table{width:100%;border-collapse:collapse}
 td,th{text-align:left;padding:5px 4px;border-bottom:1px solid var(--line);vertical-align:top}
 input,select{font:inherit;background:var(--bg);color:var(--fg);border:1px solid var(--line);border-radius:8px;padding:6px}
@@ -41,14 +62,15 @@ input.n{width:64px}input.w{width:100%;max-width:420px}input.nm{width:150px}
 #toast:empty{display:none}
 footer{margin-top:20px;color:var(--mut);display:flex;gap:16px;flex-wrap:wrap}
 a{color:var(--idle)}
-code,.mono{font:13px/1.35 ui-monospace,SFMono-Regular,Consolas,monospace}
+code,.mono{font:13px/1.35 var(--monof)}
 .OK{color:var(--ok);font-weight:600}.FAIL{color:var(--bad);font-weight:600}.INFO{color:var(--mut);font-weight:600}
 #watch td{padding:3px 4px}
 #watch tr.grp td{background:var(--bg);font-weight:600;padding-top:10px}
 #watch tr.chg td.v{background:var(--chg)}
 #watch tr.det td{color:var(--mut);border-bottom:none}
 #trace{max-height:360px;overflow:auto}
-#admin{display:none}body.admin #admin{display:block}
+#admin{display:none;margin-top:24px;scroll-margin-top:12px}body.admin #admin{display:block}
+details.adm-card{scroll-margin-top:12px}
 
 .mn{font-family:var(--monof);font-variant-numeric:tabular-nums}
 .ic{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex:none}
@@ -176,4 +198,4 @@ code,.mono{font:13px/1.35 ui-monospace,SFMono-Regular,Consolas,monospace}
 @media (min-width:1024px){.panel{grid-template-columns:1fr 1.6fr 1fr;align-items:start}}
 @media (min-width:1280px){.readout .big{font-size:62px}}
 @media (max-width:1279px){.seg.themes{display:none}#themeSel{display:block}}
-@media (max-width:767px){.hbar{padding:10px 12px}main{padding:12px}.dial{width:244px;height:244px}.readout .big{font-size:48px}.zname{font-size:16px}.zone .stepper button{width:44px;height:44px}}
+@media (max-width:767px){.admnav{width:100%}#admin .admnav button{flex:1;padding:6px 4px;font-size:11.5px}.adm-body{padding:4px 12px 12px}details.adm-card > summary{padding:12px}.hbar{padding:10px 12px}main{padding:12px}.dial{width:244px;height:244px}.readout .big{font-size:48px}.zname{font-size:16px}.zone .stepper button{width:44px;height:44px}}

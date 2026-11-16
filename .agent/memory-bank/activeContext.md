@@ -18,6 +18,8 @@ Only what holds now and what comes next. A line that no longer holds is replaced
   - **Process Check Metrics:** Warnings dropped from 76 to **43** (-43%); process warnings from 8 to **1**; `reqs` warnings to **0**; 0 errors, 1 known (`PB-12`), **PASS**.
 - **Live Board (`192.168.1.20`)**: Running firmware `v1.11.13.10` (built 15.11.2026 from the working tree before the commit of C-47 / C-48; page limit 262 144 B) + LittleFS `index.html.gz` (`142 023 B`, the themed panel of FR-8.1, C-47). All 3 zones active & idle at setpoints after the restart.
 
+- **Branch `art/ui-and-tests` (from `main`, 17.11.2026, NOT pushed):** admin view in the look of the panel and theme `Meteo Dinamic` (C-49, TC19.24) built and checked in the local preview only (page 143 579 B); not on the board yet.
+
 ## Next
-0. **Page as a themed panel (C-47, C-48, D-63) - on the board, owner OK 15.11.2026 (chat):**
-   - Open: full `sh_test_system.py` run, reflash from the clean commit, theme `Meteo Dinamic`, `design/aistudio/` (generated React source, untracked) keep or delete.
+0. **Page as a themed panel (C-47, C-48, C-49, D-63):**
+   - Open: owner uploads and tests the page of `art/ui-and-tests` on the board (admin sections, six themes, 390 px and wall tablet); full `sh_test_system.py` run; reflash from the clean commit.

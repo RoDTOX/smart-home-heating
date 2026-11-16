@@ -124,12 +124,12 @@ function updateAdminBtn() {
   const btn = $("toggleAdmin");
   if (btn) {
     if (isAdmin()) {
-      btn.textContent = "✕ Ieși Admin";
+      btn.textContent = "Ieși din Admin";
       btn.style.borderColor = "var(--line)";
       btn.style.color = "var(--mut)";
       btn.title = "Ieși din panoul de administrare";
     } else {
-      btn.textContent = "⚙️ Admin";
+      btn.textContent = "Admin";
       btn.style.borderColor = "var(--line)";
       btn.style.color = "var(--fg)";
       btn.title = "Deschide panoul de administrare";

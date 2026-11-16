@@ -5,7 +5,7 @@
 QA-11, QA-12, QA-13, QA-14, QA-16 ([`process_review.md`](process_review.md)); v2.2 adds the owner decisions D37,
 D38, D39 and the architecture observations O-12, O-13, O-14, O-15, and closes the review (applied as listed in
 `requirements_review.md` §6 and §8); v2.3 adds O-16, v2.4 the 10 s bound of NFR-1.8, v2.5 the proxy clause of FR-8.1, v2.6 the owner's page test
-(C-3…C-8) v2.7 the configuration export / import FR-65.1, FR-65.2, FR-65.3, FR-65.4, FR-65.5, FR-65.6, FR-65.7, FR-65.8 (C-9) v2.8 zones added and deleted by the user and the sensor search (C-10, C-11) v2.9 one Save for all zones (C-12) and v2.10 the zone target out of the settings file (C-13), v2.11 pre-import diff preview and vertical zone controls (FR-8.1, PB-70), v2.12 the family view as a panel with themes (FR-8.1, C-47), changes after closure
+(C-3…C-8) v2.7 the configuration export / import FR-65.1, FR-65.2, FR-65.3, FR-65.4, FR-65.5, FR-65.6, FR-65.7, FR-65.8 (C-9) v2.8 zones added and deleted by the user and the sensor search (C-10, C-11) v2.9 one Save for all zones (C-12) and v2.10 the zone target out of the settings file (C-13), v2.11 pre-import diff preview and vertical zone controls (FR-8.1, PB-70), v2.12 the family view as a panel with themes (FR-8.1, C-47), v2.13 the theme `Meteo Dinamic` and the admin view in the look of the panel (FR-8.1, C-49), changes after closure
 (`requirements_review.md` §9).
 **Replaces:** the Romanian specification of 07.10.2026 (v1). IDs are kept where the meaning did not change.
 **Related:** [`plan.md`](plan.md), [`changelog.md`](changelog.md), [`hardware_esp32_relay.md`](hardware_esp32_relay.md),
@@ -501,11 +501,15 @@ one example:
       `Reia încălzirea` (FR-40) and the 24 h chart of the room (room and outdoor temperature, FR-34);
     - right column: the 24 h chart of all rooms and the outdoor temperature (FR-34) and the card `Stare sistem`:
       the active alarms (DTC code and text, FR-10.2), or that there is none;
-    - five colour themes (`HA Charcoal`, `Glass Glow`, `Smartiva Dark`, `Nordic Light`, `Smartiva Glass`); the
-      choice is kept in the browser, the first visit shows `Smartiva Glass`;
+    - five colour themes (`HA Charcoal`, `Glass Glow`, `Smartiva Dark`, `Nordic Light`, `Smartiva Glass`) and the
+      theme `Meteo Dinamic` (C-49), whose background follows only what the controller reports: its clock and date
+      (night, dawn, day, dusk) and the outdoor temperature; the choice is kept in the browser, the first visit shows
+      `Smartiva Glass`;
     - a value the controller does not measure or receive is not shown (no flame modulation, water pressure, weather
       forecast, wind); flow / return temperatures appear only with the sensors of FR-54;
     - the page loads nothing from another host: fonts and icons are part of the page;
+  - the admin view has the look of the panel in every theme (cards, one section open at a time, a row of buttons
+    that jumps to a section) and is usable at 390 px and at 1280 x 800 px without horizontal page scrolling (C-49);
   - admin view (`#admin`) is the engineering view, like the watch window of a bus or debugger tool: every value the
     API reports (zones, boiler, sensors, parameters, schedule, diagnostics, time and weather, system) is shown with its
     API name (e.g. `zones[2].relayEngaged`) and a short explanation, and on tap the requirement it belongs to; a value

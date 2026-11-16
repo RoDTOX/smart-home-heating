@@ -5,6 +5,22 @@ Corelat cu planul activ: [`docs/plan.md`](file:///c:/Users/BSeceleanu/.github_re
 Entries before 29.10.2026 (the system before the lean clean-up):
 [`archive/changelog_until_2026-10-21.md`](archive/changelog_until_2026-10-21.md).
 
+## [17.11.2026] - Admin view in the look of the panel; theme Meteo Dinamic (C-49), branch `art/ui-and-tests`
+
+- **Who / when / why:** Owner goal (chat 17.11.2026) for branch `art/ui-and-tests`, no push: every admin section looks and works like the new panel in all themes, the page works at 390 px and 1280 x 800 px without horizontal scrolling, the theme `Meteo Dinamic` exists and uses only data of the board. The owner left the open points to the assistant ("complet autonom pe toate neclaritățile"): `Meteo Dinamic` was added as a sixth theme. Light mode of the chain; no file of the safety list touched.
+- **Changed:**
+  - `docs/requirements_and_features.md` FR-8.1 (v2.13), `docs/requirements_review.md` row C-49.
+  - `web/src/styles.css`, `shell.html`, `app.js`: admin sections as cards with an icon tile, one open at a time, a jump row `#admNav`; buttons, inputs, tables and inner boxes use the theme tokens; login dialog as a card; phone rules below 768 px.
+  - `web/src/setup.html`, `diagnostics.html`, `console.html`, `history.html`, `schedule.html`, `gas.html`, `history.js`, `diagnostics.js`, `gas.js`, `core.js`: hard-coded colours and emoji icons replaced by theme tokens and classes.
+  - `web/src/rooms.js`: theme `Meteo Dinamic` (`meteoState`, `meteoTheme`): night / dawn / day / dusk from `time` and `date` of `/api/boiler/status` with a sunrise / sunset hour per month, glow colour from `outdoorTemp`; five line icons for the admin sections.
+  - `tools/sh_tests/t_ui_history.py` new TC19.24, registered in `tools/sh_test_system.py`.
+  - `.claude/launch.json`: local preview through `tools/sh_dev_server.py`.
+- **Verified (local preview, live data read-only from the board):**
+  - 6 themes x 5 admin sections at 1280 x 800 and at 390 x 844: page `scrollWidth - clientWidth` = 0 in all 60 cases, exactly one section open; jump row fits at 390 px (last button ends at 375 px).
+  - `Meteo Dinamic`: 02:00 night (dark), 07:30 dawn (dark), 12:00 day (light), 17:20 dusk (dark); glow changes at -3 C and 24 C; no console error.
+  - Page 143 579 B gzip (limit 262 144 B); no URL of another host; the checks of TC19.22, TC19.23, TC19.24 hold on the built page.
+- **Not done:** page not uploaded to the board (owner tests first); TC19.24 not run on the board.
+
 ## [15.11.2026] - Family view of the page as a themed panel; page limit 262 144 B (C-47, C-48, D-63)
 
 - **Who / when / why:** Owner request (chat 15.11.2026): the look generated in Google AI Studio (`design/aistudio/`, React) rebuilt in the plain HTML / CSS / JS of the board, without the values the controller does not have. Light mode of the chain.

@@ -110,7 +110,7 @@ async function loadDtcEvents(force = false) {
     const typeMap = {
       "dtc-raised": '<span style="color:var(--bad);font-weight:600">🔴 Ridicat</span>',
       "dtc-cleared": '<span style="color:var(--ok);font-weight:600">🟢 Curățat</span>',
-      "restart": '<span style="color:#f59e0b;font-weight:600">⚡ Restart</span>'
+      "restart": '<span style="color:var(--warn);font-weight:600">⚡ Restart</span>'
     };
     box.innerHTML = `<div class="scroll" style="margin-top:6px;max-height:260px;overflow-y:auto"><table style="font-size:11px;width:100%;border-collapse:collapse">
       <thead><tr>
@@ -129,7 +129,7 @@ async function loadDtcEvents(force = false) {
 
         if (e.type === 'restart') {
           const rInfo = RESET_REASONS[e.value] || {title: "Repornire sistem (motiv " + e.value + ")", desc: "Reset placă ESP32"};
-          codeStr = '<code style="color:#f59e0b;font-weight:bold">SYS-REBOOT</code>';
+          codeStr = '<code style="color:var(--warn);font-weight:bold">SYS-REBOOT</code>';
           descStr = `<b>${esc(rInfo.title)}</b><div class="s" style="color:var(--mut);margin-top:2px">${esc(rInfo.desc)}</div>`;
           targetStr = 'Sistem (Restaurat)';
         } else {

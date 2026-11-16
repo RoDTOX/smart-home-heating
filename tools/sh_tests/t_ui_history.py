@@ -883,6 +883,38 @@ class UiHistoryTests:
         except Exception as e:
             return TestResult(test_id, name, req, "FAIL", (time.time() - start) * 1000, str(e))
 
+    def test_tc19_24_meteo_theme_and_admin_panel_look(self):
+        """SWE.5-TC19.24: Theme Meteo Dinamic uses only controller data; admin sections open one at a time (FR-8.1, C-49)"""
+        test_id = "SWE.5-TC19.24"
+        name = "Meteo Dinamic Theme, Admin In Panel Look"
+        req = "FR-8.1"
+        start = time.time()
+        try:
+            r = requests.get(f"{self.base_url}/", timeout=self.timeout)
+            latency = (time.time() - start) * 1000
+            assert r.status_code == 200, f"page: HTTP {r.status_code}"
+            html = r.text
+            # the sixth theme, beside the five of C-47, first visit still Smartiva Glass
+            assert "Meteo Dinamic" in html, "Theme 'Meteo Dinamic' missing from the page"
+            for theme in ("HA Charcoal", "Glass Glow", "Smartiva Dark", "Nordic Light", "Smartiva Glass"):
+                assert theme in html, f"Theme '{theme}' missing from the page"
+            assert re.search(r"""theme\w*\s*=\s*["']smartiva-glass["']""", html, re.I), \
+                "The first visit does not start with the theme Smartiva Glass"
+            # only what the controller reports: nothing from another host, no forecast / cloud / wind source
+            ext = re.findall(r"""(?:src|href)\s*=\s*["']\s*(?:https?:)?//[^"']+|url\(\s*["']?\s*(?:https?:)?//[^)]+|@import[^;]+""", html)
+            assert not ext, f"The page loads from another host: {ext[:3]}"
+            for word in ("open-meteo", "forecast", "Prognoz", "Vânt ", "cloud", "navigator.geolocation"):
+                assert word not in html, f"The page names a weather source the controller does not have: '{word}'"
+            # admin view: a jump row with the five sections, usable on a phone (a layout rule below 768 px)
+            for sec in ("grpSched", "grpDiag", "grpHistory", "grpSetup", "grpDebug"):
+                assert f'id="{sec}"' in html, f"Admin section {sec} missing"
+            assert 'id="admNav"' in html, "Admin view has no row of buttons to jump to a section"
+            assert re.search(r"max-width\s*:\s*767px", html), "No phone layout rule for the page"
+            return TestResult(test_id, name, req, "PASS", latency,
+                              "six themes, first visit Smartiva Glass, no outside weather source, admin jump row present")
+        except Exception as e:
+            return TestResult(test_id, name, req, "FAIL", (time.time() - start) * 1000, str(e))
+
     def test_tc21_14_gas_figures_only_with_measured_flow(self):
         """SWE.5-TC21.14: Gas figures of the page appear only with a measured flow (FR-35.1)"""
         test_id = "SWE.5-TC21.14"

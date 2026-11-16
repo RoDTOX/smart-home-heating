@@ -161,6 +161,7 @@ class SystemTestSuite(SuiteBase, HealthTests, HydraulicsTests, ControlTests, UiH
             self.test_tc19_17_window_clear_button_not_handled_as_stepper,
             self.test_tc19_22_family_panel_layout_and_themes,
             self.test_tc19_23_page_self_contained_and_no_unmeasured_values,
+            self.test_tc19_24_meteo_theme_and_admin_panel_look,
             # Group 20: LittleFS Flash Telemetry History Buffer (FR-34)
             self.test_tc20_1_history_schema_24h,
             self.test_tc20_2_history_schema_5d,

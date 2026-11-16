@@ -12,7 +12,12 @@ check: '<circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/>',
 alert: '<path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><path d="M12 9v4"/><path d="M12 17h.01"/>',
 snow: '<line x1="2" x2="22" y1="12" y2="12"/><line x1="12" x2="12" y1="2" y2="22"/><path d="m20 16-4-4 4-4"/><path d="m4 8 4 4-4 4"/><path d="m16 4-4 4-4-4"/><path d="m8 20 4-4 4 4"/>',
 minus: '<path d="M5 12h14"/>', plus: '<path d="M5 12h14"/><path d="M12 5v14"/>',
-home: '<path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/>'
+home: '<path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/>',
+cal: '<rect width="18" height="18" x="3" y="4" rx="2"/><path d="M16 2v4"/><path d="M8 2v4"/><path d="M3 10h18"/>',
+bars: '<path d="M3 3v18h18"/><path d="M8 17v-5"/><path d="M13 17V8"/><path d="M18 17v-3"/>',
+cog: '<path d="M4 7h3"/><path d="M12 7h8"/><path d="M4 17h8"/><path d="M17 17h3"/><circle cx="9.5" cy="7" r="2.5"/><circle cx="14.5" cy="17" r="2.5"/>',
+term: '<polyline points="4 17 10 11 4 5"/><line x1="12" x2="20" y1="19" y2="19"/>',
+lock: '<rect width="18" height="11" x="3" y="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>'
 };
 const ic = (n, c = "", st = "") => `<svg class="ic ${c}"${st ? ` style="${st}"` : ""} viewBox="0 0 24 24" aria-hidden="true">${IC[n]}</svg>`;
 
@@ -24,12 +29,39 @@ const THEMES = {
   "smartiva-dark": ["Smartiva Dark", "dark", "#000000", "#0b0b0d", "#15151a", "#26262c", "#fafafa", "#8a8a94", "#ff8a1f", "rgba(255,138,31,.5)", "#5d7a99", "#2fd37a", "#ffc61a", "#ff4040", "#4cc9e6", "20px", "0px"],
   "nordic-light": ["Nordic Light", "light", "#f6f3ee", "#ffffff", "#efe9e1", "#e3dbd0", "#2b2622", "#8b8178", "#f08a3c", "rgba(245,178,122,.35)", "#7e9bb5", "#3f9f6f", "#d9a21b", "#d94a46", "#4fb8d0", "20px", "0px"],
   "smartiva-glass": ["Smartiva Glass", "dark", "radial-gradient(circle at 78% 36%,rgba(255,145,36,.22) 0%,transparent 44%),radial-gradient(circle at 18% 72%,rgba(62,125,178,.22) 0%,transparent 48%),linear-gradient(135deg,#1a2028 0%,#282e35 50%,#191d24 100%)", "rgba(255,255,255,.085)", "rgba(255,255,255,.14)", "rgba(255,255,255,.18)", "#f5f7fa", "rgba(232,238,245,.66)", "#e8f117", "rgba(232,241,23,.35)", "#78a9d6", "#4ade80", "#ffb72b", "#ff5a5f", "#59d2ff", "24px", "28px"]
+,
+  "meteo-dinamic": ["Meteo Dinamic", "dark"]  // values computed by meteoTheme()
 };
+// FR-8.1 (C-49): theme Meteo Dinamic. The background follows only what the controller reports: its clock and date
+// (night, dawn, day, dusk) and the outdoor temperature (frost, cold, mild, warm). Nothing the controller does not report.
+const SUN_H = [[8, 17], [7, 18], [6, 18], [6, 20], [5, 21], [5, 21], [5, 21], [6, 20], [7, 19], [7, 18], [7, 17], [8, 16]];  // rough sunrise / sunset hour per month
+let meteoKey = "";
+function meteoState() {
+  if (!ST || !ST.time) return ["night", "150,170,200"];
+  const h = +ST.time.slice(0, 2) + ST.time.slice(3, 5) / 60, sun = SUN_H[(+(ST.date || "").slice(5, 7) || 1) - 1];
+  const phase = h < sun[0] - 1 || h >= sun[1] + 1 ? "night" : h < sun[0] + 1 ? "dawn" : h >= sun[1] - 1 ? "dusk" : "day";
+  const t = ST.outdoorTemp > -100 ? ST.outdoorTemp : null;
+  return [phase, t === null ? "150,170,200" : t <= 0 ? "89,210,255" : t < 10 ? "96,150,220" : t < 20 ? "94,200,170" : "255,170,70"];
+}
+function meteoTheme() {
+  const [phase, sky] = meteoState();
+  meteoKey = phase + sky;
+  if (phase === "day") return ["Meteo Dinamic", "light",
+    `radial-gradient(circle at 82% 12%,rgba(255,214,120,.6) 0%,transparent 38%),radial-gradient(circle at 14% 82%,rgba(${sky},.4) 0%,transparent 50%),linear-gradient(160deg,#dce8f4 0%,#c6d9ea 55%,#e9eef3 100%)`,
+    "rgba(255,255,255,.6)", "rgba(255,255,255,.75)", "rgba(30,50,80,.16)", "#1c2733", "rgba(28,39,51,.66)",
+    "#f08a3c", "rgba(240,138,60,.4)", "#4f7fae", "#2f8f5f", "#b8860b", "#d94a46", "#2a9bb5", "24px", "24px"];
+  const low = phase === "dawn" ? "18% 88%" : "82% 88%";
+  const page = phase === "night"
+    ? `radial-gradient(circle at 80% 18%,rgba(${sky},.2) 0%,transparent 45%),linear-gradient(160deg,#0b1020 0%,#141a2e 55%,#0a0d18 100%)`
+    : `radial-gradient(circle at ${low},rgba(255,140,80,.38) 0%,transparent 52%),radial-gradient(circle at 80% 14%,rgba(${sky},.22) 0%,transparent 45%),linear-gradient(160deg,#1a2140 0%,#33294a 60%,#4d3340 100%)`;
+  return ["Meteo Dinamic", "dark", page, "rgba(255,255,255,.085)", "rgba(255,255,255,.14)", "rgba(255,255,255,.18)", "#f5f7fa", "rgba(232,238,245,.68)",
+    "#ffa63d", "rgba(255,166,61,.4)", "#7fb2ff", "#5ee0a0", "#ffd75e", "#ff6b6b", "#7de3ff", "24px", "24px"];
+}
 let themeId = "smartiva-glass";  // first visit; the choice is kept in the browser
 try { const t = localStorage.getItem("sh_theme"); if (THEMES[t]) themeId = t; } catch (e) {}
 function applyTheme(id) {
   themeId = id;
-  const t = THEMES[id], r = document.documentElement, dark = t[1] === "dark";
+  const t = id === "meteo-dinamic" ? meteoTheme() : THEMES[id], r = document.documentElement, dark = t[1] === "dark";
   THEME_KEYS.forEach((k, i) => r.style.setProperty("--" + k, t[i + 2]));
   r.style.setProperty("--bg", t[4]);
   r.style.setProperty("--away", t[7]);
@@ -228,6 +260,7 @@ function renderHeader() {
   $("boiler").classList.toggle("on", on);
   $("level").textContent = scheduleText();
   $("away").classList.toggle("on", Z.away);
+  if (themeId === "meteo-dinamic" && meteoState().join("") !== meteoKey) applyTheme(themeId);
   renderSide();
 }
 

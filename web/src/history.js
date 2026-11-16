@@ -82,7 +82,7 @@ function prepareHistoryChartData(range, data, zonesData, nowMs = Date.now()) {
   ];
   const zoneColors = ["#38bdf8", "#a78bfa", "#f472b6", "#34d399"];
   const rowDefs = [
-    {label: "⚡ Evenimente", isEvent: true, color: "#f59e0b"},
+    {label: "⚡ Evenimente", isEvent: true, color: "var(--warn)"},
     {label: "🔥 Cazan ON", bit: 1, color: "var(--heat)"}
   ];
   zones.forEach((z, idx) => {
@@ -247,9 +247,9 @@ function renderHistoryInfoBar(item, timeStr, isCurrent, nearReboot, zones, zoneC
 
   if (item) {
     const p = item.p, bOn = (p[5] & 1) !== 0;
-    row1 += `<span style="padding:2px 8px;border-radius:4px;font-weight:600;font-size:11px;white-space:nowrap;background:${bOn ? 'rgba(239,68,68,0.15);color:#ef4444;border:1px solid rgba(239,68,68,0.4)' : 'rgba(100,116,139,0.15);color:var(--mut);border:1px solid var(--line)'}">${bOn ? '🔥 Cazan PORNIT' : '⚪ Cazan Oprit'}</span>`;
+    row1 += `<span style="padding:2px 8px;border-radius:4px;font-weight:600;font-size:11px;white-space:nowrap;background:${bOn ? 'rgba(239,68,68,0.15);color:var(--bad);border:1px solid rgba(239,68,68,0.4)' : 'rgba(100,116,139,0.15);color:var(--mut);border:1px solid var(--line)'}">${bOn ? '🔥 Cazan PORNIT' : '⚪ Cazan Oprit'}</span>`;
     if (p[4] !== null && p[4] !== undefined) {
-      row1 += `<span style="padding:2px 8px;border-radius:4px;font-size:11px;background:rgba(148,163,184,0.1);border:1px solid #64748b;color:#94a3b8;white-space:nowrap">🌡️ Afară: ${p[4].toFixed(1)}°C</span>`;
+      row1 += `<span style="padding:2px 8px;border-radius:4px;font-size:11px;background:rgba(148,163,184,0.1);border:1px solid var(--line);color:var(--mut);white-space:nowrap">🌡️ Afară: ${p[4].toFixed(1)}°C</span>`;
     }
   } else {
     row1 += `<span class="s" style="color:var(--mut);white-space:nowrap">Fără date temperatură în acest interval</span>`;
@@ -258,7 +258,7 @@ function renderHistoryInfoBar(item, timeStr, isCurrent, nearReboot, zones, zoneC
   if (nearReboot) {
     const rawReason = String(nearReboot.reason || ''), shortReason = nearReboot.shortReason || 'Restart';
     const labelText = nearReboot.startStr ? `${shortReason}: ${nearReboot.startStr} → ${nearReboot.endStr} (${nearReboot.durText})` : shortReason;
-    row1 += `<span style="padding:2px 8px;border-radius:4px;font-weight:600;font-size:11px;background:rgba(245,158,11,0.15);border:1px solid #f59e0b;color:#f59e0b;white-space:nowrap" title="${esc(rawReason)} · ${esc(nearReboot.intervalLabel || '')}">⚡ ${esc(labelText)}</span>`;
+    row1 += `<span style="padding:2px 8px;border-radius:4px;font-weight:600;font-size:11px;background:rgba(245,158,11,0.15);border:1px solid var(--warn);color:var(--warn);white-space:nowrap" title="${esc(rawReason)} · ${esc(nearReboot.intervalLabel || '')}">⚡ ${esc(labelText)}</span>`;
   }
   row1 += `</div></div>`;
 
@@ -315,15 +315,15 @@ function drawHistoryChart(container, m) {
     svgParts.push(`<rect x="${m.x0}" y="${ry}" width="${m.chartW}" height="${m.actRowH}" rx="3" fill="var(--bg)" stroke="var(--line)" />`);
     if (r.isEvent) {
       m.visibleEvents.forEach(ve => {
-        svgParts.push(`<rect x="${ve.bx.toFixed(1)}" y="${ry}" width="${ve.bw.toFixed(1)}" height="${m.actRowH}" rx="3" fill="rgba(245,158,11,0.12)" stroke="#f59e0b" stroke-width="1.2" />`);
+        svgParts.push(`<rect x="${ve.bx.toFixed(1)}" y="${ry}" width="${ve.bw.toFixed(1)}" height="${m.actRowH}" rx="3" fill="rgba(245,158,11,0.12)" stroke="var(--warn)" stroke-width="1.2" />`);
         if (ve.bw >= 68) {
-          svgParts.push(`<text x="${(ve.bx + 8).toFixed(1)}" y="${(ry + 10.5).toFixed(1)}" font-size="9" fill="#f59e0b" font-weight="bold">⚡</text>`);
-          svgParts.push(`<text x="${(ve.bx + 20).toFixed(1)}" y="${(ry + 10.5).toFixed(1)}" font-size="8.5" fill="#f59e0b" font-weight="600">${esc(ve.shortReason)} (${esc(ve.durText)})</text>`);
+          svgParts.push(`<text x="${(ve.bx + 8).toFixed(1)}" y="${(ry + 10.5).toFixed(1)}" font-size="9" fill="var(--warn)" font-weight="bold">⚡</text>`);
+          svgParts.push(`<text x="${(ve.bx + 20).toFixed(1)}" y="${(ry + 10.5).toFixed(1)}" font-size="8.5" fill="var(--warn)" font-weight="600">${esc(ve.shortReason)} (${esc(ve.durText)})</text>`);
         } else if (ve.bw >= 38) {
-          svgParts.push(`<text x="${(ve.bx + 6).toFixed(1)}" y="${(ry + 10.5).toFixed(1)}" font-size="9" fill="#f59e0b" font-weight="bold">⚡</text>`);
-          svgParts.push(`<text x="${(ve.bx + 17).toFixed(1)}" y="${(ry + 10.5).toFixed(1)}" font-size="8.5" fill="#f59e0b" font-weight="600">${esc(ve.shortReason)}</text>`);
+          svgParts.push(`<text x="${(ve.bx + 6).toFixed(1)}" y="${(ry + 10.5).toFixed(1)}" font-size="9" fill="var(--warn)" font-weight="bold">⚡</text>`);
+          svgParts.push(`<text x="${(ve.bx + 17).toFixed(1)}" y="${(ry + 10.5).toFixed(1)}" font-size="8.5" fill="var(--warn)" font-weight="600">${esc(ve.shortReason)}</text>`);
         } else {
-          svgParts.push(`<text x="${(ve.bx + ve.bw / 2).toFixed(1)}" y="${(ry + 10.5).toFixed(1)}" font-size="9" text-anchor="middle" fill="#f59e0b" font-weight="bold">⚡</text>`);
+          svgParts.push(`<text x="${(ve.bx + ve.bw / 2).toFixed(1)}" y="${(ry + 10.5).toFixed(1)}" font-size="9" text-anchor="middle" fill="var(--warn)" font-weight="bold">⚡</text>`);
         }
       });
       return;
@@ -344,7 +344,7 @@ function drawHistoryChart(container, m) {
 
   svgParts.push(`<text x="${m.x0}" y="${m.tempHeaderY - 2}" font-size="11" font-weight="600" fill="var(--fg)">Temperaturi Zone (°C)</text>`);
   const tempLegStr = m.zones.map((z, idx) => `<tspan fill="${m.zoneColors[idx % m.zoneColors.length]}">— ${esc(z.name)}</tspan>`).join("   ") +
-    `   <tspan fill="#94a3b8">-- Afară (axa dr., °C)</tspan>`;
+    `   <tspan fill="var(--mut)">-- Afară (axa dr., °C)</tspan>`;
   svgParts.push(`<text x="${m.x1}" y="${m.tempHeaderY - 2}" font-size="11" text-anchor="end">${tempLegStr}</text>`);
   svgParts.push(`<rect x="${m.x0}" y="${m.tempTop}" width="${m.chartW}" height="${m.tempH}" rx="4" fill="var(--bg)" stroke="var(--line)" />`);
 
@@ -355,15 +355,15 @@ function drawHistoryChart(container, m) {
   }
   for (let t = m.minOutT; t <= m.maxOutT; t += m.outStep) {
     const gy = m.outTempToY(t);
-    svgParts.push(`<line x1="${(m.x1 - 3).toFixed(1)}" y1="${gy.toFixed(1)}" x2="${(m.x1 + 3).toFixed(1)}" y2="${gy.toFixed(1)}" stroke="#94a3b8" stroke-width="1" opacity="0.6" />`);
-    svgParts.push(`<text x="${(m.x1 + 8).toFixed(1)}" y="${(gy + 3.5).toFixed(1)}" font-size="10" fill="#94a3b8" text-anchor="start">${t}°</text>`);
+    svgParts.push(`<line x1="${(m.x1 - 3).toFixed(1)}" y1="${gy.toFixed(1)}" x2="${(m.x1 + 3).toFixed(1)}" y2="${gy.toFixed(1)}" stroke="var(--mut)" stroke-width="1" opacity="0.6" />`);
+    svgParts.push(`<text x="${(m.x1 + 8).toFixed(1)}" y="${(gy + 3.5).toFixed(1)}" font-size="10" fill="var(--mut)" text-anchor="start">${t}°</text>`);
   }
 
   const dotRadius = (m.ordered.length <= 35) ? 2.2 : 0;
-  drawCurveSvg(svgParts, m.outCurve, "#94a3b8", true, dotRadius);
+  drawCurveSvg(svgParts, m.outCurve, "var(--mut)", true, dotRadius);
   m.zoneCurves.forEach(zc => drawCurveSvg(svgParts, zc, zc.color, false, dotRadius));
 
-  svgParts.push(`<line id="histCursorLine" x1="0" y1="${m.topActY}" x2="0" y2="${m.tempBot}" stroke="#facc15" stroke-width="1.5" stroke-dasharray="3,2" style="display:none;pointer-events:none" />`);
+  svgParts.push(`<line id="histCursorLine" x1="0" y1="${m.topActY}" x2="0" y2="${m.tempBot}" stroke="var(--fg)" stroke-width="1.5" stroke-dasharray="3,2" style="display:none;pointer-events:none" />`);
   svgParts.push(`<rect id="histOverlay" x="${m.x0}" y="${m.topActY}" width="${m.chartW}" height="${m.tempBot - m.topActY}" fill="transparent" style="cursor:crosshair" /></svg>`);
   container.innerHTML = svgParts.join("");
 

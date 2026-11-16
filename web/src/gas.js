@@ -26,7 +26,7 @@ async function loadGasReadings() {
       const prev = k > 0 ? a[k - 1] : null;
       const diff = prev ? `+${(row.index - prev.index).toFixed(3)} m³` : "—";
       h += `<tr style="border-bottom:1px solid var(--line)"><td style="padding:4px"><b>${esc(fmtReadingTime(row.time))}</b></td><td style="padding:4px;font-weight:600">${row.index.toFixed(3)}</td><td style="padding:4px">${diff}</td><td style="padding:4px;text-align:center;white-space:nowrap">
-        <button type="button" class="sm" style="padding:1px 6px;font-size:10px;margin-right:4px;background:rgba(56,189,248,0.15);border:1px solid #38bdf8;color:#38bdf8" onclick="editGasReading(${row.time}, ${row.index.toFixed(3)})">✏️ Editează</button>
+        <button type="button" class="sm" style="margin-right:4px"onclick="editGasReading(${row.time}, ${row.index.toFixed(3)})">✏️ Editează</button>
         <button type="button" class="sm danger" style="padding:1px 6px;font-size:10px" onclick="deleteGasReading(${row.time}, '${row.index.toFixed(3)}')">✕ Șterge</button>
       </td></tr>`;
     });
