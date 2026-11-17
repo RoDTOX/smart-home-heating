@@ -487,8 +487,8 @@ one example:
 - **FR-8.1 (Web page):** *[now]* {SW; test, inspection} One page served at `/`:
   - family view: a panel in three columns from 1024 px page width, one column below it (C-47; design reference
     `design/mock/panou.html`):
-    - header: the time of the controller, the outdoor temperature, the boiler state, one global Home / Away switch,
-      the theme selector, and in words what the schedule does now and when it changes next (e.g.
+    - header (C-50): the boiler state, the theme selector, a button that ends away shown only while away is active
+      (away is switched on in the admin view, section schedule), and in words what the schedule does now and when it changes next (e.g.
       `Program: zi până la 22:30, apoi noapte`), or why the house does not follow it (away, schedule off);
     - left column: clock and date of the controller with the outdoor temperature; the boiler card (ON / OFF as
       commanded - the controller has no flame signal -, the remaining pause of FR-4, the boiler ON time of today);
@@ -499,6 +499,8 @@ one example:
       adds a dial with the target on a 270° arc over the range of FR-1.2, the steppers [−] and [+] (0.5 °C), the
       button `Înapoi la program` while a boost is active (boost reset), the open-window notice with the button
       `Reia încălzirea` (FR-40) and the 24 h chart of the room (room and outdoor temperature, FR-34);
+    - both 24 h charts have a cursor: touching the chart shows the time, the temperatures and whether the boiler
+      (all rooms) or the valve of the room was on at that moment (C-50);
     - right column: the 24 h chart of all rooms and the outdoor temperature (FR-34) and the card `Stare sistem`:
       the active alarms (DTC code and text, FR-10.2), or that there is none;
     - five colour themes (`HA Charcoal`, `Glass Glow`, `Smartiva Dark`, `Nordic Light`, `Smartiva Glass`) and the

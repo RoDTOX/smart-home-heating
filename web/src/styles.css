@@ -86,6 +86,7 @@ details.adm-card{scroll-margin-top:12px}
 .meta #boiler.on{color:var(--heat)}
 .ctrls{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
 .hbar #away,.hbar #toggleAdmin{border-radius:12px;padding:7px 12px;font-size:12px;font-weight:600}
+.hbar #away{display:none}.hbar #away.on{display:inline-block;background:var(--warn);color:#16171b;border-color:transparent}
 .seg{display:flex;align-items:center;gap:2px;padding:2px;border-radius:12px;border:1px solid var(--line);background:var(--elev)}
 .seg button{border:0;background:none;border-radius:8px;padding:6px 10px;font-size:12px;font-weight:600;white-space:nowrap;color:var(--mut)}
 .seg button[aria-pressed=true]{background:var(--heat);color:#16171b}

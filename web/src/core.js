@@ -66,7 +66,7 @@ function goToAdminCreds() {
   }
 }
 
-let inFlight = false;
+let inFlight = false, schedAt = 0;
 async function refresh() {
   // One refresh at a time, endpoints one after another: the board serves one client request per loop pass
   if (inFlight) { again = true; return; }  // a change made meanwhile (add / delete a zone) is shown by one more pass
@@ -81,6 +81,8 @@ async function refresh() {
     for (const ep of eps) RAW[ep] = ep === "api/setup/discovered-sensors" ? await api("api/setup/discovered-sensors") : await api(ep);
     Z = RAW["api/zones"]; B = RAW["api/ble/sensors"].sensors; ST = RAW["api/boiler/status"]; D = RAW["api/diag/status"];
     S = RAW["api/schedule"] || S;
+    // the header tells the schedule in words, so the family view reads it too: at start and every 5 min
+    if (!admin && (!S || Date.now() - schedAt > 300000)) { try { S = await api("api/schedule"); schedAt = Date.now(); } catch (e) {} }
     // FR-8.1 (C-47): the 24 h charts of the panel, read at most every 5 min, in the same one-request-at-a-time pass
     if (panelHistDue()) { try { PH = await api("api/history?range=24h"); phAt = Date.now(); paintCharts(); } catch (e) {} }
     $("devBanner").style.display = ST && ST.profile === "dev-open" ? "inline-block" : "none";

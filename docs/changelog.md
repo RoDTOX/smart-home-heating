@@ -21,6 +21,19 @@ Entries before 29.10.2026 (the system before the lean clean-up):
   - Page 143 579 B gzip (limit 262 144 B); no URL of another host; the checks of TC19.22, TC19.23, TC19.24 hold on the built page.
 - **Not done:** page not uploaded to the board (owner tests first); TC19.24 not run on the board.
 
+## [17.11.2026] - Owner's remarks on the panel (C-50); test quality; control law on the simulator
+
+- **Who / when / why:** same owner goal, branch `art/ui-and-tests`; remarks 1-5 of the owner on the panel (chat 17.11.2026).
+- **Changed:**
+  - Panel (C-50, `web/src/rooms.js`, `core.js`, `shell.html`, `schedule.html`, `styles.css`): header without clock / outdoor temperature; Away switch moved to the admin schedule section, header button only while away is active; ring of the room cards removed; cursor on both 24 h charts; the family view reads `api/schedule` (at start, then every 5 min) so the header text is right for `Constant 24/7`.
+  - Test quality (c6c1484, 3809756): coverage report counts only a test with the requirement's own ID (PB-38); checker ERROR for a test that is defined but never run (PB-86); TC01.4, TC07.1, TC28.3 strengthened (PB-33); every other open test-quality row of `docs/problems.md` carries a question for the owner (Q1 ... Q10).
+  - `test/test_sim_tuning/`: the real `ZoneController` on three simulated buildings - steady state per outdoor band, cold start, boost, night setback with no pre-heat / FR-48 formula / learned rate.
+- **Verified:**
+  - `pio test -e native`: 41/41 PASS. Steady state within 0.08 C in all six outdoor bands, within 0.25 C on the light and the heavy building (NFR-4.1: 0.3 C); cold start overshoot at most 0.19 C; overshoot after a pre-heated rise at most 0.23 C (reference), 0.39 C (light building).
+  - Pre-heat by the FR-48 formula is on time at -8 C and 0 C, late at +8 C (0.5 C short, 21 min) and on the light building (up to 1.3 C short, 47 min); with the learned rate of `HeatUpModel` the room is within 0.31 C at the moment in 8 of 9 cases (PB-135).
+  - TC01.4, TC07.1, TC28.3 PASS on the board 1.11.13.10 (read only). Panel checked in the local preview: header text `Program: Temperatură constantă 24/7`, cursor readout, no console error.
+- **Not done:** no control constant changed (PB-135 waits for the owner); nothing uploaded or flashed.
+
 ## [15.11.2026] - Family view of the page as a themed panel; page limit 262 144 B (C-47, C-48, D-63)
 
 - **Who / when / why:** Owner request (chat 15.11.2026): the look generated in Google AI Studio (`design/aistudio/`, React) rebuilt in the plain HTML / CSS / JS of the board, without the values the controller does not have. Light mode of the chain.

@@ -151,8 +151,7 @@ function renderRooms() {
         <stop offset="0" style="stop-color:var(--heat);stop-opacity:0"/><stop offset="1" style="stop-color:var(--heat);stop-opacity:.48"/></linearGradient></defs>
         <path d="M0,36 C100,10 200,62 300,36 C400,10 500,62 600,36 C700,10 750,50 800,36 L800,80 L0,80 Z" fill="url(#wv${i})"/></svg></div>
       <button type="button" class="zhead" data-x="${i}" aria-expanded="${ex}">
-        <div class="l"><svg class="ring" width="52" height="52" viewBox="0 0 52 52" aria-hidden="true"><circle class="rb" cx="26" cy="26" r="23.75"/>
-          <circle class="rf" data-k="ring" cx="26" cy="26" r="23.75" stroke-dasharray="149.23"/></svg>
+        <div class="l">
           <div style="min-width:0"><div class="zname">${esc(z.name)}</div><div class="zmeta" data-k="meta"></div><div class="zstat" data-k="stat"></div></div></div>
         <div class="r"><div class="ztemp mn"><span data-k="temp"></span><span class="deg">°</span></div><span class="chev" aria-hidden="true">${ic(ex ? "up" : "down", "i20")}</span></div>
       </button>
@@ -196,7 +195,6 @@ function paintRoom(z, i) {
   const s = B.find(x => x.mac.toUpperCase() === (z.sensorMac || "").toUpperCase());
   el.className = "card zone " + cls;
   el.style.setProperty("--acc", `var(--${ROOM_COL[cls]})`);
-  q("ring").style.strokeDashoffset = 149.23 * (1 - Math.max(.04, has ? tRatio(z.currentTemp) : 0));
   const meta = [];
   if (s) meta.push(`Umiditate ${Math.round(s.hum)}%`);
   meta.push(`Țintă ${target.toFixed(1)}°C`);
@@ -254,8 +252,6 @@ function setTarget(i, t) {
 
 function renderHeader() {
   const on = Z.boiler === "ON";
-  $("clock").textContent = ST ? ST.time.slice(0, 5) : "--:--";
-  $("outdoor").textContent = ST && ST.outdoorTemp > -100 ? "afară " + ST.outdoorTemp.toFixed(1) + "°" : "afară --";
   $("boiler").innerHTML = on ? ic("flame", "flick") + "centrala pornită" : ic("pause") + "centrala oprită";
   $("boiler").classList.toggle("on", on);
   $("level").textContent = scheduleText();
@@ -348,7 +344,19 @@ function drawChart(el, o) {
   o.lines.forEach(l => { s += `<path d="${path(l.c, rl)}" fill="none" style="stroke:var(--${l.col});stroke-width:${l.w}"/>`; });
   const bw = Math.max(1, pw / 287);
   pts.forEach(d => { if (d.p[5] & o.bit) s += `<rect x="${(x(d.k) - bw / 2).toFixed(1)}" y="${T + ph + 3}" width="${(bw + .3).toFixed(1)}" height="4" style="fill:var(--heat);opacity:.8"/>`; });
-  el.innerHTML = s + "</svg>";
+  // cursor: a line that follows the finger or the mouse, with the values of that moment written under the chart
+  s += `<line class="cur" y1="${T}" y2="${T + ph + 8}" style="stroke:var(--fg);stroke-width:1;opacity:.7;display:none"/>`;
+  el.innerHTML = s + `</svg><div class="tiny tip mn" style="min-height:16px;margin-top:4px">Atinge graficul pentru valori.</div>`;
+  const svg = el.firstChild, cur = svg.querySelector(".cur"), tip = el.querySelector(".tip");
+  svg.style.touchAction = "pan-y";
+  svg.onpointermove = svg.onpointerdown = e => {
+    const k = (e.clientX - svg.getBoundingClientRect().left - L) / pw * 287 + 1;
+    const d = pts.reduce((a, b) => Math.abs(b.k - k) < Math.abs(a.k - k) ? b : a);
+    cur.setAttribute("x1", x(d.k)); cur.setAttribute("x2", x(d.k)); cur.style.display = "";
+    tip.textContent = `${p2(Math.floor(d.s / 12))}:${p2(d.s % 12 * 5)} · ` +
+      o.lines.map(l => (l.name ? l.name + " " : "") + (ok(d.p[l.c]) ? d.p[l.c].toFixed(1) + "°" : "–")).join(" · ") +
+      (ok(d.p[4]) ? ` · afară ${d.p[4].toFixed(1)}°` : "") + ` · ${o.onText}: ${d.p[5] & o.bit ? "da" : "nu"}`;
+  };
 }
 function paintCharts() {
   if (!Z) return;
@@ -357,10 +365,10 @@ function paintCharts() {
     `<span><i style="width:12px;height:2px;background:var(--idle)"></i>Afară (dreapta)</span>` +
     `<span><i style="width:8px;height:4px;border-radius:2px;background:var(--heat)"></i>Centrală pornită</span>`;
   drawChart($("pChart"), {h: 168, pts, bit: 1, label: "Temperaturi în ultimele 24 de ore, toate camerele",
-    lines: list.map(([z, i]) => ({c: i + 1, col: CH_COL[i], w: 1.8}))});
+    onText: "centrală pornită", lines: list.map(([z, i]) => ({c: i + 1, col: CH_COL[i], w: 1.8, name: z.name}))});
   const zc = $("zChart");
   if (zc && openZ !== null && openZ >= 0 && openZ < 3) drawChart(zc, {h: 130, pts, bit: 1 << (openZ + 2), label: "Temperatura camerei în ultimele 24 de ore",
-    lines: [{c: openZ + 1, col: "fg", w: 2}]});
+    onText: "cerere de căldură", lines: [{c: openZ + 1, col: "fg", w: 2}]});
   else if (zc) zc.innerHTML = "";
 }
 let rzT = 0;
