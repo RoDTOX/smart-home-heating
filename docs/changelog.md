@@ -5,6 +5,12 @@ Corelat cu planul activ: [`docs/plan.md`](file:///c:/Users/BSeceleanu/.github_re
 Entries before 29.10.2026 (the system before the lean clean-up):
 [`archive/changelog_until_2026-10-21.md`](archive/changelog_until_2026-10-21.md).
 
+## [17.11.2026] - Real explanations in the engineering view (PB-136)
+
+- **Who / when / why:** Owner "Da, repară" (chat 17.11.2026): 93 API values showed the explanation "T" and the requirement "e", 345 more entries were never read; they were added on 13.11.2026 only so that TC19.9 passed.
+- **Changed:** `tools/sh_tests/t_ui_history.py` TC19.9 also checks that each entry has real text and a requirement ID (test made stricter, not weaker); `web/src/doc.json` 93 explanations written, 438 filler entries removed.
+- **Verified:** TC19.9 FAIL on the page now on the board, PASS on the new page with live board values (read only); page 142 234 B; `python tools/sh_process_check.py` 0 errors. Page not uploaded.
+
 ## [17.11.2026] - FR-17.5 says "3 or more" (C-51)
 
 - **Who / when / why:** Owner answer in chat (17.11.2026, "ok" to question Q2 of PB-32): the requirement follows the firmware and the tests, DTC-201 is raised by the third rejected request within 10 s.

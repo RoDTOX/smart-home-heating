@@ -155,15 +155,27 @@ class UiHistoryTests:
                     out.add(path)
                 return out
 
-            missing, count = [], 0
+            # PB-136: an entry explains a value only if it is [explanation, requirement ID] with real text;
+            # a filler that repeats the value name, or a bare text, is not an explanation
+            def explained(k):
+                e = doc["doc"].get(k)
+                if not (isinstance(e, list) and len(e) >= 2 and isinstance(e[0], str) and isinstance(e[1], str)):
+                    return False
+                leaf = re.split(r"[.\]]", k)[-1]
+                return (len(e[0].strip()) >= 4 and e[0].strip().lower() != leaf.lower()
+                        and "attribute:" not in e[0] and re.fullmatch(r"(FR|NFR)-\d+(\.\d+)?", e[1]) is not None)
+
+            missing, hollow, count = [], [], 0
             for ep in doc["endpoints"]:
                 r = requests.get(f"{self.base_url}/{ep}", timeout=self.timeout)
                 assert r.status_code == 200, f"{ep}: HTTP {r.status_code}"
                 keys = flat(r.json(), "", set())
                 count += len(keys)
                 missing += [f"{ep} {k}" for k in sorted(keys) if k not in doc["doc"]]
+                hollow += [f"{ep} {k}" for k in sorted(keys) if k in doc["doc"] and not explained(k)]
             latency = (time.time() - start) * 1000
             assert not missing, f"API values without explanation: {missing[:8]}"
+            assert not hollow, f"{len(hollow)} API values with an empty explanation or no requirement: {hollow[:8]}"
             details = f"{len(doc['endpoints'])} endpoints, {count} value names, all explained"
             return TestResult(test_id, name, req, "PASS", latency, details)
         except Exception as e:
