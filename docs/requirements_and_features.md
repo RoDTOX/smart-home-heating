@@ -203,7 +203,7 @@ one example:
   the guard.
 - **FR-17.4 (Rejected request response):** *[now]* {SW; test} A request rejected by the guard returns HTTP 429 with
   `status` = `rate_limited` or `pending`, the remaining `waitSec` and the current boiler state.
-- **FR-17.5 (Request spam):** *[now]* {SW; test} More than 3 rejected requests within 10 s raise DTC-201 `WARN_BOILER_SPAM_DETECTED`.
+- **FR-17.5 (Request spam):** *[now]* {SW; test} 3 or more rejected requests within 10 s raise DTC-201 (the third one raises it; C-51) `WARN_BOILER_SPAM_DETECTED`.
 - **FR-17.6 (Radio timing):** *[now]* {SW; test, analysis} One radio frame blocks `loop()` for ≤ 300 ms with interrupts disabled for
   ≤ 150 ms; rejected requests send no frame.
 - **FR-17.7 (State repeat / heartbeat):** *[now]* {SW; test} While no command is pending, the controller re-sends the current
@@ -794,7 +794,7 @@ one example:
 | `DTC-103`: `ERR_TEMP_OUT_OF_BOUNDS` | reading outside `validMin`–`validMax` | FR-53 | next reading in range |
 | `DTC-104`: `WARN_SENSOR_SUSPECT` | 3 discarded spikes within 1 h | FR-53 | 24 h without spikes |
 | `DTC-105`: `WARN_SENSOR_WEAK_SIGNAL` | sensor RSSI < −90 dBm for 1 h | FR-72 | RSSI ≥ −88 dBm for 1 h |
-| `DTC-201`: `WARN_BOILER_SPAM_DETECTED` | > 3 rejected boiler requests within 10 s | FR-17.5 | 10 min without rejection |
+| `DTC-201`: `WARN_BOILER_SPAM_DETECTED` | ≥ 3 rejected boiler requests within 10 s | FR-17.5 | 10 min without rejection |
 | `DTC-202`: `ERR_ZONE_NO_EFFECT` | zone demand without temperature rise | FR-57 | zone rises by `noEffectRise` |
 | `DTC-203`: `ERR_ZONE_OVERHEAT` | zone rising above target with valve closed | FR-56 | zone below target |
 | `DTC-204`: `ERR_BOILER_NOT_HEATING` | no zone and no flow reacts to boiler ON | FR-57 | any zone or flow rises |

@@ -5,6 +5,12 @@ Corelat cu planul activ: [`docs/plan.md`](file:///c:/Users/BSeceleanu/.github_re
 Entries before 29.10.2026 (the system before the lean clean-up):
 [`archive/changelog_until_2026-10-21.md`](archive/changelog_until_2026-10-21.md).
 
+## [17.11.2026] - FR-17.5 says "3 or more" (C-51)
+
+- **Who / when / why:** Owner answer in chat (17.11.2026, "ok" to question Q2 of PB-32): the requirement follows the firmware and the tests, DTC-201 is raised by the third rejected request within 10 s.
+- **Changed:** `docs/requirements_and_features.md` FR-17.5 and the DTC table; `docs/requirements_review.md` row C-51; `docs/problems.md` PB-32 (Q2 answered), PB-135 (step 14 is already closed, the gap is against FR-67). No code, no test.
+- **Verified:** `python tools/sh_process_check.py` 0 errors.
+
 ## [17.11.2026] - Admin view in the look of the panel; theme Meteo Dinamic (C-49), branch `art/ui-and-tests`
 
 - **Who / when / why:** Owner goal (chat 17.11.2026) for branch `art/ui-and-tests`, no push: every admin section looks and works like the new panel in all themes, the page works at 390 px and 1280 x 800 px without horizontal scrolling, the theme `Meteo Dinamic` exists and uses only data of the board. The owner left the open points to the assistant ("complet autonom pe toate neclaritățile"): `Meteo Dinamic` was added as a sixth theme. Light mode of the chain; no file of the safety list touched.
