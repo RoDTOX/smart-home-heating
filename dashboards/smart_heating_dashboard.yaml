@@ -1,0 +1,211 @@
+# Smart Heating - Home Assistant Dashboard
+# Theme: HA Charcoal (Stitch Design Specification)
+# Compatible with Lovelace UI, Mushroom Cards, and Mini-Graph-Card
+
+title: Smart Heating
+views:
+  - title: Panou Principal
+    path: acasa
+    icon: mdi:radiator
+    type: sections
+    max_columns: 3
+    badges:
+      - entity: sensor.smart_heating_outdoor_temperature
+        icon: mdi:weather-partly-cloudy
+      - entity: binary_sensor.smart_heating_boiler_demand
+        icon: mdi:fire
+      - entity: sensor.smart_heating_active_dtc_fault_count
+        icon: mdi:check-circle-outline
+
+    sections:
+      # SECTION 1: STARE SISTEM & ZONE ÎNCĂLZIRE
+      - title: Zone Termice
+        cards:
+          # BANNER CENTRALĂ
+          - type: conditional
+            conditions:
+              - entity: binary_sensor.smart_heating_boiler_demand
+                state: "on"
+            card:
+              type: custom:mushroom-template-card
+              primary: "Centrală: Flacără Activă"
+              secondary: "Arzător în funcțiune | Cerere termică activă"
+              icon: mdi:fire
+              icon_color: amber
+              layout: horizontal
+              tap_action:
+                action: more-info
+                entity: binary_sensor.smart_heating_boiler_demand
+
+          - type: conditional
+            conditions:
+              - entity: binary_sensor.smart_heating_boiler_demand
+                state: "off"
+            card:
+              type: custom:mushroom-template-card
+              primary: "Centrală: Pregătit (Standby)"
+              secondary: "Toate circuitele sunt la temperatură sau în anti-cycling"
+              icon: mdi:check-circle-outline
+              icon_color: green
+              layout: horizontal
+
+          # ZONA 1: LIVING + BUCĂTĂRIE
+          - type: custom:mushroom-climate-card
+            entity: climate.heating_living
+            name: "Living + Bucătărie"
+            icon: mdi:sofa
+            hvac_modes:
+              - heat
+              - "off"
+            show_temperature_control: true
+            collapsible_controls: true
+            layout: horizontal
+
+          - type: entities
+            title: "Detalii Living (3 Circuite)"
+            show_header_toggle: false
+            entities:
+              - entity: binary_sensor.heating_living_actuator_valve
+                name: "Actuatori NC (Releu 1)"
+                icon: mdi:valve
+              - entity: binary_sensor.heating_living_window_pause
+                name: "Pauză Geam"
+                icon: mdi:window-open-variant
+              - entity: sensor.heating_living_humidity
+                name: "Umiditate Relativă"
+                icon: mdi:water-percent
+              - entity: sensor.heating_living_sensor_battery
+                name: "Baterie Senzor BLE"
+                icon: mdi:battery
+              - entity: sensor.heating_living_sensor_ble_signal
+                name: "Semnal BLE (RSSI)"
+                icon: mdi:bluetooth
+
+          # ZONA 2: DORMITOR COPII
+          - type: custom:mushroom-climate-card
+            entity: climate.heating_kids
+            name: "Dormitor Copii"
+            icon: mdi:baby-face-outline
+            hvac_modes:
+              - heat
+              - "off"
+            show_temperature_control: true
+            collapsible_controls: true
+            layout: horizontal
+
+          - type: entities
+            title: "Detalii Dormitor Copii (2 Circuite)"
+            show_header_toggle: false
+            entities:
+              - entity: binary_sensor.heating_kids_actuator_valve
+                name: "Actuatori NC (Releu 2)"
+                icon: mdi:valve
+              - entity: binary_sensor.heating_kids_window_pause
+                name: "Pauză Geam"
+                icon: mdi:window-open-variant
+              - entity: sensor.heating_kids_humidity
+                name: "Umiditate Relativă"
+                icon: mdi:water-percent
+              - entity: sensor.heating_kids_sensor_battery
+                name: "Baterie Senzor BLE"
+                icon: mdi:battery
+
+          # ZONA 3: DORMITOR MARE
+          - type: custom:mushroom-climate-card
+            entity: climate.heating_adults
+            name: "Dormitor Mare"
+            icon: mdi:bed-double-outline
+            hvac_modes:
+              - heat
+              - "off"
+            show_temperature_control: true
+            collapsible_controls: true
+            layout: horizontal
+
+          - type: entities
+            title: "Detalii Dormitor Mare (2 Circuite)"
+            show_header_toggle: false
+            entities:
+              - entity: binary_sensor.heating_adults_actuator_valve
+                name: "Actuatori NC (Releu 3)"
+                icon: mdi:valve
+              - entity: binary_sensor.heating_adults_window_pause
+                name: "Pauză Geam"
+                icon: mdi:window-open-variant
+              - entity: sensor.heating_adults_humidity
+                name: "Umiditate Relativă"
+                icon: mdi:water-percent
+              - entity: sensor.heating_adults_sensor_battery
+                name: "Baterie Senzor BLE"
+                icon: mdi:battery
+
+      # SECTION 2: CONSUM GAZ & COSTURI
+      - title: Contor Gaz & Energie
+        cards:
+          - type: glance
+            title: "Consum Gaz & Costuri"
+            show_state: true
+            entities:
+              - entity: sensor.smart_heating_gas_consumption_today
+                name: "Azi (m³)"
+                icon: mdi:fire
+              - entity: sensor.smart_heating_gas_cost_today
+                name: "Cost Azi"
+                icon: mdi:currency-usd
+              - entity: sensor.smart_heating_gas_consumption_yesterday
+                name: "Ieri (m³)"
+                icon: mdi:history
+              - entity: sensor.smart_heating_gas_consumption_this_month
+                name: "Luna Aceasta"
+                icon: mdi:calendar-month
+              - entity: sensor.smart_heating_gas_cost_this_month
+                name: "Cost Lună"
+                icon: mdi:cash-multiple
+
+          # GRAFIC TELEMETRIE TEMPERATURI 24H
+          - type: custom:mini-graph-card
+            name: "Evoluție Temperaturi (Ultimele 24h)"
+            hours_to_show: 24
+            points_per_hour: 4
+            line_width: 2
+            entities:
+              - entity: sensor.smart_heating_outdoor_temperature
+                name: "Exterior"
+                color: "#94A3B8"
+              - entity: climate.heating_living
+                attribute: current_temperature
+                name: "Living"
+                color: "#F59E0B"
+              - entity: climate.heating_kids
+                attribute: current_temperature
+                name: "Copii"
+                color: "#38BDF8"
+              - entity: climate.heating_adults
+                attribute: current_temperature
+                name: "Dormitor"
+                color: "#10B981"
+
+      # SECTION 3: DIAGNOSTIC & MENTENANȚĂ
+      - title: Diagnostic & Comenzi Rapide
+        cards:
+          - type: entities
+            title: "Stare Tehnică ESP32"
+            entities:
+              - entity: sensor.smart_heating_controller_free_heap
+                name: "Memorie Liberă (Heap)"
+                icon: mdi:memory
+              - entity: sensor.smart_heating_controller_wi_fi_signal
+                name: "Semnal Wi-Fi"
+                icon: mdi:wifi
+              - entity: sensor.smart_heating_controller_uptime
+                name: "Timp Funcționare"
+                icon: mdi:timer-outline
+              - entity: select.smart_heating_heating_season_mode
+                name: "Mod Sezon Încălzire"
+                icon: mdi:calendar-sync
+              - entity: button.smart_heating_resume_heating_clear_all_window_pauses
+                name: "Anulează Toate Pauzele Geam"
+                icon: mdi:play-circle-outline
+              - entity: button.smart_heating_clear_inactive_dtc_faults
+                name: "Șterge Istoric Defecte DTC"
+                icon: mdi:broom

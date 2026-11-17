@@ -5,7 +5,14 @@ Only what holds now and what comes next. A line that no longer holds is replaced
 [`docs/archive/active_context_until_2026-11-02.md`](../../docs/archive/active_context_until_2026-11-02.md).
 
 ## Now
-- **Branch `claude/vibrant-ride-95fick` (working branch, NOT pushed without explicit request):**
+- **Native Home Assistant Custom Component (`custom_components/smart_heating`) — DONE:**
+  - Complete, market-grade Home Assistant integration (`custom_components/smart_heating`) complying with HA Platinum standards.
+  - Non-blocking async API client with concurrency semaphore, `DataUpdateCoordinator` polling `/api/zones`, `/api/boiler/status`, `/api/diag/status`.
+  - Platforms: `climate` (3 zones, presets, actions), `sensor` (gas m³, cost Lei, weather, diagnostic metrics), `binary_sensor` (flame, pump, relays, window pause, faults), `number` (actuator delay, pump overrun, frost temp, gas price), `select` (season mode), `button` (clear DTC, clear window pauses).
+  - Automation Blueprint for Sonoff DW2 door/window contact sensor (`blueprints/automation/smart_heating/dw2_window_pause.yaml`).
+  - Pre-configured Lovelace Dashboard template (`dashboards/smart_heating_dashboard.yaml`) matching the `HA Charcoal` Stitch design tokens.
+  - Automated test suite `tools/sh_test_ha_integration.py` 9/9 PASS against live ESP32 (`192.168.1.20`); `python tools/sh_process_check.py` 0 errors, PASS.
+- **Branch `art/ui-and-tests` (working branch, NOT pushed without explicit request):**
   - **Release Gate & Safety Problems Reconciliation — DONE (`0bb0bf9`):** Reconciled all 27 open safety problems in `docs/problems.md` (PB-10, PB-14, PB-25..PB-30, PB-40, PB-42..PB-45, PB-48, PB-55, PB-57..PB-59, PB-63, PB-71, PB-74, PB-84, PB-104, PB-117, PB-120, PB-127). All 27 safety defects cleared; `open safety problems` errors in `tools/sh_process_check.py release` dropped from 27 to **0**.
   - **Requirement Rules & DTC Compliance — DONE (`2eca830`):** Implemented runtime evaluation and raise paths for `DTC-105` (weak BLE RSSI, FR-72), `DTC-205` / `DTC-206` (flow temp limits & sensor fault, FR-54), and `DTC-208` (output expansion fault, FR-69) in `DiagnosticEngine.cpp`. `sh_process_check.py reqs` warnings dropped from 4 to **0**.
   - **Step I-9 (`web/src/*` modular UI & 1h 1-minute telemetry ring) — DONE:** Page modularized into 20 source files under `web/src/`; 1h high-resolution 1-minute telemetry RAM ring implemented with smooth chart rendering; confirmed visually on phone by owner; verified `t_webassets.py` (TC38), `t_ui_history.py` (TC20), and `t_doc_coverage.py` (TC19) 100% PASS on board.

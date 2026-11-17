@@ -1,0 +1,50 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Conectare la Controllerul Smart Heating",
+        "description": "Introduceți adresa IP și portul controllerului ESP32 Smart Heating.",
+        "data": {
+          "host": "Adresă IP",
+          "port": "Port"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Conectarea la controller a eșuat. Verificați IP-ul și asigurați-vă că dispozitivul este pornit.",
+      "invalid_response": "Răspuns invalid de la controller.",
+      "unknown": "A apărut o eroare neașteptată."
+    },
+    "abort": {
+      "already_configured": "Acest dispozitiv Smart Heating este deja configurat."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Opțiuni Smart Heating",
+        "data": {
+          "scan_interval": "Interval actualizare (secunde)"
+        }
+      }
+    }
+  },
+  "services": {
+    "clear_dtc_history": {
+      "name": "Ștergere istoric defecte DTC",
+      "description": "Curăță istoricul de coduri DTC inactive, păstrând doar înregistrarea repornirii curente."
+    },
+    "clear_window_pause": {
+      "name": "Anulare pauză geam deschis",
+      "description": "Anulează starea de pauză geam pentru o zonă specifică sau pentru toate zonele."
+    },
+    "set_window_pause": {
+      "name": "Activare pauză geam deschis",
+      "description": "Activează suspendarea temporară a încălzirii pe o zonă (ex. de la senzorul Sonoff DW2)."
+    },
+    "set_zone_boost": {
+      "name": "Setare boost zonă",
+      "description": "Aplică un boost temporar de temperatură (0.5 - 2.0°C) peste programul curent."
+    }
+  }
+}

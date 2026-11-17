@@ -1,0 +1,50 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Connect to Smart Heating Controller",
+        "description": "Enter the IP address and port of your ESP32 Smart Heating Controller.",
+        "data": {
+          "host": "IP Address",
+          "port": "Port"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Failed to connect to the controller. Check IP address and ensure device is online.",
+      "invalid_response": "Received invalid response from the controller.",
+      "unknown": "Unexpected error occurred."
+    },
+    "abort": {
+      "already_configured": "This Smart Heating device is already configured."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Smart Heating Options",
+        "data": {
+          "scan_interval": "Update Interval (seconds)"
+        }
+      }
+    }
+  },
+  "services": {
+    "clear_dtc_history": {
+      "name": "Clear DTC Fault History",
+      "description": "Purges inactive diagnostic trouble code records while retaining current reboot entry."
+    },
+    "clear_window_pause": {
+      "name": "Clear Window Pause",
+      "description": "Clears window pause state on a specific zone or all zones."
+    },
+    "set_window_pause": {
+      "name": "Trigger Window Pause",
+      "description": "Triggers a temporary heating suspension on a zone (e.g. from a door/window sensor like Sonoff DW2)."
+    },
+    "set_zone_boost": {
+      "name": "Set Zone Boost",
+      "description": "Applies a temporary temperature boost (0.5 - 2.0°C) above current schedule for a zone."
+    }
+  }
+}

@@ -1,0 +1,70 @@
+clear_dtc_history:
+  name: Clear Inactive DTC Faults
+  description: Purges inactive diagnostic trouble code records from the ESP32 while retaining the current reboot entry.
+
+clear_window_pause:
+  name: Clear Window Pause
+  description: Clears active window pause state and resumes heating on a specific zone or across all zones.
+  fields:
+    zone_id:
+      name: Zone ID
+      description: Zone ID (1, 2, or 3) or 0 for all zones.
+      required: false
+      default: 0
+      selector:
+        number:
+          min: 0
+          max: 3
+          step: 1
+          mode: box
+
+set_window_pause:
+  name: Trigger Window Pause
+  description: Temporarily suspends heating on a zone (e.g. from an external door/window sensor like Sonoff DW2).
+  fields:
+    zone_id:
+      name: Zone ID
+      description: The heating zone ID to pause (1, 2, or 3).
+      required: true
+      selector:
+        number:
+          min: 1
+          max: 3
+          step: 1
+          mode: box
+    duration_sec:
+      name: Duration (Seconds)
+      description: Duration of the heating suspension in seconds (default 1800s / 30 mins).
+      required: false
+      default: 1800
+      selector:
+        number:
+          min: 60
+          max: 7200
+          step: 60
+          mode: box
+
+set_zone_boost:
+  name: Set Zone Boost
+  description: Applies a temporary temperature boost (0.5 to 2.0°C above schedule) to a zone.
+  fields:
+    zone_id:
+      name: Zone ID
+      description: The heating zone ID (1, 2, or 3).
+      required: true
+      selector:
+        number:
+          min: 1
+          max: 3
+          step: 1
+          mode: box
+    boost_temp:
+      name: Boost Temperature
+      description: Target temperature in °C.
+      required: true
+      selector:
+        number:
+          min: 15.0
+          max: 28.0
+          step: 0.5
+          mode: box

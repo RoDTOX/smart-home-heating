@@ -5,7 +5,27 @@ Corelat cu planul activ: [`docs/plan.md`](file:///c:/Users/BSeceleanu/.github_re
 Entries before 29.10.2026 (the system before the lean clean-up):
 [`archive/changelog_until_2026-10-21.md`](archive/changelog_until_2026-10-21.md).
 
-## [17.11.2026] - Real explanations in the engineering view (PB-136)
+## [18.11.2026] - Native Home Assistant custom component (`custom_components/smart_heating`)
+
+- **Who / when / why:** Owner goal (`/goal`, chat 17-18.11.2026): commercial-grade, native Home Assistant integration for plug-and-play installation on dedicated server (ThinkPad L590 at `192.168.1.11`). Connects directly to ESP32 (`192.168.1.20`) with zero YAML and no external bridge.
+- **Changed:**
+  - `custom_components/smart_heating/`: `manifest.json`, `hacs.json`, `const.py`, `strings.json`, `translations/en.json`, `translations/ro.json`.
+  - `custom_components/smart_heating/api.py`: Non-blocking async API client with `asyncio.Semaphore(1)` for serial embedded server access.
+  - `custom_components/smart_heating/coordinator.py`: `SmartHeatingDataUpdateCoordinator` polling `/api/zones`, `/api/boiler/status`, `/api/diag/status`, with data models for zones, boiler, gas metering, and diagnostics.
+  - `custom_components/smart_heating/config_flow.py`: UI setup flow with IP/port validation, unique_id deduplication, and options flow for scan interval.
+  - `custom_components/smart_heating/climate.py`: Climate platform for all 3 heating zones (`Living`, `Kids`, `Adults`) with target temperature, HVAC action (`heating`/`idle`), and presets (`comfort`, `eco`, `away`).
+  - `custom_components/smart_heating/sensor.py`: Sensors for gas consumption (today/yesterday/month in m³), gas cost (Lei), boiler cooldown, outdoor temperature, RSSI, heap, uptime, and zone BLE sensors (humidity, battery, RSSI).
+  - `custom_components/smart_heating/binary_sensor.py`: Binary sensors for boiler demand, pump active, DTC fault warning, zone valve relays, and window pause status.
+  - `custom_components/smart_heating/number.py`: Number platform for adjusting actuator opening delay, pump overrun, frost protection temperature, and gas price.
+  - `custom_components/smart_heating/select.py`: Season mode selector (`AUTO`, `ON`, `OFF`).
+  - `custom_components/smart_heating/button.py`: Action buttons for clearing DTC fault history and clearing window pauses.
+  - `custom_components/smart_heating/services.yaml`: Custom services registration (`clear_dtc_history`, `clear_window_pause`, `set_window_pause`, `set_zone_boost`).
+  - `blueprints/automation/smart_heating/dw2_window_pause.yaml`: Ready-to-import Sonoff DW2 door/window contact sensor automation blueprint.
+  - `dashboards/smart_heating_dashboard.yaml`: Lovelace dashboard matching the `HA Charcoal` theme (Stitch design specification).
+  - `tools/sh_test_ha_integration.py`: Automated verification suite testing schemas, YAML, and live ESP32 endpoints.
+- **Verified:**
+  - `python tools/sh_test_ha_integration.py` 9/9 PASS against live controller at `192.168.1.20`.
+  - `python tools/sh_process_check.py` PASS (0 errors).
 
 - **Who / when / why:** Owner "Da, repară" (chat 17.11.2026): 93 API values showed the explanation "T" and the requirement "e", 345 more entries were never read; they were added on 13.11.2026 only so that TC19.9 passed.
 - **Changed:** `tools/sh_tests/t_ui_history.py` TC19.9 also checks that each entry has real text and a requirement ID (test made stricter, not weaker); `web/src/doc.json` 93 explanations written, 438 filler entries removed.
