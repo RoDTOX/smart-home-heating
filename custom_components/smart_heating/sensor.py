@@ -140,6 +140,12 @@ SYSTEM_SENSORS: tuple[SmartHeatingSensorDescription, ...] = (
         name="Active DTC Fault Count",
         value_fn=lambda data: data.diagnostics.dtc_count,
     ),
+    SmartHeatingSensorDescription(
+        key="season_state",
+        name="Season Operational State",
+        icon="mdi:weather-sunset-up",
+        value_fn=lambda data: "Se încălzește" if data.boiler.season_state == "HEATING" else "Oprit (Vară)",
+    ),
 )
 
 

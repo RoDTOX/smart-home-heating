@@ -24,7 +24,7 @@ step, the step passes §4, the owner tests it hands-on on the board, then the ne
 Requirement phase tags say in which step a requirement is built: `[now]` = steps 1–13, `[phase 4]` = step 14,
 `[later]` and `[nice to have]` after step 14.
 
-**Do not add features outside the current step.** No cloud, SaaS, fleet, shop, Home Assistant or kiosk work.
+**Do not add features outside the current step.** No cloud, SaaS, fleet, shop, or kiosk work. (Home Assistant integration is in-scope under Phase 5 per owner decision 08.11.2026).
 The device is prepared for sale in the EU under the owner's brand (owner, 02.11.2026): what EU law asks of the
 software is in [`docs/compliance.md`](docs/compliance.md) and becomes a requirement only through the chain (§5).
 

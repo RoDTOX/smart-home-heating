@@ -63,7 +63,9 @@ class TestSmartHeatingFiles(unittest.TestCase):
             data = yaml.safe_load(f)
         self.assertIn("clear_dtc_history", data)
         self.assertIn("clear_window_pause", data)
-        self.assertIn("set_window_pause", data)
+        self.assertIn("clear_zone_hold", data)
+        self.assertIn("submit_gas_meter_reading", data)
+        self.assertIn("set_zone_boost", data)
 
     def test_05_dashboard_yaml(self):
         self.assertTrue(os.path.isfile(DASHBOARD_FILE), "Dashboard YAML missing")

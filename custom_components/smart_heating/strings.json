@@ -44,17 +44,27 @@
         }
       }
     },
-    "set_window_pause": {
-      "name": "Trigger Window Pause",
-      "description": "Triggers a temporary heating suspension on a zone.",
+    "clear_zone_hold": {
+      "name": "Resume Schedule (Clear Hold)",
+      "description": "Clears manual hold on a zone and returns to scheduled target temperature.",
       "fields": {
         "zone_id": {
           "name": "Zone ID",
           "description": "Zone ID (1, 2, or 3)."
+        }
+      }
+    },
+    "submit_gas_meter_reading": {
+      "name": "Submit Gas Meter Reading",
+      "description": "Submits a new physical gas meter index reading.",
+      "fields": {
+        "index": {
+          "name": "Meter Index",
+          "description": "Current cumulative meter reading in m3."
         },
-        "duration_sec": {
-          "name": "Duration (seconds)",
-          "description": "Pause duration in seconds (default: 1800s / 30 mins)."
+        "time": {
+          "name": "Epoch Timestamp",
+          "description": "Optional unix epoch timestamp."
         }
       }
     },

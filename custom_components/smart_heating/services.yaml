@@ -1,6 +1,6 @@
 clear_dtc_history:
-  name: Clear Inactive DTC Faults
-  description: Purges inactive diagnostic trouble code records from the ESP32 while retaining the current reboot entry.
+  name: Reset DTC Faults & History
+  description: Resets active diagnostic trouble code records from the ESP32 and purges event history.
 
 clear_window_pause:
   name: Clear Window Pause
@@ -18,13 +18,13 @@ clear_window_pause:
           step: 1
           mode: box
 
-set_window_pause:
-  name: Trigger Window Pause
-  description: Temporarily suspends heating on a zone.
+clear_zone_hold:
+  name: Resume Schedule (Clear Hold)
+  description: Clears manual hold on a zone and returns to scheduled target temperature.
   fields:
     zone_id:
       name: Zone ID
-      description: The heating zone ID to pause (1, 2, or 3).
+      description: The heating zone ID (1, 2, or 3).
       required: true
       selector:
         number:
@@ -32,16 +32,30 @@ set_window_pause:
           max: 3
           step: 1
           mode: box
-    duration_sec:
-      name: Duration (Seconds)
-      description: Duration of the heating suspension in seconds (default 1800s / 30 mins).
-      required: false
-      default: 1800
+
+submit_gas_meter_reading:
+  name: Submit Gas Meter Reading
+  description: Records a new physical gas meter index reading for consumption calibration.
+  fields:
+    index:
+      name: Meter Index
+      description: Current cumulative gas meter reading in m3.
+      required: true
       selector:
         number:
-          min: 60
-          max: 7200
-          step: 60
+          min: 0.0
+          max: 999999.0
+          step: 0.001
+          mode: box
+    time:
+      name: Epoch Timestamp
+      description: Optional unix timestamp of when the reading was taken.
+      required: false
+      selector:
+        number:
+          min: 1700000000
+          max: 2000000000
+          step: 1
           mode: box
 
 set_zone_boost:

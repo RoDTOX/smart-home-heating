@@ -38,9 +38,13 @@
       "name": "Clear Window Pause",
       "description": "Clears window pause state on a specific zone or all zones."
     },
-    "set_window_pause": {
-      "name": "Trigger Window Pause",
-      "description": "Triggers a temporary heating suspension on a zone."
+    "clear_zone_hold": {
+      "name": "Resume Schedule (Clear Manual Hold)",
+      "description": "Clears manual temperature hold and resumes scheduled target temperature."
+    },
+    "submit_gas_meter_reading": {
+      "name": "Submit Gas Meter Reading",
+      "description": "Submits a new physical gas meter index reading."
     },
     "set_zone_boost": {
       "name": "Set Zone Boost",
@@ -71,12 +75,12 @@
     "select": {
       "season_mode": {
         "state": {
-          "auto": "Auto (Weather)",
-          "on": "Winter (Heating)",
-          "off": "Summer (Off)",
-          "AUTO": "Auto (Weather)",
-          "ON": "Winter (Heating)",
-          "OFF": "Summer (Off)"
+          "auto": "Automatic (Weather)",
+          "on": "Permanently On",
+          "off": "Permanently Off",
+          "AUTO": "Automatic (Weather)",
+          "ON": "Permanently On",
+          "OFF": "Permanently Off"
         }
       }
     }

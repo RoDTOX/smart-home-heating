@@ -11,7 +11,7 @@ from homeassistant.helpers.update_coordinator import CoordinatorEntity
 from .const import DOMAIN
 from .coordinator import SmartHeatingDataUpdateCoordinator
 
-SEASON_OPTIONS = ["AUTO", "ON", "OFF"]
+SEASON_OPTIONS = ["auto", "on", "off"]
 
 
 async def async_setup_entry(
@@ -62,8 +62,8 @@ class SmartHeatingSeasonSelect(
     @property
     def current_option(self) -> str | None:
         """Return the current selected option."""
-        mode = self.coordinator.data.boiler.season_mode.upper()
-        return mode if mode in SEASON_OPTIONS else "AUTO"
+        mode = self.coordinator.data.boiler.season_mode.lower()
+        return mode if mode in SEASON_OPTIONS else "auto"
 
     async def async_select_option(self, option: str) -> None:
         """Change the selected option."""

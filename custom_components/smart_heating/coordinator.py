@@ -88,12 +88,27 @@ class DiagnosticsData:
 
 
 @dataclass
+class ScheduleData:
+    """Dataclass representing heating schedule state."""
+
+    enabled: bool = True
+    away: bool = False
+    schedule_mode: str = "daily"
+    preheat_enabled: bool = True
+    window_detection_enabled: bool = True
+    active_level: str = "day"
+    next_level: str = "night"
+    mins_to_next_slot: int = 0
+
+
+@dataclass
 class SmartHeatingData:
     """Complete aggregated data structure for the integration."""
 
     zones: dict[int, ZoneData] = field(default_factory=dict)
     boiler: BoilerData = field(default_factory=BoilerData)
     diagnostics: DiagnosticsData = field(default_factory=DiagnosticsData)
+    schedule: ScheduleData = field(default_factory=ScheduleData)
     system_config: dict[str, Any] = field(default_factory=dict)
 
 
@@ -229,10 +244,29 @@ class SmartHeatingDataUpdateCoordinator(DataUpdateCoordinator[SmartHeatingData])
                 checks=diag_resp.get("checks", []),
             )
 
+            # Fetch Schedule state
+            schedule_data = ScheduleData()
+            try:
+                sched_resp = await self.api.async_get_schedule()
+                if isinstance(sched_resp, dict):
+                    schedule_data = ScheduleData(
+                        enabled=bool(sched_resp.get("enabled", True)),
+                        away=bool(sched_resp.get("away", False)),
+                        schedule_mode=str(sched_resp.get("scheduleMode", "daily")),
+                        preheat_enabled=bool(sched_resp.get("preHeatEnabled", True)),
+                        window_detection_enabled=bool(sched_resp.get("windowDetectionEnabled", True)),
+                        active_level=str(sched_resp.get("activeLevel", "day")),
+                        next_level=str(sched_resp.get("nextLevel", "night")),
+                        mins_to_next_slot=int(sched_resp.get("minsToNextSlot", 0)),
+                    )
+            except Exception as err:
+                _LOGGER.debug("Could not fetch schedule: %s", err)
+
             return SmartHeatingData(
                 zones=zones_data,
                 boiler=boiler_data,
                 diagnostics=diag_data,
+                schedule=schedule_data,
                 system_config=system_config,
             )
 
@@ -253,8 +287,33 @@ class SmartHeatingDataUpdateCoordinator(DataUpdateCoordinator[SmartHeatingData])
         await self.async_request_refresh()
 
     async def async_clear_dtc_history(self) -> None:
-        """Purge inactive DTC events and refresh."""
+        """Purge inactive DTC events in LittleFS."""
         await self.api.async_clear_dtc_events()
+        await self.async_request_refresh()
+
+    async def async_clear_all_dtcs(self) -> None:
+        """Reset active DTCs and purge event history."""
+        await self.api.async_clear_dtc(include_events=True)
+        await self.async_request_refresh()
+
+    async def async_toggle_zone(self, zone_id: int) -> None:
+        """Toggle zone enabled state."""
+        await self.api.async_toggle_zone(zone_id)
+        await self.async_request_refresh()
+
+    async def async_clear_zone_hold(self, zone_id: int) -> None:
+        """Clear manual hold and return zone to schedule."""
+        await self.api.async_clear_zone_hold(zone_id)
+        await self.async_request_refresh()
+
+    async def async_set_away(self, away: bool) -> None:
+        """Set global Away mode."""
+        await self.api.async_set_away_mode(away)
+        await self.async_request_refresh()
+
+    async def async_submit_gas_reading(self, index: float, epoch: int | None = None) -> None:
+        """Submit a new gas meter reading."""
+        await self.api.async_submit_gas_reading(index, epoch)
         await self.async_request_refresh()
 
     async def async_set_config_param(self, key: str, value: Any) -> None:

@@ -32,6 +32,8 @@ STEP_USER_DATA_SCHEMA = vol.Schema(
     {
         vol.Required(CONF_HOST, default=DEFAULT_HOST): str,
         vol.Required(CONF_PORT, default=DEFAULT_PORT): int,
+        vol.Optional("username", default="bogdan"): str,
+        vol.Optional("password", default="bogdan123"): str,
     }
 )
 

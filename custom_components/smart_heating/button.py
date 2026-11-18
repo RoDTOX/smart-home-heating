@@ -27,6 +27,7 @@ async def async_setup_entry(
 
     for zone_id in coordinator.data.zones:
         entities.append(SmartHeatingClearZoneWindowButton(coordinator, entry, zone_id))
+        entities.append(SmartHeatingClearZoneHoldButton(coordinator, entry, zone_id))
 
     async_add_entities(entities)
 
@@ -34,9 +35,10 @@ async def async_setup_entry(
 class SmartHeatingClearDtcButton(
     CoordinatorEntity[SmartHeatingDataUpdateCoordinator], ButtonEntity
 ):
-    """Button to clear DTC event history."""
+    """Button to reset active DTC faults and clear history."""
 
     _attr_has_entity_name = True
+    _attr_icon = "mdi:broom"
 
     def __init__(
         self,
@@ -47,7 +49,7 @@ class SmartHeatingClearDtcButton(
         super().__init__(coordinator)
         self._entry = entry
         self._attr_unique_id = f"{entry.unique_id}_clear_dtc_history"
-        self._attr_name = "Clear Inactive DTC Faults"
+        self._attr_name = "Reset DTC Faults & History"
 
     @property
     def device_info(self) -> DeviceInfo:
@@ -63,8 +65,8 @@ class SmartHeatingClearDtcButton(
         )
 
     async def async_press(self) -> None:
-        """Trigger clearing DTC history."""
-        await self.coordinator.async_clear_dtc_history()
+        """Trigger resetting active DTCs and clearing history."""
+        await self.coordinator.async_clear_all_dtcs()
 
 
 class SmartHeatingClearAllWindowsButton(
@@ -139,3 +141,42 @@ class SmartHeatingClearZoneWindowButton(
     async def async_press(self) -> None:
         """Trigger clearing window pause on this zone."""
         await self.coordinator.async_clear_window_pause(self._zone_id)
+
+
+class SmartHeatingClearZoneHoldButton(
+    CoordinatorEntity[SmartHeatingDataUpdateCoordinator], ButtonEntity
+):
+    """Button to clear manual temperature hold and return zone to schedule."""
+
+    _attr_has_entity_name = True
+    _attr_icon = "mdi:calendar-sync"
+
+    def __init__(
+        self,
+        coordinator: SmartHeatingDataUpdateCoordinator,
+        entry: ConfigEntry,
+        zone_id: int,
+    ) -> None:
+        """Initialize the button."""
+        super().__init__(coordinator)
+        self._entry = entry
+        self._zone_id = zone_id
+        self._attr_unique_id = f"{entry.unique_id}_zone_{zone_id}_clear_hold"
+        self._attr_name = "Resume Schedule (Clear Hold)"
+
+    @property
+    def device_info(self) -> DeviceInfo:
+        """Link to the zone sub-device."""
+        zone = self.coordinator.data.zones.get(self._zone_id)
+        zone_name = zone.name if zone else f"Zone {self._zone_id}"
+        return DeviceInfo(
+            identifiers={(DOMAIN, f"{self._entry.unique_id}_zone_{self._zone_id}")},
+            name=f"Heating - {zone_name}",
+            manufacturer="Smartiva Systems",
+            model="Underfloor Heating Zone",
+            via_device=(DOMAIN, self._entry.unique_id),
+        )
+
+    async def async_press(self) -> None:
+        """Trigger clearing manual hold on this zone."""
+        await self.coordinator.async_clear_zone_hold(self._zone_id)

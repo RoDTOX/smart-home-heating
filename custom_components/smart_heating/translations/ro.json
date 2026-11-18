@@ -38,9 +38,13 @@
       "name": "Anulare pauză geam deschis",
       "description": "Anulează starea de pauză geam pentru o zonă specifică sau pentru toate zonele."
     },
-    "set_window_pause": {
-      "name": "Activare pauză geam deschis",
-      "description": "Activează suspendarea temporară a încălzirii pe o zonă."
+    "clear_zone_hold": {
+      "name": "Revenire la program (Anulare reglaj manual)",
+      "description": "Anulează reglajul manual sau boost-ul temporar al zonei și revine la orarul prestabilit."
+    },
+    "submit_gas_meter_reading": {
+      "name": "Transmitere index contor gaz",
+      "description": "Înregistrează un index fizic nou citit de pe contorul de gaz."
     },
     "set_zone_boost": {
       "name": "Setare boost zonă",
@@ -71,12 +75,12 @@
     "select": {
       "season_mode": {
         "state": {
-          "auto": "Automat (Meteo)",
-          "on": "Iarnă (Încălzire)",
-          "off": "Vară (Oprit)",
-          "AUTO": "Automat (Meteo)",
-          "ON": "Iarnă (Încălzire)",
-          "OFF": "Vară (Oprit)"
+          "auto": "Automat (după vreme)",
+          "on": "Pornit permanent",
+          "off": "Oprit permanent",
+          "AUTO": "Automat (după vreme)",
+          "ON": "Pornit permanent",
+          "OFF": "Oprit permanent"
         }
       }
     }

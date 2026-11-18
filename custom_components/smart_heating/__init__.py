@@ -22,8 +22,9 @@ from .const import (
     PLATFORMS,
     SERVICE_CLEAR_DTC,
     SERVICE_CLEAR_WINDOW_PAUSE,
-    SERVICE_SET_WINDOW_PAUSE,
+    SERVICE_CLEAR_ZONE_HOLD,
     SERVICE_SET_ZONE_BOOST,
+    SERVICE_SUBMIT_GAS_READING,
 )
 from .coordinator import SmartHeatingDataUpdateCoordinator
 
@@ -35,10 +36,16 @@ SERVICE_CLEAR_WINDOW_PAUSE_SCHEMA = vol.Schema(
     }
 )
 
-SERVICE_SET_WINDOW_PAUSE_SCHEMA = vol.Schema(
+SERVICE_CLEAR_ZONE_HOLD_SCHEMA = vol.Schema(
     {
         vol.Required("zone_id"): cv.positive_int,
-        vol.Optional("duration_sec", default=1800): cv.positive_int,
+    }
+)
+
+SERVICE_SUBMIT_GAS_READING_SCHEMA = vol.Schema(
+    {
+        vol.Required("index"): vol.Coerce(float),
+        vol.Optional("time"): cv.positive_int,
     }
 )
 
@@ -83,11 +90,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     # Register services
     async def async_handle_clear_dtc(call: ServiceCall) -> None:
-        """Handle clearing DTC fault events."""
-        _LOGGER.info("Clearing DTC fault events across Smart Heating controllers")
+        """Handle resetting active DTC faults and clearing history."""
+        _LOGGER.info("Resetting DTC faults and clearing event history")
         for coord in hass.data[DOMAIN].values():
             if isinstance(coord, SmartHeatingDataUpdateCoordinator):
-                await coord.async_clear_dtc_history()
+                await coord.async_clear_all_dtcs()
 
     async def async_handle_clear_window(call: ServiceCall) -> None:
         """Handle clearing window pause."""
@@ -96,6 +103,23 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         for coord in hass.data[DOMAIN].values():
             if isinstance(coord, SmartHeatingDataUpdateCoordinator):
                 await coord.async_clear_window_pause(zone_id)
+
+    async def async_handle_clear_hold(call: ServiceCall) -> None:
+        """Handle clearing manual hold and returning zone to schedule."""
+        zone_id = call.data["zone_id"]
+        _LOGGER.info("Clearing manual hold on zone %s", zone_id)
+        for coord in hass.data[DOMAIN].values():
+            if isinstance(coord, SmartHeatingDataUpdateCoordinator):
+                await coord.async_clear_zone_hold(zone_id)
+
+    async def async_handle_submit_gas(call: ServiceCall) -> None:
+        """Handle submitting gas meter reading index."""
+        index = call.data["index"]
+        epoch = call.data.get("time")
+        _LOGGER.info("Submitting gas meter reading: %.3f m3 (time: %s)", index, epoch)
+        for coord in hass.data[DOMAIN].values():
+            if isinstance(coord, SmartHeatingDataUpdateCoordinator):
+                await coord.async_submit_gas_reading(index, epoch)
 
     async def async_handle_set_boost(call: ServiceCall) -> None:
         """Handle setting zone boost temperature."""
@@ -119,6 +143,22 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             SERVICE_CLEAR_WINDOW_PAUSE,
             async_handle_clear_window,
             schema=SERVICE_CLEAR_WINDOW_PAUSE_SCHEMA,
+        )
+
+    if not hass.services.has_service(DOMAIN, SERVICE_CLEAR_ZONE_HOLD):
+        hass.services.async_register(
+            DOMAIN,
+            SERVICE_CLEAR_ZONE_HOLD,
+            async_handle_clear_hold,
+            schema=SERVICE_CLEAR_ZONE_HOLD_SCHEMA,
+        )
+
+    if not hass.services.has_service(DOMAIN, SERVICE_SUBMIT_GAS_READING):
+        hass.services.async_register(
+            DOMAIN,
+            SERVICE_SUBMIT_GAS_READING,
+            async_handle_submit_gas,
+            schema=SERVICE_SUBMIT_GAS_READING_SCHEMA,
         )
 
     if not hass.services.has_service(DOMAIN, SERVICE_SET_ZONE_BOOST):

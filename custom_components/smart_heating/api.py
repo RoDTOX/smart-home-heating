@@ -10,11 +10,17 @@ from .const import (
     ENDPOINT_BOILER_STATUS,
     ENDPOINT_BLE_SENSORS,
     ENDPOINT_CONFIG_SYSTEM,
-    ENDPOINT_DIAG_CLEAR,
+    ENDPOINT_DIAG_CLEAR_ALL,
+    ENDPOINT_DIAG_CLEAR_EVENTS,
     ENDPOINT_DIAG_STATUS,
+    ENDPOINT_GAS_METER,
+    ENDPOINT_SCHEDULE_ENABLE,
+    ENDPOINT_SCHEDULE_GET,
     ENDPOINT_SCHEDULE_LEVEL,
     ENDPOINT_SET_SETPOINT,
     ENDPOINT_WINDOW_CLEAR,
+    ENDPOINT_ZONE_HOLD_CLEAR,
+    ENDPOINT_ZONE_TOGGLE,
     ENDPOINT_ZONES,
 )
 
@@ -150,21 +156,18 @@ class SmartHeatingApiClient:
             return res
         raise SmartHeatingApiResponseError("Expected dict in config response")
 
+    async def async_get_schedule(self) -> dict[str, Any]:
+        """Fetch schedule configuration and active state."""
+        res = await self._request("GET", ENDPOINT_SCHEDULE_GET)
+        if isinstance(res, dict):
+            return res
+        raise SmartHeatingApiResponseError("Expected dict in schedule response")
+
     async def async_set_zone_setpoint(self, zone_id: int, target: float) -> bool:
-        """Set zone temporary boost or setpoint."""
+        """Set zone temporary boost or setpoint without corrupting schedule baseline."""
         params = {"id": str(zone_id), "target": f"{target:.1f}"}
-        try:
-            await self._request("POST", ENDPOINT_SET_SETPOINT, params=params)
-            return True
-        except SmartHeatingApiResponseError:
-            # If boost was out of range (e.g. user set comfort schedule temperature),
-            # fallback to setting active schedule level
-            _LOGGER.info(
-                "Direct boost rejected; updating zone %s schedule level to %.1f C",
-                zone_id,
-                target,
-            )
-            return await self.async_set_schedule_level(zone_id, "day", target)
+        await self._request("POST", ENDPOINT_SET_SETPOINT, params=params)
+        return True
 
     async def async_set_schedule_level(self, zone_id: int, level: str, temp: float) -> bool:
         """Set schedule baseline level temperature (day, night, away)."""
@@ -174,18 +177,58 @@ class SmartHeatingApiClient:
 
     async def async_clear_window_pause(self, zone_id: int = 0) -> bool:
         """Clear window pause state on a specific zone or all zones."""
-        params = {"id": str(zone_id)}
+        params = {"id": "all" if zone_id == 0 else str(zone_id)}
         await self._request("POST", ENDPOINT_WINDOW_CLEAR, params=params)
         return True
 
+    async def async_clear_dtc(self, include_events: bool = True) -> bool:
+        """Reset active DTC faults and optionally purge event history."""
+        params = {"events": "1" if include_events else "0"}
+        await self._request("POST", ENDPOINT_DIAG_CLEAR_ALL, params=params)
+        return True
+
     async def async_clear_dtc_events(self) -> bool:
-        """Purge DTC event log history."""
-        await self._request("POST", ENDPOINT_DIAG_CLEAR)
+        """Purge DTC event log history in LittleFS."""
+        await self._request("POST", ENDPOINT_DIAG_CLEAR_EVENTS)
+        return True
+
+    async def async_toggle_zone(self, zone_id: int) -> bool:
+        """Toggle zone enabled state persistently via native firmware toggle."""
+        params = {"id": str(zone_id)}
+        await self._request("POST", ENDPOINT_ZONE_TOGGLE, params=params)
+        return True
+
+    async def async_clear_zone_hold(self, zone_id: int) -> bool:
+        """Clear manual temperature hold and return zone to schedule."""
+        params = {"id": str(zone_id)}
+        await self._request("POST", ENDPOINT_ZONE_HOLD_CLEAR, params=params)
+        return True
+
+    async def async_set_away_mode(self, away: bool) -> bool:
+        """Set global Away (Plecat) mode."""
+        params = {"away": "1" if away else "0"}
+        await self._request("POST", ENDPOINT_SCHEDULE_ENABLE, params=params)
+        return True
+
+    async def async_set_schedule_enabled(self, enabled: bool) -> bool:
+        """Enable or disable scheduled heating globally."""
+        params = {"enabled": "1" if enabled else "0"}
+        await self._request("POST", ENDPOINT_SCHEDULE_ENABLE, params=params)
+        return True
+
+    async def async_submit_gas_reading(self, index: float, epoch: int | None = None) -> bool:
+        """Submit a new physical gas meter reading index."""
+        params = {"index": f"{index:.3f}"}
+        if epoch is not None:
+            params["time"] = str(epoch)
+        await self._request("POST", ENDPOINT_GAS_METER, params=params)
         return True
 
     async def async_set_system_config(self, payload: dict[str, Any]) -> bool:
-        """Update system hydraulic and safety configuration."""
-        await self._request("POST", ENDPOINT_CONFIG_SYSTEM, json_data=payload)
+        """Update system hydraulic and safety configuration as form parameters."""
+        # Convert dictionary to form parameters for WebApi parsing
+        form_params = {k: str(v).lower() if isinstance(v, bool) else str(v) for k, v in payload.items()}
+        await self._request("POST", ENDPOINT_CONFIG_SYSTEM, params=form_params)
         return True
 
     async def async_set_season_mode(self, mode: str) -> bool:

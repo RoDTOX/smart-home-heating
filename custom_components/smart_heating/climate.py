@@ -55,7 +55,7 @@ class SmartHeatingZoneClimate(
     _attr_min_temp = 15.0
     _attr_max_temp = 28.0
     _attr_hvac_modes = [HVACMode.HEAT, HVACMode.OFF]
-    _attr_preset_modes = [PRESET_COMFORT, PRESET_ECO, PRESET_AWAY]
+    _attr_preset_modes = ["schedule", "boost"]
     _attr_supported_features = (
         ClimateEntityFeature.TARGET_TEMPERATURE
         | ClimateEntityFeature.PRESET_MODE
@@ -111,9 +111,11 @@ class SmartHeatingZoneClimate(
 
     @property
     def target_temperature(self) -> float | None:
-        """Return the temperature we try to reach."""
+        """Return the effective temperature we try to reach."""
         zone = self._zone
-        return zone.target_temp if zone else None
+        if not zone:
+            return None
+        return zone.effective_target if zone.effective_target > 0 else zone.target_temp
 
     @property
     def hvac_mode(self) -> HVACMode:
@@ -135,15 +137,11 @@ class SmartHeatingZoneClimate(
 
     @property
     def preset_mode(self) -> str | None:
-        """Return the current preset mode."""
+        """Return the current preset mode (boost or schedule)."""
         zone = self._zone
         if not zone:
             return None
-        target = zone.target_temp
-        for preset, temp in PRESET_TEMPERATURES.items():
-            if abs(target - temp) < 0.2:
-                return preset
-        return None
+        return "boost" if zone.is_boost else "schedule"
 
     @property
     def extra_state_attributes(self) -> dict[str, Any]:
@@ -152,11 +150,13 @@ class SmartHeatingZoneClimate(
         if not zone:
             return {}
         return {
+            "state_desc": zone.state,
             "circuits": zone.circuits,
             "relay_pin": zone.relay_pin,
             "relay_engaged": zone.relay_engaged,
             "demand": zone.demand,
             "effective_target": zone.effective_target,
+            "target_temp": zone.target_temp,
             "schedule_target": zone.schedule_target,
             "is_boost": zone.is_boost,
             "hysteresis": zone.hysteresis,
@@ -172,25 +172,27 @@ class SmartHeatingZoneClimate(
         }
 
     async def async_set_temperature(self, **kwargs: Any) -> None:
-        """Set new target temperature."""
+        """Set new target temperature (triggers boost on ESP32)."""
         temp = kwargs.get(ATTR_TEMPERATURE)
         if temp is None:
             return
         await self.coordinator.async_set_zone_temperature(self._zone_id, float(temp))
 
     async def async_set_preset_mode(self, preset_mode: str) -> None:
-        """Set new preset mode."""
-        if preset_mode in PRESET_TEMPERATURES:
-            temp = PRESET_TEMPERATURES[preset_mode]
-            await self.coordinator.async_set_zone_temperature(self._zone_id, temp)
+        """Set new preset mode: schedule (hold clear) or boost."""
+        if preset_mode == "schedule":
+            await self.coordinator.async_clear_zone_hold(self._zone_id)
+        elif preset_mode == "boost":
+            current_target = self.target_temperature or 21.0
+            await self.coordinator.async_set_zone_temperature(self._zone_id, current_target + 1.0)
         else:
             _LOGGER.warning("Unknown preset mode: %s", preset_mode)
 
     async def async_set_hvac_mode(self, hvac_mode: HVACMode) -> None:
-        """Set new hvac mode."""
-        if hvac_mode == HVACMode.HEAT:
-            # Re-enable if needed
-            await self.coordinator.async_set_zone_temperature(self._zone_id, 21.0)
-        elif hvac_mode == HVACMode.OFF:
-            # Set to frost protection / away level
-            await self.coordinator.async_set_zone_temperature(self._zone_id, 12.0)
+        """Set new hvac mode using native firmware toggle."""
+        if hvac_mode == HVACMode.OFF:
+            if self._zone and self._zone.enabled:
+                await self.coordinator.async_toggle_zone(self._zone_id)
+        elif hvac_mode == HVACMode.HEAT:
+            if self._zone and not self._zone.enabled:
+                await self.coordinator.async_toggle_zone(self._zone_id)
