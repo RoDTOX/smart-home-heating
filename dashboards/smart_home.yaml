@@ -1,0 +1,109 @@
+title: "Smart Home"
+views:
+  # ============================================================================
+  # TAB 1: PANOU CENTRAL & UȘĂ DW2
+  # ============================================================================
+  - title: "Prezentare Generală"
+    path: "overview"
+    icon: "mdi:home-variant"
+    theme: smart_heating
+    background: "center / cover no-repeat fixed url('/local/background.jpg')"
+    cards:
+      # --- CHIPS HEADER (STATUS RAPID) ---
+      - type: custom:mushroom-chips-card
+        alignment: start
+        chips:
+          - type: template
+            entity: binary_sensor.dw2_cda0_cda0_door
+            icon: >-
+              {% if is_state('binary_sensor.dw2_cda0_cda0_door', 'on') %}
+                mdi:door-open
+              {% else %}
+                mdi:door-closed
+              {% endif %}
+            icon_color: >-
+              {% if is_state('binary_sensor.dw2_cda0_cda0_door', 'on') %}
+                red
+              {% else %}
+                green
+              {% endif %}
+            content: >-
+              Ușă: {% if is_state('binary_sensor.dw2_cda0_cda0_door', 'on') %}DESCHISĂ{% else %}Închisă{% endif %}
+            tap_action: { action: none }
+            hold_action: { action: none }
+          - type: entity
+            entity: sensor.dw2_cda0_cda0_battery
+            icon_color: green
+            tap_action: { action: none }
+            hold_action: { action: none }
+          - type: entity
+            entity: sensor.atc_0f44_temperature
+            icon_color: orange
+            tap_action: { action: none }
+            hold_action: { action: none }
+
+      # --- HERO CARD: DETECTOR UȘĂ DW2 ---
+      - type: custom:mushroom-template-card
+        primary: "Detector Ușă DW2 (Sonoff Custom BLE)"
+        secondary: >-
+          Stare: {% if is_state('binary_sensor.dw2_cda0_cda0_door', 'on') %}⚠️ DESCHISĂ{% else %}Securizat (Închisă){% endif %}
+          • Baterie: {{ states('sensor.dw2_cda0_cda0_battery') }}%
+          • Tensiune: {{ states('sensor.dw2_cda0_cda0_voltage') }} V
+        icon: >-
+          {% if is_state('binary_sensor.dw2_cda0_cda0_door', 'on') %}
+            mdi:door-open
+          {% else %}
+            mdi:door-closed
+          {% endif %}
+        icon_color: >-
+          {% if is_state('binary_sensor.dw2_cda0_cda0_door', 'on') %}
+            red
+          {% else %}
+            green
+          {% endif %}
+        layout: horizontal
+        fill_container: true
+
+      # --- CARDURI COMPACTE: SENZORI & METRICI VITALE ---
+      - type: horizontal-stack
+        cards:
+          - type: custom:mushroom-entity-card
+            entity: sensor.dw2_cda0_cda0_battery
+            name: "Baterie DW2"
+            icon: mdi:battery-bluetooth
+            icon_color: green
+          - type: custom:mushroom-entity-card
+            entity: sensor.dw2_cda0_cda0_voltage
+            name: "Tensiune"
+            icon: mdi:flash
+            icon_color: amber
+          - type: custom:mushroom-entity-card
+            entity: sensor.atc_0f44_temperature
+            name: "Temp Hol"
+            icon: mdi:thermometer
+            icon_color: orange
+
+      # --- GRAFIC APEXCHARTS: EVOLUȚIE & CRONOLOGIE UȘĂ (24 ORE) ---
+      - type: custom:apexcharts-card
+        header:
+          show: true
+          title: "🚪 Cronologie & Stare Ușă DW2 (Ultimele 24 Ore)"
+          show_states: true
+          colorize_states: true
+        graph_span: 24h
+        series:
+          - entity: binary_sensor.dw2_cda0_cda0_door
+            name: "Stare Ușă (1 = Deschis, 0 = Închis)"
+            transform: "return x === 'on' ? 1 : 0;"
+            type: area
+            color: "#ffa63d"
+            opacity: 0.35
+            stroke_width: 2
+            curve: stepline
+
+      # --- JURNAL DE EVENIMENTE (LOGBOOK) ---
+      - type: logbook
+        title: "📜 Jurnal la secundă - Deschis / Închis"
+        hours_to_show: 48
+        entities:
+          - binary_sensor.dw2_cda0_cda0_door
