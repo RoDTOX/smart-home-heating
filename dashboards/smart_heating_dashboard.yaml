@@ -1,6 +1,5 @@
 # Smart Heating - Home Assistant Dashboard
-# Theme: Smart Heating (Glassmorphism & Frosted Glass Specification)
-# Ergonomic 3-Column Layout without unnecessary scrolling or grey-out glitches
+# Ergonomic 3-Column Layout, Mobile-Safe Controls, Gas Combined Hourly Graph, Zone Hourly Runtimes & Calibration Hub
 
 title: Smart Heating
 views:
@@ -20,90 +19,54 @@ views:
 
     sections:
       # ========================================================================
-      # COLOANA 1: CENTRALĂ, REGLAJ SEZON & CONSUM GAZ
+      # COLOANA 1: CEAS, VREME CURENTĂ & PROGNOZĂ, CONSUM GAZ CU GRAFIC COMBINAT
       # ========================================================================
-      - title: Centrală & Energie
+      - title: Vreme & Consum Gaz
         cards:
-          # STATUS CENTRALĂ TERMICĂ (VIZUAL FLACĂRĂ / STANDBY)
-          - type: custom:mushroom-template-card
-            primary: >-
-              {% if is_state('binary_sensor.smart_heating_controller_boiler_demand', 'on') %}
-                Centrală: Flacără Activă
-              {% else %}
-                Centrală: Standby (Pregătit)
-              {% endif %}
-            secondary: >-
-              {% if is_state('binary_sensor.smart_heating_controller_boiler_demand', 'on') %}
-                Arzător în funcțiune • Cerere termică activă
-              {% else %}
-                Circuite la temperatură • Anti-cycling gata
-              {% endif %}
-            icon: >-
-              {% if is_state('binary_sensor.smart_heating_controller_boiler_demand', 'on') %}
-                mdi:fire
-              {% else %}
-                mdi:radiator
-              {% endif %}
-            icon_color: >-
-              {% if is_state('binary_sensor.smart_heating_controller_boiler_demand', 'on') %}
-                amber
-              {% else %}
-                green
-              {% endif %}
-            layout: horizontal
-            tap_action:
-              action: more-info
-              entity: binary_sensor.smart_heating_controller_boiler_demand
+          # VREME CURENTĂ & PROGNOZĂ PENTRU MÂINE
+          - type: weather-forecast
+            entity: weather.forecast_home
+            name: "Vreme & Prognoză"
+            show_current: true
+            show_forecast: true
+            forecast_type: daily
 
-          # CHIPS METRICI EXTERIOR & TIMP ARDERE (NON-CLICKABLE PENTRU EVITARE GREY-OUT)
+          # CHIP TIMP SISTEM & EXTERIOR
           - type: custom:mushroom-chips-card
             alignment: start
             chips:
               - type: template
-                icon: mdi:weather-partly-cloudy
+                icon: mdi:clock-outline
                 icon_color: blue
+                content: "Ora sistem: {{ states('sensor.time') if states('sensor.time') != 'unknown' else now().strftime('%H:%M') }}"
+                tap_action: { action: none }
+                hold_action: { action: none }
+              - type: template
+                icon: mdi:thermometer
+                icon_color: cyan
                 content: "Exterior: {{ states('sensor.smart_heating_controller_outdoor_temperature') }}°C"
                 tap_action: { action: none }
                 hold_action: { action: none }
-                double_tap_action: { action: none }
               - type: template
-                icon: mdi:timer-outline
-                icon_color: amber
-                content: >-
-                  {% set s = states('sensor.smart_heating_controller_boiler_burn_time_today') | float(0) %}
-                  {% if s >= 3600 %}
-                    Ardere azi: {{ (s // 3600) | int }}h {{ ((s % 3600) // 60) | int }}m
+                icon: mdi:fire
+                icon_color: >-
+                  {% if is_state('binary_sensor.smart_heating_controller_boiler_demand', 'on') %}
+                    amber
                   {% else %}
-                    Ardere azi: {{ (s / 60) | round(0) | int }} min
+                    grey
+                  {% endif %}
+                content: >-
+                  {% if is_state('binary_sensor.smart_heating_controller_boiler_demand', 'on') %}
+                    Centrală: Flacără Activă
+                  {% else %}
+                    Centrală: Standby
                   {% endif %}
                 tap_action: { action: none }
                 hold_action: { action: none }
-                double_tap_action: { action: none }
 
-          # SELECTOR MOD SEZON ÎNCĂLZIRE (MUSHROOM FĂRĂ CASETE ALBE)
-          - type: custom:mushroom-select-card
-            entity: select.smart_heating_controller_heating_season_mode
-            name: "Mod Sezon Încălzire"
-            icon: mdi:calendar-sync
-            icon_color: amber
-            layout: horizontal
-
-          # MOD PLECAT & PROGRAM AUTOMAT
-          - type: custom:mushroom-chips-card
-            alignment: start
-            chips:
-              - type: entity
-                entity: switch.smart_heating_controller_away_mode_plecat
-                content_info: name
-                icon_color: red
-              - type: entity
-                entity: switch.smart_heating_controller_schedule_automated_control
-                content_info: name
-                icon_color: blue
-
-          # CONSUM GAZ & COSTURI
+          # SUMAR FINANCIAR & TIMPI ARDERE
           - type: glance
-            title: "Consum Gaz & Costuri"
+            title: "Sumar Consum Gaz & Ardere"
             show_state: true
             entities:
               - entity: sensor.smart_heating_controller_gas_consumption_today
@@ -115,19 +78,86 @@ views:
               - entity: sensor.smart_heating_controller_gas_consumption_yesterday
                 name: "Ieri (m³)"
                 icon: mdi:history
-              - entity: sensor.smart_heating_controller_gas_consumption_this_month
-                name: "Luna Aceasta"
-                icon: mdi:calendar-month
               - entity: sensor.smart_heating_controller_gas_cost_this_month
                 name: "Cost Lună"
                 icon: mdi:cash-multiple
 
+          # GRAFIC COMBINAT: CONSUM GAZ & BARE ORARE DE FUNCȚIONARE (24H)
+          - type: custom:apexcharts-card
+            header:
+              show: true
+              title: "Consum Gaz & Minute Ardere / Oră (24h)"
+              show_states: true
+              colorize_states: true
+            graph_span: 24h
+            apex_config:
+              chart:
+                height: 250
+              legend:
+                show: true
+                position: top
+              grid:
+                borderColor: "rgba(255, 255, 255, 0.08)"
+            yaxis:
+              - id: minutes
+                min: 0
+                max: 60
+                decimals: 0
+                apex_config:
+                  title:
+                    text: "Min / Oră"
+                  tickAmount: 3
+              - id: gas
+                opposite: true
+                decimals: 2
+                apex_config:
+                  title:
+                    text: "Gaz m³"
+            series:
+              # BARE VERTICALE: CÂTE MINUTE A MERS CENTRALA ÎN FIECARE ORĂ (50% = 30 MIN)
+              - entity: sensor.smart_heating_controller_boiler_burn_time_today
+                name: "Ardere (min/h)"
+                type: column
+                yaxis_id: minutes
+                color: "#F59E0B"
+                opacity: 0.75
+                group_by:
+                  duration: 1h
+                  func: diff
+                transform: "return Math.max(0, Math.min(60, Math.round(x / 60)));"
+
+              # LINIE: CONSUMUL DE GAZ CUMULAT AZI
+              - entity: sensor.smart_heating_controller_gas_consumption_today
+                name: "Consum Gaz"
+                type: line
+                yaxis_id: gas
+                color: "#38BDF8"
+                stroke_width: 2.5
+
+          # COMUTATOARE AUTOMATIZARE & MOD SEZON
+          - type: horizontal-stack
+            cards:
+              - type: custom:mushroom-entity-card
+                entity: switch.smart_heating_controller_away_mode_plecat
+                name: "Mod Plecat"
+                icon: mdi:home-export-outline
+                tap_action:
+                  action: toggle
+              - type: custom:mushroom-entity-card
+                entity: switch.smart_heating_controller_schedule_automated_control
+                name: "Orar Automat"
+                icon: mdi:calendar-clock
+                tap_action:
+                  action: toggle
+
       # ========================================================================
-      # COLOANA 2: ZONELE TERMICE (LIVING, COPII, ADULȚI)
+      # COLOANA 2: ZONELE TERMICE (FĂRĂ DIAL CIRCULAR - ANTI SCROLL PE MOBIL)
       # ========================================================================
       - title: Zone Termice
         cards:
-          # ZONA 1: LIVING + BUCĂTĂRIE
+          # --------------------------------------------------------------------
+          # ZONA 1: LIVING + BUCĂTĂRIE (3 CIRCUITE)
+          # --------------------------------------------------------------------
           - type: vertical-stack
             cards:
               - type: custom:mushroom-climate-card
@@ -153,7 +183,12 @@ views:
                       Valvă: {% if is_state('binary_sensor.heating_living_actuator_valve', 'on') %}Deschis{% else %}Închis{% endif %}
                     tap_action: { action: none }
                     hold_action: { action: none }
-                    double_tap_action: { action: none }
+                  - type: template
+                    icon: mdi:water-percent
+                    icon_color: blue
+                    content: "{{ states('sensor.heating_living_humidity') }}%"
+                    tap_action: { action: none }
+                    hold_action: { action: none }
                   - type: template
                     icon: mdi:timer-sand
                     icon_color: amber
@@ -166,49 +201,58 @@ views:
                       {% endif %}
                     tap_action: { action: none }
                     hold_action: { action: none }
-                    double_tap_action: { action: none }
-                  - type: template
-                    icon: mdi:water-percent
-                    icon_color: blue
-                    content: "{{ states('sensor.heating_living_humidity') }}%"
-                    tap_action: { action: none }
-                    hold_action: { action: none }
-                    double_tap_action: { action: none }
                   - type: template
                     icon: mdi:bluetooth
                     icon_color: grey
                     content: "{{ states('sensor.heating_living_sensor_battery') }}% • {{ states('sensor.heating_living_sensor_ble_signal') }} dBm"
                     tap_action: { action: none }
                     hold_action: { action: none }
-                    double_tap_action: { action: none }
-                  # CHIP CONDIȚIONAT: APARE DOAR DACĂ PAUZA DE GEAM E ACTIVĂ
-                  - type: conditional
-                    conditions:
-                      - entity: binary_sensor.heating_living_window_pause
-                        state: "on"
-                    chip:
-                      type: template
-                      icon: mdi:window-open-variant
-                      icon_color: red
-                      content: "Pauză geam ({{ (state_attr('climate.heating_living_living', 'window_pause_remaining_sec') | int(0) / 60) | round }} min)"
-                      tap_action: { action: none }
-                      hold_action: { action: none }
-                  # CHIP CONDIȚIONAT: REVENIRE LA PROGRAM CÂND E ÎN REGLAJ MANUAL / BOOST
-                  - type: conditional
-                    conditions:
-                      - entity: binary_sensor.heating_living_temperature_boost_active
-                        state: "on"
-                    chip:
-                      type: action
-                      icon: mdi:calendar-sync
-                      icon_color: amber
-                      tap_action:
-                        action: call-service
-                        service: button.press
-                        target:
-                          entity_id: button.heating_living_resume_schedule_clear_hold
 
-          # ZONA 2: DORMITOR COPII
+              # GRAFIC SPECIFIC LIVING: TIMP ÎNCĂLZIRE PER ORĂ & TEMPERATURĂ
+              - type: custom:apexcharts-card
+                header:
+                  show: true
+                  title: "Activitate Încălzire & Temperatură - Living"
+                graph_span: 24h
+                apex_config:
+                  chart:
+                    height: 160
+                  legend:
+                    show: false
+                  grid:
+                    borderColor: "rgba(255, 255, 255, 0.05)"
+                yaxis:
+                  - id: minutes
+                    min: 0
+                    max: 60
+                    decimals: 0
+                    apex_config:
+                      tickAmount: 2
+                  - id: temp
+                    opposite: true
+                    decimals: 1
+                series:
+                  - entity: sensor.heating_living_heating_runtime_today
+                    name: "Încălzire (min/h)"
+                    type: column
+                    yaxis_id: minutes
+                    color: "#F59E0B"
+                    opacity: 0.65
+                    group_by:
+                      duration: 1h
+                      func: diff
+                    transform: "return Math.max(0, Math.min(60, Math.round(x / 60)));"
+                  - entity: climate.heating_living_living
+                    attribute: current_temperature
+                    name: "Temp Cameră"
+                    type: line
+                    yaxis_id: temp
+                    color: "#F59E0B"
+                    stroke_width: 2.2
+
+          # --------------------------------------------------------------------
+          # ZONA 2: DORMITOR COPII (2 CIRCUITE)
+          # --------------------------------------------------------------------
           - type: vertical-stack
             cards:
               - type: custom:mushroom-climate-card
@@ -234,7 +278,12 @@ views:
                       Valvă: {% if is_state('binary_sensor.heating_kids_actuator_valve', 'on') %}Deschis{% else %}Închis{% endif %}
                     tap_action: { action: none }
                     hold_action: { action: none }
-                    double_tap_action: { action: none }
+                  - type: template
+                    icon: mdi:water-percent
+                    icon_color: blue
+                    content: "{{ states('sensor.heating_kids_humidity') }}%"
+                    tap_action: { action: none }
+                    hold_action: { action: none }
                   - type: template
                     icon: mdi:timer-sand
                     icon_color: amber
@@ -247,47 +296,58 @@ views:
                       {% endif %}
                     tap_action: { action: none }
                     hold_action: { action: none }
-                    double_tap_action: { action: none }
-                  - type: template
-                    icon: mdi:water-percent
-                    icon_color: blue
-                    content: "{{ states('sensor.heating_kids_humidity') }}%"
-                    tap_action: { action: none }
-                    hold_action: { action: none }
-                    double_tap_action: { action: none }
                   - type: template
                     icon: mdi:bluetooth
                     icon_color: grey
                     content: "{{ states('sensor.heating_kids_sensor_battery') }}% • {{ states('sensor.heating_kids_sensor_ble_signal') }} dBm"
                     tap_action: { action: none }
                     hold_action: { action: none }
-                    double_tap_action: { action: none }
-                  - type: conditional
-                    conditions:
-                      - entity: binary_sensor.heating_kids_window_pause
-                        state: "on"
-                    chip:
-                      type: template
-                      icon: mdi:window-open-variant
-                      icon_color: red
-                      content: "Pauză geam ({{ (state_attr('climate.heating_kids_kids', 'window_pause_remaining_sec') | int(0) / 60) | round }} min)"
-                      tap_action: { action: none }
-                      hold_action: { action: none }
-                  - type: conditional
-                    conditions:
-                      - entity: binary_sensor.heating_kids_temperature_boost_active
-                        state: "on"
-                    chip:
-                      type: action
-                      icon: mdi:calendar-sync
-                      icon_color: amber
-                      tap_action:
-                        action: call-service
-                        service: button.press
-                        target:
-                          entity_id: button.heating_kids_resume_schedule_clear_hold
 
-          # ZONA 3: DORMITOR MARE
+              # GRAFIC SPECIFIC COPII: TIMP ÎNCĂLZIRE PER ORĂ & TEMPERATURĂ
+              - type: custom:apexcharts-card
+                header:
+                  show: true
+                  title: "Activitate Încălzire & Temperatură - Copii"
+                graph_span: 24h
+                apex_config:
+                  chart:
+                    height: 160
+                  legend:
+                    show: false
+                  grid:
+                    borderColor: "rgba(255, 255, 255, 0.05)"
+                yaxis:
+                  - id: minutes
+                    min: 0
+                    max: 60
+                    decimals: 0
+                    apex_config:
+                      tickAmount: 2
+                  - id: temp
+                    opposite: true
+                    decimals: 1
+                series:
+                  - entity: sensor.heating_kids_heating_runtime_today
+                    name: "Încălzire (min/h)"
+                    type: column
+                    yaxis_id: minutes
+                    color: "#38BDF8"
+                    opacity: 0.65
+                    group_by:
+                      duration: 1h
+                      func: diff
+                    transform: "return Math.max(0, Math.min(60, Math.round(x / 60)));"
+                  - entity: climate.heating_kids_kids
+                    attribute: current_temperature
+                    name: "Temp Cameră"
+                    type: line
+                    yaxis_id: temp
+                    color: "#38BDF8"
+                    stroke_width: 2.2
+
+          # --------------------------------------------------------------------
+          # ZONA 3: DORMITOR MARE (2 CIRCUITE)
+          # --------------------------------------------------------------------
           - type: vertical-stack
             cards:
               - type: custom:mushroom-climate-card
@@ -313,7 +373,12 @@ views:
                       Valvă: {% if is_state('binary_sensor.heating_adults_actuator_valve', 'on') %}Deschis{% else %}Închis{% endif %}
                     tap_action: { action: none }
                     hold_action: { action: none }
-                    double_tap_action: { action: none }
+                  - type: template
+                    icon: mdi:water-percent
+                    icon_color: blue
+                    content: "{{ states('sensor.heating_adults_humidity') }}%"
+                    tap_action: { action: none }
+                    hold_action: { action: none }
                   - type: template
                     icon: mdi:timer-sand
                     icon_color: amber
@@ -326,56 +391,65 @@ views:
                       {% endif %}
                     tap_action: { action: none }
                     hold_action: { action: none }
-                    double_tap_action: { action: none }
-                  - type: template
-                    icon: mdi:water-percent
-                    icon_color: blue
-                    content: "{{ states('sensor.heating_adults_humidity') }}%"
-                    tap_action: { action: none }
-                    hold_action: { action: none }
-                    double_tap_action: { action: none }
                   - type: template
                     icon: mdi:bluetooth
                     icon_color: grey
                     content: "{{ states('sensor.heating_adults_sensor_battery') }}% • {{ states('sensor.heating_adults_sensor_ble_signal') }} dBm"
                     tap_action: { action: none }
                     hold_action: { action: none }
-                    double_tap_action: { action: none }
-                  - type: conditional
-                    conditions:
-                      - entity: binary_sensor.heating_adults_window_pause
-                        state: "on"
-                    chip:
-                      type: template
-                      icon: mdi:window-open-variant
-                      icon_color: red
-                      content: "Pauză geam ({{ (state_attr('climate.heating_adults_adults', 'window_pause_remaining_sec') | int(0) / 60) | round }} min)"
-                      tap_action: { action: none }
-                      hold_action: { action: none }
-                  - type: conditional
-                    conditions:
-                      - entity: binary_sensor.heating_adults_temperature_boost_active
-                        state: "on"
-                    chip:
-                      type: action
-                      icon: mdi:calendar-sync
-                      icon_color: amber
-                      tap_action:
-                        action: call-service
-                        service: button.press
-                        target:
-                          entity_id: button.heating_adults_resume_schedule_clear_hold
+
+              # GRAFIC SPECIFIC DORMITOR MARE: TIMP ÎNCĂLZIRE PER ORĂ & TEMPERATURĂ
+              - type: custom:apexcharts-card
+                header:
+                  show: true
+                  title: "Activitate Încălzire & Temperatură - Dormitor"
+                graph_span: 24h
+                apex_config:
+                  chart:
+                    height: 160
+                  legend:
+                    show: false
+                  grid:
+                    borderColor: "rgba(255, 255, 255, 0.05)"
+                yaxis:
+                  - id: minutes
+                    min: 0
+                    max: 60
+                    decimals: 0
+                    apex_config:
+                      tickAmount: 2
+                  - id: temp
+                    opposite: true
+                    decimals: 1
+                series:
+                  - entity: sensor.heating_adults_heating_runtime_today
+                    name: "Încălzire (min/h)"
+                    type: column
+                    yaxis_id: minutes
+                    color: "#10B981"
+                    opacity: 0.65
+                    group_by:
+                      duration: 1h
+                      func: diff
+                    transform: "return Math.max(0, Math.min(60, Math.round(x / 60)));"
+                  - entity: climate.heating_adults_adults
+                    attribute: current_temperature
+                    name: "Temp Cameră"
+                    type: line
+                    yaxis_id: temp
+                    color: "#10B981"
+                    stroke_width: 2.2
 
       # ========================================================================
-      # COLOANA 3: TELEMETRIE 24H & DIAGNOSTIC
+      # COLOANA 3: TELEMETRIE 24H, CARD CALIBRARE / ALGORITMI & STARE SISTEM
       # ========================================================================
-      - title: Telemetrie & Diagnostic
+      - title: Telemetrie & Calibrare
         cards:
-          # GRAFIC TEMPERATURI & FLACĂRĂ APEXCHARTS 24H (AESTHETIC GRADIENT)
+          # GRAFIC TEMPERATURI & FLACĂRĂ APEXCHARTS 24H (TOATE CAMERELE)
           - type: custom:apexcharts-card
             header:
               show: true
-              title: "Evoluție Temperaturi & Flacără (24h)"
+              title: "Ultimele 24 h - Toate Camerele"
               show_states: true
               colorize_states: true
             graph_span: 24h
@@ -384,23 +458,22 @@ views:
               curve: smooth
             apex_config:
               chart:
-                height: 280
+                height: 250
               legend:
                 show: true
                 position: bottom
               grid:
                 borderColor: "rgba(255, 255, 255, 0.08)"
-                strokeDashArray: 3
             series:
               - entity: binary_sensor.smart_heating_controller_boiler_demand
-                name: "Arzător Activ"
+                name: "Centrală Pornită"
                 type: area
                 color: "#F59E0B"
-                opacity: 0.18
+                opacity: 0.20
                 stroke_width: 0
                 transform: "return x === 'on' ? 26 : 12;"
               - entity: sensor.smart_heating_controller_outdoor_temperature
-                name: "Exterior"
+                name: "Afară"
                 color: "#94A3B8"
                 stroke_width: 1.5
                 type: line
@@ -419,6 +492,44 @@ views:
                 name: "Dormitor"
                 color: "#10B981"
                 type: line
+
+          # ====================================================================
+          # CARD CALIBRARE & ALGORITM COMPENSARE (EXPLICATIV & CALIBRATOR)
+          # ====================================================================
+          - type: custom:mushroom-template-card
+            primary: "Calibrare & Algoritm Compensare"
+            secondary: >-
+              {% set out = states('sensor.smart_heating_controller_outdoor_temperature') | float(12.0) %}
+              {% if out > 14 %}
+                Compensare Meteo: Inactivă (Temp exterioară ridicată • Pierderi minime)
+              {% elif out > 6 %}
+                Compensare Meteo: Nivel Moderat (Ciclu standard șapă • ~30-45m/ciclu)
+              {% else %}
+                Compensare Meteo: Nivel Ridicat (Preîncălzire activă • Compensare inerție)
+              {% endif %}
+            icon: mdi:tune-vertical
+            icon_color: cyan
+            layout: horizontal
+
+          # REPERE DE CALIBRARE LIVE (NVS & FORMULE ACTIVE PE PLACĂ)
+          - type: entities
+            title: "Parametri Calibrare Algoritm (Live NVS)"
+            show_header_toggle: false
+            entities:
+              - entity: sensor.smart_heating_controller_outdoor_temperature
+                name: "Temp Exterioară (Open-Meteo)"
+                icon: mdi:cloud-outline
+              - entity: select.smart_heating_controller_heating_season_mode
+                name: "Mod Sezon Încălzire"
+                icon: mdi:calendar-sync
+              - entity: sensor.smart_heating_controller_boiler_cooldown_remaining
+                name: "Anti-Scurt-Ciclare Restant (Secunde)"
+                icon: mdi:timer-sand
+              - type: attribute
+                entity: climate.heating_living_living
+                attribute: target_temp_step
+                name: "Pas Reglaj Temperatură (Hysteresis)"
+                icon: mdi:ray-vertex
 
           # STARE TEHNICĂ & DIAGNOSTICARE DTC
           - type: custom:mushroom-template-card
