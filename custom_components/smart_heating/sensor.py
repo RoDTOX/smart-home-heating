@@ -150,8 +150,7 @@ async def async_setup_entry(
         entities.append(SmartHeatingZoneHumiditySensor(coordinator, entry, zone_id))
         entities.append(SmartHeatingZoneBatterySensor(coordinator, entry, zone_id))
         entities.append(SmartHeatingZoneRssiSensor(coordinator, entry, zone_id))
-        entities.append(SmartHeatingZoneRuntimeTodaySensor(coordinator, entry, zone_id))
-        entities.append(SmartHeatingZoneRuntimeYesterdaySensor(coordinator, entry, zone_id))
+        entities.append(SmartHeatingZoneRuntimeSensor(coordinator, entry, zone_id))
 
     async_add_entities(entities)
 
@@ -324,10 +323,10 @@ class SmartHeatingZoneRssiSensor(
         return zone.rssi if zone else None
 
 
-class SmartHeatingZoneRuntimeTodaySensor(
+class SmartHeatingZoneRuntimeSensor(
     CoordinatorEntity[SmartHeatingDataUpdateCoordinator], SensorEntity
 ):
-    """Representation of a zone active heating runtime today."""
+    """Representation of a zone heating runtime today."""
 
     _attr_has_entity_name = True
     _attr_device_class = SensorDeviceClass.DURATION
@@ -340,7 +339,7 @@ class SmartHeatingZoneRuntimeTodaySensor(
         entry: ConfigEntry,
         zone_id: int,
     ) -> None:
-        """Initialize the runtime sensor."""
+        """Initialize the sensor."""
         super().__init__(coordinator)
         self._entry = entry
         self._zone_id = zone_id
@@ -365,46 +364,3 @@ class SmartHeatingZoneRuntimeTodaySensor(
         """Return runtime in seconds."""
         zone = self.coordinator.data.zones.get(self._zone_id)
         return zone.runtime_today_sec if zone else 0
-
-
-class SmartHeatingZoneRuntimeYesterdaySensor(
-    CoordinatorEntity[SmartHeatingDataUpdateCoordinator], SensorEntity
-):
-    """Representation of a zone active heating runtime yesterday."""
-
-    _attr_has_entity_name = True
-    _attr_device_class = SensorDeviceClass.DURATION
-    _attr_native_unit_of_measurement = UnitOfTime.SECONDS
-
-    def __init__(
-        self,
-        coordinator: SmartHeatingDataUpdateCoordinator,
-        entry: ConfigEntry,
-        zone_id: int,
-    ) -> None:
-        """Initialize the runtime sensor."""
-        super().__init__(coordinator)
-        self._entry = entry
-        self._zone_id = zone_id
-        self._attr_unique_id = f"{entry.unique_id}_zone_{zone_id}_runtime_yesterday"
-        self._attr_name = "Heating Runtime Yesterday"
-
-    @property
-    def device_info(self) -> DeviceInfo:
-        """Link to the zone sub-device."""
-        zone = self.coordinator.data.zones.get(self._zone_id)
-        zone_name = zone.name if zone else f"Zone {self._zone_id}"
-        return DeviceInfo(
-            identifiers={(DOMAIN, f"{self._entry.unique_id}_zone_{self._zone_id}")},
-            name=f"Heating - {zone_name}",
-            manufacturer="Smartiva Systems",
-            model="Underfloor Heating Zone",
-            via_device=(DOMAIN, self._entry.unique_id),
-        )
-
-    @property
-    def native_value(self) -> int:
-        """Return runtime in seconds."""
-        zone = self.coordinator.data.zones.get(self._zone_id)
-        return zone.runtime_yesterday_sec if zone else 0
-
