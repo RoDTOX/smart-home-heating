@@ -1,0 +1,51 @@
+smart_heating:
+  # Typography
+  ha-font-family: "'Plus Jakarta Sans', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif"
+  primary-font-family: "'Plus Jakarta Sans', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif"
+  paper-font-common-base_-_font-family: "'Plus Jakarta Sans', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif"
+  code-font-family: "'JetBrains Mono', ui-monospace, Consolas, monospace"
+
+  # Ambient Background (Luxury Modern Frosted Atmosphere)
+  lovelace-background: "radial-gradient(circle at 15% 15%, #1e1b4b 0%, #0f172a 50%, #090d16 100%) fixed"
+  primary-background-color: "#0f172a"
+  secondary-background-color: "#1e293b"
+  clear-background-color: "#0f172a"
+
+  # Glassmorphism & Frosted Glass Surfaces
+  ha-card-background: "rgba(30, 41, 59, 0.65)"
+  card-background-color: "rgba(30, 41, 59, 0.65)"
+  ha-card-backdrop-filter: "blur(20px) saturate(180%)"
+  ha-card-border-radius: "20px"
+  ha-card-border-width: "1px"
+  ha-card-border-color: "rgba(255, 255, 255, 0.12)"
+  ha-card-box-shadow: "0 12px 40px 0 rgba(0, 0, 0, 0.45), inset 0 1px 1px 0 rgba(255, 255, 255, 0.15)"
+
+  # Mushroom Overrides for Seamless Glass Integration
+  mush-card-background: "transparent"
+  mush-card-border-radius: "20px"
+  mush-chip-background: "rgba(255, 255, 255, 0.08)"
+  mush-chip-border-radius: "12px"
+  mush-chip-box-shadow: "inset 0 1px 0 rgba(255, 255, 255, 0.1)"
+
+  # Text & Colors
+  primary-color: "#f59e0b"
+  accent-color: "#f59e0b"
+  primary-text-color: "#f8fafc"
+  secondary-text-color: "#94a3b8"
+  disabled-text-color: "#64748b"
+  divider-color: "rgba(255, 255, 255, 0.08)"
+
+  # Header & Navigation
+  app-header-background-color: "rgba(15, 23, 42, 0.75)"
+  app-header-text-color: "#f8fafc"
+  app-header-border-bottom: "1px solid rgba(255, 255, 255, 0.08)"
+  sidebar-background-color: "rgba(15, 23, 42, 0.85)"
+  sidebar-text-color: "#94a3b8"
+  sidebar-selected-text-color: "#f59e0b"
+  sidebar-selected-icon-color: "#f59e0b"
+  sidebar-icon-color: "#94a3b8"
+
+  # Status & State Highlights
+  state-active-color: "#f59e0b"
+  state-climate-heat-color: "#f59e0b"
+  state-climate-idle-color: "#64748b"

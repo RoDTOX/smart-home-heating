@@ -1,6 +1,6 @@
 # Smart Heating - Home Assistant Dashboard
-# Theme: Smart Heating (Stitch Design Specification)
-# Ergonomic 3-Column Layout without unnecessary scrolling or white boxes
+# Theme: Smart Heating (Glassmorphism & Frosted Glass Specification)
+# Ergonomic 3-Column Layout without unnecessary scrolling or grey-out glitches
 
 title: Smart Heating
 views:
@@ -55,7 +55,7 @@ views:
               action: more-info
               entity: binary_sensor.smart_heating_controller_boiler_demand
 
-          # CHIPS METRICI EXTERIOR & TIMP ARDERE
+          # CHIPS METRICI EXTERIOR & TIMP ARDERE (NON-CLICKABLE PENTRU EVITARE GREY-OUT)
           - type: custom:mushroom-chips-card
             alignment: start
             chips:
@@ -63,10 +63,16 @@ views:
                 icon: mdi:weather-partly-cloudy
                 icon_color: blue
                 content: "Exterior: {{ states('sensor.smart_heating_controller_outdoor_temperature') }}°C"
+                tap_action: { action: none }
+                hold_action: { action: none }
+                double_tap_action: { action: none }
               - type: template
                 icon: mdi:timer-outline
                 icon_color: amber
                 content: "Ardere azi: {{ states('sensor.smart_heating_controller_boiler_burn_time_today') }} min"
+                tap_action: { action: none }
+                hold_action: { action: none }
+                double_tap_action: { action: none }
 
           # SELECTOR MOD SEZON ÎNCĂLZIRE (MUSHROOM FĂRĂ CASETE ALBE)
           - type: custom:mushroom-select-card
@@ -139,22 +145,30 @@ views:
                       {% endif %}
                     content: >-
                       Valvă: {% if is_state('binary_sensor.heating_living_actuator_valve', 'on') %}Deschis{% else %}Închis{% endif %}
+                    tap_action: { action: none }
+                    hold_action: { action: none }
+                    double_tap_action: { action: none }
                   - type: template
                     icon: mdi:timer-sand
                     icon_color: amber
                     content: "{{ states('sensor.heating_living_heating_runtime_today') }} min azi"
+                    tap_action: { action: none }
+                    hold_action: { action: none }
+                    double_tap_action: { action: none }
                   - type: template
                     icon: mdi:water-percent
                     icon_color: blue
                     content: "{{ states('sensor.heating_living_humidity') }}%"
-                  - type: template
-                    icon: mdi:battery
-                    icon_color: green
-                    content: "{{ states('sensor.heating_living_sensor_battery') }}%"
+                    tap_action: { action: none }
+                    hold_action: { action: none }
+                    double_tap_action: { action: none }
                   - type: template
                     icon: mdi:bluetooth
                     icon_color: grey
-                    content: "{{ states('sensor.heating_living_sensor_ble_signal') }} dBm"
+                    content: "{{ states('sensor.heating_living_sensor_battery') }}% • {{ states('sensor.heating_living_sensor_ble_signal') }} dBm"
+                    tap_action: { action: none }
+                    hold_action: { action: none }
+                    double_tap_action: { action: none }
                   # CHIP CONDIȚIONAT: APARE DOAR DACĂ PAUZA DE GEAM E ACTIVĂ
                   - type: conditional
                     conditions:
@@ -165,6 +179,8 @@ views:
                       icon: mdi:window-open-variant
                       icon_color: red
                       content: "Pauză geam ({{ (state_attr('climate.heating_living_living', 'window_pause_remaining_sec') | int(0) / 60) | round }} min)"
+                      tap_action: { action: none }
+                      hold_action: { action: none }
                   # CHIP CONDIȚIONAT: REVENIRE LA PROGRAM CÂND E ÎN REGLAJ MANUAL / BOOST
                   - type: conditional
                     conditions:
@@ -204,22 +220,30 @@ views:
                       {% endif %}
                     content: >-
                       Valvă: {% if is_state('binary_sensor.heating_kids_actuator_valve', 'on') %}Deschis{% else %}Închis{% endif %}
+                    tap_action: { action: none }
+                    hold_action: { action: none }
+                    double_tap_action: { action: none }
                   - type: template
                     icon: mdi:timer-sand
                     icon_color: amber
                     content: "{{ states('sensor.heating_kids_heating_runtime_today') }} min azi"
+                    tap_action: { action: none }
+                    hold_action: { action: none }
+                    double_tap_action: { action: none }
                   - type: template
                     icon: mdi:water-percent
                     icon_color: blue
                     content: "{{ states('sensor.heating_kids_humidity') }}%"
-                  - type: template
-                    icon: mdi:battery
-                    icon_color: green
-                    content: "{{ states('sensor.heating_kids_sensor_battery') }}%"
+                    tap_action: { action: none }
+                    hold_action: { action: none }
+                    double_tap_action: { action: none }
                   - type: template
                     icon: mdi:bluetooth
                     icon_color: grey
-                    content: "{{ states('sensor.heating_kids_sensor_ble_signal') }} dBm"
+                    content: "{{ states('sensor.heating_kids_sensor_battery') }}% • {{ states('sensor.heating_kids_sensor_ble_signal') }} dBm"
+                    tap_action: { action: none }
+                    hold_action: { action: none }
+                    double_tap_action: { action: none }
                   - type: conditional
                     conditions:
                       - entity: binary_sensor.heating_kids_window_pause
@@ -229,6 +253,8 @@ views:
                       icon: mdi:window-open-variant
                       icon_color: red
                       content: "Pauză geam ({{ (state_attr('climate.heating_kids_kids', 'window_pause_remaining_sec') | int(0) / 60) | round }} min)"
+                      tap_action: { action: none }
+                      hold_action: { action: none }
                   - type: conditional
                     conditions:
                       - entity: binary_sensor.heating_kids_temperature_boost_active
@@ -267,22 +293,30 @@ views:
                       {% endif %}
                     content: >-
                       Valvă: {% if is_state('binary_sensor.heating_adults_actuator_valve', 'on') %}Deschis{% else %}Închis{% endif %}
+                    tap_action: { action: none }
+                    hold_action: { action: none }
+                    double_tap_action: { action: none }
                   - type: template
                     icon: mdi:timer-sand
                     icon_color: amber
                     content: "{{ states('sensor.heating_adults_heating_runtime_today') }} min azi"
+                    tap_action: { action: none }
+                    hold_action: { action: none }
+                    double_tap_action: { action: none }
                   - type: template
                     icon: mdi:water-percent
                     icon_color: blue
                     content: "{{ states('sensor.heating_adults_humidity') }}%"
-                  - type: template
-                    icon: mdi:battery
-                    icon_color: green
-                    content: "{{ states('sensor.heating_adults_sensor_battery') }}%"
+                    tap_action: { action: none }
+                    hold_action: { action: none }
+                    double_tap_action: { action: none }
                   - type: template
                     icon: mdi:bluetooth
                     icon_color: grey
-                    content: "{{ states('sensor.heating_adults_sensor_ble_signal') }} dBm"
+                    content: "{{ states('sensor.heating_adults_sensor_battery') }}% • {{ states('sensor.heating_adults_sensor_ble_signal') }} dBm"
+                    tap_action: { action: none }
+                    hold_action: { action: none }
+                    double_tap_action: { action: none }
                   - type: conditional
                     conditions:
                       - entity: binary_sensor.heating_adults_window_pause
@@ -292,6 +326,8 @@ views:
                       icon: mdi:window-open-variant
                       icon_color: red
                       content: "Pauză geam ({{ (state_attr('climate.heating_adults_adults', 'window_pause_remaining_sec') | int(0) / 60) | round }} min)"
+                      tap_action: { action: none }
+                      hold_action: { action: none }
                   - type: conditional
                     conditions:
                       - entity: binary_sensor.heating_adults_temperature_boost_active
@@ -329,7 +365,7 @@ views:
                 show: true
                 position: bottom
               grid:
-                borderColor: "#334155"
+                borderColor: "rgba(255, 255, 255, 0.08)"
                 strokeDashArray: 3
             series:
               - entity: binary_sensor.smart_heating_controller_boiler_demand
