@@ -424,9 +424,9 @@ views:
           - type: custom:mushroom-template-card
             primary: "Diagnosticare Controller ESP32"
             secondary: >-
-              Heap: {{ states('sensor.smart_heating_controller_controller_free_heap') }} KB • 
-              Wi-Fi: {{ states('sensor.smart_heating_controller_controller_wi_fi_signal') }} dBm • 
-              DTC: {{ states('sensor.smart_heating_controller_active_dtc_fault_count') }} defecte
+              Heap: {{ (states('sensor.smart_heating_controller_controller_free_heap') | float(0) / 1024) | round(0) }} KB • 
+              Wi-Fi: {{ states('sensor.smart_heating_controller_controller_wi_fi_signal') | int }} dBm • 
+              DTC: {{ states('sensor.smart_heating_controller_active_dtc_fault_count') | int }} defecte
             icon: >-
               {% if states('sensor.smart_heating_controller_active_dtc_fault_count') | int == 0 %}
                 mdi:check-circle-outline

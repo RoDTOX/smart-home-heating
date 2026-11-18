@@ -118,9 +118,8 @@ SYSTEM_SENSORS: tuple[SmartHeatingSensorDescription, ...] = (
         key="free_heap",
         name="Free Heap",
         device_class=SensorDeviceClass.DATA_SIZE,
-        native_unit_of_measurement=UnitOfInformation.KILOBYTES,
-        suggested_display_precision=0,
-        value_fn=lambda data: round(data.diagnostics.free_heap / 1024),
+        native_unit_of_measurement=UnitOfInformation.BYTES,
+        value_fn=lambda data: data.diagnostics.free_heap,
     ),
     SmartHeatingSensorDescription(
         key="wifi_rssi",
