@@ -69,7 +69,13 @@ views:
               - type: template
                 icon: mdi:timer-outline
                 icon_color: amber
-                content: "Ardere azi: {{ states('sensor.smart_heating_controller_boiler_burn_time_today') }} min"
+                content: >-
+                  {% set s = states('sensor.smart_heating_controller_boiler_burn_time_today') | float(0) %}
+                  {% if s >= 3600 %}
+                    Ardere azi: {{ (s // 3600) | int }}h {{ ((s % 3600) // 60) | int }}m
+                  {% else %}
+                    Ardere azi: {{ (s / 60) | round(0) | int }} min
+                  {% endif %}
                 tap_action: { action: none }
                 hold_action: { action: none }
                 double_tap_action: { action: none }
@@ -151,7 +157,13 @@ views:
                   - type: template
                     icon: mdi:timer-sand
                     icon_color: amber
-                    content: "{{ states('sensor.heating_living_heating_runtime_today') }} min azi"
+                    content: >-
+                      {% set s = states('sensor.heating_living_heating_runtime_today') | float(0) %}
+                      {% if s >= 3600 %}
+                        {{ (s // 3600) | int }}h {{ ((s % 3600) // 60) | int }}m azi
+                      {% else %}
+                        {{ (s / 60) | round(0) | int }} min azi
+                      {% endif %}
                     tap_action: { action: none }
                     hold_action: { action: none }
                     double_tap_action: { action: none }
@@ -226,7 +238,13 @@ views:
                   - type: template
                     icon: mdi:timer-sand
                     icon_color: amber
-                    content: "{{ states('sensor.heating_kids_heating_runtime_today') }} min azi"
+                    content: >-
+                      {% set s = states('sensor.heating_kids_heating_runtime_today') | float(0) %}
+                      {% if s >= 3600 %}
+                        {{ (s // 3600) | int }}h {{ ((s % 3600) // 60) | int }}m azi
+                      {% else %}
+                        {{ (s / 60) | round(0) | int }} min azi
+                      {% endif %}
                     tap_action: { action: none }
                     hold_action: { action: none }
                     double_tap_action: { action: none }
@@ -299,7 +317,13 @@ views:
                   - type: template
                     icon: mdi:timer-sand
                     icon_color: amber
-                    content: "{{ states('sensor.heating_adults_heating_runtime_today') }} min azi"
+                    content: >-
+                      {% set s = states('sensor.heating_adults_heating_runtime_today') | float(0) %}
+                      {% if s >= 3600 %}
+                        {{ (s // 3600) | int }}h {{ ((s % 3600) // 60) | int }}m azi
+                      {% else %}
+                        {{ (s / 60) | round(0) | int }} min azi
+                      {% endif %}
                     tap_action: { action: none }
                     hold_action: { action: none }
                     double_tap_action: { action: none }

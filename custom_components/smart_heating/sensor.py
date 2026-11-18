@@ -110,9 +110,9 @@ SYSTEM_SENSORS: tuple[SmartHeatingSensorDescription, ...] = (
         key="boiler_burn_today",
         name="Boiler Burn Time Today",
         device_class=SensorDeviceClass.DURATION,
-        native_unit_of_measurement=UnitOfTime.MINUTES,
+        native_unit_of_measurement=UnitOfTime.SECONDS,
         suggested_display_precision=0,
-        value_fn=lambda data: round(data.boiler.burn_today_sec / 60),
+        value_fn=lambda data: data.boiler.burn_today_sec,
     ),
     SmartHeatingSensorDescription(
         key="free_heap",
@@ -348,7 +348,7 @@ class SmartHeatingZoneRuntimeSensor(
     _attr_has_entity_name = True
     _attr_device_class = SensorDeviceClass.DURATION
     _attr_state_class = SensorStateClass.TOTAL_INCREASING
-    _attr_native_unit_of_measurement = UnitOfTime.MINUTES
+    _attr_native_unit_of_measurement = UnitOfTime.SECONDS
     _attr_suggested_display_precision = 0
 
     def __init__(
@@ -379,11 +379,11 @@ class SmartHeatingZoneRuntimeSensor(
 
     @property
     def native_value(self) -> int:
-        """Return runtime in minutes."""
+        """Return runtime in seconds."""
         zone = self.coordinator.data.zones.get(self._zone_id)
         if not zone or not zone.runtime_today_sec:
             return 0
-        return round(zone.runtime_today_sec / 60)
+        return int(zone.runtime_today_sec)
 
     @property
     def extra_state_attributes(self) -> dict[str, Any]:
