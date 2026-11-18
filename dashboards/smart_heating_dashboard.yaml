@@ -65,6 +65,9 @@ views:
             title: "Detalii Living (3 Circuite)"
             show_header_toggle: false
             entities:
+              - entity: sensor.heating_living_heating_runtime_today
+                name: "Funcționare Azi (Runtime)"
+                icon: mdi:timer-sand
               - entity: binary_sensor.heating_living_actuator_valve
                 name: "Actuatori NC (Releu 1)"
                 icon: mdi:valve
@@ -97,6 +100,9 @@ views:
             title: "Detalii Dormitor Copii (2 Circuite)"
             show_header_toggle: false
             entities:
+              - entity: sensor.heating_kids_heating_runtime_today
+                name: "Funcționare Azi (Runtime)"
+                icon: mdi:timer-sand
               - entity: binary_sensor.heating_kids_actuator_valve
                 name: "Actuatori NC (Releu 2)"
                 icon: mdi:valve
@@ -126,6 +132,9 @@ views:
             title: "Detalii Dormitor Mare (2 Circuite)"
             show_header_toggle: false
             entities:
+              - entity: sensor.heating_adults_heating_runtime_today
+                name: "Funcționare Azi (Runtime)"
+                icon: mdi:timer-sand
               - entity: binary_sensor.heating_adults_actuator_valve
                 name: "Actuatori NC (Releu 3)"
                 icon: mdi:valve
