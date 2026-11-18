@@ -12,6 +12,15 @@ from homeassistant.components.sensor import (
     SensorStateClass,
 )
 from homeassistant.config_entries import ConfigEntry
+from datetime import timedelta
+
+from homeassistant.components.sensor import (
+    SensorDeviceClass,
+    SensorEntity,
+    SensorEntityDescription,
+    SensorStateClass,
+)
+from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import (
     PERCENTAGE,
     SIGNAL_STRENGTH_DECIBELS_MILLIWATT,
@@ -24,6 +33,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
+from homeassistant.util import dt as dt_util
 
 from .const import DOMAIN
 from .coordinator import SmartHeatingData, SmartHeatingDataUpdateCoordinator
@@ -100,29 +110,30 @@ SYSTEM_SENSORS: tuple[SmartHeatingSensorDescription, ...] = (
         key="boiler_burn_today",
         name="Boiler Burn Time Today",
         device_class=SensorDeviceClass.DURATION,
-        native_unit_of_measurement=UnitOfTime.SECONDS,
-        value_fn=lambda data: data.boiler.burn_today_sec,
+        native_unit_of_measurement=UnitOfTime.MINUTES,
+        suggested_display_precision=0,
+        value_fn=lambda data: round(data.boiler.burn_today_sec / 60),
     ),
     SmartHeatingSensorDescription(
         key="free_heap",
-        name="Controller Free Heap",
+        name="Free Heap",
         device_class=SensorDeviceClass.DATA_SIZE,
-        native_unit_of_measurement=UnitOfInformation.BYTES,
-        value_fn=lambda data: data.diagnostics.free_heap,
+        native_unit_of_measurement=UnitOfInformation.KILOBYTES,
+        suggested_display_precision=0,
+        value_fn=lambda data: round(data.diagnostics.free_heap / 1024),
     ),
     SmartHeatingSensorDescription(
         key="wifi_rssi",
-        name="Controller Wi-Fi Signal",
+        name="Wi-Fi Signal",
         device_class=SensorDeviceClass.SIGNAL_STRENGTH,
         native_unit_of_measurement=SIGNAL_STRENGTH_DECIBELS_MILLIWATT,
         value_fn=lambda data: data.diagnostics.wifi_rssi,
     ),
     SmartHeatingSensorDescription(
         key="uptime",
-        name="Controller Uptime",
-        device_class=SensorDeviceClass.DURATION,
-        native_unit_of_measurement=UnitOfTime.SECONDS,
-        value_fn=lambda data: data.diagnostics.uptime_sec,
+        name="Uptime",
+        device_class=SensorDeviceClass.TIMESTAMP,
+        value_fn=lambda data: dt_util.utcnow() - timedelta(seconds=data.diagnostics.uptime_sec),
     ),
     SmartHeatingSensorDescription(
         key="dtc_count",
@@ -331,7 +342,8 @@ class SmartHeatingZoneRuntimeSensor(
     _attr_has_entity_name = True
     _attr_device_class = SensorDeviceClass.DURATION
     _attr_state_class = SensorStateClass.TOTAL_INCREASING
-    _attr_native_unit_of_measurement = UnitOfTime.SECONDS
+    _attr_native_unit_of_measurement = UnitOfTime.MINUTES
+    _attr_suggested_display_precision = 0
 
     def __init__(
         self,
@@ -361,6 +373,17 @@ class SmartHeatingZoneRuntimeSensor(
 
     @property
     def native_value(self) -> int:
-        """Return runtime in seconds."""
+        """Return runtime in minutes."""
         zone = self.coordinator.data.zones.get(self._zone_id)
-        return zone.runtime_today_sec if zone else 0
+        if not zone or not zone.runtime_today_sec:
+            return 0
+        return round(zone.runtime_today_sec / 60)
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        """Return raw seconds as extra attribute."""
+        zone = self.coordinator.data.zones.get(self._zone_id)
+        return {
+            "runtime_seconds": zone.runtime_today_sec if zone else 0,
+            "runtime_yesterday_seconds": zone.runtime_yesterday_sec if zone else 0,
+        }

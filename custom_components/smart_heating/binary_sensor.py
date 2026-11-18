@@ -30,7 +30,7 @@ SYSTEM_BINARY_SENSORS: tuple[SmartHeatingBinarySensorDescription, ...] = (
     SmartHeatingBinarySensorDescription(
         key="boiler_demand",
         name="Boiler Demand",
-        device_class=BinarySensorDeviceClass.RUNNING,
+        translation_key="boiler_demand",
         is_on_fn=lambda data: data.boiler.boiler_demand or data.boiler.state == "ON",
     ),
     SmartHeatingBinarySensorDescription(
@@ -115,7 +115,7 @@ class SmartHeatingZoneValveSensor(
     """Binary sensor representing actuator valve relay state."""
 
     _attr_has_entity_name = True
-    _attr_device_class = BinarySensorDeviceClass.OPENING
+    _attr_translation_key = "actuator_valve"
 
     def __init__(
         self,
@@ -156,7 +156,7 @@ class SmartHeatingZoneWindowPauseSensor(
     """Binary sensor representing zone window pause."""
 
     _attr_has_entity_name = True
-    _attr_device_class = BinarySensorDeviceClass.WINDOW
+    _attr_translation_key = "window_pause"
 
     def __init__(
         self,

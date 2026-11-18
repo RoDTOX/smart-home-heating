@@ -46,5 +46,39 @@
       "name": "Setare boost zonă",
       "description": "Aplică un boost temporar de temperatură (0.5 - 2.0°C) peste programul curent."
     }
+  },
+  "entity": {
+    "binary_sensor": {
+      "window_pause": {
+        "state": {
+          "off": "Inactivă",
+          "on": "Pauză activă"
+        }
+      },
+      "actuator_valve": {
+        "state": {
+          "off": "Închis (Repaus)",
+          "on": "Deschis (Încălzire)"
+        }
+      },
+      "boiler_demand": {
+        "state": {
+          "off": "Standby (Pregătit)",
+          "on": "Flacără activă"
+        }
+      }
+    },
+    "select": {
+      "season_mode": {
+        "state": {
+          "auto": "Automat (Meteo)",
+          "on": "Iarnă (Încălzire)",
+          "off": "Vară (Oprit)",
+          "AUTO": "Automat (Meteo)",
+          "ON": "Iarnă (Încălzire)",
+          "OFF": "Vară (Oprit)"
+        }
+      }
+    }
   }
 }

@@ -46,5 +46,39 @@
       "name": "Set Zone Boost",
       "description": "Applies a temporary temperature boost (0.5 - 2.0°C) above current schedule for a zone."
     }
+  },
+  "entity": {
+    "binary_sensor": {
+      "window_pause": {
+        "state": {
+          "off": "Inactive",
+          "on": "Pause Active"
+        }
+      },
+      "actuator_valve": {
+        "state": {
+          "off": "Closed (Idle)",
+          "on": "Open (Heating)"
+        }
+      },
+      "boiler_demand": {
+        "state": {
+          "off": "Standby",
+          "on": "Flame Active"
+        }
+      }
+    },
+    "select": {
+      "season_mode": {
+        "state": {
+          "auto": "Auto (Weather)",
+          "on": "Winter (Heating)",
+          "off": "Summer (Off)",
+          "AUTO": "Auto (Weather)",
+          "ON": "Winter (Heating)",
+          "OFF": "Summer (Off)"
+        }
+      }
+    }
   }
 }

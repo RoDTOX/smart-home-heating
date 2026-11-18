@@ -1,12 +1,13 @@
 # Smart Heating - Home Assistant Dashboard
-# Theme: HA Charcoal (Stitch Design Specification)
-# Uses Mushroom Cards and ApexCharts Card
+# Theme: Smart Heating (Stitch Design Specification)
+# Ergonomic 3-Column Layout without unnecessary scrolling
 
 title: Smart Heating
 views:
   - title: Panou Principal
     path: acasa
     icon: mdi:radiator
+    theme: smart_heating
     type: sections
     max_columns: 3
     badges:
@@ -18,145 +19,56 @@ views:
         icon: mdi:check-circle-outline
 
     sections:
-      # SECTION 1: STARE SISTEM & ZONE ÎNCĂLZIRE
-      - title: Zone Termice
+      # ========================================================================
+      # COLOANA 1: CENTRALĂ, VREME & CONTOR GAZ
+      # ========================================================================
+      - title: Centrală & Energie
         cards:
-          # BANNER CENTRALĂ
-          - type: conditional
-            conditions:
-              - entity: binary_sensor.smart_heating_controller_boiler_demand
-                state: "on"
-            card:
-              type: custom:mushroom-template-card
-              primary: "Centrală: Flacără Activă"
-              secondary: "Arzător în funcțiune | Cerere termică activă"
-              icon: mdi:fire
-              icon_color: amber
-              layout: horizontal
-              tap_action:
-                action: more-info
-                entity: binary_sensor.smart_heating_controller_boiler_demand
-
-          - type: conditional
-            conditions:
-              - entity: binary_sensor.smart_heating_controller_boiler_demand
-                state: "off"
-            card:
-              type: custom:mushroom-template-card
-              primary: "Centrală: Pregătit (Standby)"
-              secondary: "Toate circuitele sunt la temperatură sau în anti-cycling"
-              icon: mdi:check-circle-outline
-              icon_color: green
-              layout: horizontal
-
-          # ZONA 1: LIVING + BUCĂTĂRIE
-          - type: custom:mushroom-climate-card
-            entity: climate.heating_living_living
-            name: "Living + Bucătărie"
-            icon: mdi:sofa
-            hvac_modes:
-              - heat
-              - "off"
-            show_temperature_control: true
-            collapsible_controls: true
+          # STATUS CENTRALĂ TERMICĂ (VIZUAL FLACĂRĂ / STANDBY)
+          - type: custom:mushroom-template-card
+            primary: >-
+              {% if is_state('binary_sensor.smart_heating_controller_boiler_demand', 'on') %}
+                Centrală: Flacără Activă
+              {% else %}
+                Centrală: Standby (Pregătit)
+              {% endif %}
+            secondary: >-
+              {% if is_state('binary_sensor.smart_heating_controller_boiler_demand', 'on') %}
+                Arzător în funcțiune • Cerere activă
+              {% else %}
+                Circuite la temperatură • Anti-cycling gata
+              {% endif %}
+            icon: >-
+              {% if is_state('binary_sensor.smart_heating_controller_boiler_demand', 'on') %}
+                mdi:fire
+              {% else %}
+                mdi:radiator
+              {% endif %}
+            icon_color: >-
+              {% if is_state('binary_sensor.smart_heating_controller_boiler_demand', 'on') %}
+                amber
+              {% else %}
+                green
+              {% endif %}
             layout: horizontal
+            tap_action:
+              action: more-info
+              entity: binary_sensor.smart_heating_controller_boiler_demand
 
-          - type: entities
-            title: "Detalii Living (3 Circuite)"
-            show_header_toggle: false
-            entities:
-              - entity: binary_sensor.heating_living_actuator_valve
-                name: "Actuatori NC (Releu 1)"
-                icon: mdi:valve
-              - entity: sensor.heating_living_heating_runtime_today
-                name: "Timp Încălzire Azi"
-                icon: mdi:timer-sand
-              - entity: binary_sensor.heating_living_window_pause
-                name: "Pauză Geam"
-                icon: mdi:window-open-variant
-              - entity: sensor.heating_living_humidity
-                name: "Umiditate Relativă"
-                icon: mdi:water-percent
-              - entity: sensor.heating_living_sensor_battery
-                name: "Baterie Senzor BLE"
-                icon: mdi:battery
-              - entity: sensor.heating_living_sensor_ble_signal
-                name: "Semnal BLE (RSSI)"
-                icon: mdi:bluetooth
+          # CHIPS METRICI ARDERE & EXTERIOR
+          - type: custom:mushroom-chips-card
+            alignment: start
+            chips:
+              - type: template
+                icon: mdi:weather-partly-cloudy
+                icon_color: blue
+                content: "Exterior: {{ states('sensor.smart_heating_controller_outdoor_temperature') }}°C"
+              - type: template
+                icon: mdi:timer-outline
+                icon_color: amber
+                content: "Ardere azi: {{ states('sensor.smart_heating_controller_boiler_burn_time_today') }} min"
 
-          # ZONA 2: DORMITOR COPII
-          - type: custom:mushroom-climate-card
-            entity: climate.heating_kids_kids
-            name: "Dormitor Copii"
-            icon: mdi:baby-face-outline
-            hvac_modes:
-              - heat
-              - "off"
-            show_temperature_control: true
-            collapsible_controls: true
-            layout: horizontal
-
-          - type: entities
-            title: "Detalii Dormitor Copii (2 Circuite)"
-            show_header_toggle: false
-            entities:
-              - entity: binary_sensor.heating_kids_actuator_valve
-                name: "Actuatori NC (Releu 2)"
-                icon: mdi:valve
-              - entity: sensor.heating_kids_heating_runtime_today
-                name: "Timp Încălzire Azi"
-                icon: mdi:timer-sand
-              - entity: binary_sensor.heating_kids_window_pause
-                name: "Pauză Geam"
-                icon: mdi:window-open-variant
-              - entity: sensor.heating_kids_humidity
-                name: "Umiditate Relativă"
-                icon: mdi:water-percent
-              - entity: sensor.heating_kids_sensor_battery
-                name: "Baterie Senzor BLE"
-                icon: mdi:battery
-              - entity: sensor.heating_kids_sensor_ble_signal
-                name: "Semnal BLE (RSSI)"
-                icon: mdi:bluetooth
-
-          # ZONA 3: DORMITOR MARE
-          - type: custom:mushroom-climate-card
-            entity: climate.heating_adults_adults
-            name: "Dormitor Mare"
-            icon: mdi:bed-double-outline
-            hvac_modes:
-              - heat
-              - "off"
-            show_temperature_control: true
-            collapsible_controls: true
-            layout: horizontal
-
-          - type: entities
-            title: "Detalii Dormitor Mare (2 Circuite)"
-            show_header_toggle: false
-            entities:
-              - entity: binary_sensor.heating_adults_actuator_valve
-                name: "Actuatori NC (Releu 3)"
-                icon: mdi:valve
-              - entity: sensor.heating_adults_heating_runtime_today
-                name: "Timp Încălzire Azi"
-                icon: mdi:timer-sand
-              - entity: binary_sensor.heating_adults_window_pause
-                name: "Pauză Geam"
-                icon: mdi:window-open-variant
-              - entity: sensor.heating_adults_humidity
-                name: "Umiditate Relativă"
-                icon: mdi:water-percent
-              - entity: sensor.heating_adults_sensor_battery
-                name: "Baterie Senzor BLE"
-                icon: mdi:battery
-              - entity: sensor.heating_adults_sensor_ble_signal
-                name: "Semnal BLE (RSSI)"
-                icon: mdi:bluetooth
-
-      # SECTION 2: CONSUM GAZ & COSTURI
-      - title: Contor Gaz & Energie
-        cards:
+          # CONSUM GAZ & COSTURI
           - type: glance
             title: "Consum Gaz & Costuri"
             show_state: true
@@ -177,7 +89,140 @@ views:
                 name: "Cost Lună"
                 icon: mdi:cash-multiple
 
-          # GRAFIC TELEMETRIE TEMPERATURI & ARDERE APEXCHARTS 24H
+      # ========================================================================
+      # COLOANA 2: ZONELE TERMICE (LIVING, COPII, ADULȚI)
+      # ========================================================================
+      - title: Zone Termice
+        cards:
+          # ZONA 1: LIVING + BUCĂTĂRIE
+          - type: custom:mushroom-climate-card
+            entity: climate.heating_living_living
+            name: "Living + Bucătărie (3 Circuite)"
+            icon: mdi:sofa
+            hvac_modes:
+              - heat
+              - "off"
+            show_temperature_control: true
+            layout: horizontal
+
+          - type: custom:mushroom-chips-card
+            alignment: start
+            chips:
+              - type: template
+                icon: mdi:valve
+                icon_color: >-
+                  {% if is_state('binary_sensor.heating_living_actuator_valve', 'on') %}
+                    amber
+                  {% else %}
+                    grey
+                  {% endif %}
+                content: >-
+                  Valvă: {% if is_state('binary_sensor.heating_living_actuator_valve', 'on') %}Deschis{% else %}Închis{% endif %}
+              - type: template
+                icon: mdi:timer-sand
+                icon_color: amber
+                content: "{{ states('sensor.heating_living_heating_runtime_today') }} min azi"
+              - type: template
+                icon: mdi:water-percent
+                icon_color: blue
+                content: "{{ states('sensor.heating_living_humidity') }}%"
+              - type: template
+                icon: mdi:battery
+                icon_color: green
+                content: "{{ states('sensor.heating_living_sensor_battery') }}%"
+              - type: template
+                icon: mdi:bluetooth
+                icon_color: grey
+                content: "{{ states('sensor.heating_living_sensor_ble_signal') }} dBm"
+
+          # ZONA 2: DORMITOR COPII
+          - type: custom:mushroom-climate-card
+            entity: climate.heating_kids_kids
+            name: "Dormitor Copii (2 Circuite)"
+            icon: mdi:baby-face-outline
+            hvac_modes:
+              - heat
+              - "off"
+            show_temperature_control: true
+            layout: horizontal
+
+          - type: custom:mushroom-chips-card
+            alignment: start
+            chips:
+              - type: template
+                icon: mdi:valve
+                icon_color: >-
+                  {% if is_state('binary_sensor.heating_kids_actuator_valve', 'on') %}
+                    amber
+                  {% else %}
+                    grey
+                  {% endif %}
+                content: >-
+                  Valvă: {% if is_state('binary_sensor.heating_kids_actuator_valve', 'on') %}Deschis{% else %}Închis{% endif %}
+              - type: template
+                icon: mdi:timer-sand
+                icon_color: amber
+                content: "{{ states('sensor.heating_kids_heating_runtime_today') }} min azi"
+              - type: template
+                icon: mdi:water-percent
+                icon_color: blue
+                content: "{{ states('sensor.heating_kids_humidity') }}%"
+              - type: template
+                icon: mdi:battery
+                icon_color: green
+                content: "{{ states('sensor.heating_kids_sensor_battery') }}%"
+              - type: template
+                icon: mdi:bluetooth
+                icon_color: grey
+                content: "{{ states('sensor.heating_kids_sensor_ble_signal') }} dBm"
+
+          # ZONA 3: DORMITOR MARE
+          - type: custom:mushroom-climate-card
+            entity: climate.heating_adults_adults
+            name: "Dormitor Mare (2 Circuite)"
+            icon: mdi:bed-double-outline
+            hvac_modes:
+              - heat
+              - "off"
+            show_temperature_control: true
+            layout: horizontal
+
+          - type: custom:mushroom-chips-card
+            alignment: start
+            chips:
+              - type: template
+                icon: mdi:valve
+                icon_color: >-
+                  {% if is_state('binary_sensor.heating_adults_actuator_valve', 'on') %}
+                    amber
+                  {% else %}
+                    grey
+                  {% endif %}
+                content: >-
+                  Valvă: {% if is_state('binary_sensor.heating_adults_actuator_valve', 'on') %}Deschis{% else %}Închis{% endif %}
+              - type: template
+                icon: mdi:timer-sand
+                icon_color: amber
+                content: "{{ states('sensor.heating_adults_heating_runtime_today') }} min azi"
+              - type: template
+                icon: mdi:water-percent
+                icon_color: blue
+                content: "{{ states('sensor.heating_adults_humidity') }}%"
+              - type: template
+                icon: mdi:battery
+                icon_color: green
+                content: "{{ states('sensor.heating_adults_sensor_battery') }}%"
+              - type: template
+                icon: mdi:bluetooth
+                icon_color: grey
+                content: "{{ states('sensor.heating_adults_sensor_ble_signal') }} dBm"
+
+      # ========================================================================
+      # COLOANA 3: TELEMETRIE 24H & DIAGNOSTIC
+      # ========================================================================
+      - title: Telemetrie & Diagnostic
+        cards:
+          # GRAFIC TEMPERATURI APEXCHARTS 24H
           - type: custom:apexcharts-card
             header:
               show: true
@@ -210,27 +255,57 @@ views:
                 stroke_width: 2
                 curve: smooth
 
-      # SECTION 3: DIAGNOSTIC & MENTENANȚĂ
-      - title: Diagnostic & Comenzi Rapide
-        cards:
-          - type: entities
-            title: "Stare Tehnică ESP32"
-            entities:
-              - entity: sensor.smart_heating_controller_controller_free_heap
-                name: "Memorie Liberă (Heap)"
-                icon: mdi:memory
-              - entity: sensor.smart_heating_controller_controller_wi_fi_signal
-                name: "Semnal Wi-Fi"
-                icon: mdi:wifi
-              - entity: sensor.smart_heating_controller_controller_uptime
-                name: "Timp Funcționare"
-                icon: mdi:timer-outline
-              - entity: select.smart_heating_controller_heating_season_mode
-                name: "Mod Sezon Încălzire"
-                icon: mdi:calendar-sync
-              - entity: button.smart_heating_controller_resume_heating_clear_all_window_pauses
-                name: "Anulează Toate Pauzele Geam"
-                icon: mdi:play-circle-outline
-              - entity: button.smart_heating_controller_clear_inactive_dtc_faults
-                name: "Șterge Istoric Defecte DTC"
+          # MOD SEZON ÎNCĂLZIRE (MUSHROOM SELECT FĂRĂ TEXTBOX ALB)
+          - type: custom:mushroom-select-card
+            entity: select.smart_heating_controller_heating_season_mode
+            name: "Mod Sezon Încălzire"
+            icon: mdi:calendar-sync
+            icon_color: amber
+            layout: horizontal
+
+          # STARE TEHNICĂ & DIAGNOSTICARE DTC
+          - type: custom:mushroom-template-card
+            primary: "Diagnosticare Controller ESP32"
+            secondary: >-
+              Heap: {{ states('sensor.smart_heating_controller_controller_free_heap') }} KB • 
+              Wi-Fi: {{ states('sensor.smart_heating_controller_controller_wi_fi_signal') }} dBm • 
+              DTC: {{ states('sensor.smart_heating_controller_active_dtc_fault_count') }} defecte
+            icon: >-
+              {% if states('sensor.smart_heating_controller_active_dtc_fault_count') | int == 0 %}
+                mdi:check-circle-outline
+              {% else %}
+                mdi:alert-circle-outline
+              {% endif %}
+            icon_color: >-
+              {% if states('sensor.smart_heating_controller_active_dtc_fault_count') | int == 0 %}
+                green
+              {% else %}
+                red
+              {% endif %}
+            layout: horizontal
+
+          # BUTOANE RAPIDE DE ACȚIUNE TACTILE
+          - type: horizontal-stack
+            cards:
+              - type: custom:mushroom-template-card
+                primary: "Curăță Erori"
+                secondary: "Golește jurnal DTC"
                 icon: mdi:broom
+                icon_color: amber
+                layout: vertical
+                tap_action:
+                  action: call-service
+                  service: button.press
+                  target:
+                    entity_id: button.smart_heating_controller_clear_inactive_dtc_faults
+              - type: custom:mushroom-template-card
+                primary: "Reia Încălzirea"
+                secondary: "Anulează pauze geam"
+                icon: mdi:play-circle-outline
+                icon_color: green
+                layout: vertical
+                tap_action:
+                  action: call-service
+                  service: button.press
+                  target:
+                    entity_id: button.smart_heating_controller_resume_heating_clear_all_window_pauses
