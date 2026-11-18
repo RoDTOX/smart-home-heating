@@ -20,7 +20,7 @@ clear_window_pause:
 
 set_window_pause:
   name: Trigger Window Pause
-  description: Temporarily suspends heating on a zone (e.g. from an external door/window sensor like Sonoff DW2).
+  description: Temporarily suspends heating on a zone.
   fields:
     zone_id:
       name: Zone ID

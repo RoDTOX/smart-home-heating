@@ -40,7 +40,7 @@
     },
     "set_window_pause": {
       "name": "Trigger Window Pause",
-      "description": "Triggers a temporary heating suspension on a zone (e.g. from a door/window sensor like Sonoff DW2)."
+      "description": "Triggers a temporary heating suspension on a zone."
     },
     "set_zone_boost": {
       "name": "Set Zone Boost",

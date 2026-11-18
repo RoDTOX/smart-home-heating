@@ -20,23 +20,6 @@ import yaml
 INTEGRATION_DIR = os.path.abspath(
     os.path.join(os.path.dirname(__file__), "..", "custom_components", "smart_heating")
 )
-BLUEPRINT_FILE = os.path.abspath(
-    os.path.join(
-        os.path.dirname(__file__),
-        "..",
-        "blueprints",
-        "automation",
-        "smart_heating",
-        "dw2_window_pause.yaml",
-    )
-)
-def ha_yaml_load(f):
-    """Load YAML supporting Home Assistant custom tags like !input."""
-    class HALoader(yaml.SafeLoader):
-        pass
-
-    HALoader.add_constructor("!input", lambda loader, node: node.value)
-    return yaml.load(f, HALoader)
 DASHBOARD_FILE = os.path.abspath(
     os.path.join(
         os.path.dirname(__file__), "..", "dashboards", "smart_heating_dashboard.yaml"
@@ -82,14 +65,7 @@ class TestSmartHeatingFiles(unittest.TestCase):
         self.assertIn("clear_window_pause", data)
         self.assertIn("set_window_pause", data)
 
-    def test_05_blueprint_yaml(self):
-        self.assertTrue(os.path.isfile(BLUEPRINT_FILE), "Blueprint YAML missing")
-        with open(BLUEPRINT_FILE, "r", encoding="utf-8") as f:
-            data = ha_yaml_load(f)
-        self.assertIn("blueprint", data)
-        self.assertEqual(data["blueprint"].get("domain"), "automation")
-
-    def test_06_dashboard_yaml(self):
+    def test_05_dashboard_yaml(self):
         self.assertTrue(os.path.isfile(DASHBOARD_FILE), "Dashboard YAML missing")
         with open(DASHBOARD_FILE, "r", encoding="utf-8") as f:
             data = yaml.safe_load(f)

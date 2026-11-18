@@ -23,9 +23,9 @@ Native Home Assistant integration for **Smart Heating** autonomous multi-zone un
   - Binary sensors for active burner flame demand and circulation pump status.
   - Burner cooldown timer and daily burn duration tracking.
   - Thermal actuator valve states per zone.
-- **Door/Window Detection (Sonoff DW2 Interop)**:
+- **Window Open Detection & Pause**:
   - Window pause state sensors for each zone.
-  - Dedicated automation blueprint (`blueprints/automation/smart_heating/dw2_window_pause.yaml`) for instant Sonoff DW2 integration.
+  - Integration with the controller's automatic temperature drop detection algorithm.
   - One-click service to clear window pause and resume heating.
 - **System Diagnostics & Fault Codes (DTC)**:
   - Real-time diagnostic fault counters and warnings.

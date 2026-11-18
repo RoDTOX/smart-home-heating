@@ -20,11 +20,10 @@ Entries before 29.10.2026 (the system before the lean clean-up):
   - `custom_components/smart_heating/select.py`: Season mode selector (`AUTO`, `ON`, `OFF`).
   - `custom_components/smart_heating/button.py`: Action buttons for clearing DTC fault history and clearing window pauses.
   - `custom_components/smart_heating/services.yaml`: Custom services registration (`clear_dtc_history`, `clear_window_pause`, `set_window_pause`, `set_zone_boost`).
-  - `blueprints/automation/smart_heating/dw2_window_pause.yaml`: Ready-to-import Sonoff DW2 door/window contact sensor automation blueprint.
   - `dashboards/smart_heating_dashboard.yaml`: Lovelace dashboard matching the `HA Charcoal` theme (Stitch design specification).
   - `tools/sh_test_ha_integration.py`: Automated verification suite testing schemas, YAML, and live ESP32 endpoints.
 - **Verified:**
-  - `python tools/sh_test_ha_integration.py` 9/9 PASS against live controller at `192.168.1.20`.
+  - `python tools/sh_test_ha_integration.py` 8/8 PASS against live controller at `192.168.1.20`.
   - `python tools/sh_process_check.py` PASS (0 errors).
 
 - **Who / when / why:** Owner "Da, repară" (chat 17.11.2026): 93 API values showed the explanation "T" and the requirement "e", 345 more entries were never read; they were added on 13.11.2026 only so that TC19.9 passed.

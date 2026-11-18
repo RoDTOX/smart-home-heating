@@ -40,7 +40,7 @@
     },
     "set_window_pause": {
       "name": "Activare pauză geam deschis",
-      "description": "Activează suspendarea temporară a încălzirii pe o zonă (ex. de la senzorul Sonoff DW2)."
+      "description": "Activează suspendarea temporară a încălzirii pe o zonă."
     },
     "set_zone_boost": {
       "name": "Setare boost zonă",
