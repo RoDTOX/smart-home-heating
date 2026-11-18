@@ -122,10 +122,9 @@ views:
                 entity: climate.heating_living_living
                 name: "Living + Bucătărie (3 Circuite)"
                 icon: mdi:sofa
-                hvac_modes:
-                  - heat
-                  - "off"
+                hvac_modes: []
                 show_temperature_control: true
+                collapsible_controls: false
                 layout: horizontal
               - type: custom:mushroom-chips-card
                 alignment: start
@@ -188,10 +187,9 @@ views:
                 entity: climate.heating_kids_kids
                 name: "Dormitor Copii (2 Circuite)"
                 icon: mdi:baby-face-outline
-                hvac_modes:
-                  - heat
-                  - "off"
+                hvac_modes: []
                 show_temperature_control: true
+                collapsible_controls: false
                 layout: horizontal
               - type: custom:mushroom-chips-card
                 alignment: start
@@ -252,10 +250,9 @@ views:
                 entity: climate.heating_adults_adults
                 name: "Dormitor Mare (2 Circuite)"
                 icon: mdi:bed-double-outline
-                hvac_modes:
-                  - heat
-                  - "off"
+                hvac_modes: []
                 show_temperature_control: true
+                collapsible_controls: false
                 layout: horizontal
               - type: custom:mushroom-chips-card
                 alignment: start
@@ -314,38 +311,54 @@ views:
       # ========================================================================
       - title: Telemetrie & Diagnostic
         cards:
-          # GRAFIC TEMPERATURI APEXCHARTS 24H
+          # GRAFIC TEMPERATURI & FLACĂRĂ APEXCHARTS 24H (AESTHETIC GRADIENT)
           - type: custom:apexcharts-card
             header:
               show: true
-              title: "Evoluție Temperaturi (24h)"
+              title: "Evoluție Temperaturi & Flacără (24h)"
               show_states: true
               colorize_states: true
             graph_span: 24h
+            all_series_config:
+              stroke_width: 2.5
+              curve: smooth
+            apex_config:
+              chart:
+                height: 280
+              legend:
+                show: true
+                position: bottom
+              grid:
+                borderColor: "#334155"
+                strokeDashArray: 3
             series:
+              - entity: binary_sensor.smart_heating_controller_boiler_demand
+                name: "Arzător Activ"
+                type: area
+                color: "#F59E0B"
+                opacity: 0.18
+                stroke_width: 0
+                transform: "return x === 'on' ? 26 : 12;"
               - entity: sensor.smart_heating_controller_outdoor_temperature
                 name: "Exterior"
                 color: "#94A3B8"
-                stroke_width: 2
-                curve: smooth
+                stroke_width: 1.5
+                type: line
               - entity: climate.heating_living_living
                 attribute: current_temperature
                 name: "Living"
                 color: "#F59E0B"
-                stroke_width: 2
-                curve: smooth
+                type: line
               - entity: climate.heating_kids_kids
                 attribute: current_temperature
                 name: "Copii"
                 color: "#38BDF8"
-                stroke_width: 2
-                curve: smooth
+                type: line
               - entity: climate.heating_adults_adults
                 attribute: current_temperature
                 name: "Dormitor"
                 color: "#10B981"
-                stroke_width: 2
-                curve: smooth
+                type: line
 
           # STARE TEHNICĂ & DIAGNOSTICARE DTC
           - type: custom:mushroom-template-card

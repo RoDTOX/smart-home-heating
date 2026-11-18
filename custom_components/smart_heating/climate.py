@@ -55,10 +55,10 @@ class SmartHeatingZoneClimate(
     _attr_min_temp = 15.0
     _attr_max_temp = 28.0
     _attr_hvac_modes = [HVACMode.HEAT, HVACMode.OFF]
-    _attr_preset_modes = ["schedule", "boost"]
     _attr_supported_features = (
         ClimateEntityFeature.TARGET_TEMPERATURE
-        | ClimateEntityFeature.PRESET_MODE
+        | getattr(ClimateEntityFeature, "TURN_OFF", 0)
+        | getattr(ClimateEntityFeature, "TURN_ON", 0)
     )
 
     def __init__(
@@ -136,14 +136,6 @@ class SmartHeatingZoneClimate(
         return HVACAction.IDLE
 
     @property
-    def preset_mode(self) -> str | None:
-        """Return the current preset mode (boost or schedule)."""
-        zone = self._zone
-        if not zone:
-            return None
-        return "boost" if zone.is_boost else "schedule"
-
-    @property
     def extra_state_attributes(self) -> dict[str, Any]:
         """Return zone specific extra state attributes."""
         zone = self._zone
@@ -178,16 +170,6 @@ class SmartHeatingZoneClimate(
             return
         await self.coordinator.async_set_zone_temperature(self._zone_id, float(temp))
 
-    async def async_set_preset_mode(self, preset_mode: str) -> None:
-        """Set new preset mode: schedule (hold clear) or boost."""
-        if preset_mode == "schedule":
-            await self.coordinator.async_clear_zone_hold(self._zone_id)
-        elif preset_mode == "boost":
-            current_target = self.target_temperature or 21.0
-            await self.coordinator.async_set_zone_temperature(self._zone_id, current_target + 1.0)
-        else:
-            _LOGGER.warning("Unknown preset mode: %s", preset_mode)
-
     async def async_set_hvac_mode(self, hvac_mode: HVACMode) -> None:
         """Set new hvac mode using native firmware toggle."""
         if hvac_mode == HVACMode.OFF:
@@ -196,3 +178,13 @@ class SmartHeatingZoneClimate(
         elif hvac_mode == HVACMode.HEAT:
             if self._zone and not self._zone.enabled:
                 await self.coordinator.async_toggle_zone(self._zone_id)
+
+    async def async_turn_off(self) -> None:
+        """Turn the zone heating off."""
+        if self._zone and self._zone.enabled:
+            await self.coordinator.async_toggle_zone(self._zone_id)
+
+    async def async_turn_on(self) -> None:
+        """Turn the zone heating on."""
+        if self._zone and not self._zone.enabled:
+            await self.coordinator.async_toggle_zone(self._zone_id)
