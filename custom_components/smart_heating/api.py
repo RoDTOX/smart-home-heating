@@ -40,11 +40,15 @@ class SmartHeatingApiClient:
         self,
         host: str,
         port: int = 80,
+        username: str = "bogdan",
+        password: str = "bogdan123",
         session: aiohttp.ClientSession | None = None,
     ) -> None:
         """Initialize API client."""
         self._host = host
         self._port = port
+        self._username = username
+        self._password = password
         self._session = session
         self._close_session = False
         self._base_url = f"http://{host}:{port}"
@@ -74,6 +78,7 @@ class SmartHeatingApiClient:
         """Execute HTTP request with semaphore and timeout."""
         session = await self._get_session()
         url = f"{self._base_url}{endpoint}"
+        auth = aiohttp.BasicAuth(self._username, self._password) if self._username and self._password else None
 
         async with self._semaphore:
             try:
@@ -83,6 +88,7 @@ class SmartHeatingApiClient:
                         url=url,
                         params=params,
                         json=json_data,
+                        auth=auth,
                     ) as response:
                         if response.status >= 400:
                             text = await response.text()

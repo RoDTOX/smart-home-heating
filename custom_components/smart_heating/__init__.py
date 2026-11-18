@@ -57,7 +57,15 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     scan_interval = entry.options.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL)
 
     session = async_get_clientsession(hass)
-    api = SmartHeatingApiClient(host=host, port=port, session=session)
+    username = entry.data.get("username", "bogdan")
+    password = entry.data.get("password", "bogdan123")
+    api = SmartHeatingApiClient(
+        host=host,
+        port=port,
+        username=username,
+        password=password,
+        session=session,
+    )
 
     coordinator = SmartHeatingDataUpdateCoordinator(
         hass=hass,
