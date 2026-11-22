@@ -45,3 +45,8 @@ input/
 docs/bom_hardware_costs.md
 local/
 design/aistudio/
+
+# Internal AI Agent directories
+.agent/
+.claude/
+.gemini/
