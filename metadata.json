@@ -1,0 +1,5 @@
+{
+  "name": "Smart Home Heating",
+  "description": "Autonomous multi-zone underfloor heating controller dashboard and firmware simulator with TPI pulse control, hydraulic failsafes, schedules, telemetry, and engineering console.",
+  "requestFramePermissions": []
+}
